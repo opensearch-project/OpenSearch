@@ -21,6 +21,7 @@ use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroup
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::Operator;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 use futures::StreamExt;
 use roaring::RoaringBitmap;
 
@@ -37,8 +38,11 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
     let size = std::fs::metadata(&path).unwrap().len();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -170,8 +174,11 @@ async fn fetch_phase(row_ids: &[i64], fetch_columns: &[&str]) -> Vec<RecordBatch
     let path = tmp.path().to_path_buf();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let file_schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 
@@ -381,8 +388,11 @@ async fn test_qtf_full_loop_two_segments() {
     let path = tmp.path().to_path_buf();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let file_schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
 

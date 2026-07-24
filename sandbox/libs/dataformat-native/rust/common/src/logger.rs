@@ -50,6 +50,13 @@ pub extern "C" fn native_logger_set_level(level: i32) {
 }
 
 /// Called by Java at startup to register the log callback.
+///
+/// # Safety
+///
+/// `callback` must be a valid function pointer matching the [`LogCallback`]
+/// signature (`void log(int, const char*, long)`) and must remain valid for the
+/// entire lifetime of the process, since it is stored globally and invoked from
+/// arbitrary threads on every subsequent log call.
 #[no_mangle]
 pub unsafe extern "C" fn native_logger_init(callback: LogCallback) {
     LOG_CALLBACK.store(callback as *mut (), Ordering::Release);

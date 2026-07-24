@@ -93,7 +93,7 @@ fn test_merge_sort_by_int64() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, false)]));
 
     // File A: [1, 3, 5]  File B: [2, 4, 6]  File C: [0, 7, 8]
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int64Array::from(vec![1, 3, 5]))],
@@ -152,7 +152,7 @@ fn test_merge_sort_by_int64_with_nulls() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, true)]));
 
     // Each file pre-sorted: nulls last, then ascending
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int64Array::from(vec![Some(1), Some(5), None]))],
@@ -203,7 +203,7 @@ fn test_merge_sort_by_int64_with_nulls() {
 fn test_merge_sort_by_int32() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int32Array::from(vec![10, 30]))],
@@ -259,7 +259,7 @@ fn test_merge_sort_by_float64() {
         false,
     )]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Float64Array::from(vec![1.1, 3.3, 5.5]))],
@@ -315,7 +315,7 @@ fn test_merge_sort_by_float64_with_nulls() {
         true,
     )]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Float64Array::from(vec![
@@ -381,7 +381,7 @@ fn test_merge_sort_by_float32() {
         false,
     )]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Float32Array::from(vec![1.0f32, 3.0]))],
@@ -437,7 +437,7 @@ fn test_merge_sort_by_float32_with_nulls() {
         true,
     )]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Float32Array::from(vec![
@@ -495,7 +495,7 @@ fn test_merge_sort_by_float32_with_nulls() {
 fn test_merge_sort_by_string() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Utf8, false)]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(StringArray::from(vec!["apple", "cherry", "fig"]))],
@@ -550,7 +550,7 @@ fn test_merge_sort_by_string() {
 fn test_merge_sort_by_string_with_nulls() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Utf8, true)]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(StringArray::from(vec![
@@ -620,7 +620,7 @@ fn test_merge_sort_descending() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, false)]));
 
     // Each file sorted descending
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int64Array::from(vec![8, 5, 2]))],
@@ -683,7 +683,7 @@ fn test_merge_sort_multi_column_string_and_int() {
     // File A: (alpha,1), (alpha,3), (beta,1)
     // File B: (alpha,2), (beta,2), (beta,3)
     // Sorted by (category ASC, priority ASC)
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![
@@ -750,7 +750,7 @@ fn test_merge_sort_with_nulls_first() {
 
     // Each file pre-sorted with nulls first, then ascending
     // File A: [null, 2, 5]  File B: [null, 1, 4]
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int64Array::from(vec![None, Some(2), Some(5)]))],
@@ -800,7 +800,7 @@ fn test_merge_sort_with_nulls_first() {
 fn test_merge_sort_with_nulls_last() {
     let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, true)]));
 
-    let batches = vec![
+    let batches = [
         RecordBatch::try_new(
             schema.clone(),
             vec![Arc::new(Int64Array::from(vec![Some(1), Some(3), None]))],

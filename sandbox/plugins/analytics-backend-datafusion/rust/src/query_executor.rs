@@ -40,6 +40,8 @@ use crate::session_context::SessionContextHandle;
 /// `execute_with_context` path (via `api::execute_query`).
 /// TODO: Remove this function and migrate benchmarks to the decomposed path.
 /// Retained only for benchmarks. TODO: migrate benchmarks and remove.
+// Real API surface consumed by benchmarks; argument count mirrors the query pipeline inputs.
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_query(
     table_path: ListingTableUrl,
     object_metas: Arc<Vec<ObjectMeta>>,
@@ -345,7 +347,7 @@ pub async fn execute_with_context(
     let (stream_ptr, physical_plan) =
         crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
             .await
-            .map_err(|e| DataFusionError::Execution(e))?;
+            .map_err(DataFusionError::Execution)?;
 
     // Reconstruct the stream from the raw pointer
     let stream = unsafe {

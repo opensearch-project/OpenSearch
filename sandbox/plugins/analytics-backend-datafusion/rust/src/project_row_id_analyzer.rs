@@ -38,6 +38,12 @@ impl ProjectRowIdAnalyzer {
     }
 }
 
+impl Default for ProjectRowIdAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AnalyzerRule for ProjectRowIdAnalyzer {
     fn analyze(&self, plan: LogicalPlan, _config: &ConfigOptions) -> Result<LogicalPlan> {
         let rewritten = plan.transform_up(|node| match &node {

@@ -97,7 +97,7 @@ impl PhysicalOptimizerRule for ScopedPageIndexOptimizer {
             let predicate = parquet.filter();
 
             // Predicate column NAMES — empty when there's no pushed-down filter.
-            let mut predicate_names: Vec<String> = predicate
+            let predicate_names: Vec<String> = predicate
                 .as_ref()
                 .map(|p| {
                     let mut names: Vec<String> = collect_columns(p)
@@ -279,7 +279,6 @@ mod tests {
     /// schema even when `parquet.filter()` is `None`.
     #[test]
     fn installs_factory_for_projection_only_scan() {
-        use datafusion::parquet::arrow::ProjectionMask;
         use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 
         let sch = schema(); // fields: a(0), b(1)
@@ -289,7 +288,8 @@ mod tests {
         let parquet = parquet_for(&sch);
         let config =
             FileScanConfigBuilder::new(ObjectStoreUrl::local_filesystem(), Arc::new(parquet))
-                .with_projection(Some(vec![0])) // project `a` only
+                .with_projection_indices(Some(vec![0])) // project `a` only
+                .unwrap()
                 .build();
         let plan = DataSourceExec::from_data_source(config);
 
@@ -347,6 +347,8 @@ mod tests {
     /// page-index cache filled — proving the rule installs a working scoped reader
     /// on the vanilla listing path.
     #[tokio::test]
+    // test-only: guard serializes global-cache tests; held across .await intentionally
+    #[allow(clippy::await_holding_lock)]
     async fn end_to_end_listing_scan_fills_scoped_cache() {
         use arrow::array::{Int32Array, StringArray};
         use arrow::record_batch::RecordBatch;

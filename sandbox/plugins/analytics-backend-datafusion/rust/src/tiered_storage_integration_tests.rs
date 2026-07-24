@@ -34,7 +34,7 @@ use opensearch_tiered_storage::types::{FileLocation, TieredFileEntry};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
-const BLOCK_SIZE: usize = 1 * 1024 * 1024;
+const BLOCK_SIZE: usize = 1024 * 1024;
 const DISK_BYTES: usize = 8 * 1024 * 1024;
 const BUFFER_POOL: usize = 8 * 1024 * 1024;
 const SUBMIT_QUEUE: usize = 8 * 1024 * 1024;
@@ -233,7 +233,7 @@ async fn setup_df_session(
     ctx.runtime_env()
         .register_object_store(&url, store.clone() as Arc<dyn ObjectStore>);
 
-    let table_url = ListingTableUrl::parse(&format!("file:///{}", file_path)).unwrap();
+    let table_url = ListingTableUrl::parse(format!("file:///{}", file_path)).unwrap();
     let format = Arc::new(ParquetFormat::default());
     let listing_options = ListingOptions::new(format).with_file_extension(".parquet");
 
@@ -314,7 +314,10 @@ fn metadata_routed_to_metadata_cache_data_to_data_cache() {
         );
 
         // Data read (get_ranges) → data cache
-        let data = store.get_ranges(&path, &[0u64..4096]).await.unwrap();
+        let data = store
+            .get_ranges(&path, std::slice::from_ref(&(0u64..4096)))
+            .await
+            .unwrap();
         assert_eq!(data[0].len(), 4096);
 
         // Confirm data in data cache, NOT metadata cache
@@ -399,7 +402,10 @@ fn evict_prefix_clears_both_caches_on_shard_delete() {
     );
 
     block_on(async {
-        let _data = store.get_ranges(&path, &[0u64..4096]).await.unwrap();
+        let _data = store
+            .get_ranges(&path, std::slice::from_ref(&(0u64..4096)))
+            .await
+            .unwrap();
 
         let footer_key = range_cache_key("delete.parquet", footer_start, file_size);
         let data_key = range_cache_key("delete.parquet", 0, 4096);
@@ -523,7 +529,9 @@ fn data_pressure_does_not_evict_metadata() {
             let start = (i * 1024) as u64;
             let end = start + 102400;
             if end <= file_size {
-                let _ = store.get_ranges(&path, &[start..end]).await;
+                let _ = store
+                    .get_ranges(&path, std::slice::from_ref(&(start..end)))
+                    .await;
             }
         }
 
@@ -667,7 +675,10 @@ fn get_range_and_get_ranges_share_same_cache_key() {
 
     block_on(async {
         // Read first 4KB via get_ranges (data path → data_cache)
-        let via_ranges = store.get_ranges(&path, &[0u64..4096]).await.unwrap();
+        let via_ranges = store
+            .get_ranges(&path, std::slice::from_ref(&(0u64..4096)))
+            .await
+            .unwrap();
 
         // Read same range via get_range (metadata path → metadata_cache)
         let via_range = store.get_range(&path, 0u64..4096).await.unwrap();
@@ -718,7 +729,7 @@ fn metadata_cache_full_reads_still_succeed_via_local_fs() {
         false,
     ));
     let metadata_cache = Arc::new(FoyerCache::new(
-        1 * 1024 * 1024,
+        1024 * 1024,
         meta_dir.path(),
         BLOCK_SIZE,
         BUFFER_POOL,
@@ -833,7 +844,11 @@ fn warmup_put_metadata_then_datafusion_query_from_cache() {
         let footer_start = file_size.saturating_sub(64 * 1024);
         let footer_key = range_cache_key("warm.parquet", footer_start, file_size);
         if let Some(footer_bytes) = cache.get(&footer_key).await {
-            store.put_metadata("warm.parquet", &[footer_start..file_size], &[footer_bytes]);
+            store.put_metadata(
+                "warm.parquet",
+                std::slice::from_ref(&(footer_start..file_size)),
+                &[footer_bytes],
+            );
         }
 
         // Verify metadata is now in metadata_cache
@@ -1211,7 +1226,7 @@ fn metadata_foyer_capacity_breach_graceful_degradation() {
         false,
     ));
     let metadata_cache = Arc::new(FoyerCache::new(
-        1 * 1024 * 1024,
+        1024 * 1024,
         meta_dir.path(),
         BLOCK_SIZE,
         BUFFER_POOL,
@@ -1466,7 +1481,10 @@ fn get_opts_probe_does_not_pollute_metadata_foyer() {
         );
 
         // Contrast: reading via get_ranges DOES populate data cache
-        let data2 = store.get_ranges(&path, &[100u64..4196]).await.unwrap();
+        let data2 = store
+            .get_ranges(&path, std::slice::from_ref(&(100u64..4196)))
+            .await
+            .unwrap();
         assert_eq!(data2[0].len(), 4096);
         let data2_key = range_cache_key("nopollute.parquet", 100, 4196);
         assert!(
@@ -1733,7 +1751,7 @@ fn restart_with_file_deleted_query_succeeds_from_foyer_only() {
         let footer_bytes = bytes::Bytes::copy_from_slice(&file_bytes[footer_start as usize..]);
         store.put_metadata(
             "restart_full.parquet",
-            &[footer_start..file_size],
+            std::slice::from_ref(&(footer_start..file_size)),
             &[footer_bytes],
         );
 

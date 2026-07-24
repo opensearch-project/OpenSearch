@@ -43,6 +43,8 @@ pub struct PhantomCorrector {
     /// = target_partitions × PARTITION_BUFFER_MULTIPLIER + 1 (output channel)
     batches_in_pipeline: usize,
     /// The per-batch bytes used in the original phantom estimate.
+    // Retained for diagnostics/future correction heuristics; not read yet.
+    #[allow(dead_code)]
     estimated_batch_bytes: usize,
     /// EMA of actual batch bytes (×1000 fixed-point).
     ema_batch_bytes_x1000: AtomicU64,
@@ -117,7 +119,7 @@ impl PhantomCorrector {
         let count = self.batches_observed.fetch_add(1, Ordering::Relaxed) + 1;
 
         // Skip warmup and non-correction intervals
-        if count < WARMUP_BATCHES || count % CORRECTION_INTERVAL != 0 {
+        if count < WARMUP_BATCHES || !count.is_multiple_of(CORRECTION_INTERVAL) {
             return;
         }
 
@@ -147,7 +149,10 @@ impl PhantomCorrector {
 // Send + Sync is auto-derived since all fields are atomic.
 // Explicit assertion for documentation:
 const _: () = {
+    // Compile-time Send + Sync assertion; never called at runtime.
+    #[allow(dead_code)]
     fn assert_send_sync<T: Send + Sync>() {}
+    #[allow(dead_code)]
     fn check() {
         assert_send_sync::<PhantomCorrector>();
     }
@@ -234,7 +239,7 @@ mod tests {
 
         // Simulate 50 batches (typical scan of ~400K rows)
         let mut phantom = initial_phantom as i64;
-        for i in 0..50 {
+        for _ in 0..50 {
             c.observe_batch(actual_batch);
             let delta = c.take_pending_delta();
             if delta != 0 {
@@ -252,7 +257,7 @@ mod tests {
 
         // After convergence, phantom should be within 15% of ideal (1.0-1.15x)
         assert!(
-            bloat_ratio >= 0.85 && bloat_ratio <= 1.15,
+            (0.85..=1.15).contains(&bloat_ratio),
             "Bloat ratio {:.2}x is outside [0.85, 1.15] — corrector not converging",
             bloat_ratio
         );
@@ -289,7 +294,7 @@ mod tests {
 
         // Should be even tighter since starting point was already close
         assert!(
-            bloat_ratio >= 0.90 && bloat_ratio <= 1.10,
+            (0.90..=1.10).contains(&bloat_ratio),
             "Metadata-seeded bloat ratio {:.2}x is outside [0.90, 1.10]",
             bloat_ratio
         );

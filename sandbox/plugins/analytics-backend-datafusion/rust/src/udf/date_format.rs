@@ -11,8 +11,6 @@
 
 use std::sync::Arc;
 
-use super::udf_identity;
-
 use chrono::{TimeZone, Utc};
 use datafusion::arrow::array::{
     Array, ArrayRef, AsArray, StringBuilder, TimestampMicrosecondArray,

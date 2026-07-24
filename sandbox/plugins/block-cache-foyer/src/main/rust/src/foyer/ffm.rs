@@ -268,6 +268,10 @@ pub unsafe extern "C" fn foyer_update_persist_interval(ptr: i64, new_secs: u64) 
 /// # Safety
 /// - `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
 /// - `prefix_ptr` must point to `prefix_len` consecutive valid UTF-8 bytes.
+// clippy::not_unsafe_ptr_arg_deref — this is a `#[no_mangle] extern "C"` FFM entry point
+// called from the JVM; the pointer contract is documented in the `# Safety` section above.
+// Marking it `unsafe fn` has no effect for C-ABI callers, so allow the raw-pointer deref.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn foyer_evict_prefix(ptr: i64, prefix_ptr: *const u8, prefix_len: u64) -> i64 {

@@ -127,12 +127,10 @@ impl<W: Write> RateLimitedWriter<W> {
 
         let min_pause_check_bytes = Self::calculate_min_pause_check_bytes(mb_per_sec);
 
-        let mut config = self.rate_limiter_config.write().map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to acquire write lock: {}", e),
-            )
-        })?;
+        let mut config = self
+            .rate_limiter_config
+            .write()
+            .map_err(|e| std::io::Error::other(format!("Failed to acquire write lock: {}", e)))?;
 
         config.mb_per_sec = mb_per_sec;
         config.min_pause_check_bytes = min_pause_check_bytes;

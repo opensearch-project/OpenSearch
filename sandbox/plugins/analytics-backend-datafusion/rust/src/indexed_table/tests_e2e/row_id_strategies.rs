@@ -46,7 +46,7 @@ mod tests {
         let file = std::fs::File::create(&path).unwrap();
 
         let props = WriterProperties::builder()
-            .set_max_row_group_size(rows_per_rg)
+            .set_max_row_group_row_count(Some(rows_per_rg))
             .build();
 
         let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props)).unwrap();
@@ -202,8 +202,8 @@ mod tests {
         // Verify contiguous from 0
         assert_eq!(sorted[0], 0);
         assert_eq!(*sorted.last().unwrap(), (total_rows - 1) as i64);
-        for i in 0..sorted.len() {
-            assert_eq!(sorted[i], i as i64, "Row IDs should be contiguous");
+        for (i, &row_id) in sorted.iter().enumerate() {
+            assert_eq!(row_id, i as i64, "Row IDs should be contiguous");
         }
     }
 

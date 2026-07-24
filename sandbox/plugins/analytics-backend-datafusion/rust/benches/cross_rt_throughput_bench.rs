@@ -44,7 +44,7 @@ fn test_batch(rows: usize) -> RecordBatch {
 fn make_executor() -> DedicatedExecutor {
     let mut builder = tokio::runtime::Builder::new_multi_thread();
     builder.worker_threads(4).enable_all();
-    DedicatedExecutor::new("bench-cpu", builder)
+    DedicatedExecutor::new("bench-cpu", builder, 4)
 }
 
 /// Benchmark: push N batches through CrossRtStream and consume them.

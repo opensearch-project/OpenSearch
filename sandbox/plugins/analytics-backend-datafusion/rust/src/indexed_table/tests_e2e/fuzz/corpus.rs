@@ -387,7 +387,7 @@ fn write_parquet(
 ) -> NamedTempFile {
     let tmp = NamedTempFile::new().expect("tempfile");
     let mut builder = WriterProperties::builder()
-        .set_max_row_group_size(rows_per_row_group)
+        .set_max_row_group_row_count(Some(rows_per_row_group))
         .set_data_page_row_count_limit(rows_per_page)
         .set_statistics_enabled(EnabledStatistics::Page)
         // Force different encodings per column type to produce different
@@ -432,6 +432,7 @@ fn random_alphanumeric(rng: &mut StdRng, max_len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
 
     #[test]
     fn corpus_is_deterministic() {
@@ -460,7 +461,7 @@ mod tests {
         let meta = datafusion::parquet::arrow::arrow_reader::ArrowReaderMetadata::load(
             &file,
             datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions::new()
-                .with_page_index(true),
+                .with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         assert!(meta.metadata().num_row_groups() > 1);
@@ -482,7 +483,7 @@ mod tests {
         let meta = datafusion::parquet::arrow::arrow_reader::ArrowReaderMetadata::load(
             &file,
             datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions::new()
-                .with_page_index(true),
+                .with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let oi = meta.metadata().offset_index().expect("offset index");

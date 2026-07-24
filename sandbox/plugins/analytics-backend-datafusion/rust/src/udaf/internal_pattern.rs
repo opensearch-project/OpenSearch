@@ -309,7 +309,7 @@ pub struct InternalPatternAccumulator {
 }
 
 impl InternalPatternAccumulator {
-    pub fn new(arg0_is_list: bool, config: AggConfig) -> Self {
+    fn new(arg0_is_list: bool, config: AggConfig) -> Self {
         Self {
             arg0_is_list,
             config,
@@ -402,7 +402,7 @@ impl Accumulator for InternalPatternAccumulator {
 
     fn evaluate(&mut self) -> Result<ScalarValue> {
         if self.buffer.is_empty() {
-            return Ok(empty_list_struct_scalar()?);
+            return empty_list_struct_scalar();
         }
         let mut parser = BrainLogParser::with_thresholds(
             self.config.variable_count_threshold,
@@ -433,7 +433,7 @@ impl Accumulator for InternalPatternAccumulator {
 /// `LogPatternAggFunction.value()`'s ordering.
 fn sorted_pattern_entries(stats: HashMap<String, PatternEntry>) -> Vec<PatternEntry> {
     let mut entries: Vec<PatternEntry> = stats.into_values().collect();
-    entries.sort_by(|a, b| b.pattern_count.cmp(&a.pattern_count));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.pattern_count));
     entries
 }
 

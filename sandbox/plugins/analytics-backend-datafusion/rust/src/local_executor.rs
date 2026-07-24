@@ -650,7 +650,6 @@ mod tests {
     #[test]
     fn set_phantom_stores_reservation() {
         use datafusion::execution::memory_pool::{GreedyMemoryPool, MemoryConsumer};
-        use std::num::NonZeroUsize;
 
         let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
             Arc::new(GreedyMemoryPool::new(10_000_000));
@@ -663,7 +662,7 @@ mod tests {
         assert_eq!(session.phantom_size(), 0);
 
         let consumer = MemoryConsumer::new("test_phantom").with_can_spill(true);
-        let mut reservation = consumer.register(&pool);
+        let reservation = consumer.register(&pool);
         reservation.try_grow(1000).unwrap();
         session.set_phantom(reservation);
 
@@ -685,7 +684,7 @@ mod tests {
         {
             let mut session = LocalSession::new(&env);
             let consumer = MemoryConsumer::new("test_phantom").with_can_spill(true);
-            let mut reservation = consumer.register(&pool);
+            let reservation = consumer.register(&pool);
             reservation.try_grow(5000).unwrap();
             session.set_phantom(reservation);
             assert_eq!(pool.reserved(), reserved_before + 5000);

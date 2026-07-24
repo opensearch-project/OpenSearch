@@ -17,6 +17,7 @@
 //! - Per-segment doc ID locality (each segment has its own `[0, max_doc)`).
 
 use super::*;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 
 // ── Two-segment fixture ───────────────────────────────────────────────
 //
@@ -56,7 +57,7 @@ fn write_segment_rg(
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(max_rg_rows)
+        .set_max_row_group_row_count(Some(max_rg_rows))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
@@ -103,9 +104,11 @@ async fn run_two_segment_query(
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -314,9 +317,11 @@ async fn run_two_segment_query_witness(
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -536,9 +541,11 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -761,7 +768,7 @@ async fn four_segments_mixed_rg_sizes() {
     // Deliberately uneven: seg0 has 2 RGs, seg1 has 4 RGs, seg2 has 1 RG,
     // seg3 has 8 RGs. Total ~60 rows across 15 RGs. Uneven fan-out
     // stresses compute_assignments.
-    let specs = vec![
+    let specs = [
         SegSpec {
             brand: "amazon",
             base_price: 0,
@@ -981,7 +988,7 @@ fn write_wide_segment(brand: &'static str, rows: usize, max_rg_rows: usize) -> N
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(max_rg_rows)
+        .set_max_row_group_row_count(Some(max_rg_rows))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
@@ -1038,9 +1045,11 @@ async fn run_wide_segments(
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -1288,7 +1297,7 @@ async fn wide_multi_segment_not_and_three_column_predicates() {
     ]);
     let expected = wide_oracle(&specs, |i| {
         let i32_i = i as i32;
-        !(i32_i * 10 < 30) && i32_i % 7 > 2 && i % 3 != 2
+        (i32_i * 10 >= 30) && i32_i % 7 > 2 && i % 3 != 2
     });
     for np in [1usize, 3, 5] {
         let rows = run_wide_segments(clone_wide_specs(&specs), tree.clone(), np).await;
@@ -1386,9 +1395,11 @@ async fn run_wide_segments_with_stats_pruning(
         let path = tmp.path().to_path_buf();
         let size = std::fs::metadata(&path).unwrap().len();
         let file = std::fs::File::open(&path).unwrap();
-        let meta =
-            ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
-                .unwrap();
+        let meta = ArrowReaderMetadata::load(
+            &file,
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+        )
+        .unwrap();
         if schema_opt.is_none() {
             schema_opt = Some(meta.schema().clone());
         }
@@ -1645,7 +1656,7 @@ async fn stats_prune_multi_segment_multi_partition_with_not() {
         ]),
     ]);
     // NOT is conservative in stats (always true), so actual predicate filters.
-    let expected = wide_oracle(&specs, |i| !((i as i32) * 10 < 40));
+    let expected = wide_oracle(&specs, |i| (i as i32) * 10 >= 40);
     for np in [1usize, 3, 5] {
         let rows =
             run_wide_segments_with_stats_pruning(clone_wide_specs(&specs), tree.clone(), np).await;
@@ -1675,8 +1686,11 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
     let tmp = write_wide_segment(spec.brand, spec.rows, spec.max_rg_rows);
     let path = tmp.path().to_path_buf();
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_meta = meta.metadata().clone();
     let schema = meta.schema().clone();
     assert_eq!(parquet_meta.num_row_groups(), 4);
@@ -1846,7 +1860,7 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         page_prune_metrics: None,
         collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
         stats_prune_tree: Some(Arc::new(spt)),
-        rg_index_to_pos: rg_index_to_pos,
+        rg_index_to_pos,
     };
 
     // RG2 at absolute index 2: should NOT be pruned (prices 80-110, all > 60).
@@ -1900,8 +1914,11 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
     let tmp = write_wide_segment(spec.brand, spec.rows, spec.max_rg_rows);
     let path = tmp.path().to_path_buf();
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_meta = meta.metadata().clone();
     let schema = meta.schema().clone();
 

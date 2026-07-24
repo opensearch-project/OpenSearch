@@ -51,6 +51,8 @@ pub struct CrossRtStream {
 }
 
 impl CrossRtStream {
+    // Alternate constructor retained for API completeness / future use.
+    #[allow(dead_code)]
     fn new_with_tx<F, Fut>(f: F, schema: SchemaRef) -> Self
     where
         F: FnOnce(Sender<Result<RecordBatch, DataFusionError>>) -> Fut,
@@ -169,10 +171,8 @@ impl Stream for CrossRtStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
 
-        if !this.driver_ready {
-            if this.driver.poll_unpin(cx).is_ready() {
-                this.driver_ready = true;
-            }
+        if !this.driver_ready && this.driver.poll_unpin(cx).is_ready() {
+            this.driver_ready = true;
         }
 
         if this.inner_done {

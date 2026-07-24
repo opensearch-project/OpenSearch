@@ -313,8 +313,8 @@ fn format_commas_f64(v: f64) -> String {
     if frac != "00" {
         out.push('.');
         // Trim a trailing '0' when exactly one digit would be meaningful, e.g. `.50 → .5`.
-        if frac.ends_with('0') {
-            out.push_str(&frac[..frac.len() - 1]);
+        if let Some(stripped) = frac.strip_suffix('0') {
+            out.push_str(stripped);
         } else {
             out.push_str(frac);
         }
@@ -330,7 +330,7 @@ fn insert_thousands_separators(digits: &str, out: &mut String) {
     for (i, b) in bytes.iter().enumerate() {
         let from_right = len - i;
         out.push(*b as char);
-        if from_right > 1 && (from_right - 1) % 3 == 0 {
+        if from_right > 1 && (from_right - 1).is_multiple_of(3) {
             out.push(',');
         }
     }

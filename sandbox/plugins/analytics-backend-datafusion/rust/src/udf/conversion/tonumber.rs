@@ -216,7 +216,7 @@ fn parse_with_base(s: Option<&str>, base: Option<i32>) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::{Array, AsArray, Int32Array, StringArray};
+    use datafusion::arrow::array::{Array, AsArray, StringArray};
     use datafusion::arrow::datatypes::Field;
 
     fn invoke_scalar(value: Option<&str>, base: Option<i32>) -> Option<f64> {

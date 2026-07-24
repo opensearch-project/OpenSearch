@@ -793,7 +793,7 @@ static REDUCE_TARGET_PARTITIONS: std::sync::atomic::AtomicUsize =
 
 pub fn set_reduce_target_partitions(value: i64) {
     REDUCE_TARGET_PARTITIONS.store(
-        value.max(1).min(32) as usize,
+        value.clamp(1, 32) as usize,
         std::sync::atomic::Ordering::Release,
     );
 }
@@ -818,8 +818,8 @@ pub fn get_reduce_target_partitions() -> usize {
 /// `filenames` are kept in the order supplied by the caller.
 ///
 /// `store_ptr`: 0 = use default LocalFileSystem (hot path),
-/// >0 = `Box<Arc<dyn MetadataCachingStore>>` pointer (routes reads through TieredObjectStore;
-///       trait upcasts to `dyn ObjectStore` for DataFusion APIs that take `Arc<dyn ObjectStore>`).
+/// `>0` = `Box<Arc<dyn MetadataCachingStore>>` pointer (routes reads through TieredObjectStore;
+/// trait upcasts to `dyn ObjectStore` for DataFusion APIs that take `Arc<dyn ObjectStore>`).
 pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
@@ -911,6 +911,8 @@ pub unsafe fn close_reader(ptr: i64) {
 ///
 /// # Safety
 /// `shard_view_ptr` and `runtime_ptr` must be valid, non-zero pointers.
+// Real FFM-facing API; argument count mirrors the Java-provided query inputs.
+#[allow(clippy::too_many_arguments)]
 pub async unsafe fn execute_query(
     shard_view_ptr: i64,
     table_name: &str,
@@ -989,7 +991,7 @@ pub async unsafe fn execute_query(
 
     let stream_ptr = cancellation::cancellable(token.as_ref(), context_id, query_future)
         .await
-        .map_err(|e| DataFusionError::Execution(e))?;
+        .map_err(DataFusionError::Execution)?;
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
@@ -1012,6 +1014,11 @@ pub async unsafe fn execute_query(
 /// Uses shared helpers from query_executor for runtime setup, file info building,
 /// and stream wrapping. The fetch-specific logic is building ParquetAccessPlans
 /// from row IDs and computing global __row_id__ = __row_id__ + row_base in SQL.
+///
+/// # Safety
+/// `shard_view` and `runtime` must reference live objects that outlive the call,
+/// and the shard's underlying object store / file handles must remain valid for
+/// the duration of query execution.
 pub async unsafe fn fetch_by_row_ids(
     shard_view: &ShardView,
     runtime: &DataFusionRuntime,
@@ -1195,6 +1202,8 @@ pub async unsafe fn fetch_by_row_ids(
 /// Resolve the dynamic spill limit based on available disk space.
 /// Uses 80% of available space on the spill directory's filesystem.
 /// Falls back to 8GB if disk space cannot be determined.
+// Retained for dynamic spill-limit sizing; not currently wired into the runtime setup path.
+#[allow(dead_code)]
 fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
     const FRACTION: f64 = 0.80;
     const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
@@ -1297,7 +1306,6 @@ fn try_acquire_budget_from_cache(
     pool: &Arc<dyn MemoryPool>,
     config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
-    use datafusion::execution::cache::CacheAccessor;
     use parquet::arrow::parquet_to_arrow_schema;
     use parquet::file::metadata::ParquetMetaData;
 
@@ -1372,7 +1380,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
             .map_err(|e: DataFusionError| e)
     })
     .await
-    .map_err(|e| DataFusionError::Execution(e))?;
+    .map_err(DataFusionError::Execution)?;
 
     match result {
         Some(batch) => {
@@ -2140,6 +2148,8 @@ pub unsafe fn sender_close(sender_ptr: i64) {
     }
 }
 
+// Memtable helper entry points below intentionally follow this test module.
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2631,7 +2641,7 @@ mod tests {
     #[test]
     fn stringview_gc_inline_strings_no_change() {
         let strings: Vec<&str> = (0..100).map(|_| "short").collect();
-        let string_view_array = StringViewArray::from_iter_values(strings.into_iter());
+        let string_view_array = StringViewArray::from_iter_values(strings);
 
         let schema = Arc::new(Schema::new(vec![Field::new(
             "str_col",

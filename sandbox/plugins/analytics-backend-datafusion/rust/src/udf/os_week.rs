@@ -24,8 +24,6 @@ use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 
-use super::udf_identity;
-
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(OsWeekUdf::new()));
     ctx.register_udf(ScalarUDF::from(OsYearweekUdf::new()));
@@ -284,7 +282,7 @@ fn os_year_number(date: NaiveDate, mode: i32) -> i32 {
 
 /// `(firstDayOfWeek, minimalDaysInFirstWeek)` for MySQL modes 0..7.
 fn week_params(mode: u32) -> (Weekday, u32) {
-    let first = if mode % 2 == 0 {
+    let first = if mode.is_multiple_of(2) {
         Weekday::Sun
     } else {
         Weekday::Mon

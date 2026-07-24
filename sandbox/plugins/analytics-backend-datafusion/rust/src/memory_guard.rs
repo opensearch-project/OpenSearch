@@ -57,15 +57,14 @@ pub fn cached_resident_bytes() -> i64 {
     let base = EPOCH_BASE.get_or_init(Instant::now);
     let now_ms = base.elapsed().as_millis() as u64;
     let last = LAST_CHECK_MS.load(Ordering::Relaxed);
-    if now_ms.wrapping_sub(last) >= RESIDENT_CACHE_INTERVAL_MS {
-        if LAST_CHECK_MS
+    if now_ms.wrapping_sub(last) >= RESIDENT_CACHE_INTERVAL_MS
+        && LAST_CHECK_MS
             .compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed)
             .is_ok()
-        {
-            let r = native_bridge_common::allocator::resident_bytes();
-            CACHED_RESIDENT.store(r, Ordering::Relaxed);
-            return r;
-        }
+    {
+        let r = native_bridge_common::allocator::resident_bytes();
+        CACHED_RESIDENT.store(r, Ordering::Relaxed);
+        return r;
     }
     CACHED_RESIDENT.load(Ordering::Relaxed)
 }
@@ -310,7 +309,7 @@ pub fn mark_spill_disabled() {
 /// Returns:
 /// * `Disabled`     when spill is off — no `statvfs` call, no clamp.
 /// * `Critical`     when spill is on but the spill volume is dangerously low
-///                  (< 64MB after the fraction, or `statvfs` failed). Caller clamps to 1.
+///   (< 64MB after the fraction, or `statvfs` failed). Caller clamps to 1.
 /// * `Available(n)` when spill is on and disk is healthy.
 ///
 /// Cost: one `statvfs` syscall (~1µs) only when spill is enabled. Called once per
@@ -359,7 +358,13 @@ pub fn available_disk_space(path: &str) -> Option<u64> {
         return None;
     }
     let stat = unsafe { stat.assume_init() };
-    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+    // clippy::unnecessary_cast — `statvfs` field widths are platform-dependent: `f_bavail`
+    // is u64 on Linux (cast is a no-op there, which is why clippy flags it) but u32/c_ulong
+    // on macOS/BSD, where the `as u64` is a real widening cast needed to avoid overflow in
+    // the multiply. Keep the cast for cross-platform correctness.
+    #[allow(clippy::unnecessary_cast)]
+    let avail = stat.f_bavail as u64 * stat.f_frsize as u64;
+    Some(avail)
 }
 
 #[cfg(not(unix))]

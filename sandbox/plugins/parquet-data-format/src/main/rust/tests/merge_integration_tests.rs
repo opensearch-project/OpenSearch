@@ -784,8 +784,8 @@ fn test_default_settings_ascending_nulls_first() {
     let vals = read_col_i64(&output, "v");
     assert_eq!(vals.len() as i64, total);
     // First total_nulls rows must all be None
-    for i in 0..total_nulls as usize {
-        assert_eq!(vals[i], None, "expected null at row {}", i);
+    for (i, val) in vals.iter().enumerate().take(total_nulls as usize) {
+        assert_eq!(*val, None, "expected null at row {}", i);
     }
     // Remaining rows must be exactly 0, 1, 2, ..., total_nonnulls-1
     for i in 0..total_nonnulls as usize {

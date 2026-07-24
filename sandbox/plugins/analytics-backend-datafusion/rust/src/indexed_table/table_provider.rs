@@ -168,6 +168,15 @@ fn build_projected_lex_ordering(
     LexOrdering::new(exprs)
 }
 
+/// Query-level pruning inputs for building a `StatsPruneTree` per segment:
+/// the `BoolNode` predicate tree, the prebuilt `PruningPredicate`s keyed by
+/// `Arc` pointer identity, and the schema they were built against.
+pub type PruneTreeConfig = (
+    Arc<BoolNode>,
+    Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
+    SchemaRef,
+);
+
 /// Configuration used to build an `IndexedTableProvider`.
 pub struct IndexedTableConfig {
     pub schema: SchemaRef,
@@ -203,11 +212,7 @@ pub struct IndexedTableConfig {
     pub emit_row_ids: bool,
     /// Query-level data for building StatsPruneTree per segment.
     /// (BoolNode tree, prebuilt PruningPredicates keyed by Arc ptr, schema)
-    pub prune_tree_config: Option<(
-        Arc<BoolNode>,
-        Arc<std::collections::HashMap<usize, Arc<PruningPredicate>>>,
-        SchemaRef,
-    )>,
+    pub prune_tree_config: Option<PruneTreeConfig>,
     /// `index.sort.field` — column names that the parquet writer used to sort
     /// rows on disk. Empty when the index has no `index.sort.field`.
     pub sort_fields: Vec<String>,
@@ -389,23 +394,24 @@ impl TableProvider for IndexedTableProvider {
             None
         };
 
-        let (assignments, eq_properties, advertised_ordering) = if chain_ok
-            && lex_ordering.is_some()
-        {
-            let assignments = compute_assignments_one_per_segment(&self.config.segments, &layouts);
-            let lex = lex_ordering.unwrap();
-            let eq = EquivalenceProperties::new_with_orderings(
-                projected_schema.clone(),
-                vec![lex.clone()],
-            );
-            (assignments, eq, Some(lex))
-        } else {
-            let assignments = compute_assignments(&layouts, target_partitions);
-            (
-                assignments,
-                EquivalenceProperties::new(projected_schema.clone()),
-                None,
-            )
+        let (assignments, eq_properties, advertised_ordering) = match lex_ordering {
+            Some(lex) if chain_ok => {
+                let assignments =
+                    compute_assignments_one_per_segment(&self.config.segments, &layouts);
+                let eq = EquivalenceProperties::new_with_orderings(
+                    projected_schema.clone(),
+                    vec![lex.clone()],
+                );
+                (assignments, eq, Some(lex))
+            }
+            _ => {
+                let assignments = compute_assignments(&layouts, target_partitions);
+                (
+                    assignments,
+                    EquivalenceProperties::new(projected_schema.clone()),
+                    None,
+                )
+            }
         };
 
         let properties = Arc::new(PlanProperties::new(
@@ -838,7 +844,6 @@ impl QueryShardExec {
 mod tests {
     use super::*;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::logical_expr::{col, lit};
     use datafusion::prelude::SessionContext;
 
     fn empty_config() -> IndexedTableConfig {

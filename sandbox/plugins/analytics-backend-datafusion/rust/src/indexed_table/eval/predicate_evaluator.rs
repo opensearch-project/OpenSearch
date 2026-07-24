@@ -20,7 +20,6 @@ use std::time::Instant;
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
-use roaring::RoaringBitmap;
 
 use super::eval_helpers::{
     compute_page_ranges, evaluate_residual, universe_bitmap_from_page_ranges,
@@ -134,6 +133,7 @@ mod tests {
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
 
@@ -149,7 +149,7 @@ mod tests {
         writer.write(&batch).unwrap();
         writer.close().unwrap();
         let file = tmp.reopen().unwrap();
-        let options = ArrowReaderOptions::new().with_page_index(true);
+        let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional);
         let meta = ArrowReaderMetadata::load(&file, options).unwrap();
         Arc::new(PagePruner::new(
             meta.schema(),

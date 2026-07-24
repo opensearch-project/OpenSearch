@@ -531,7 +531,10 @@ fn to_row_selection(keep: Vec<bool>, row_counts: &[usize]) -> RowSelection {
 fn eval_leaf(
     pruning_predicate: &PruningPredicate,
     metadata: &ParquetMetaData,
-    schema: &SchemaRef,
+    // Stats are resolved against `seg_arrow_schema` (the segment's own footer schema),
+    // not the table schema — see the comment below. Kept in the signature because the
+    // recursive `build_from_bool_node` threads it uniformly to all leaf handlers.
+    _schema: &SchemaRef,
     rg_indices: &[usize],
     seg_arrow_schema: &SchemaRef,
 ) -> Vec<bool> {
@@ -798,6 +801,7 @@ mod tests {
     use datafusion::logical_expr::Operator;
     use datafusion::parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
     use datafusion::parquet::arrow::ArrowWriter;
+    use datafusion::parquet::file::metadata::PageIndexPolicy;
     use datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
     use std::sync::Arc;
     use tempfile::NamedTempFile;
@@ -823,7 +827,7 @@ mod tests {
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -834,7 +838,7 @@ mod tests {
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let arc_meta = meta.metadata().clone();
@@ -1155,7 +1159,7 @@ mod tests {
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -1168,7 +1172,7 @@ mod tests {
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         assert_eq!(meta.metadata().num_row_groups(), 2);
@@ -1217,7 +1221,7 @@ mod tests {
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             // Extreme byte budget forces a page flush after nearly
             // every row for `tag`. Dictionary encoding would collapse
             // the strings to small indices, defeating the budget, so
@@ -1234,7 +1238,7 @@ mod tests {
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let arc_meta = meta.metadata().clone();
@@ -1303,7 +1307,7 @@ mod tests {
             RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vals))]).unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -1314,7 +1318,7 @@ mod tests {
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let pruner = PagePruner::new(&schema, meta.metadata().clone(), schema.clone());
@@ -1370,7 +1374,7 @@ mod tests {
         .unwrap();
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -1381,7 +1385,7 @@ mod tests {
         w.close().unwrap();
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         let pruner = PagePruner::new(
@@ -1428,7 +1432,7 @@ mod tests {
         // change writer props between flushes.
         let tmp = NamedTempFile::new().unwrap();
         let props_rg0 = WriterProperties::builder()
-            .set_max_row_group_size(32)
+            .set_max_row_group_row_count(Some(32))
             .set_data_page_row_count_limit(8)
             .set_write_batch_size(8)
             .set_statistics_enabled(EnabledStatistics::Page)
@@ -1467,7 +1471,7 @@ mod tests {
 
         let meta = ArrowReaderMetadata::load(
             &tmp.reopen().unwrap(),
-            ArrowReaderOptions::new().with_page_index(true),
+            ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )
         .unwrap();
         assert_eq!(meta.metadata().num_row_groups(), 2);
@@ -1525,7 +1529,7 @@ mod tests {
         )]));
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(10)
+            .set_max_row_group_row_count(Some(10))
             .set_statistics_enabled(EnabledStatistics::Chunk)
             .build();
         let mut w =
@@ -1725,7 +1729,7 @@ mod tests {
         )]));
         let tmp = NamedTempFile::new().unwrap();
         let props = WriterProperties::builder()
-            .set_max_row_group_size(10)
+            .set_max_row_group_row_count(Some(10))
             .set_statistics_enabled(EnabledStatistics::Chunk)
             .build();
         let mut w =
@@ -1788,13 +1792,13 @@ mod tests {
 
         // Absolute RG 3 should map to position 1 → can_match = true
         let pos = rg_index_to_pos.get(&3).unwrap();
-        assert_eq!(spt.rg_can_match[*pos], true);
+        assert!(spt.rg_can_match[*pos]);
 
         // Absolute RG 2 should map to position 0 → can_match = false
         let pos = rg_index_to_pos.get(&2).unwrap();
-        assert_eq!(spt.rg_can_match[*pos], false);
+        assert!(!spt.rg_can_match[*pos]);
 
         // Absolute RG 0 (not in chunk) should have no entry
-        assert!(rg_index_to_pos.get(&0).is_none());
+        assert!(!rg_index_to_pos.contains_key(&0));
     }
 }

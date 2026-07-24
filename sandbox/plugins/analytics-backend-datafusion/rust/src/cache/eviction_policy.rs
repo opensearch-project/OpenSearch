@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_lru_policy_basic_operations() {
-        let mut policy = LruPolicy::new();
+        let policy = LruPolicy::new();
         assert_eq!(policy.policy_name(), "lru");
 
         policy.on_insert("key1", 100);
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_lru_policy_victim_selection() {
-        let mut policy = LruPolicy::new();
+        let policy = LruPolicy::new();
 
         policy.on_insert("oldest", 100);
         thread::sleep(Duration::from_millis(1));
@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_lfu_policy_victim_selection() {
-        let mut policy = LfuPolicy::new();
+        let policy = LfuPolicy::new();
 
         policy.on_insert("rarely_used", 100);
         policy.on_insert("sometimes_used", 100);

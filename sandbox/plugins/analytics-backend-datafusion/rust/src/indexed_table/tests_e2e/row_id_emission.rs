@@ -13,6 +13,7 @@
 use datafusion::arrow::array::Int64Array;
 
 use super::*;
+use datafusion::parquet::file::metadata::PageIndexPolicy;
 
 // Why it is complex -->
 // Optimizer + ComputeRowId --> @gbh --> optimizer --> for parquet only right
@@ -26,8 +27,11 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
     let size = std::fs::metadata(&path).unwrap().len();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -203,8 +207,11 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
     let size = std::fs::metadata(&path).unwrap().len();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -489,8 +496,11 @@ async fn test_row_id_with_data_columns() {
     let size = std::fs::metadata(&path).unwrap().len();
 
     let file = std::fs::File::open(&path).unwrap();
-    let meta =
-        ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta = ArrowReaderMetadata::load(
+        &file,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta.schema().clone();
     let parquet_meta = meta.metadata().clone();
     let mut rgs = Vec::new();
@@ -708,7 +718,7 @@ fn write_row_id_fixture_parquet() -> NamedTempFile {
     .unwrap();
     let tmp = NamedTempFile::new().unwrap();
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
-        .set_max_row_group_size(8)
+        .set_max_row_group_row_count(Some(8))
         .set_statistics_enabled(datafusion::parquet::file::properties::EnabledStatistics::Page)
         .build();
     let mut w = ArrowWriter::try_new(tmp.reopen().unwrap(), schema, Some(props)).unwrap();
@@ -731,8 +741,11 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
 
     // Load metadata for segment 1
     let file1 = std::fs::File::open(&path1).unwrap();
-    let meta1 =
-        ArrowReaderMetadata::load(&file1, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta1 = ArrowReaderMetadata::load(
+        &file1,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let schema = meta1.schema().clone();
     let parquet_meta1 = meta1.metadata().clone();
     let mut rgs1 = Vec::new();
@@ -749,8 +762,11 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
 
     // Load metadata for segment 2
     let file2 = std::fs::File::open(&path2).unwrap();
-    let meta2 =
-        ArrowReaderMetadata::load(&file2, ArrowReaderOptions::new().with_page_index(true)).unwrap();
+    let meta2 = ArrowReaderMetadata::load(
+        &file2,
+        ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
+    )
+    .unwrap();
     let parquet_meta2 = meta2.metadata().clone();
     let mut rgs2 = Vec::new();
     let mut offset = 0i64;

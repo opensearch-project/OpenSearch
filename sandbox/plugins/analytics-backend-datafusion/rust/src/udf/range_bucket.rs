@@ -39,7 +39,7 @@
 //! 5. `bin_index = floor((value - first_bin_start) / width)`
 //! 6. `bin_start = bin_index * width + first_bin_start`; `bin_end = bin_start
 //!    + width`; label via the same integer/float formatter as span_bucket
-//!    and width_bucket.
+//!      and width_bucket.
 
 use std::sync::Arc;
 
