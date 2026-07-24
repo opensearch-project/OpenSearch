@@ -58,6 +58,7 @@ plugins {
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
+  id 'com.autonomousapps.dependency-analysis'
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -79,6 +80,17 @@ if (project.hasProperty('installedPlugins') &&
 // Apply FIPS configuration to all projects
 allprojects {
   apply from: "$rootDir/gradle/fips.gradle"
+}
+
+// Apply dependency-analysis plugin to all subprojects that use Java so that
+// per-project advice tasks (projectHealth, reason, etc.) are available.
+subprojects {
+  pluginManager.withPlugin('java') {
+    apply plugin: 'com.autonomousapps.dependency-analysis'
+  }
+  pluginManager.withPlugin('java-library') {
+    apply plugin: 'com.autonomousapps.dependency-analysis'
+  }
 }
 
 // common maven publishing configuration
