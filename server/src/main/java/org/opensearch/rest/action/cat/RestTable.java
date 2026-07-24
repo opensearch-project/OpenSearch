@@ -72,6 +72,13 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
+        String hParam = request.param("h");
+        // Grouping/aggregation is inferred from h=: if any h= token is an aggregation function
+        // (e.g. sum(docs)), summarize the table; bare tokens are treated as GROUP BY keys. Plain
+        // h= listings (no functions) are returned unchanged by TableSummarizer.summarize.
+        if (TableSummarizer.hasAggregation(hParam)) {
+            table = TableSummarizer.summarize(table, hParam);
+        }
         MediaType mediaType = getXContentType(request);
         if (mediaType != null) {
             return buildXContentBuilder(table, channel);
@@ -204,6 +211,13 @@ public class RestTable {
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
+        }
+
+        // Apply the limit parameter (if positive). Applied after sort so `?s=field:desc&limit=N`
+        // yields the top-N rows by the sort key. This also caps unsummarized responses.
+        int limit = request.paramAsInt("limit", -1);
+        if (limit > 0 && rowOrder.size() > limit) {
+            rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
         }
         return rowOrder;
     }
@@ -391,7 +405,8 @@ public class RestTable {
         }
     }
 
-    private static String renderValue(RestRequest request, Object value) {
+    // package-private for testing
+    static String renderValue(RestRequest request, Object value) {
         if (value == null) {
             return null;
         }
