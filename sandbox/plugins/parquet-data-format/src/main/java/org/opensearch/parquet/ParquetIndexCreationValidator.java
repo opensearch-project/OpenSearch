@@ -15,6 +15,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Validates Parquet field-level encoding settings against index mappings at index creation time.
@@ -26,8 +27,12 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
         Map<String, String> fieldEncodings = ParquetSettings.getFieldEncodings(indexSettings.getSettings());
         Map<String, String> fieldCompressions = ParquetSettings.getFieldCompressions(indexSettings.getSettings());
         Map<String, Boolean> fieldBloomFilterEnabled = ParquetSettings.getFieldBloomFilterEnabled(indexSettings.getSettings());
+        Set<String> lowCardinalityEnabledFields = ParquetSettings.getLowCardinalityEnabledFields(mapperService);
 
-        boolean hasParquetSettings = !fieldEncodings.isEmpty() || !fieldCompressions.isEmpty() || !fieldBloomFilterEnabled.isEmpty();
+        boolean hasParquetSettings = !fieldEncodings.isEmpty()
+            || !fieldCompressions.isEmpty()
+            || !fieldBloomFilterEnabled.isEmpty()
+            || !lowCardinalityEnabledFields.isEmpty();
 
         boolean isParquetIndex = indexSettings.getSettings().getAsBoolean("index.pluggable.dataformat.enabled", false)
             && "parquet".equals(indexSettings.getSettings().get("index.composite.primary_data_format"));
@@ -43,6 +48,13 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
         }
 
         Schema schema = ArrowSchemaBuilder.getSchema(mapperService);
-        ParquetSettings.validateFieldConfigurations(fieldEncodings, fieldCompressions, fieldBloomFilterEnabled, schema);
+        ParquetSettings.validateFieldConfigurations(
+            fieldEncodings,
+            fieldCompressions,
+            fieldBloomFilterEnabled,
+            lowCardinalityEnabledFields,
+            schema,
+            mapperService
+        );
     }
 }
