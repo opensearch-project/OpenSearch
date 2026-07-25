@@ -70,6 +70,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -1375,7 +1376,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
             mock(SystemIndices.class),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            mock(IngestService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId + "-1", 1, shardId),
@@ -1407,7 +1409,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
             mock(SystemIndices.class),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            mock(IngestService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1439,7 +1442,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
             mock(SystemIndices.class),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            mock(IngestService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1482,7 +1486,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
             mock(SystemIndices.class),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            mock(IngestService.class)
         );
     }
 
