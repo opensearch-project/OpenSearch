@@ -15,10 +15,13 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
@@ -29,9 +32,12 @@ import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResult;
 import org.opensearch.tasks.TaskResultsService;
@@ -51,6 +57,7 @@ public class TransportDeleteTaskAction extends HandledTransportAction<DeleteTask
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    private final Client nodeClient;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
@@ -64,6 +71,7 @@ public class TransportDeleteTaskAction extends HandledTransportAction<DeleteTask
         super(DeleteTaskAction.NAME, transportService, actionFilters, DeleteTaskRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.nodeClient = client;
         this.client = new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
     }
@@ -161,8 +169,61 @@ public class TransportDeleteTaskAction extends HandledTransportAction<DeleteTask
                 );
                 return;
             }
-            deleteTaskResult(response.getId(), thisTask, listener);
+            ensureNoRunningChildTasks(response.getId(), thisTask, listener);
         }
+    }
+
+    private void ensureNoStoredChildTaskResults(String taskResultId, Task thisTask, ActionListener<AcknowledgedResponse> listener) {
+        RefreshRequest refresh = new RefreshRequest(TaskResultsService.TASK_INDEX);
+        refresh.setParentTask(clusterService.localNode().getId(), thisTask.getId());
+        client.admin().indices().refresh(refresh, ActionListener.wrap(response -> {
+            SearchRequest search = new SearchRequest(TaskResultsService.TASK_INDEX);
+            search.source(
+                SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("task.parent_task_id", taskResultId))
+                    .size(0)
+                    .trackTotalHitsUpTo(1)
+            );
+            search.setParentTask(clusterService.localNode().getId(), thisTask.getId());
+            client.search(search, ActionListener.wrap(searchResponse -> {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
+                    listener.onFailure(
+                        new OpenSearchStatusException(
+                            "task [{}] has stored child task results and cannot be deleted; delete child task results first",
+                            RestStatus.CONFLICT,
+                            taskResultId
+                        )
+                    );
+                    return;
+                }
+                deleteTaskResult(taskResultId, thisTask, listener);
+            }, listener::onFailure));
+        }, listener::onFailure));
+    }
+
+    private void ensureNoRunningChildTasks(String taskResultId, Task thisTask, ActionListener<AcknowledgedResponse> listener) {
+        ListTasksRequest listTasks = new ListTasksRequest();
+        listTasks.setParentTaskId(new TaskId(taskResultId));
+        listTasks.setParentTask(clusterService.localNode().getId(), thisTask.getId());
+        nodeClient.admin().cluster().listTasks(listTasks, ActionListener.wrap(response -> {
+            try {
+                response.rethrowFailures("checking for child tasks");
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            if (response.getTasks().isEmpty() == false) {
+                listener.onFailure(
+                    new OpenSearchStatusException(
+                        "task [{}] has running child tasks and cannot be deleted; wait for or cancel child tasks first",
+                        RestStatus.CONFLICT,
+                        taskResultId
+                    )
+                );
+                return;
+            }
+            ensureNoStoredChildTaskResults(taskResultId, thisTask, listener);
+        }, listener::onFailure));
     }
 
     private void deleteTaskResult(String taskResultId, Task thisTask, ActionListener<AcknowledgedResponse> listener) {
