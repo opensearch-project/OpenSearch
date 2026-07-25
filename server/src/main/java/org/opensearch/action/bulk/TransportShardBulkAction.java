@@ -749,51 +749,58 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) {
         final IndexRequest indexRequest = context.getRequestToExecute();
         final java.util.concurrent.atomic.AtomicReference<Exception> itemFailure = new java.util.concurrent.atomic.AtomicReference<>();
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), (slot, e) -> itemFailure.set(e), (originalThread, exception) -> {
-            final Exception failure = exception != null ? exception : itemFailure.get();
-            if (failure != null) {
-                final Engine.Result result = exceptionToResult(failure, context.getPrimary(), false, indexRequest.version());
-                onComplete(result, context, updateResult);
-                itemDoneListener.onResponse(null);
-                return;
-            }
-            final Runnable apply = () -> {
-                try {
-                    boolean completed = applyRequestToExecute(
-                        context,
-                        updateResult,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        itemDoneListener
-                    );
-                    if (completed) {
-                        itemDoneListener.onResponse(null);
-                    }
-                } catch (Exception e) {
-                    itemDoneListener.onFailure(e);
+        ingestService.executeBulkRequest(
+            1,
+            Collections.singletonList(indexRequest),
+            (slot, e) -> itemFailure.set(e),
+            (originalThread, exception) -> {
+                final Exception failure = exception != null ? exception : itemFailure.get();
+                if (failure != null) {
+                    final Engine.Result result = exceptionToResult(failure, context.getPrimary(), false, indexRequest.version());
+                    onComplete(result, context, updateResult);
+                    itemDoneListener.onResponse(null);
+                    return;
                 }
-            };
-            if (originalThread == Thread.currentThread()) {
-                apply.run();
-            } else {
-                context.getPrimary().getThreadPool().executor(executorName).execute(apply);
-            }
-        }, slot -> {
-            // Document dropped by pipeline — treat as noop for this bulk item
-            context.getPrimary().noopUpdate();
-            context.markOperationAsNoOp(
-                new UpdateResponse(
-                    context.getPrimary().shardId(),
-                    indexRequest.id(),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                    indexRequest.version(),
-                    DocWriteResponse.Result.NOOP
-                )
-            );
-            context.markAsCompleted(context.getExecutionResult());
-            itemDoneListener.onResponse(null);
-        }, executorName);
+                final Runnable apply = () -> {
+                    try {
+                        boolean completed = applyRequestToExecute(
+                            context,
+                            updateResult,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            itemDoneListener
+                        );
+                        if (completed) {
+                            itemDoneListener.onResponse(null);
+                        }
+                    } catch (Exception e) {
+                        itemDoneListener.onFailure(e);
+                    }
+                };
+                if (originalThread == Thread.currentThread()) {
+                    apply.run();
+                } else {
+                    context.getPrimary().getThreadPool().executor(executorName).execute(apply);
+                }
+            },
+            slot -> {
+                // Document dropped by pipeline — treat as noop for this bulk item
+                context.getPrimary().noopUpdate();
+                context.markOperationAsNoOp(
+                    new UpdateResponse(
+                        context.getPrimary().shardId(),
+                        indexRequest.id(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        indexRequest.version(),
+                        DocWriteResponse.Result.NOOP
+                    )
+                );
+                context.markAsCompleted(context.getExecutionResult());
+                itemDoneListener.onResponse(null);
+            },
+            executorName
+        );
         return false;
     }
 

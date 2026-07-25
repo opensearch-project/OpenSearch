@@ -629,7 +629,7 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         // Verify for different Update cases, we call the correct resolve
         // An update request has two child update requests, DOC and UPSERT
         // 1. DOC will only have system pipeline resolved. Exception: docAsUpsert defers ALL pipeline
-        //    resolution to TransportShardBulkAction after prepare (see #10864).
+        // resolution to TransportShardBulkAction after prepare (see #10864).
         // 2. UPSERT will have ALL pipelines resolved
         verify(ingestService, times(1)).resolvePipelines(eq(upsertRequest), eq(indexRequest1), any());
         verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest1), any());
