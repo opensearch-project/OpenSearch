@@ -21,7 +21,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.PluginMappingParametersAware;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
@@ -674,19 +674,45 @@ public final class ParquetSettings {
 
     /** Returns the field names whose {@code low_cardinality} mapping parameter resolves to {@code true}, read from the mapping. */
     public static Set<String> getLowCardinalityEnabledFields(MapperService mapperService) {
-        if (mapperService == null || mapperService.documentMapper() == null) {
-            return Collections.emptySet();
-        }
+        return getFieldsWithParameterEnabled(mapperService, LOW_CARDINALITY_PARAM);
+    }
+
+    /**
+     * Returns the field names whose given boolean mapping parameter resolves to {@code true}, read from the mapping.
+     * Applies to any boolean parameter the plugin contributes via {@link ParquetDataFormatPlugin#getPluginMappingParameters}.
+     */
+    public static Set<String> getFieldsWithParameterEnabled(MapperService mapperService, String parameterName) {
+        Map<String, Object> values = getFieldParameterValues(mapperService, parameterName);
         Set<String> enabled = new java.util.HashSet<>();
-        for (Mapper mapper : mapperService.documentMapper().mappers()) {
-            if (mapper instanceof PluginMappingParametersAware) {
-                Object value = ((PluginMappingParametersAware) mapper).pluginMappingParameterValues().get(LOW_CARDINALITY_PARAM);
-                if (Boolean.TRUE.equals(value)) {
-                    enabled.add(mapper.name());
-                }
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (Boolean.TRUE.equals(entry.getValue())) {
+                enabled.add(entry.getKey());
             }
         }
         return Collections.unmodifiableSet(enabled);
+    }
+
+    /**
+     * Returns a map of field name to the resolved value of the given mapping parameter, for fields that expose it.
+     * Works for any parameter type the plugin contributes via {@link ParquetDataFormatPlugin#getPluginMappingParameters}.
+     *
+     * <p>This performs a linear scan of the document mapper's fields and is intended for cold paths
+     * (settings sync, index creation). If called on the write path, cache the result by mapping version.
+     */
+    public static Map<String, Object> getFieldParameterValues(MapperService mapperService, String parameterName) {
+        if (mapperService == null || mapperService.documentMapper() == null || mapperService.documentMapper().mappers() == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> result = new HashMap<>();
+        for (Mapper mapper : mapperService.documentMapper().mappers()) {
+            if (mapper instanceof ParametrizedFieldMapper) {
+                Object value = ((ParametrizedFieldMapper) mapper).mappingPluginParameterValues().get(parameterName);
+                if (value != null) {
+                    result.put(mapper.name(), value);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     public static Map<String, Double> getFieldBloomFilterFpp(Settings settings) {

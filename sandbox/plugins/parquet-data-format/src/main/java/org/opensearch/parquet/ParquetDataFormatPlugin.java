@@ -36,7 +36,9 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
-import org.opensearch.index.mapper.PluginMappingParameter;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -64,6 +66,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -199,18 +202,50 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return PARQUET_DATA_FORMAT;
     }
 
-    /** Contributes the {@code low_cardinality} parameter to {@code keyword} and {@code text} fields, suppressing Lucene indexing and enabling a Parquet column bloom filter. */
-    @Override
-    public List<PluginMappingParameter> getPluginMappingParameters() {
-        return List.of(
-            new PluginMappingParameter(
+    /**
+     * A mapping parameter this plugin contributes, paired with the field content types it applies to.
+     *
+     * @param contentTypes the core field content types (e.g. {@code keyword}, {@code text}) the parameter applies to
+     * @param factory      creates a fresh parameter instance per invocation; parameters are stateful during mapper
+     *                     building, so a new instance must be produced for each field being parsed
+     */
+    private record ParameterContribution(Set<String> contentTypes, Supplier<ParametrizedFieldMapper.Parameter<?>> factory) {
+    }
+
+    /**
+     * All mapping parameters this plugin contributes. Each entry declares the field content types it applies to,
+     * so contributing another parameter (for the same or different field types) is a single additional entry.
+     */
+    private static final List<ParameterContribution> CONTRIBUTIONS = List.of(
+        // low_cardinality: when true, disables Lucene indexing (via side effect) and enables a Parquet column bloom filter.
+        new ParameterContribution(
+            Set.of(KeywordFieldMapper.CONTENT_TYPE, TextFieldMapper.CONTENT_TYPE),
+            () -> ParametrizedFieldMapper.SideEffectParameter.boolParam(
                 ParquetSettings.LOW_CARDINALITY_PARAM,
                 false,
                 false,
-                Set.of("keyword", "text"),
-                true
+                (builder, enabled) -> {
+                    if (Boolean.TRUE.equals(enabled)) {
+                        builder.setParameterValue("index", false);
+                    }
+                }
             )
-        );
+        )
+    );
+
+    @Override
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        List<ParametrizedFieldMapper.Parameter<?>> parameters = new ArrayList<>();
+        for (ParameterContribution contribution : CONTRIBUTIONS) {
+            if (contribution.contentTypes().contains(contentType)) {
+                parameters.add(contribution.factory().get());
+            }
+        }
+        return List.copyOf(parameters);
     }
 
     @Override
