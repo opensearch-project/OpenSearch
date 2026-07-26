@@ -109,7 +109,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMappingParametersAware {
+public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     protected static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -348,6 +348,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
             this.analyzers = new TextParams.Analyzers(indexAnalyzers);
         }
 
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers, List<Parameter<?>> pluginParameters) {
+            this(name, indexCreatedVersion, indexAnalyzers);
+            setPluginMappingParameters(pluginParameters);
+        }
+
         public Builder index(boolean index) {
             this.index.setValue(index);
             return this;
@@ -397,7 +402,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
                 )
             );
             parameters.addAll(pluginMappingParameters());
-            return parameters;
+            return List.copyOf(parameters);
         }
 
         protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
@@ -475,9 +480,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
 
         @Override
         public TextFieldMapper build(BuilderContext context) {
-            if (shouldDisableIndexing()) {
-                this.index.setValue(false);
-            }
+            applyPluginParameterEffects();
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
             if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
@@ -498,11 +501,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        Builder builder = new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers());
-        if (c.dataFormatRegistry() != null) {
-            builder.addPluginMappingParameters(c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE));
-        }
-        return builder;
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), pluginParameters);
     });
 
     /**
@@ -1024,8 +1026,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
-    private final Map<String, Object> pluginMappingParameterValues;
-    private final List<PluginMappingParameter> pluginMappingParameterSpecs;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1053,18 +1055,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.freqFilter = builder.freqFilter.getValue();
-        this.pluginMappingParameterValues = builder.pluginMappingParameterValues();
-        this.pluginMappingParameterSpecs = builder.pluginMappingParameterSpecs();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
     }
 
     @Override
-    public Map<String, Object> pluginMappingParameterValues() {
-        return pluginMappingParameterValues;
-    }
-
-    @Override
-    public List<PluginMappingParameter> pluginMappingParameterSpecs() {
-        return pluginMappingParameterSpecs;
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     @Override
@@ -1074,8 +1071,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper implements PluginMa
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers);
-        builder.addPluginMappingParameters(pluginMappingParameterSpecs);
+        Builder builder = new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers, mappingPluginParameters);
         return builder.init(this);
     }
 

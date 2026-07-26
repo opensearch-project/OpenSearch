@@ -89,7 +89,7 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  *
  * @opensearch.internal
  */
-public final class KeywordFieldMapper extends ParametrizedFieldMapper implements PluginMappingParametersAware {
+public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -185,6 +185,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
             this.canConsumeRawValueForSource = canConsumeRawValueForSource;
         }
 
+        public Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            boolean canConsumeRawValueForSource,
+            List<Parameter<?>> pluginParameters
+        ) {
+            this(name, indexAnalyzers, canConsumeRawValueForSource);
+            setPluginMappingParameters(pluginParameters);
+        }
+
         public Builder(String name) {
             this(name, null, false);
         }
@@ -230,7 +240,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
                 )
             );
             parameters.addAll(pluginMappingParameters());
-            return parameters;
+            return List.copyOf(parameters);
         }
 
         protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
@@ -256,9 +266,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
 
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
-            if (shouldDisableIndexing()) {
-                this.indexed.setValue(false);
-            }
+            applyPluginParameterEffects();
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
@@ -280,18 +288,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        Builder builder = new Builder(
-            n,
-            c.getIndexAnalyzers(),
-            Optional.ofNullable(c.mapperService())
-                .map(MapperService::getIndexSettings)
-                .map(IndexSettings::isPluggableDataFormatEnabled)
-                .orElse(false)
-        );
-        if (c.dataFormatRegistry() != null) {
-            builder.addPluginMappingParameters(c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE));
-        }
-        return builder;
+        boolean pluggableDataFormatEnabled = Optional.ofNullable(c.mapperService())
+            .map(MapperService::getIndexSettings)
+            .map(IndexSettings::isPluggableDataFormatEnabled)
+            .orElse(false);
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, c.getIndexAnalyzers(), pluggableDataFormatEnabled, pluginParameters);
     });
 
     @Override
@@ -846,8 +850,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
 
     private final IndexAnalyzers indexAnalyzers;
     private volatile boolean canConsumeRawValueForSource;
-    private final Map<String, Object> pluginMappingParameterValues;
-    private final List<PluginMappingParameter> pluginMappingParameterSpecs;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected KeywordFieldMapper(
         String simpleName,
@@ -872,20 +876,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
-        this.pluginMappingParameterValues = builder.pluginMappingParameterValues();
-        this.pluginMappingParameterSpecs = builder.pluginMappingParameterSpecs();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
         this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
 
     }
 
     @Override
-    public Map<String, Object> pluginMappingParameterValues() {
-        return pluginMappingParameterValues;
-    }
-
-    @Override
-    public List<PluginMappingParameter> pluginMappingParameterSpecs() {
-        return pluginMappingParameterSpecs;
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     /**
@@ -1044,8 +1043,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper implements
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(simpleName(), indexAnalyzers, canConsumeRawValueForSource);
-        builder.addPluginMappingParameters(pluginMappingParameterSpecs);
+        Builder builder = new Builder(simpleName(), indexAnalyzers, canConsumeRawValueForSource, mappingPluginParameters);
         return builder.init(this);
     }
 }
