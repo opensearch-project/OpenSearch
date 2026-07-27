@@ -1983,7 +1983,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             supportsIntraSegmentSearch(
                 new HistogramAggregationBuilder("outer").field("n")
                     .interval(10)
-                    .subAggregation(new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR)),
+                    .subAggregation(
+                        new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR)
+                    ),
                 true
             )
         );
