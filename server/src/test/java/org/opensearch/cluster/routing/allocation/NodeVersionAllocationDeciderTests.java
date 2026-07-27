@@ -783,7 +783,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "can relocate primary shard from a node with version ["
                     + oldNode.node().getVersion()
-                    + "] to a node with equal-or-newer version ["
+                    + "] to a node with equal-or-newer, Lucene-compatible version ["
                     + newNode.node().getVersion()
                     + "]"
             )
@@ -796,7 +796,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "cannot relocate primary shard from a node with version ["
                     + newNode.node().getVersion()
-                    + "] to a node with older version ["
+                    + "] to a node with older, Lucene-incompatible version ["
                     + oldNode.node().getVersion()
                     + "]"
             )
@@ -827,7 +827,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "node version ["
                     + oldNode.node().getVersion()
-                    + "] is older than the snapshot version ["
+                    + "] is older than, and Lucene-incompatible with, the snapshot version ["
                     + newNode.node().getVersion()
                     + "]"
             )
@@ -844,7 +844,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "node version ["
                     + newNode.node().getVersion()
-                    + "] is the same or newer than snapshot version ["
+                    + "] is the same or newer than, or Lucene-compatible with, snapshot version ["
                     + oldNode.node().getVersion()
                     + "]"
             )
@@ -867,7 +867,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "cannot allocate replica shard to a node with version ["
                     + oldNode.node().getVersion()
-                    + "] since this is older than the primary version ["
+                    + "] since this is older than, and Lucene-incompatible with, the primary version ["
                     + newNode.node().getVersion()
                     + "]"
             )
@@ -888,10 +888,77 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             is(
                 "can allocate replica shard to a node with version ["
                     + newNode.node().getVersion()
-                    + "] since this is equal-or-newer than the primary version ["
+                    + "] since this is equal-or-newer than, or Lucene-compatible with, the primary version ["
                     + oldNode.node().getVersion()
                     + "]"
             )
+        );
+    }
+
+    public void testAllocatesReplicaOnSameLuceneMinorDifferentOpenSearchPatch() {
+        // reproduces the real-world case (opensearch-project/OpenSearch#22520): primary on a newer
+        // OpenSearch patch release, target node on an older patch release, both sharing the same
+        // Lucene major.minor (9.12.x) -- the target can read the primary's segments, so allocation
+        // should be allowed even though V_2_19_0.onOrAfter(V_2_19_4) is false.
+        assertReplicaAllocationDecision(Version.V_2_19_4, Version.V_2_19_0, Decision.Type.YES);
+    }
+
+    public void testDoesNotAllocateReplicaOnOlderLuceneMinor() {
+        // V_2_17_2 -> Lucene 9.11.1, V_2_19_0 -> Lucene 9.12.1: different Lucene minor, so the
+        // target cannot necessarily read segments written with newer codecs/formats.
+        assertReplicaAllocationDecision(Version.V_2_19_0, Version.V_2_17_2, Decision.Type.NO);
+    }
+
+    public void testDoesNotAllocateReplicaAcrossOlderLuceneMajor() {
+        // V_3_0_0 -> Lucene 10.1.0, V_2_19_0 -> Lucene 9.12.1: different Lucene major, must remain
+        // blocked regardless of the Lucene-minor relaxation.
+        assertReplicaAllocationDecision(Version.V_3_0_0, Version.V_2_19_0, Decision.Type.NO);
+    }
+
+    private void assertReplicaAllocationDecision(Version primaryNodeVersion, Version targetNodeVersion, Decision.Type expected) {
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        RoutingNode primaryNode = new RoutingNode("primaryNode", newNode("primaryNode", primaryNodeVersion));
+        RoutingNode targetNode = new RoutingNode("targetNode", newNode("targetNode", targetNodeVersion));
+
+        final org.opensearch.cluster.ClusterName clusterName = org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(
+            Settings.EMPTY
+        );
+        ClusterState clusterState = ClusterState.builder(clusterName)
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(primaryNode.node()).add(targetNode.node()))
+            .build();
+
+        final ShardId shardId = clusterState.routingTable().index("test").shard(0).getShardId();
+        final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().get(0);
+
+        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.AbstractRoutingChangesObserver();
+        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
+        routingNodes.startShard(
+            logger,
+            routingNodes.initializeShard(primaryShard, "primaryNode", null, 0, routingChangesObserver),
+            routingChangesObserver
+        );
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
+        routingAllocation.debugDecision(true);
+
+        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(Settings.EMPTY);
+        Decision decision = allocationDecider.canAllocate(replicaShard, targetNode, routingAllocation);
+        assertThat(
+            "primary on "
+                + primaryNodeVersion
+                + ", target "
+                + targetNodeVersion
+                + ": "
+                + decision.getExplanation(),
+            decision.type(),
+            is(expected)
         );
     }
 }

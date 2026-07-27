@@ -412,36 +412,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
      * <p>
-     * Since replicas could possibly be on nodes with an older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch when document
-     * replication is enabled.
-     */
-    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
-        // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
-        // that have been removed, the shards are failed, and part of the shard failing
-        // calls this method with an out-of-date RoutingNodes, where the version might not
-        // be accessible. Therefore, we need to protect against the version being null
-        // (meaning the node will be going away).
-        return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
-            .filter(shr -> node(shr.currentNodeId()) != null)
-            .max(
-                Comparator.comparing(
-                    shr -> node(shr.currentNodeId()).node(),
-                    Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
-                )
-            )
-            .orElse(null);
-    }
-
-    /**
-     * Returns one active replica shard for the given shard id or <code>null</code> if
-     * no active replica is found.
-     * <p>
      * Since replicas could possibly be on nodes with a higher version of OpenSearch than
-     * the primary is, this will return replicas on the oldest version of OpenSearch when segment
-     * replication is enabled to allow for replica to read segments from primary.
-     *
+     * the primary is, this will return replicas on the oldest version of OpenSearch so that
+     * remaining nodes (including not-yet-upgraded ones) are able to read/replicate the
+     * promoted primary's segments and remain eligible allocation targets.
      */
     public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
@@ -797,11 +771,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
         }
         if (activeReplica == null) {
-            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-            } else {
-                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
-            }
+            // Promote the oldest-version in-sync replica for both document and segment replication so the
+            // new primary stays at the minimum version present, keeping it a valid recovery source/target for
+            // any not-yet-upgraded node during a rolling upgrade.
+            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
