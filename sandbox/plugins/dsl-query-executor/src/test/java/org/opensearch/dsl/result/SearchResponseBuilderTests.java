@@ -28,6 +28,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -199,6 +200,103 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         assertEquals(850.0, avg1.getValue(), 0.0);
         InternalAvg avg2 = byCategory.getBuckets().get(1).getAggregations().get("avg_price");
         assertEquals(700.0, avg2.getValue(), 0.0);
+    }
+
+    /**
+     * Regression: sibling aggregation trees over the same field SET but opposite nesting order
+     * (brand→category vs category→brand) produce two distinct plans and must resolve to two
+     * distinct results. Under the old order-insensitive (sorted) granularity keys, both deep
+     * plans collapsed onto one map slot: the second plan's result silently overwrote the
+     * first's, and the losing tree's metric came back empty ({@code "value": null}) beneath
+     * correct-looking buckets.
+     */
+    public void testReversedNestingSiblingTreesDoNotCollide() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("category", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                AggregationBuilders.terms("brand_first")
+                    .field("brand")
+                    .subAggregation(
+                        AggregationBuilders.terms("by_category")
+                            .field("category")
+                            .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                    )
+            )
+            .aggregation(
+                AggregationBuilders.terms("cat_first")
+                    .field("category")
+                    .subAggregation(
+                        AggregationBuilders.terms("by_brand")
+                            .field("brand")
+                            .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
+                    )
+            );
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals(4, aggPlans.size());
+
+        // Data story: 3 docs — BrandA/Cat1/800, BrandA/Cat1/900, BrandA/Cat2/700.
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : aggPlans) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            if (fields.contains("avg_price")) {
+                // Both deep plans group by {brand, category} and emit columns in schema order —
+                // identical layouts, distinguished ONLY by the metadata's nesting order.
+                assertEquals(List.of("brand", "category", "avg_price", "_count"), fields);
+                results.add(
+                    new ExecutionResult(
+                        plan,
+                        List.of(new Object[] { "BrandA", "Cat1", 850.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                    )
+                );
+            } else if (fields.contains("sum_price")) {
+                assertEquals(List.of("brand", "category", "sum_price", "_count"), fields);
+                results.add(
+                    new ExecutionResult(
+                        plan,
+                        List.of(new Object[] { "BrandA", "Cat1", 1700.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                    )
+                );
+            } else if (fields.equals(List.of("brand", "_count"))) {
+                results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { "BrandA", 3L })));
+            } else {
+                assertEquals(List.of("category", "_count"), fields);
+                results.add(new ExecutionResult(plan, List.of(new Object[] { "Cat1", 2L }, new Object[] { "Cat2", 1L })));
+            }
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        // brand_first → BrandA → by_category → Cat1 (avg 850), Cat2 (avg 700)
+        StringTerms brandFirst = response.getAggregations().get("brand_first");
+        assertNotNull("brand_first must be present", brandFirst);
+        assertEquals(1, brandFirst.getBuckets().size());
+        StringTerms byCategory = brandFirst.getBuckets().get(0).getAggregations().get("by_category");
+        assertEquals(2, byCategory.getBuckets().size());
+        InternalAvg avgCat1 = byCategory.getBuckets().get(0).getAggregations().get("avg_price");
+        assertEquals("brand_first's metric must not be lost to the sibling tree", 850.0, avgCat1.getValue(), 0.0);
+        InternalAvg avgCat2 = byCategory.getBuckets().get(1).getAggregations().get("avg_price");
+        assertEquals(700.0, avgCat2.getValue(), 0.0);
+
+        // cat_first → Cat1 → by_brand → BrandA (sum 1700); Cat2 → by_brand → BrandA (sum 700)
+        StringTerms catFirst = response.getAggregations().get("cat_first");
+        assertNotNull("cat_first must be present", catFirst);
+        assertEquals(2, catFirst.getBuckets().size());
+        StringTerms byBrandCat1 = catFirst.getBuckets().get(0).getAggregations().get("by_brand");
+        InternalSum sumCat1 = byBrandCat1.getBuckets().get(0).getAggregations().get("sum_price");
+        assertEquals(1700.0, sumCat1.getValue(), 0.0);
+        StringTerms byBrandCat2 = catFirst.getBuckets().get(1).getAggregations().get("by_brand");
+        InternalSum sumCat2 = byBrandCat2.getBuckets().get(0).getAggregations().get("sum_price");
+        assertEquals(700.0, sumCat2.getValue(), 0.0);
     }
 
     // ---- Golden file driven SearchResponse generation tests ----
