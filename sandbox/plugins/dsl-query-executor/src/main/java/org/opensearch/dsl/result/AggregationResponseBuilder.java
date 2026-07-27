@@ -8,8 +8,8 @@
 
 package org.opensearch.dsl.result;
 
-import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.opensearch.dsl.aggregation.AggregationMetadata;
+import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.GroupingInfo;
@@ -32,10 +32,18 @@ import java.util.stream.StreamSupport;
 /**
  * Converts execution results into OpenSearch InternalAggregations format.
  * Uses granularity-based matching to map flat tabular results to hierarchical aggregation structures.
+ *
+ * <p>A granularity is identified by its GROUP BY field names in <b>nesting order</b> (outer
+ * bucket first) — the same order the {@code AggregationTreeWalker} accumulated them in and the
+ * same order the response walk re-accumulates while descending the request's aggregation tree.
+ * Results are keyed by the walker-produced {@link AggregationMetadata} carried on each plan, so
+ * the key round-trips losslessly: sibling trees over the same field <em>set</em> but different
+ * nesting order (e.g. {@code brand→category} vs {@code category→brand}) produce distinct plans
+ * AND distinct keys. Re-deriving the key from the plan's group bit set would yield schema order
+ * instead, forcing an order-insensitive (sorted) key under which such siblings collide.
  */
 public final class AggregationResponseBuilder {
 
-    private static final String NO_GROUPING_KEY = "";
     /** NUL cannot appear in field names, so joined keys cannot collide. */
     private static final String AGGREGATION_LEVEL_SEPARATOR = "\u0000";
 
@@ -46,8 +54,23 @@ public final class AggregationResponseBuilder {
         this.registry = registry;
         this.granularityMap = new HashMap<>();
         for (ExecutionResult result : aggResults) {
-            String key = computeGranularityKey(result);
-            granularityMap.put(key, result);
+            AggregationMetadata metadata = result.getPlan().aggregationMetadata();
+            if (metadata == null) {
+                throw new IllegalArgumentException(
+                    "AGGREGATION plan is missing its AggregationMetadata — plans consumed by the "
+                        + "response builder must be created by SearchSourceConverter"
+                );
+            }
+            String key = granularityKey(metadata.getGroupByFieldNames());
+            ExecutionResult previous = granularityMap.putIfAbsent(key, result);
+            if (previous != null) {
+                // The walker produces exactly one plan per nesting-order granularity, so a
+                // duplicate key means the walker invariant broke upstream. Fail loudly instead
+                // of silently overwriting one plan's results with another's.
+                throw new IllegalStateException(
+                    "Duplicate aggregation granularity [" + String.join(",", metadata.getGroupByFieldNames()) + "]"
+                );
+            }
         }
     }
 
@@ -180,9 +203,11 @@ public final class AggregationResponseBuilder {
                 childFilter.put(currentGroupColumns.get(i), entry.getKey().get(i));
             }
 
-            Integer countIdx = colIndex.get("_count");
+            Integer countIdx = colIndex.get(AggregationMetadataBuilder.IMPLICIT_COUNT_NAME);
             if (countIdx == null) {
-                throw new ConversionException("Missing _count column in aggregation result");
+                throw new ConversionException(
+                    "Missing " + AggregationMetadataBuilder.IMPLICIT_COUNT_NAME + " column in aggregation result"
+                );
             }
             Object[] firstRowInGroup = entry.getValue().get(0);
             long docCount = ((Number) firstRowInGroup[countIdx]).longValue();
@@ -278,30 +303,13 @@ public final class AggregationResponseBuilder {
     }
 
     /**
-     * Computes the granularity key for an execution result from its plan's aggregate.
-     * The aggregate is found by walking down the plan's single-input spine — post-aggregate
-     * nodes (bucket-order sort, future HAVING filters) sit on top of it.
-     */
-    private static String computeGranularityKey(ExecutionResult result) {
-        RelNode node = result.getPlan().relNode();
-        while (node != null && !(node instanceof LogicalAggregate)) {
-            node = node.getInputs().isEmpty() ? null : node.getInput(0);
-        }
-        if (node instanceof LogicalAggregate agg) {
-            // Resolve group field names against the aggregate's INPUT row type via the group
-            // set — robust against output-side renames, unlike the aggregate's own row type.
-            List<String> inputFields = agg.getInput().getRowType().getFieldNames();
-            return granularityKey(agg.getGroupSet().asList().stream().map(inputFields::get).collect(Collectors.toList()));
-        }
-        return NO_GROUPING_KEY;
-    }
-
-    /**
-     * Canonical granularity key: sorted, comma-joined group field names. Sorted because the
-     * plan emits group columns in schema order while the request walk accumulates them in
-     * nesting order — the two must produce the same key.
+     * Canonical granularity key: group field names in nesting order (outer bucket first),
+     * NUL-joined. Insertion uses the walker's {@link AggregationMetadata#getGroupByFieldNames()}
+     * and lookup uses the response walk's accumulated fields — both are built in nesting order,
+     * so the key matches by construction. Not sorted: sorting would erase nesting order, the
+     * one thing distinguishing sibling trees over the same field set (see class javadoc).
      */
     private static String granularityKey(List<String> groupFieldNames) {
-        return groupFieldNames.stream().sorted().collect(Collectors.joining(AGGREGATION_LEVEL_SEPARATOR));
+        return String.join(AGGREGATION_LEVEL_SEPARATOR, groupFieldNames);
     }
 }
