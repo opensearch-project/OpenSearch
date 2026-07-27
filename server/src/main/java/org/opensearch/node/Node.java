@@ -189,6 +189,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -956,6 +958,16 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // build ingestion payload decoder registry
+            final IngestionPayloadDecoderRegistry.Builder registryBuilder = IngestionPayloadDecoderRegistry.builder()
+                .register(XContentIngestionPayloadDecoder.NAME, XContentIngestionPayloadDecoder.Factory.INSTANCE);
+            pluginsService.filterPlugins(IngestionConsumerPlugin.class)
+                .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
+            final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
+            // If node construction fails before IndicesService takes ownership of the registry
+            // (see IndicesService#doClose), close it here so factories don't leak.
+            resourcesToClose.add(payloadDecoderRegistry);
+
             // Initialize tiered storage prefetch settings
             final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
             final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
@@ -1104,6 +1116,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                payloadDecoderRegistry,
                 ingestServiceReference::get,
                 recoverySettings,
                 cacheService,
