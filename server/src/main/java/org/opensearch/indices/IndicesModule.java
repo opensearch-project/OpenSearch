@@ -52,6 +52,8 @@ import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.DynamicFieldTypeInferencer;
+import org.opensearch.index.mapper.DynamicTemplateTypeHandler;
 import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
@@ -114,9 +116,35 @@ public class IndicesModule extends AbstractModule {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins)
+            getFieldFilter(mapperPlugins),
+            getDynamicFieldTypeInferencers(mapperPlugins),
+            getDynamicTemplateTypes(mapperPlugins)
         );
         registerBuiltinWritables();
+    }
+
+    /** Collects dynamic field type inferencers from all mapper plugins in registration order. */
+    private static List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers(List<MapperPlugin> mapperPlugins) {
+        List<DynamicFieldTypeInferencer> inferencers = new ArrayList<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            inferencers.addAll(mapperPlugin.getDynamicFieldTypeInferencers());
+        }
+        return inferencers;
+    }
+
+    /** Merges dynamic template type handlers from all mapper plugins; throws if two plugins register the same type string. */
+    private static Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes(List<MapperPlugin> mapperPlugins) {
+        Map<String, DynamicTemplateTypeHandler> templateTypes = new LinkedHashMap<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            Map<String, DynamicTemplateTypeHandler> pluginTypes = mapperPlugin.getDynamicTemplateTypes();
+            for (Map.Entry<String, DynamicTemplateTypeHandler> entry : pluginTypes.entrySet()) {
+                if (templateTypes.containsKey(entry.getKey())) {
+                    throw new IllegalArgumentException("dynamic template type [" + entry.getKey() + "] is already registered");
+                }
+                templateTypes.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return templateTypes;
     }
 
     private void registerBuiltinWritables() {

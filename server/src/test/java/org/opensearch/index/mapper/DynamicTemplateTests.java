@@ -58,12 +58,9 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         Map<String, Object> templateDef2 = new HashMap<>();
         templateDef2.put("match_mapping_type", "text");
         templateDef2.put("mapping", Collections.singletonMap("store", true));
-        // if a wrong match type is specified, we ignore the template
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef2));
-        assertEquals(
-            "No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
-            e.getMessage()
-        );
+        // Unknown match_mapping_type is stored as pluginMatchType — validation against the registry happens in RootObjectMapper
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef2);
+        assertEquals("text", template.getPluginMatchType());
     }
 
     public void testParseInvalidRegex() {
