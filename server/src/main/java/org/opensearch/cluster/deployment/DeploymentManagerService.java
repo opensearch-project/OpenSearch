@@ -129,24 +129,26 @@ public class DeploymentManagerService {
         Map<String, Deployment> deployments = currentMetadata == null ? new HashMap<>() : new HashMap<>(currentMetadata.getDeployments());
 
         switch (targetState) {
-            case DRAIN:
+            case DRAIN -> {
                 validateConsistentKeys(deployments, nodeAttributes);
                 validateNoOverlappingValues(deployments, deploymentId, nodeAttributes);
                 deployments.put(deploymentId, new Deployment(DeploymentState.DRAIN, nodeAttributes));
-                break;
-            case FINISH:
+            }
+            case FINISH -> {
                 if (deployments.containsKey(deploymentId)) {
                     deployments.remove(deploymentId);
                 } else {
                     return currentState;
                 }
+            }
         }
-
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.getMetadata()).putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments)).build()
-            )
-            .build();
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        if (deployments.isEmpty()) {
+            metadataBuilder.removeCustom(DeploymentMetadata.TYPE);
+        } else {
+            metadataBuilder.putCustom(DeploymentMetadata.TYPE, new DeploymentMetadata(deployments));
+        }
+        return ClusterState.builder(currentState).metadata(metadataBuilder).build();
     }
 
     private static void validateDeploymentId(String deploymentId) {
@@ -169,6 +171,9 @@ public class DeploymentManagerService {
         }
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             String value = entry.getValue();
+            if (value == null || value.isEmpty()) {
+                throw new IllegalArgumentException("attribute value for key [" + entry.getKey() + "] must not be empty");
+            }
             if (value.contains("*")) {
                 throw new IllegalArgumentException("attribute value [" + value + "] must not contain '*'");
             }
