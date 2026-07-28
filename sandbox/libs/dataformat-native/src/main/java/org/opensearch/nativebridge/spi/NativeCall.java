@@ -268,6 +268,40 @@ public final class NativeCall implements AutoCloseable {
         }
     }
 
+    /**
+     * Invoke a {@code long}-returning MethodHandle on caller-owned arguments and check the
+     * result, without allocating an Arena. Use when all native arguments (segments, scalars)
+     * are owned by the caller — e.g. the column-reader hot path, where scratch buffers come
+     * from a pool. A {@code < 0} result is converted to an {@link IOException}; {@code >= 0}
+     * (including positive status codes) is returned as-is.
+     */
+    public static long invokeIOStatic(MethodHandle handle, Object... args) throws IOException {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResultIO(result);
+        } catch (IOException | RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IOException(t);
+        }
+    }
+
+    /**
+     * Invoke a {@code long}-returning MethodHandle on caller-owned arguments and check the
+     * result, without allocating an Arena. A {@code < 0} result is converted to a
+     * {@link RuntimeException}; {@code >= 0} is returned as-is.
+     */
+    public static long invokeStatic(MethodHandle handle, Object... args) {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResult(result);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     @Override
     public void close() {
         closed = true;

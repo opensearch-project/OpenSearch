@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexCreationValidator;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -38,6 +39,7 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.codec.ParquetDocValuesDirectoryReader;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -285,5 +287,28 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new ParquetStatsRestAction(), new ParquetNodeStatsRestAction());
+    }
+
+    /**
+     * Installs the Parquet DocValues reader wrapper for indices backed by a pluggable data format.
+     *
+     * <p>The wrapper ({@link ParquetDocValuesDirectoryReader}) surfaces doc values for Parquet-resident
+     * fields that are absent from the Lucene segment, so standard aggregations, sorts, and scripts can
+     * read them through the normal Lucene read path — with no write-path change. It is gated to indices
+     * with {@code index.pluggable.dataformat.enabled} so non-composite indices are untouched.
+     *
+     * <p>The wrapper is a no-op per leaf when the mapping declares no missing Parquet-resident
+     * doc-values fields, so the per-request overhead for such segments is negligible.
+     */
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.setReaderWrapper(indexService -> {
+            // Gate to indices backed by a pluggable data format (the composite/Parquet path). For all
+            // other indices, return null so no wrapper is installed and the read path is untouched.
+            if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
+                return null;
+            }
+            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, indexService.mapperService());
+        });
     }
 }
