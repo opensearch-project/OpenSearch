@@ -654,4 +654,48 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         }
         IOUtils.close(reader, w, dir);
     }
+
+    /**
+     * On a pluggable-dataformat index the mapper must skip the point-based query construction
+     * for date ranges and emit only the doc-values range. The Lucene secondary writes no BKD
+     * on such indices, so keeping the point side would let the cost-based dispatch inside
+     * {@link IndexOrDocValuesQuery} pick an empty {@code PointValues} and return zero hits.
+     */
+    public void testRangeQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        DateFieldType ft = new DateFieldType("field");
+        String date1 = "2015-10-12T14:10:55";
+        String date2 = "2016-04-28T11:33:52";
+        long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
+        long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
+        Query expected = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
+        Query actual = ft.rangeQuery(date1, date2, true, true, null, null, null, mockPluggableDataFormatContext());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * Term queries on a date field route through the same lambda as range queries, so the same
+     * gate applies: on a pluggable-dataformat index the point path must not be built.
+     */
+    public void testTermQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        DateFieldType ft = new DateFieldType("field");
+        String date = "2015-10-12T14:10:55";
+        long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
+        long lower = instant;
+        long upper = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli() + 999;
+        Query expected = SortedNumericDocValuesField.newSlowRangeQuery("field", lower, upper);
+        Query actual = ft.termQuery(date, mockPluggableDataFormatContext());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * A {@link QueryShardContext} mock that reports the pluggable-dataformat gate as enabled.
+     * Simulates a Mustang-backed index without needing the real feature-flag / IndexSettings
+     * plumbing — the mapper code only cares about the boolean returned here.
+     */
+    private static QueryShardContext mockPluggableDataFormatContext() {
+        QueryShardContext ctx = org.mockito.Mockito.mock(QueryShardContext.class);
+        org.mockito.Mockito.when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
+        org.mockito.Mockito.when(ctx.indexSortedOnField(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        return ctx;
+    }
 }
