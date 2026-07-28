@@ -1540,7 +1540,14 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_2_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format;
+            if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+                format = SERIALIZATION_FORMAT;
+            } else if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+                format = FORMAT_NO_DOC_TYPE;
+            } else {
+                format = FORMAT_NO_VERSION_TYPE;
+            }
             out.writeVInt(format);
             if (format < FORMAT_NO_DOC_TYPE) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
