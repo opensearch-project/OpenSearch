@@ -819,6 +819,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Returns the list of registered dynamic field type inferencers.
+     */
+    public List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+        return mapperRegistry.getDynamicFieldTypeInferencers();
+    }
+
+    /**
+     * Returns the map of registered dynamic template type handlers.
+     */
+    public Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+        return mapperRegistry.getDynamicTemplateTypes();
+    }
+
+    /**
      * An analyzer wrapper that can lookup fields within the index mappings
      */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {

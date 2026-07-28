@@ -282,11 +282,17 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                    if (template != null) {
+                    DynamicTemplate template = DynamicTemplate.parse(
+                        templateName,
+                        templateParams,
+                        parserContext.mapperService().getDynamicTemplateTypes()
+                    );
+                    if (template.getPluginMatchType() == null) {
                         validateDynamicTemplate(parserContext, template);
-                        templates.add(template);
+                    } else {
+                        validatePluginDynamicTemplate(parserContext, template);
                     }
+                    templates.add(template);
                 }
                 builder.dynamicTemplates(templates);
                 return true;
@@ -451,7 +457,7 @@ public class RootObjectMapper extends ObjectMapper {
     public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
         final String pathAsString = path.pathAsText(name);
         for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
-            if (dynamicTemplate.match(pathAsString, name, matchType)) {
+            if (dynamicTemplate.getPluginMatchType() == null && dynamicTemplate.match(pathAsString, name, matchType)) {
                 return dynamicTemplate;
             }
         }
@@ -711,6 +717,63 @@ public class RootObjectMapper extends ObjectMapper {
             }
             DEPRECATION_LOGGER.deprecate("invalid_dynamic_template_" + dynamicTemplate.getName(), deprecationMessage);
         }
+    }
+
+    /**
+     * Validates a dynamic template whose {@code match_mapping_type} is a plugin-registered type
+     * (e.g. {@code knn_vector}) at index-creation time.
+     *
+     * <p>Plugin templates are allowed to be intentionally incomplete: a parameter such as a vector's
+     * {@code dimension} may be derived from the first indexed document rather than declared in the
+     * template. Such templates cannot be validated up front, so we only validate eagerly when the
+     * plugin reports — via {@link DynamicTemplateTypeHandler#isConfigComplete} — that the config is
+     * fully specified. In that case we hand the config to the plugin's {@link Mapper.TypeParser}, and
+     * the type parser (not core) reports any invalid content, exactly as it would for an explicit
+     * field mapping of the same type. Otherwise validation is deferred to document-parse time.
+     */
+    private static void validatePluginDynamicTemplate(Mapper.TypeParser.ParserContext parserContext, DynamicTemplate dynamicTemplate) {
+        // {name} placeholders can't be resolved until a concrete field name is known — skip, as the
+        // builtin path does.
+        if (containsSnippet(dynamicTemplate.getMapping(), "{name}")) {
+            return;
+        }
+
+        String pluginType = dynamicTemplate.getPluginMatchType();
+        DynamicTemplateTypeHandler handler = parserContext.mapperService().getDynamicTemplateTypes().get(pluginType);
+        if (handler == null) {
+            // Unknown plugin types are already rejected in DynamicTemplate.parse; nothing to do here.
+            return;
+        }
+
+        String mappingType = dynamicTemplate.mappingType(pluginType);
+        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+        if (typeParser == null) {
+            // No parser to validate against — defer to document-parse time, which reports the error.
+            return;
+        }
+
+        String templateName = "__dynamic__" + dynamicTemplate.getName();
+        Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, pluginType);
+        if (handler.isConfigComplete(fieldTypeConfig) == false) {
+            // Config relies on data-derived parameters; it can only be validated once a document is seen.
+            return;
+        }
+
+        // Config is fully specified. Let the handler normalize it (e.g. inject its own type when the
+        // template omitted it) — a complete config never reads the field value, so the supplier is
+        // never invoked at index-creation time. Then hand it to the type parser, which validates the
+        // content and reports any invalid config.
+        try {
+            // No document is available at index creation, so the supplier's get() throws. A complete
+            // config never reads the field value, so this is a no-op normalization (e.g. type injection).
+            handler.adjustMappingConfig(fieldTypeConfig, FieldValueParserSupplier.withoutValue());
+        } catch (IllegalStateException | IOException e) {
+            // A complete config performs no I/O and must not read the field value. If a handler
+            // violates that contract, treat it as non-fatal and defer validation to document-parse time
+            // rather than failing index creation.
+            return;
+        }
+        typeParser.parse(templateName, fieldTypeConfig, parserContext);
     }
 
     private static boolean containsSnippet(Map<?, ?> map, String snippet) {
