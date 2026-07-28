@@ -617,7 +617,8 @@ public final class EngineConfig {
         ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
-         * Creates a tombstone document for a delete operation, preserving the routing value.
+         * Creates a tombstone document for a delete operation with routing.
+         * Default ignores routing for backward compatibility; override to preserve it.
          */
         default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
             return newDeleteTombstoneDoc(id);

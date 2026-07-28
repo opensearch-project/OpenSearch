@@ -1444,6 +1444,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnPrimary(long, String, String, VersionType, long, long)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(
+        long version,
+        String id,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
+        return applyDeleteOperationOnPrimary(version, id, null, versionType, ifSeqNo, ifPrimaryTerm);
+    }
+
     public Engine.DeleteResult applyDeleteOperationOnReplica(
         long seqNo,
         long opPrimaryTerm,
@@ -1479,6 +1493,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             0,
             Engine.Operation.Origin.REPLICA
         );
+    }
+
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnReplica(long, long, long, String, String)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id
+    ) throws IOException {
+        return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
     }
 
     private Engine.DeleteResult applyDeleteOperation(

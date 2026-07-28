@@ -108,7 +108,7 @@ public interface IndexerEngineOperations {
         long ifPrimaryTerm
     );
 
-    Engine.Delete prepareDelete(
+    default Engine.Delete prepareDelete(
         String id,
         String routing,
         long seqNo,
@@ -118,5 +118,7 @@ public interface IndexerEngineOperations {
         Engine.Operation.Origin origin,
         long ifSeqNo,
         long ifPrimaryTerm
-    );
+    ) {
+        return prepareDelete(id, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
 }

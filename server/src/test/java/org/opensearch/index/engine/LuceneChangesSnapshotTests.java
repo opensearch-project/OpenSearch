@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
     private MapperService mapperService;
@@ -393,7 +394,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
         // Verify toString includes routing
         assertThat(deleteWithRouting.toString(), containsString("routing=" + routingValue));
-        assertThat(deleteNoRouting.toString(), org.hamcrest.Matchers.not(containsString("routing=")));
+        assertThat(deleteNoRouting.toString(), not(containsString("routing=")));
     }
 
     public void testOverFlow() throws Exception {
