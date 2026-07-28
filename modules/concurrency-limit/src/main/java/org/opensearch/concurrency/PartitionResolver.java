@@ -29,24 +29,26 @@ public interface PartitionResolver {
      *
      * @param ctx the request context
      */
-    String resolve(SearchRequestContext ctx);
+    String resolve(LimiterRequestContext ctx);
 
     /**
      * Factory — creates the appropriate resolver from the alias configuration.
      *
-     * @param resolverType  value of {@code partition.resolver} setting (e.g. {@code "byHeader"})
+     * @param resolverType  the resolver type enum
      * @param resolverConfig sub-settings under {@code partition.resolver.<type>.*}
      * @param threadContext  request-scoped thread context (used by {@code byHeader} resolver)
      */
-    static PartitionResolver build(String resolverType, Settings resolverConfig, ThreadContext threadContext) {
-        if ("byHeader".equals(resolverType)) {
-            return new ByHeaderPartitionResolver(resolverConfig, threadContext);
-        } else if ("fixed".equals(resolverType)) {
-            return new FixedPartitionResolver(resolverConfig);
-        } else if ("bySearchType".equals(resolverType)) {
-            return new BySearchTypePartitionResolver(resolverConfig);
+    static PartitionResolver build(ConcurrencyLimitResolverType resolverType, Settings resolverConfig, ThreadContext threadContext) {
+        switch (resolverType) {
+            case BY_HEADER:
+                return new ByHeaderPartitionResolver(resolverConfig, threadContext);
+            case FIXED:
+                return new FixedPartitionResolver(resolverConfig);
+            case BY_SEARCH_TYPE:
+                return new BySearchTypePartitionResolver(resolverConfig);
+            default:
+                return ctx -> null;
         }
-        return ctx -> null;  // unknown type → unknownPartition
     }
 
     // -------------------------------------------------------------------------
@@ -67,7 +69,7 @@ public interface PartitionResolver {
         }
 
         @Override
-        public String resolve(SearchRequestContext ctx) {
+        public String resolve(LimiterRequestContext ctx) {
             return threadContext.getHeader(ActionConcurrencyLimitPlugin.TIER_HEADER);
         }
     }
@@ -87,7 +89,7 @@ public interface PartitionResolver {
         }
 
         @Override
-        public String resolve(SearchRequestContext ctx) {
+        public String resolve(LimiterRequestContext ctx) {
             return partition;
         }
     }
@@ -117,7 +119,7 @@ public interface PartitionResolver {
         }
 
         @Override
-        public String resolve(SearchRequestContext ctx) {
+        public String resolve(LimiterRequestContext ctx) {
             ActionRequest req = ctx.request();
             if (!(req instanceof SearchRequest)) {
                 return null;  // not a search → unknownPartition

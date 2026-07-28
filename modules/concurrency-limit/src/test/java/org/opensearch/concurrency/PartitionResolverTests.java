@@ -20,8 +20,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class PartitionResolverTests extends OpenSearchTestCase {
 
-    private static SearchRequestContext ctxFor(ActionRequest request) {
-        return new SearchRequestContext(null, "indices:data/read/search", request);
+    private static LimiterRequestContext ctxFor(ActionRequest request) {
+        return new LimiterRequestContext(null, "indices:data/read/search", request);
     }
 
     private static SearchRequest aggSearch() {
@@ -39,13 +39,13 @@ public class PartitionResolverTests extends OpenSearchTestCase {
     public void testByHeaderReadsTierHeader() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(ActionConcurrencyLimitPlugin.TIER_HEADER, "premium");
-        PartitionResolver r = PartitionResolver.build("byHeader", Settings.EMPTY, threadContext);
+        PartitionResolver r = PartitionResolver.build(ConcurrencyLimitResolverType.BY_HEADER, Settings.EMPTY, threadContext);
         assertEquals("premium", r.resolve(ctxFor(plainSearch())));
     }
 
     public void testByHeaderReturnsNullWhenHeaderMissing() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        PartitionResolver r = PartitionResolver.build("byHeader", Settings.EMPTY, threadContext);
+        PartitionResolver r = PartitionResolver.build(ConcurrencyLimitResolverType.BY_HEADER, Settings.EMPTY, threadContext);
         assertNull(r.resolve(ctxFor(plainSearch())));
     }
 
@@ -96,14 +96,14 @@ public class PartitionResolverTests extends OpenSearchTestCase {
     }
 
     public void testFactoryBuildsBySearchType() {
-        PartitionResolver r = PartitionResolver.build("bySearchType", Settings.EMPTY, null);
+        PartitionResolver r = PartitionResolver.build(ConcurrencyLimitResolverType.BY_SEARCH_TYPE, Settings.EMPTY, null);
         assertTrue(r instanceof PartitionResolver.BySearchTypePartitionResolver);
         assertEquals("aggregation", r.resolve(ctxFor(aggSearch())));
         assertEquals("filter", r.resolve(ctxFor(plainSearch())));
     }
 
-    public void testFactoryUnknownTypeResolvesToNull() {
-        PartitionResolver r = PartitionResolver.build("byTenant", Settings.EMPTY, null);
+    public void testFactoryNoneTypeResolvesToNull() {
+        PartitionResolver r = PartitionResolver.build(ConcurrencyLimitResolverType.NONE, Settings.EMPTY, null);
         assertNull(r.resolve(ctxFor(aggSearch())));
     }
 }
