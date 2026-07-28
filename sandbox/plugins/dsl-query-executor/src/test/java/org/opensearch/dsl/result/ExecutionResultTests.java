@@ -38,7 +38,9 @@ public class ExecutionResultTests extends OpenSearchTestCase {
                 "binary_data",
                 "event_time",
                 "ip_address",
-                "event_nanos"
+                "event_nanos",
+                "scaled_price",
+                "unsigned_counter"
             ),
             result.getFieldNames()
         );

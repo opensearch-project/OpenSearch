@@ -35,6 +35,10 @@ dependencies {
   // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.
   compileOnly "org.apache.calcite.avatica:avatica-core:${versions.avatica}"
 
+  // Jackson annotations needed on compile classpath because Calcite's TimestampString
+  // class uses @JsonProperty — without this, -Werror rejects the classfile warning.
+  compileOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+
   // Guava for compilation — Calcite API exposes guava types in annotations
   calciteCompile "com.google.guava:guava:${versions.guava}"
 

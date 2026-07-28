@@ -8,8 +8,11 @@
 
 package org.opensearch.dsl.query;
 
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
+import org.opensearch.analytics.schema.ScaledFloatType;
+import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -17,10 +20,13 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Converts a {@link TermsQueryBuilder} to a Calcite IN RexNode.
+ *
+ * <p>For {@code scaled_float} fields, each value is scaled via {@code Math.round(value * factor)}
+ * before the IN comparison — mirroring
+ * {@code ScaledFloatFieldMapper.ScaledFloatFieldType.termsQuery}.
  */
 public class TermsQueryTranslator implements QueryTranslator {
 
@@ -59,11 +65,42 @@ public class TermsQueryTranslator implements QueryTranslator {
             throw new ConversionException("Field '" + fieldName + "' not found in schema");
         }
 
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-        List<RexNode> literals = values.stream()
-            .map(value -> ctx.getRexBuilder().makeLiteral(value, field.getType(), true))
-            .collect(Collectors.toList());
+        RelDataType fieldType = field.getType();
+        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(fieldType, field.getIndex());
+
+        if (fieldType instanceof ScaledFloatType sft) {
+            // ScaledFloatFieldMapper.ScaledFloatFieldType.termsQuery: Math.round(value * factor)
+            // for each value, then delegates to NumberFieldMapper.NumberType.LONG.termsQuery.
+            List<RexNode> literals = new java.util.ArrayList<>();
+            for (Object value : values) {
+                long scaledValue = RangeBoundMath.scaleToLong(value, sft.getScalingFactor(), fieldName);
+                literals.add(ctx.getRexBuilder().makeLiteral(scaledValue, fieldType, true));
+            }
+            return ctx.getRexBuilder().makeIn(fieldRef, literals);
+        }
+
+        if (fieldType instanceof UnsignedLongType) {
+            // NumberFieldMapper.NumberType.UNSIGNED_LONG.termsQuery: skip negative/decimal values.
+            List<RexNode> literals = new java.util.ArrayList<>();
+            for (Object value : values) {
+                Long parsed = RangeBoundMath.parseUnsignedLongTerm(value, fieldName);
+                if (parsed != null) {
+                    long longVal = parsed;
+                    literals.add(ctx.getRexBuilder().makeLiteral(longVal, fieldType, true));
+                }
+            }
+            if (literals.isEmpty()) {
+                return ctx.getRexBuilder().makeLiteral(false);
+            }
+            return ctx.getRexBuilder().makeIn(fieldRef, literals);
+        }
+
+        List<RexNode> literals = new java.util.ArrayList<>();
+        for (Object value : values) {
+            literals.add(ctx.getRexBuilder().makeLiteral(value, fieldType, true));
+        }
 
         return ctx.getRexBuilder().makeIn(fieldRef, literals);
     }
+
 }

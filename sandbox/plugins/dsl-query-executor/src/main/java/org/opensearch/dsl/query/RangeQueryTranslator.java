@@ -15,11 +15,15 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.TimestampString;
 import org.opensearch.analytics.schema.IpType;
+import org.opensearch.analytics.schema.ScaledFloatType;
+import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 
@@ -31,7 +35,7 @@ import java.util.List;
 /**
  * Converts a {@link RangeQueryBuilder} to Calcite comparison RexNodes.
  * Supports gte, gt, lte, lt operators, format, time_zone, and relation parameters.
- * Implements date math expressions, inclusivity-keyed rounding, and millisecond precision.
+ * Implements date math expressions, inclusivity-keyed rounding, and millisecond/nanosecond precision.
  * <p>
  * Date rounding follows legacy {@code DateFieldMapper.dateRangeQuery}: lower bound parsed with
  * roundUp=!includeLower; upper bound parsed with roundUp=includeUpper. The DateMathParser itself
@@ -71,6 +75,7 @@ public class RangeQueryTranslator implements QueryTranslator {
      * - Date math expressions (now-7d, now/d, etc.)
      * - Inclusivity-keyed rounding per legacy DateFieldMapper.dateRangeQuery
      * - Millisecond precision timestamps (TIMESTAMP(3))
+     * - Nanosecond precision timestamps for date_nanos (TIMESTAMP(9))
      * - IP field range with InetAddress-order byte comparison
      * - Decimal-to-integer truncation per legacy NumberFieldMapper INTEGER.rangeQuery
      * - Unmapped fields return literal false (match-none)
@@ -98,7 +103,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         RangeQueryBuilder rangeQuery = (RangeQueryBuilder) query;
         String fieldName = rangeQuery.fieldName();
 
-        if (rangeQuery.boost() != 1.0f) {
+        if (rangeQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Range query 'boost' parameter is not supported");
         }
 
@@ -133,17 +138,8 @@ public class RangeQueryTranslator implements QueryTranslator {
             return convertIpRange(rangeQuery, field, ctx);
         }
 
-        // Guard: nanosecond-precision date fields (date_nanos mapped to TIMESTAMP(9)) are not
-        // yet supported. Calcite's RexBuilder.makeTimestampLiteral internally calls
-        // typeFactory.createSqlType(TIMESTAMP, precision) which clamps to max precision 3 under
-        // RelDataTypeSystem.DEFAULT. Until a custom RelDataTypeSystem with maxPrecision=9 is
-        // added to the production type factory (SearchSourceConverter), nano-precision literals
-        // cannot be constructed without truncation.
         SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
-        if (RangeDateParsing.isDateType(fieldTypeName) && field.getType().getPrecision() > 3) {
-            throw new ConversionException("Nanosecond-precision date fields (date_nanos) are not yet supported by the DSL conversion path");
-        }
-
+        int fieldPrecision = field.getType().getPrecision();
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
         List<RexNode> conditions = new ArrayList<>();
 
@@ -152,7 +148,7 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // Lower bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
         if (rangeQuery.from() != null) {
-            Object fromValue = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName);
+            Object fromValue = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName, fieldPrecision);
             RexNode bound = translateBound(fromValue, true, rangeQuery.includeLower(), fieldTypeName, field, ctx);
             if (bound != null) {
                 if (bound instanceof org.apache.calcite.rex.RexLiteral
@@ -165,7 +161,7 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // Upper bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
         if (rangeQuery.to() != null) {
-            Object toValue = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName);
+            Object toValue = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName, fieldPrecision);
             RexNode bound = translateBound(toValue, false, rangeQuery.includeUpper(), fieldTypeName, field, ctx);
             if (bound != null) {
                 if (bound instanceof org.apache.calcite.rex.RexLiteral
@@ -205,13 +201,46 @@ public class RangeQueryTranslator implements QueryTranslator {
         SqlTypeName fieldTypeName,
         RelDataTypeField field,
         ConversionContext ctx
-    ) {
+    ) throws ConversionException {
         if (value == null) {
             return null;
         }
 
         Object adjusted = value;
         boolean adjustedInclusive = inclusive;
+
+        // Scaled float: scale bound via Math.round(value * factor) then apply integer inclusivity.
+        // Must precede the decimal truncate+adjust path — legacy ScaledFloatFieldType.rangeQuery
+        // uses Math.round only, not the truncate+adjust logic of NumberFieldMapper INTEGER.rangeQuery.
+        if (field.getType() instanceof ScaledFloatType sft) {
+            long scaledBound = RangeBoundMath.scaleBound(value, sft, field.getName());
+            // Inclusivity adjustment per NumberFieldMapper.longRangeQuery: exclusive bounds
+            // increment (lower) or decrement (upper) to make them inclusive.
+            if (!inclusive) {
+                if (isLower) {
+                    if (scaledBound == Long.MAX_VALUE) {
+                        return ctx.getRexBuilder().makeLiteral(false);
+                    }
+                    scaledBound++;
+                } else {
+                    if (scaledBound == Long.MIN_VALUE) {
+                        return ctx.getRexBuilder().makeLiteral(false);
+                    }
+                    scaledBound--;
+                }
+            }
+            RexNode literal = ctx.getRexBuilder().makeLiteral(scaledBound, field.getType(), true);
+            RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+            SqlOperator op = isLower ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
+            return ctx.getRexBuilder().makeCall(op, fieldRef, literal);
+        }
+
+        // Unsigned long: apply legacy NumberFieldMapper.unsignedLongRangeQuery semantics.
+        // The representable range on the DSL path is [0, Long.MAX_VALUE] due to schema_coerce.rs
+        // UInt64→Int64 narrowing; values above Long.MAX_VALUE throw ConversionException.
+        if (field.getType() instanceof UnsignedLongType) {
+            return RangeBoundMath.translateUnsignedLongBound(value, isLower, inclusive, field, ctx);
+        }
 
         // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
         // truncate to int and adjust based on sign and bound direction.
@@ -325,8 +354,12 @@ public class RangeQueryTranslator implements QueryTranslator {
     /**
      * Creates a literal RexNode with appropriate type based on the field type and value.
      * <p>
-     * For Long values on TIMESTAMP/DATE fields, creates a TIMESTAMP(3) type to preserve
-     * millisecond precision. For Long values on non-date fields, uses the field's original type.
+     * For Long values on TIMESTAMP/DATE fields, creates a timestamp literal with precision matching
+     * the field (3 for date/millis, 9 for date_nanos). For precision 9, the Long is interpreted as
+     * epoch-nanoseconds and converted to a {@link TimestampString} preserving all nine fractional
+     * digits. For precision 3, it is interpreted as epoch-milliseconds. This ensures the Substrait
+     * path emits PrecisionTimestampLiteral with matching units (nanos vs millis).
+     * <p>
      * For CoercedNumber values (from string-to-number coercion), uses makeLiteral with the
      * field's type; Calcite canonically types exact-numeric literals as DECIMAL, which is
      * semantically equivalent for comparisons.
@@ -340,7 +373,24 @@ public class RangeQueryTranslator implements QueryTranslator {
      */
     private RexNode createLiteral(Object value, RelDataTypeField field, ConversionContext ctx, SqlTypeName fieldTypeName) {
         if (value instanceof Long && RangeDateParsing.isDateType(fieldTypeName)) {
-            RelDataType timestampType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP, 3);
+            long longValue = (Long) value;
+            int precision = field.getType().getPrecision();
+            if (precision == 9) {
+                // Nanosecond epoch: build TimestampString with 9 fractional digits to avoid
+                // makeLiteral(Long, TIMESTAMP) which interprets the Long as millis and overflows.
+                // Split: millis for the date/time base, nanoOfSecond for the fractional portion.
+                long epochMillis = longValue / 1_000_000L;
+                int nanoOfSecond = (int) (longValue % 1_000_000_000L);
+                // Handle negative modulo edge case (should not occur for valid nanos since epoch)
+                if (nanoOfSecond < 0) {
+                    nanoOfSecond += 1_000_000_000;
+                    epochMillis -= 1;
+                }
+                TimestampString ts = TimestampString.fromMillisSinceEpoch(epochMillis).withNanos(nanoOfSecond);
+                return ctx.getRexBuilder().makeTimestampLiteral(ts, precision);
+            }
+            // Precision 3 (millis): use standard makeLiteral which interprets Long as epoch-millis.
+            RelDataType timestampType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP, precision);
             return ctx.getRexBuilder().makeLiteral(value, timestampType, true);
         }
         if (value instanceof CoercedNumber) {
@@ -365,17 +415,29 @@ public class RangeQueryTranslator implements QueryTranslator {
      * Non-string values are returned as-is regardless of field type.
      * <p>
      * For epoch_millis format, timezone is ignored since epoch is absolute.
+     * <p>
+     * For precision-9 date fields (date_nanos), parsing routes to nanosecond resolution via
+     * {@link RangeDateParsing#parseDateValueNanos}, mirroring legacy
+     * {@code DateFieldMapper.Resolution.NANOSECONDS}.
      *
      * @param value the value to process (can be String, Long, or other types)
      * @param format optional date format pattern (e.g., "dd/MM/yyyy")
      * @param timeZone optional timezone ID (e.g., "America/New_York", defaults to "UTC")
      * @param roundUp whether to round up to end of time unit (true) or down to start (false)
      * @param fieldTypeName the SqlTypeName of the target field
-     * @return processed value as epoch milliseconds (Long) for dates, CoercedNumber for string-to-number, or original value
+     * @param fieldPrecision the precision of the field (3 for date/millis, 9 for date_nanos)
+     * @return processed value as epoch milliseconds (Long) for date, epoch nanos (Long) for date_nanos,
+     *         CoercedNumber for string-to-number, or original value
      * @throws ConversionException if date parsing fails or numeric coercion fails
      */
-    private Object processValue(Object value, String format, String timeZone, boolean roundUp, SqlTypeName fieldTypeName)
-        throws ConversionException {
+    private Object processValue(
+        Object value,
+        String format,
+        String timeZone,
+        boolean roundUp,
+        SqlTypeName fieldTypeName,
+        int fieldPrecision
+    ) throws ConversionException {
         if (value == null) {
             return null;
         }
@@ -388,11 +450,17 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // If format/timeZone specified or value is date-math, always date-parse
         if (format != null || timeZone != null || RangeDateParsing.isDateMathExpression(strValue)) {
+            if (fieldPrecision == 9) {
+                return RangeDateParsing.parseDateValueNanos(strValue, format, timeZone, roundUp);
+            }
             return RangeDateParsing.parseDateValueMillis(strValue, format, timeZone, roundUp);
         }
 
         // Gate on field type
         if (RangeDateParsing.isDateType(fieldTypeName)) {
+            if (fieldPrecision == 9) {
+                return RangeDateParsing.parseDateValueNanos(strValue, null, null, roundUp);
+            }
             return RangeDateParsing.parseDateValueMillis(strValue, null, null, roundUp);
         } else if (RangeBoundMath.isNumericType(fieldTypeName)) {
             return new CoercedNumber(coerceToNumber(strValue, fieldTypeName));

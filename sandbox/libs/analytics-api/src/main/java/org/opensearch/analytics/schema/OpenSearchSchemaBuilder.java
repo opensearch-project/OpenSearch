@@ -245,6 +245,15 @@ public class OpenSearchSchemaBuilder {
 
     /** Format-aware overload: classifies {@code date}/{@code date_nanos} into DateOnly / TimeOnly UDT markers. */
     public static RelDataType buildLeafType(String opensearchType, String format, RelDataTypeFactory typeFactory) {
+        return buildLeafType(opensearchType, format, Double.NaN, typeFactory);
+    }
+
+    /**
+     * Full overload: handles format-aware date classification and scaled_float factor injection.
+     *
+     * @param scalingFactor positive factor for scaled_float fields; NaN when not applicable
+     */
+    public static RelDataType buildLeafType(String opensearchType, String format, double scalingFactor, RelDataTypeFactory typeFactory) {
         if (opensearchType == null) {
             return null;
         }
@@ -253,6 +262,21 @@ public class OpenSearchSchemaBuilder {
         }
         if (BinaryType.NAME.equals(opensearchType)) {
             return BinaryType.nullable();
+        }
+        if (UnsignedLongType.NAME.equals(opensearchType)) {
+            // mapFieldType still returns BIGINT for unsigned_long; the UnsignedLongType marker
+            // enables translator guards (negative-bound clamping, overflow rejection for values
+            // above Long.MAX_VALUE) without affecting planner coercion.
+            return new UnsignedLongType(typeFactory.getTypeSystem(), true);
+        }
+        if ("scaled_float".equals(opensearchType)) {
+            if (Double.isNaN(scalingFactor) || scalingFactor <= 0) {
+                // Missing, zero, or negative factor — exclude field from schema (matches how
+                // unrecognized types are dropped). Legacy requires scaling_factor > 0 at index
+                // creation; this guards only corrupted/hand-edited mappings.
+                return null;
+            }
+            return new ScaledFloatType(typeFactory.getTypeSystem(), true, scalingFactor);
         }
         if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
             int precision = "date_nanos".equals(opensearchType) ? 9 : 3;
@@ -328,7 +352,8 @@ public class OpenSearchSchemaBuilder {
                 continue;
             }
             String format = (String) fieldProps.get("format");
-            RelDataType columnType = buildLeafType(fieldType, format, typeFactory);
+            double scalingFactor = parseScalingFactor(fieldProps.get("scaling_factor"));
+            RelDataType columnType = buildLeafType(fieldType, format, scalingFactor, typeFactory);
             if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
                 // column; a query referencing it surfaces a Calcite "column not found" via the
@@ -336,6 +361,28 @@ public class OpenSearchSchemaBuilder {
                 continue;
             }
             builder.add(fieldName, columnType);
+        }
+    }
+
+    private static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger(OpenSearchSchemaBuilder.class.getName());
+
+    /**
+     * Normalizes a scaling_factor value (Number or String from mapping JSON) to a double.
+     * Returns {@link Double#NaN} when the value is null or unparseable, signaling the caller
+     * to exclude the field.
+     */
+    static double parseScalingFactor(Object raw) {
+        if (raw == null) {
+            return Double.NaN;
+        }
+        try {
+            if (raw instanceof Number) {
+                return ((Number) raw).doubleValue();
+            }
+            return Double.parseDouble(raw.toString());
+        } catch (NumberFormatException e) {
+            LOGGER.log(java.util.logging.Level.WARNING, "Invalid scaling_factor value: " + raw, e);
+            return Double.NaN;
         }
     }
 }

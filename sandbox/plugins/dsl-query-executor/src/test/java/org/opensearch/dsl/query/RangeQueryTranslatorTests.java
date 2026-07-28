@@ -881,20 +881,134 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue("Message should mention binary fields: " + ex.getMessage(), ex.getMessage().contains("binary"));
     }
 
+    // ========== GROUP N - DATE_NANOS (TIMESTAMP(9)) RANGE SUPPORT ==========
+
     /**
-     * Range query on nanosecond-precision date field (TIMESTAMP(9)) throws ConversionException.
-     * Calcite's RexBuilder.makeTimestampLiteral clamps precision to 3 under
-     * RelDataTypeSystem.DEFAULT, truncating nanosecond values. Requires type-system change.
+     * Range query on nanosecond-precision date field (TIMESTAMP(9)) produces a valid comparison.
+     * The guard that previously threw ConversionException has been removed; date_nanos is now
+     * supported via nanosecond-resolution parsing and TIMESTAMP(9) literals.
      */
-    public void testRangeOnDateNanosFieldThrows() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2022-01-01"), ctx)
-        );
-        assertTrue(
-            "Message should mention nanosecond or date_nanos: " + ex.getMessage(),
-            ex.getMessage().contains("anosecond") || ex.getMessage().contains("date_nanos")
-        );
+    public void testRangeOnDateNanosFieldSucceeds() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2022-01-01"), ctx);
+
+        assertTrue("Expected RexCall comparison, got: " + result.getClass(), result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        // event_nanos is field index 12
+        assertEquals(12, ((RexInputRef) call.getOperands().get(0)).getIndex());
+    }
+
+    /**
+     * Bound "2026-07-28T00:00:00.123456789" on event_nanos (precision 9) must produce a literal
+     * whose epoch-nanosecond value ends in ...123456789 exactly. This verifies no truncation to millis.
+     * Validation is via the literal's TimestampString which preserves all 9 fractional digits,
+     * and the literal's type which must be TIMESTAMP(9).
+     */
+    public void testDateNanosLiteralPreservesFullNanoPrecision() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2026-07-28T00:00:00.123456789"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        assertNotNull(literal);
+        // Type must be TIMESTAMP(9)
+        assertEquals(SqlTypeName.TIMESTAMP, literal.getType().getSqlTypeName());
+        assertEquals(9, literal.getType().getPrecision());
+        // The TimestampString must preserve all 9 fractional digits
+        org.apache.calcite.util.TimestampString ts = literal.getValueAs(org.apache.calcite.util.TimestampString.class);
+        assertNotNull("TimestampString value must not be null", ts);
+        String tsStr = ts.toString();
+        // Must contain .123456789 (all 9 digits preserved)
+        assertTrue("TimestampString must contain 9-digit fraction .123456789, got: " + tsStr, tsStr.contains(".123456789"));
+        // Verify the date part
+        assertTrue("TimestampString must start with 2026-07-28, got: " + tsStr, tsStr.startsWith("2026-07-28"));
+    }
+
+    /**
+     * gt vs gte at a nanosecond boundary must differ by rounding.
+     * gt "2026-07-28" uses roundUp=true (exclusive lower), producing end-of-day nanos.
+     * gte uses roundUp=false (inclusive lower), producing start-of-day nanos.
+     */
+    public void testDateNanosGtVsGteDifferByRounding() throws ConversionException {
+        // gte "2026-07-28" -> roundUp=false -> start of day = .000000000
+        RexNode gteResult = translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2026-07-28"), ctx);
+        RexCall gteCall = (RexCall) gteResult;
+        RexLiteral gteLiteral = unwrapLiteral(gteCall.getOperands().get(1));
+        org.apache.calcite.util.TimestampString gteTs = gteLiteral.getValueAs(org.apache.calcite.util.TimestampString.class);
+
+        // gt "2026-07-28" -> roundUp=true -> end of day = .999999999
+        RexNode gtResult = translator.convert(QueryBuilders.rangeQuery("event_nanos").gt("2026-07-28"), ctx);
+        RexCall gtCall = (RexCall) gtResult;
+        RexLiteral gtLiteral = unwrapLiteral(gtCall.getOperands().get(1));
+        org.apache.calcite.util.TimestampString gtTs = gtLiteral.getValueAs(org.apache.calcite.util.TimestampString.class);
+
+        assertNotNull(gteTs);
+        assertNotNull(gtTs);
+        // gte rounds down to start of day (no fractional part or all zeros)
+        String gteStr = gteTs.toString();
+        assertTrue("gte should be start of 2026-07-28: " + gteStr, gteStr.startsWith("2026-07-28 00:00:00"));
+        // gt rounds up to end of day: 23:59:59.999999999
+        String gtStr = gtTs.toString();
+        assertTrue("gt should be end of 2026-07-28 with .999999999: " + gtStr, gtStr.contains("23:59:59.999999999"));
+    }
+
+    /**
+     * Upper bound rounding on date_nanos: lte "2026-07-28" rounds UP to end-of-day at nano
+     * granularity (23:59:59.999999999).
+     */
+    public void testDateNanosUpperBoundRoundsToNanos() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_nanos").lte("2026-07-28"), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        org.apache.calcite.util.TimestampString ts = literal.getValueAs(org.apache.calcite.util.TimestampString.class);
+        assertNotNull(ts);
+        String tsStr = ts.toString();
+        // End of 2026-07-28 in nanos: 2026-07-28 23:59:59.999999999
+        assertTrue("lte should round up to end of day at nano granularity (.999999999): " + tsStr, tsStr.contains("23:59:59.999999999"));
+    }
+
+    /**
+     * Year-2262 clamping: date beyond MAX_NANOSECOND_INSTANT (~2262-04-11) is clamped
+     * to the max nanosecond epoch value, not overflowing.
+     */
+    public void testDateNanosYear2262Clamp() throws ConversionException {
+        // 2300-01-01 is beyond MAX_NANOSECOND_INSTANT (2262-04-11T23:47:16.854775807Z)
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2300-01-01"), ctx);
+
+        RexCall call = (RexCall) result;
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        assertEquals(SqlTypeName.TIMESTAMP, literal.getType().getSqlTypeName());
+        assertEquals(9, literal.getType().getPrecision());
+        // The value must be clamped to MAX_NANOSECOND_INSTANT
+        org.apache.calcite.util.TimestampString ts = literal.getValueAs(org.apache.calcite.util.TimestampString.class);
+        assertNotNull(ts);
+        String tsStr = ts.toString();
+        // MAX_NANOSECOND_INSTANT = 2262-04-11T23:47:16.854775807Z
+        assertTrue("Should be clamped to 2262-04-11: " + tsStr, tsStr.startsWith("2262-04-11"));
+        assertTrue("Should contain .854775807: " + tsStr, tsStr.contains(".854775807"));
+    }
+
+    /**
+     * REGRESSION: plain date field (event_time, precision 3) still yields precision-3 millis literal.
+     * Ensures the precision-9 path does not break existing millisecond date handling.
+     */
+    public void testRegressionPlainDateFieldStillUsesMillis() throws ConversionException {
+        // Use epoch_millis format which is timezone-independent (epoch is absolute)
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_time").gte("1785369600123").format("epoch_millis"), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        // Type should be TIMESTAMP(3)
+        assertEquals(SqlTypeName.TIMESTAMP, literal.getType().getSqlTypeName());
+        assertEquals(3, literal.getType().getPrecision());
+        // Value as Long should be epoch millis
+        Long millis = literal.getValueAs(Long.class);
+        assertNotNull(millis);
+        assertEquals("Plain date field should use millis precision", 1785369600123L, millis.longValue());
     }
 
     // ========== GROUP M - IP RANGE VALUE CORRECTNESS ==========
@@ -995,6 +1109,222 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
      */
     public void testIpRangeHostnameArbitraryThrows() {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.rangeQuery("ip_address").gte("evil.example"), ctx));
+    }
+
+    // ========== SCALED_FLOAT RANGE TESTS ==========
+
+    public void testGtOnScaledFloat() throws ConversionException {
+        // gt 10.5 with factor 10 -> Math.round(10.5 * 10) = 105, +1 for exclusive = 106, GTE
+        // Per NumberFieldMapper.longRangeQuery: exclusive lower increments to make inclusive GTE.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").gt(10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(13, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        assertEquals(Long.valueOf(106L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testGteOnScaledFloat() throws ConversionException {
+        // gte 10.5 with factor 10 -> Math.round(10.5 * 10) = 105, inclusive, GTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").gte(10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(105L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testLtOnScaledFloat() throws ConversionException {
+        // lt 10.5 with factor 10 -> 105, -1 for exclusive = 104, LTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").lt(10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(104L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testLteOnScaledFloat() throws ConversionException {
+        // lte 10.5 with factor 10 -> 105, inclusive, LTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").lte(10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(105L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testHalfBoundaryGteScaledFloatRoundsUp() throws ConversionException {
+        // gte 10.55 with factor 10 -> Math.round(105.5) = 106, inclusive, GTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").gte(10.55), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(106L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testNegativeValueOnScaledFloat() throws ConversionException {
+        // gt -5.3 with factor 10 -> Math.round(-53.0) = -53, +1 for exclusive = -52, GTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").gt(-5.3), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(-52L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testBothBoundsScaledFloatProducesAnd() throws ConversionException {
+        // gte 5.0 AND lte 20.0 with factor 10 -> 50 (inclusive) AND 200 (inclusive)
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("scaled_price").gte(5.0).lte(20.0), ctx);
+        RexCall andCall = (RexCall) result;
+        assertEquals(SqlKind.AND, andCall.getKind());
+
+        RexCall lower = (RexCall) andCall.getOperands().get(0);
+        RexCall upper = (RexCall) andCall.getOperands().get(1);
+
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, lower.getKind());
+        assertEquals(Long.valueOf(50L), extractLiteralLong(lower.getOperands().get(1)));
+
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, upper.getKind());
+        assertEquals(Long.valueOf(200L), extractLiteralLong(upper.getOperands().get(1)));
+    }
+
+    public void testOverflowBoundScaledFloatReturnsFalse() {
+        // Value that overflows Long when scaled: 1e18 * 10 > Long.MAX_VALUE
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gt(1e18), ctx)
+        );
+        assertTrue(ex.getMessage().contains("overflows"));
+    }
+
+    public void testNonNumericBoundScaledFloatThrowsConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gt("not-a-number"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not-a-number"));
+    }
+
+    /** Unwraps a nullable CAST around a RexLiteral produced by makeLiteral on a nullable type. */
+    private static Long extractLiteralLong(RexNode node) {
+        if (node instanceof RexLiteral lit) {
+            return lit.getValueAs(Long.class);
+        }
+        // makeLiteral wraps nullable types in CAST
+        if (node instanceof RexCall cast && cast.getKind() == SqlKind.CAST) {
+            return ((RexLiteral) cast.getOperands().get(0)).getValueAs(Long.class);
+        }
+        throw new AssertionError("Expected RexLiteral or CAST(RexLiteral), got: " + node.getClass().getSimpleName());
+    }
+
+    // ========== UNSIGNED_LONG RANGE TESTS ==========
+
+    public void testGtDecimalOnUnsignedLong() throws ConversionException {
+        // gt 10.5 on unsigned_long: positive decimal lower → truncate(10) + 1 = 11, GTE
+        // Mirrors NumberFieldMapper.unsignedLongRangeQuery: "if lowerTerm=1.5 then the
+        // (inclusive) bound becomes 2" — positive decimal lower increments after truncation.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gt(10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(14, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        assertEquals(Long.valueOf(11L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testGteNegativeLowerOnUnsignedLong() throws ConversionException {
+        // gte -5 on unsigned_long: negative lower bound → clamp to 0, effectively unbounded-low.
+        // Per NumberFieldMapper.objectToUnsignedLong(lenientBound=true): values below 0 return
+        // MIN_UNSIGNED_LONG_VALUE (0). With lower defaulting to 0 and no upper, this becomes
+        // IS_NOT_NULL (exists semantics) since the lower condition is omitted.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte(-5), ctx);
+        // With only a lower bound that is negative → null returned from translateBound → no conditions → IS_NOT_NULL
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+    }
+
+    public void testLtNegativeUpperOnUnsignedLong() throws ConversionException {
+        // lt -1 on unsigned_long: negative upper → match-none.
+        // Per NumberFieldMapper.objectToUnsignedLong(lenientBound=true): negative upper clamps to 0,
+        // then l(0) > u(0 after exclusive decrement = underflow) → MatchNoDocsQuery.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").lt(-1), ctx);
+        assertTrue("Expected literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    public void testBoundAboveLongMaxOnUnsignedLongThrows() {
+        // Bound 9223372036854775808 (Long.MAX_VALUE + 1) → ConversionException.
+        // Values above Long.MAX_VALUE are not representable due to schema_coerce.rs UInt64→Int64 narrowing.
+        // The error may come from coercion (Long overflow) or from our explicit check.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte("9223372036854775808"), ctx)
+        );
+        assertNotNull(ex.getMessage());
+    }
+
+    public void testGteOnUnsignedLongInRange() throws ConversionException {
+        // gte 100 (whole, inclusive) → GTE 100
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte(100), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(100L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testGtOnUnsignedLongExclusiveWholeNumber() throws ConversionException {
+        // gt 100 (whole, exclusive) → exclusive adjusts: +1 = 101, GTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gt(100), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(101L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testLtOnUnsignedLongExclusiveWholeNumber() throws ConversionException {
+        // lt 100 (whole, exclusive) → -1 = 99, LTE
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").lt(100), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+        assertEquals(Long.valueOf(99L), extractLiteralLong(call.getOperands().get(1)));
+    }
+
+    public void testLteNegativeUpperOnUnsignedLong() throws ConversionException {
+        // lte -5 on unsigned_long: negative upper → match-none.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter").lte(-5), ctx);
+        assertTrue("Expected literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    public void testNonNumericBoundOnUnsignedLongThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte("not-a-number"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("coerce") || ex.getMessage().contains("Non-numeric"));
+    }
+
+    public void testExistsOnUnsignedLong() throws ConversionException {
+        // No bounds → IS_NOT_NULL (exists semantics), same as other types.
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("unsigned_counter"), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+    }
+
+    // ========== FIX 1: NaN/Infinity rejection on scaled_float range ==========
+
+    /** NaN string bound on scaled_float must throw ConversionException, not silently produce 0. */
+    public void testNaNStringOnScaledFloatThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gte("NaN"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("NaN") || ex.getMessage().contains("non-finite"));
+    }
+
+    /** Double.NaN bound on scaled_float must throw ConversionException. */
+    public void testNaNDoubleOnScaledFloatThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gte(Double.NaN), ctx)
+        );
+        assertTrue(ex.getMessage().contains("NaN") || ex.getMessage().contains("non-finite"));
+    }
+
+    /** Infinity string bound on scaled_float must throw ConversionException. */
+    public void testInfinityStringOnScaledFloatRangeThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gte("Infinity"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Infinity") || ex.getMessage().contains("non-finite"));
     }
 
     // ========== END OF TESTS ==========

@@ -21,7 +21,7 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(>=($4, 2024-01-01 00:00:00:TIMESTAMP(3)), <=($4, 2024-12-31 23:59:59.999:TIMESTAMP(3)))])",
+    "LogicalFilter(condition=[AND(>=($4, 2024-01-01 00:00:00), <=($4, 2024-12-31 23:59:59.999))])",
     "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price", "brand", "rating", "created_at"],

@@ -17,7 +17,7 @@ import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.prepare.CalciteCatalogReader;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rel.type.RelDataTypeSystem;
+import org.apache.calcite.rel.type.RelDataTypeSystemImpl;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
@@ -53,7 +53,16 @@ public class CalciteTestInfra {
         Objects.requireNonNull(indexName, "indexName must not be null");
         Objects.requireNonNull(indexMapping, "indexMapping must not be null");
 
-        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
+        // Mirrors SearchSourceConverter: TIMESTAMP max precision raised to 9 for date_nanos support.
+        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(new RelDataTypeSystemImpl() {
+            @Override
+            public int getMaxPrecision(SqlTypeName typeName) {
+                if (typeName == SqlTypeName.TIMESTAMP) {
+                    return 9;
+                }
+                return super.getMaxPrecision(typeName);
+            }
+        });
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         RelOptCluster cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
 
@@ -64,7 +73,9 @@ public class CalciteTestInfra {
                 RelDataTypeFactory.Builder builder = tf.builder();
                 for (Map.Entry<String, String> entry : indexMapping.entrySet()) {
                     SqlTypeName sqlType = toSqlTypeName(entry.getValue());
-                    builder.add(entry.getKey(), tf.createTypeWithNullability(tf.createSqlType(sqlType), true));
+                    int precision = precisionFor(entry.getValue());
+                    RelDataType fieldType = precision >= 0 ? tf.createSqlType(sqlType, precision) : tf.createSqlType(sqlType);
+                    builder.add(entry.getKey(), tf.createTypeWithNullability(fieldType, true));
                 }
                 return builder.build();
             }
@@ -83,6 +94,7 @@ public class CalciteTestInfra {
 
     /**
      * Maps a golden file type string to a Calcite {@link SqlTypeName}.
+     * TIMESTAMP is created with precision 3 (milliseconds) matching standard OpenSearch date fields.
      *
      * @throws IllegalArgumentException for unsupported type strings
      */
@@ -104,9 +116,22 @@ public class CalciteTestInfra {
                 return SqlTypeName.DATE;
             case "TIMESTAMP":
                 return SqlTypeName.TIMESTAMP;
+            case "TIMESTAMP_NANOS":
+                return SqlTypeName.TIMESTAMP;
             default:
                 throw new IllegalArgumentException("Unsupported SQL type in golden file indexMapping: " + goldenType);
         }
+    }
+
+    /** Returns the precision for a given golden file type. TIMESTAMP defaults to 3 (millis), TIMESTAMP_NANOS to 9. */
+    static int precisionFor(String goldenType) {
+        if ("TIMESTAMP".equals(goldenType)) {
+            return 3;
+        }
+        if ("TIMESTAMP_NANOS".equals(goldenType)) {
+            return 9;
+        }
+        return -1;
     }
 
     /** Result record containing the Calcite infrastructure built from a golden file mapping. */
