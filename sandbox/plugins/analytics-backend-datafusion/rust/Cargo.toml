@@ -95,6 +95,30 @@ crc32fast = { workspace = true }
 # rewrite. STANDARD alphabet matches the OpenSearch `binary` field wire contract.
 base64 = "0.22"
 
+# ── Liquid Cache (optional) ──────────────────────────────────────────────────
+# In-memory decoded-batch cache for indexed parquet scans. OFF by default and
+# self-contained to THIS file: enabling it is a single-file edit here plus the
+# Gradle flag.
+#
+# The dependency lines below are commented out on purpose. Cargo resolves (and
+# fetches) every *declared* optional dep even when its feature is inactive, so a
+# committed placeholder URL would break the default build. Leaving them commented
+# keeps the default build free of any liquid cache dependency.
+#
+# To ENABLE liquid cache:
+#   1. Uncomment the two dependency lines below and set the git repo + branch to
+#      your liquid cache source (must be API-compatible with this DataFusion /
+#      arrow version).
+#   2. Uncomment the `dep:` entries in the `liquid_cache` feature line below.
+#   3. Build with `-PliquidCache` (or LIQUID_CACHE=1); see build.gradle.
+# liquid-cache            = { git = "https://github.com/OWNER/REPO", branch = "BRANCH", optional = true }
+# liquid-cache-datafusion = { git = "https://github.com/OWNER/REPO", branch = "BRANCH", optional = true }
+
+[features]
+# Off by default. Bare flag so the default build resolves no liquid cache dep;
+# add the `dep:` entries (see step 2 above) when enabling.
+liquid_cache = [] # ["dep:liquid-cache", "dep:liquid-cache-datafusion"]
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }

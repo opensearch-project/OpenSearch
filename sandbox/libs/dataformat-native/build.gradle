@@ -77,6 +77,17 @@ task buildRustLibrary(type: Exec) {
 
     def cargoArgs = [cargoExecutable, 'build', '-p', 'opensearch-native-lib']
     if (buildType == 'release') { cargoArgs.add('--release') }
+
+    // Optional Liquid Cache: pass -PliquidCache (or LIQUID_CACHE=1) to turn on the
+    // `liquid_cache` cargo feature. Off by default, so the plain build has no liquid
+    // cache dependency. NOTE: the liquid cache deps in Cargo.toml are commented-out
+    // placeholders by default — fill them in and add the `dep:` entries to the
+    // feature (see the notes in analytics-backend-datafusion/rust/Cargo.toml) before
+    // this flag actually compiles liquid cache in.
+    if (project.hasProperty('liquidCache') || System.getenv('LIQUID_CACHE') == '1') {
+        logger.lifecycle('Liquid Cache: feature enabled')
+        cargoArgs.addAll(['--features', 'opensearch-datafusion/liquid_cache'])
+    }
     commandLine cargoArgs
 
     inputs.files fileTree("${rustWorkspaceDir}/common/src")

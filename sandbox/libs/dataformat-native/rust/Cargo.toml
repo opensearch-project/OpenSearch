@@ -83,6 +83,10 @@ opensearch-repository-gcs = { path = "../../../plugins/native-repository-gcs/src
 opensearch-repository-azure = { path = "../../../plugins/native-repository-azure/src/main/rust" }
 opensearch-repository-fs = { path = "../../../plugins/native-repository-fs/src/main/rust" }
 
+# Liquid Cache (optional) is declared directly in the enabling crate,
+# analytics-backend-datafusion/rust/Cargo.toml — not here — so that turning it on
+# is a single-file edit. See the placeholder block there.
+
 [profile.release]
 lto = true
 codegen-units = 1

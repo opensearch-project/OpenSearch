@@ -250,9 +250,15 @@ fn create_stream_with_access_plan(
         }
     }
 
-    let mut config_builder =
-        FileScanConfigBuilder::new(config.store_url.clone(), Arc::new(parquet_source))
-            .with_file(partitioned_file);
+    // Liquid Cache (optional): when the `liquid_cache` feature is compiled in and
+    // an eligible scan engages, wrap the ParquetSource with LiquidParquetSource so
+    // decoded batches are served from / populated into the in-memory cache. When
+    // the feature is off this is a no-op and the plain ParquetSource is used.
+    let file_source: Arc<dyn datafusion::datasource::physical_plan::FileSource> =
+        crate::liquid_cache::maybe_wrap_parquet_source(parquet_source, config);
+
+    let mut config_builder = FileScanConfigBuilder::new(config.store_url.clone(), file_source)
+        .with_file(partitioned_file);
 
     if let Some(ref proj) = config.projection {
         // Empty projection (e.g. COUNT(*)) is honoured as "read no
