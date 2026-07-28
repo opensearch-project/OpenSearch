@@ -1541,7 +1541,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         private void write(final StreamOutput out) throws IOException {
             final int format;
-            if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
                 format = SERIALIZATION_FORMAT;
             } else if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
                 format = FORMAT_NO_DOC_TYPE;

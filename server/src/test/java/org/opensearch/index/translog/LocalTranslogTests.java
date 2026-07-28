@@ -3612,7 +3612,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
-        String deleteRouting = wireVersion.onOrAfter(Version.V_3_6_0) ? "custom-routing" : null;
+        String deleteRouting = wireVersion.onOrAfter(Version.V_3_8_0) ? "custom-routing" : null;
         Engine.Delete eDelete = new Engine.Delete(
             doc.id(),
             newUid(doc),
@@ -3645,7 +3645,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         Version oldVersion = VersionUtils.randomVersionBetween(
             random(),
             Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.V_3_6_0)
+            VersionUtils.getPreviousVersion(Version.V_3_8_0)
         );
         out.setVersion(oldVersion);
         Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, "tenant-abc");
