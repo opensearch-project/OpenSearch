@@ -345,7 +345,8 @@ public class OperationRouting {
     private static IndexShardRoutingTable filterDrainedNodes(IndexShardRoutingTable shard, Map<String, DeploymentState> drainedNodes) {
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shard.shardId);
         for (ShardRouting shardRouting : shard) {
-            if (!drainedNodes.containsKey(shardRouting.currentNodeId())) {
+            DeploymentState nodeState = drainedNodes.get(shardRouting.currentNodeId());
+            if (nodeState != DeploymentState.DRAIN) {
                 builder.addShard(shardRouting);
             }
         }

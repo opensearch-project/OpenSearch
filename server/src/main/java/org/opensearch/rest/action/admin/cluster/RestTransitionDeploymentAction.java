@@ -32,6 +32,9 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * @opensearch.internal
  */
 public class RestTransitionDeploymentAction extends BaseRestHandler {
+    private static final String VALID_ACTIONS = Arrays.stream(DeploymentState.values())
+        .map(Enum::name)
+        .reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
 
     @Override
     public List<Route> routes() {
@@ -50,7 +53,15 @@ public class RestTransitionDeploymentAction extends BaseRestHandler {
 
         TransitionDeploymentRequest transitionRequest = new TransitionDeploymentRequest();
         transitionRequest.deploymentId(deploymentId);
-        DeploymentState targetState = DeploymentState.valueOf(action.toUpperCase(Locale.ROOT));
+
+        DeploymentState targetState;
+        try {
+            targetState = DeploymentState.valueOf(action.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid action [%s], valid actions are [%s]", action, VALID_ACTIONS)
+            );
+        }
         transitionRequest.targetState(targetState);
         if (targetState == DeploymentState.DRAIN) {
             Map<String, String> attributes = parseAttributes(request);
@@ -58,14 +69,6 @@ public class RestTransitionDeploymentAction extends BaseRestHandler {
         }
 
         return channel -> client.execute(TransitionDeploymentAction.INSTANCE, transitionRequest, new RestToXContentListener<>(channel));
-    }
-
-    private static String extractAction(String path) {
-        int lastSlash = path.lastIndexOf('/');
-        if (lastSlash >= 0) {
-            return path.substring(lastSlash + 1);
-        }
-        return path;
     }
 
     @SuppressWarnings("unchecked")

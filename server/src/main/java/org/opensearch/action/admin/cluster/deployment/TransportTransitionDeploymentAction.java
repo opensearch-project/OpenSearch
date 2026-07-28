@@ -15,7 +15,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.deployment.DeploymentManagerService;
-import org.opensearch.cluster.deployment.DeploymentState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -74,10 +73,10 @@ public class TransportTransitionDeploymentAction extends TransportClusterManager
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (request.targetState() == DeploymentState.DRAIN) {
-            deploymentManagerService.startDeployment(request.deploymentId(), request.attributes(), request, listener);
-        } else {
-            deploymentManagerService.finishDeployment(request.deploymentId(), request, listener);
+        switch (request.targetState()) {
+            case DRAIN -> deploymentManagerService.startDeployment(request.deploymentId(), request.attributes(), request, listener);
+            case FINISH -> deploymentManagerService.finishDeployment(request.deploymentId(), request, listener);
+            default -> listener.onFailure(new IllegalStateException("unexpected target state: " + request.targetState()));
         }
     }
 
