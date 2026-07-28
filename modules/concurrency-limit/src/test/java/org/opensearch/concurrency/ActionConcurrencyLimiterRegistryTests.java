@@ -15,6 +15,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.concurrency.ActionConcurrencyLimiterRegistry.AcquireResult;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -22,16 +23,13 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
-
-import com.netflix.concurrency.limits.Limiter;
 
 public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     private static ClusterSettings clusterSettings(Settings settings) {
-        Set<Setting<?>> all = new HashSet<>(ActionConcurrencyLimiterRegistry.ALL_SETTINGS);
+        Set<Setting<?>> all = new HashSet<>(ConcurrencyLimitSettings.ALL_SETTINGS);
         return new ClusterSettings(settings, all);
     }
 
@@ -41,9 +39,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     private static Settings enabled(String alias, String actionName) {
         return Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".action_name", actionName)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".action_name", actionName)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".warmup_duration", "0s")
             .build();
     }
 
@@ -56,7 +54,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
         assertFalse(registry.hasLimiterFor("indices:data/read/search"));
-        assertTrue(registry.tryAcquire("indices:data/read/search", null, null).isEmpty());
+        assertTrue(registry.tryAcquire("indices:data/read/search", null, null).isNoLimiter());
     }
 
     // -------------------------------------------------------------------------
@@ -68,32 +66,32 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("should acquire a token", token.isPresent());
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("should acquire a token", token.isAcquired());
 
         ActionConcurrencyLimiterStats stats = registry.getStats();
         assertEquals(1, stats.getSnapshots().size());
         assertEquals(1, stats.getSnapshots().get(0).getInFlight());
 
-        token.get().onSuccess();
+        token.token().onSuccess();
         assertEquals(0, registry.getStats().getSnapshots().get(0).getInFlight());
     }
 
     public void testRejectionAfterLimit() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
-        Optional<Limiter.Listener> first = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue(first.isPresent());
+        AcquireResult first = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(first.isAcquired());
 
-        Optional<Limiter.Listener> second = registry.tryAcquire("indices:data/read/search", null, null);
-        assertFalse("second acquire should be rejected at limit=1", second.isPresent());
+        AcquireResult second = registry.tryAcquire("indices:data/read/search", null, null);
+        assertFalse("second acquire should be rejected at limit=1", second.isAcquired());
 
         assertEquals(1L, registry.getStats().getSnapshots().get(0).getTotalRejected());
     }
@@ -104,12 +102,12 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testMultipleActionsAreIndependent() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "bulk.action_name", "indices:data/write/bulk")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "bulk.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "bulk.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "bulk.action_name", "indices:data/write/bulk")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "bulk.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "bulk.warmup_duration", "0s")
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
@@ -117,16 +115,16 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertTrue(registry.hasLimiterFor("indices:data/write/bulk"));
         assertFalse(registry.hasLimiterFor("indices:data/read/get"));
 
-        Optional<Limiter.Listener> searchToken = registry.tryAcquire("indices:data/read/search", null, null);
-        Optional<Limiter.Listener> bulkToken = registry.tryAcquire("indices:data/write/bulk", null, null);
-        assertTrue(searchToken.isPresent());
-        assertTrue(bulkToken.isPresent());
+        AcquireResult searchToken = registry.tryAcquire("indices:data/read/search", null, null);
+        AcquireResult bulkToken = registry.tryAcquire("indices:data/write/bulk", null, null);
+        assertTrue(searchToken.isAcquired());
+        assertTrue(bulkToken.isAcquired());
 
         // Stats has two snapshots
         assertEquals(2, registry.getStats().getSnapshots().size());
 
-        searchToken.get().onSuccess();
-        bulkToken.get().onSuccess();
+        searchToken.token().onSuccess();
+        bulkToken.token().onSuccess();
     }
 
     // -------------------------------------------------------------------------
@@ -135,9 +133,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testDynamicEnableViaSettings() {
         Settings initial = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "disabled")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "disabled")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
             .build();
         ClusterSettings cs = clusterSettings(initial);
         ActionConcurrencyLimiterRegistry registry = newRegistry(initial, cs);
@@ -146,12 +144,12 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertFalse(registry.hasLimiterFor("indices:data/read/search"));
 
         // enable dynamically
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced").build());
 
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue(token.isPresent());
-        token.get().onSuccess();
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(token.isAcquired());
+        token.token().onSuccess();
     }
 
     public void testDynamicActionNameChange() {
@@ -162,9 +160,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
 
         cs.applySettings(
-            Settings.builder()
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/msearch")
-                .build()
+            Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/msearch").build()
         );
 
         assertFalse("old action name removed", registry.hasLimiterFor("indices:data/read/search"));
@@ -173,17 +169,17 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testWarmupAllowsRequestsDuringWarmup() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "5m")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "5m")
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
         registry.tryAcquire("indices:data/read/search", null, null); // fill slot
-        Optional<Limiter.Listener> second = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("during warmup, second acquire should return NOOP not empty", second.isPresent());
+        AcquireResult second = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("during warmup, second acquire should return NOOP not empty", second.isAcquired());
         assertEquals(0L, registry.getStats().getSnapshots().get(0).getTotalRejected());
     }
 
@@ -207,7 +203,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testDisabledModePassesThrough() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
             // mode defaults to "disabled"
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
@@ -216,60 +212,60 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testMonitorOnlyNeverRejects() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "monitor_only")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "monitor_only")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
         assertTrue("monitor_only should appear in reverse map", registry.hasLimiterFor("indices:data/read/search"));
 
         // fill the single slot
-        Optional<Limiter.Listener> first = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue(first.isPresent());
+        AcquireResult first = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(first.isAcquired());
 
         // even at limit, monitor_only never rejects
-        Optional<Limiter.Listener> second = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("monitor_only should never return empty", second.isPresent());
+        AcquireResult second = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("monitor_only should never return empty", second.isAcquired());
         assertEquals("would-be rejections counted in monitor_only", 1L, registry.getStats().getSnapshots().get(0).getTotalRejected());
     }
 
     public void testModeTransitionDisabledToEnforced() {
         Settings initial = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
             .build();
         ClusterSettings cs = clusterSettings(initial);
         ActionConcurrencyLimiterRegistry registry = newRegistry(initial, cs);
 
         assertFalse(registry.hasLimiterFor("indices:data/read/search"));
 
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced").build());
 
         assertTrue("after transition to enforced, limiter should be active", registry.hasLimiterFor("indices:data/read/search"));
     }
 
     public void testModeTransitionEnforcedToMonitorOnly() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
             .build();
         ClusterSettings cs = clusterSettings(s);
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, cs);
 
         // fill slot and verify rejection while enforced
         registry.tryAcquire("indices:data/read/search", null, null);
-        assertFalse("should reject in enforced mode", registry.tryAcquire("indices:data/read/search", null, null).isPresent());
+        assertFalse("should reject in enforced mode", registry.tryAcquire("indices:data/read/search", null, null).isAcquired());
 
         // switch to monitor_only
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "monitor_only").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "monitor_only").build());
 
         // now even at limit, requests pass through
-        assertTrue("should not reject in monitor_only mode", registry.tryAcquire("indices:data/read/search", null, null).isPresent());
+        assertTrue("should not reject in monitor_only mode", registry.tryAcquire("indices:data/read/search", null, null).isAcquired());
     }
 
     // -------------------------------------------------------------------------
@@ -278,25 +274,25 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     private static Settings.Builder partitionedBase() {
         return Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
-            .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium", "standard", "default");
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium", "standard", "default");
     }
 
     public void testPartitionedLimiterBuildsAndAcquires() {
-        Settings s = partitionedBase().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.6)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.standard.percent", 0.3)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.default.percent", 0.1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver", "fixed")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver.fixed.partition", "premium")
+        Settings s = partitionedBase().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.6)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.standard.percent", 0.3)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.default.percent", 0.1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver", "fixed")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver.fixed.partition", "premium")
             .build();
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, clusterSettings(s));
 
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("partitioned limiter should grant a token", token.isPresent());
-        token.get().onSuccess();
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("partitioned limiter should grant a token", token.isAcquired());
+        token.token().onSuccess();
     }
 
     public void testInvalidPartitionPercentRejectedAtUpdate() {
@@ -310,8 +306,8 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 1.5)
+                    .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 1.5)
                     .build()
             )
         );
@@ -319,9 +315,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         // The previous (non-partitioned) limiter is retained and still functional.
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("limiter should still work after rejecting bad config", token.isPresent());
-        token.get().onSuccess();
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("limiter should still work after rejecting bad config", token.isAcquired());
+        token.token().onSuccess();
     }
 
     public void testPartitionPercentSumOverOneRejectedAtUpdate() {
@@ -334,9 +330,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium", "standard")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.7)
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.standard.percent", 0.5)
+                    .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium", "standard")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.7)
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.standard.percent", 0.5)
                     .build()
             )
         );
@@ -344,7 +340,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         // Node stays healthy; previous limiter retained.
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        assertTrue(registry.tryAcquire("indices:data/read/search", null, null).isPresent());
+        assertTrue(registry.tryAcquire("indices:data/read/search", null, null).isAcquired());
     }
 
     public void testPartitionsWithoutResolverRejected() {
@@ -357,8 +353,8 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
+                    .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
                     .build()
             )
         );
@@ -374,9 +370,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver", "byTenant")
+                    .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver", "byTenant")
                     .build()
             )
         );
@@ -392,10 +388,10 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver", "fixed")
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver.fixed.partition", "ghost")
+                    .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.5)
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver", "fixed")
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver.fixed.partition", "ghost")
                     .build()
             )
         );
@@ -409,17 +405,17 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         cs.applySettings(
             Settings.builder()
-                .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "premium", "standard")
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.premium.percent", 0.6)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.standard.percent", 0.3)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver", "byHeader")
+                .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "premium", "standard")
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.premium.percent", 0.6)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.standard.percent", 0.3)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver", "byHeader")
                 .build()
         );
 
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue("valid partitioned config should grant a token", token.isPresent());
-        token.get().onSuccess();
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue("valid partitioned config should grant a token", token.isAcquired());
+        token.token().onSuccess();
     }
 
     public void testBySearchTypeResolverConfigAccepted() {
@@ -429,10 +425,10 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         cs.applySettings(
             Settings.builder()
-                .putList(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partitions", "filter", "aggregation")
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.filter.percent", 0.5)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.aggregation.percent", 0.5)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.partition.resolver", "bySearchType")
+                .putList(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partitions", "filter", "aggregation")
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.filter.percent", 0.5)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.aggregation.percent", 0.5)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.partition.resolver", "bySearchType")
                 .build()
         );
 
@@ -441,9 +437,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         SearchRequest aggSearch = new SearchRequest().source(
             new SearchSourceBuilder().aggregation(AggregationBuilders.max("m").field("f"))
         );
-        Optional<Limiter.Listener> token = registry.tryAcquire("indices:data/read/search", null, aggSearch);
-        assertTrue("bySearchType partitioned limiter should grant a token", token.isPresent());
-        token.get().onSuccess();
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, aggSearch);
+        assertTrue("bySearchType partitioned limiter should grant a token", token.isAcquired());
+        token.token().onSuccess();
     }
 
     // -------------------------------------------------------------------------
@@ -482,8 +478,8 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
     public void testListenerFiresOnEnableAndDisable() {
         Settings initial = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "disabled")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "disabled")
             .build();
         ClusterSettings cs = clusterSettings(initial);
         ActionConcurrencyLimiterRegistry registry = newRegistry(initial, cs);
@@ -493,11 +489,11 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertTrue("disabled alias should not be replayed as active", listener.active.isEmpty());
 
         // enable → onActive
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced").build());
         assertEquals(List.of("search"), listener.active);
 
         // disable → onInactive
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "disabled").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "disabled").build());
         assertEquals(List.of("search"), listener.inactive);
     }
 
@@ -511,7 +507,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         assertEquals(1, listener.active.size());
 
         // reconfigure an active alias (mode change) → re-fire onActive so tags can refresh
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "monitor_only").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "monitor_only").build());
 
         assertEquals(2, listener.active.size());
         assertEquals("monitor_only", listener.lastSnapshot.getMode());
@@ -530,49 +526,49 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         int activeCountBefore = listener.active.size();
 
         // Change algorithm — this is a successful reconfigure, listener should fire
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.algorithm", "aimd").build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.algorithm", "aimd").build());
         assertEquals(activeCountBefore + 1, listener.active.size());
     }
 
     public void testLimitChangePreservesWarmupExpired() {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 1)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 1)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
             .build();
         ClusterSettings cs = clusterSettings(s);
         ActionConcurrencyLimiterRegistry registry = newRegistry(s, cs);
 
         // Warmup is 0s so it's already expired — limiter should reject
-        Optional<Limiter.Listener> first = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue(first.isPresent());
-        assertFalse("should reject after warmup expired", registry.tryAcquire("indices:data/read/search", null, null).isPresent());
-        first.get().onSuccess();
+        AcquireResult first = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(first.isAcquired());
+        assertFalse("should reject after warmup expired", registry.tryAcquire("indices:data/read/search", null, null).isAcquired());
+        first.token().onSuccess();
 
         // Now change limit — this triggers reconfigure. Warmup should stay expired.
         cs.applySettings(
             Settings.builder()
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 2)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 2)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 2)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 2)
                 .build()
         );
 
         // Fill up the new limit (2 slots)
-        Optional<Limiter.Listener> t1 = registry.tryAcquire("indices:data/read/search", null, null);
-        Optional<Limiter.Listener> t2 = registry.tryAcquire("indices:data/read/search", null, null);
-        assertTrue(t1.isPresent());
-        assertTrue(t2.isPresent());
+        AcquireResult t1 = registry.tryAcquire("indices:data/read/search", null, null);
+        AcquireResult t2 = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(t1.isAcquired());
+        assertTrue(t2.isAcquired());
 
         // Third should be rejected (not pass-through via warmup restart)
         assertFalse(
             "warmup should not restart on limit change — should still reject",
-            registry.tryAcquire("indices:data/read/search", null, null).isPresent()
+            registry.tryAcquire("indices:data/read/search", null, null).isAcquired()
         );
 
-        t1.get().onSuccess();
-        t2.get().onSuccess();
+        t1.token().onSuccess();
+        t2.token().onSuccess();
     }
 
     // -------------------------------------------------------------------------
@@ -593,9 +589,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> cs.applySettings(
-                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 0).build()
-            )
+            () -> cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 0).build())
         );
         assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("limit.initial must be >= 1"));
     }
@@ -609,8 +603,8 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cs.applySettings(
                 Settings.builder()
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 50)
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 10)
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 50)
+                    .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 10)
                     .build()
             )
         );
@@ -625,9 +619,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> cs.applySettings(
-                Settings.builder()
-                    .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 2.0)
-                    .build()
+                Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 2.0).build()
             )
         );
         assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("baseline_reset_load_threshold must be in [0.0, 1.0]"));
@@ -640,9 +632,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> cs.applySettings(
-                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.burst.capacity", -1).build()
-            )
+            () -> cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.burst.capacity", -1).build())
         );
         assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("burst.capacity must be >= 0"));
     }
@@ -655,7 +645,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> cs.applySettings(
-                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.3).build()
+                Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.3).build()
             )
         );
         assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("aimd.backoff_ratio must be in [0.5, 1.0)"));
@@ -669,7 +659,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> cs.applySettings(
-                Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 0.5).build()
+                Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 0.5).build()
             )
         );
         assertTrue(rootCauseMessage(e), rootCauseMessage(e).contains("gradient2.rtt_tolerance must be >= 1.0"));
@@ -683,23 +673,19 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         // All valid values — should not throw
         cs.applySettings(
             Settings.builder()
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.initial", 10)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.limit.max", 100)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.initial", 10)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.limit.max", 100)
                 .build()
         );
         cs.applySettings(
             Settings.builder()
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.updrift_factor", 2)
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 0.8)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.vegas.updrift_factor", 2)
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.vegas.baseline_reset_load_threshold", 0.8)
                 .build()
         );
-        cs.applySettings(Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.burst.capacity", 5).build());
-        cs.applySettings(
-            Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.9).build()
-        );
-        cs.applySettings(
-            Settings.builder().put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 2.0).build()
-        );
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.burst.capacity", 5).build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.aimd.backoff_ratio", 0.9).build());
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.gradient2.rtt_tolerance", 2.0).build());
 
         assertTrue(registry.hasLimiterFor("indices:data/read/search"));
     }
@@ -716,7 +702,7 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
 
         // Simulate operator clearing all settings for the alias via null (REST API sends null).
         // Consumers fire with their default values; action_name default is "".
-        cs.applySettings(Settings.builder().putNull(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name").build());
+        cs.applySettings(Settings.builder().putNull(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name").build());
 
         assertFalse("limiter must be gone after clearing action_name", registry.hasLimiterFor("indices:data/read/search"));
         assertEquals("no active limiters reported", 0, registry.getStats().getSnapshots().size());
@@ -724,9 +710,9 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         // Re-enable with a fresh config — must work without any stale state.
         cs.applySettings(
             Settings.builder()
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.mode", "enforced")
-                .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + "search.warmup_duration", "0s")
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.action_name", "indices:data/read/search")
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "enforced")
+                .put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.warmup_duration", "0s")
                 .build()
         );
 

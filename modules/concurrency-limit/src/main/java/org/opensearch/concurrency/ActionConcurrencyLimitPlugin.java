@@ -143,7 +143,7 @@ public class ActionConcurrencyLimitPlugin extends Plugin implements ActionPlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return ActionConcurrencyLimiterRegistry.ALL_SETTINGS;
+        return ConcurrencyLimitSettings.ALL_SETTINGS;
     }
 
     @Override

@@ -16,7 +16,7 @@ import org.opensearch.tasks.Task;
  * partition resolvers can inspect the request (e.g. read a header) to determine which
  * partition the request belongs to.
  */
-public final class SearchRequestContext {
+public final class LimiterRequestContext {
     private final Task task;
     private final String action;
     private final ActionRequest request;
@@ -28,7 +28,7 @@ public final class SearchRequestContext {
      * @param action the transport action name
      * @param request the action request
      */
-    public SearchRequestContext(Task task, String action, ActionRequest request) {
+    public LimiterRequestContext(Task task, String action, ActionRequest request) {
         this.task = task;
         this.action = action;
         this.request = request;

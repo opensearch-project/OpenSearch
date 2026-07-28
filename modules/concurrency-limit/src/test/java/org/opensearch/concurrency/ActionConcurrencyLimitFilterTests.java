@@ -35,15 +35,15 @@ public class ActionConcurrencyLimitFilterTests extends OpenSearchTestCase {
     private static final String OTHER_ACTION = "indices:data/write/bulk";
 
     private static ClusterSettings clusterSettings(Settings settings) {
-        Set<Setting<?>> all = new HashSet<>(ActionConcurrencyLimiterRegistry.ALL_SETTINGS);
+        Set<Setting<?>> all = new HashSet<>(ConcurrencyLimitSettings.ALL_SETTINGS);
         return new ClusterSettings(settings, all);
     }
 
     private static ActionConcurrencyLimiterRegistry registryFor(String alias, String actionName, String mode) {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".action_name", actionName)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".mode", mode)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".action_name", actionName)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".mode", mode)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".warmup_duration", "0s")
             .build();
         return new ActionConcurrencyLimiterRegistry(
             s,
@@ -54,11 +54,11 @@ public class ActionConcurrencyLimitFilterTests extends OpenSearchTestCase {
 
     private static ActionConcurrencyLimiterRegistry limitedRegistry(String alias, String actionName, int limit) {
         Settings s = Settings.builder()
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".action_name", actionName)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".mode", "enforced")
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".limit.initial", limit)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".limit.max", limit)
-            .put(ActionConcurrencyLimiterRegistry.SETTING_PREFIX + alias + ".warmup_duration", "0s")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".action_name", actionName)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".mode", "enforced")
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".limit.initial", limit)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".limit.max", limit)
+            .put(ConcurrencyLimitSettings.SETTING_PREFIX + alias + ".warmup_duration", "0s")
             .build();
         return new ActionConcurrencyLimiterRegistry(
             s,

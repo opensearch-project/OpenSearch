@@ -12,12 +12,11 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.concurrency.ActionConcurrencyLimiterRegistry.AcquireResult;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.tasks.Task;
-
-import java.util.Optional;
 
 import com.netflix.concurrency.limits.Limiter;
 
@@ -31,9 +30,16 @@ import com.netflix.concurrency.limits.Limiter;
  * rejecting real traffic — the filter still wraps the response listener, but the no-op
  * callbacks have no side effects.
  * <p>
+ * The filter performs a single atomic {@link ActionConcurrencyLimiterRegistry#tryAcquire}
+ * call that returns a tri-state {@link ActionConcurrencyLimiterRegistry.AcquireResult}:
+ * no limiter configured (pass through), token acquired (proceed with limit tracking),
+ * or rejected (HTTP 429). This eliminates a race window that existed when
+ * {@code hasLimiterFor} and {@code tryAcquire} were separate calls — a concurrent
+ * settings change removing the limiter between the two calls could cause a false rejection.
+ * <p>
  * The task and request are passed to {@link ActionConcurrencyLimiterRegistry#tryAcquire}
  * so that partition resolvers can inspect the request (e.g. read a header). A
- * {@link SearchRequestContext} is allocated only when the action's limiter is partitioned,
+ * {@link LimiterRequestContext} is allocated only when the action's limiter is partitioned,
  * avoiding any per-request allocation on the non-partitioned hot path.
  */
 public class ActionConcurrencyLimitFilter implements ActionFilter {
@@ -63,36 +69,41 @@ public class ActionConcurrencyLimitFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        if (!registry.hasLimiterFor(action)) {
+        AcquireResult result = registry.tryAcquire(action, task, request);
+        if (result.isNoLimiter()) {
             chain.proceed(task, action, request, listener);
             return;
         }
 
-        Optional<Limiter.Listener> token = registry.tryAcquire(action, task, request);
-        if (token.isEmpty()) {
+        if (result.isRejected()) {
             listener.onFailure(
                 new OpenSearchRejectedExecutionException("request rejected: concurrency limit reached for action [" + action + "]", true)
             );
             return;
         }
 
-        Limiter.Listener limitToken = token.get();
-        chain.proceed(task, action, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                limitToken.onSuccess();
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof OpenSearchRejectedExecutionException) {
-                    limitToken.onDropped();
-                } else {
-                    limitToken.onIgnore();
+        Limiter.Listener limitToken = result.token();
+        try {
+            chain.proceed(task, action, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    limitToken.onSuccess();
+                    listener.onResponse(response);
                 }
-                listener.onFailure(e);
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof OpenSearchRejectedExecutionException) {
+                        limitToken.onDropped();
+                    } else {
+                        limitToken.onIgnore();
+                    }
+                    listener.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            limitToken.onIgnore();
+            throw e;
+        }
     }
 }
