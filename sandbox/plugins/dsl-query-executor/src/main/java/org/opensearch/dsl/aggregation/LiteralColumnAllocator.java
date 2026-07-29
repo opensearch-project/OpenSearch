@@ -16,7 +16,7 @@ package org.opensearch.dsl.aggregation;
  * {@code LogicalAggregate}; the converter materializes every allocated column in a
  * pre-aggregate {@code LogicalProject}.
  */
-public interface LiteralColumns {
+public interface LiteralColumnAllocator {
 
     /**
      * Returns the input column index that will carry the given constant, allocating a new

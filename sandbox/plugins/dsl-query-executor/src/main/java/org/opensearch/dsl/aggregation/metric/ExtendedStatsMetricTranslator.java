@@ -13,7 +13,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
-import org.opensearch.dsl.aggregation.LiteralColumns;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
@@ -75,7 +75,7 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
     }
 
     @Override
-    public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType, LiteralColumns literals)
+    public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType, LiteralColumnAllocator literals)
         throws ConversionException {
         MetricTranslator.validateFormat(agg.format(), agg.getName());
         RelDataTypeField field = MetricTranslator.resolveNumericField(rowType, agg.field(), agg.getType());

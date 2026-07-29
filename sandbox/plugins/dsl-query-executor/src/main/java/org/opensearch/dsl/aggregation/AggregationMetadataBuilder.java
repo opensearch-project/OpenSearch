@@ -121,8 +121,8 @@ public class AggregationMetadataBuilder {
      *
      * @param baseFieldCount the field count of the aggregate's un-projected input
      */
-    public LiteralColumns literalColumns(int baseFieldCount) {
-        return new LiteralColumns() {
+    public LiteralColumnAllocator literalColumnAllocator(int baseFieldCount) {
+        return new LiteralColumnAllocator() {
             @Override
             public int columnFor(double value) {
                 return indexFor(LiteralColumn.constant(value));

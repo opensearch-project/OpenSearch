@@ -64,7 +64,7 @@ public class AggregationMetadata {
      * @param missingValues null-substitution value per group field ({@code missing} parameter);
      *        fields absent from the map get an {@code IS NOT NULL} filter instead
      * @param literalColumns literal-derived columns to append to the aggregate's input, in
-     *                       allocation order (see {@link LiteralColumns})
+     *                       allocation order (see {@link LiteralColumnAllocator})
      */
     public AggregationMetadata(
         List<String> aggNamePath,
