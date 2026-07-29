@@ -37,6 +37,17 @@ public class AggregationRegistry {
     }
 
     /**
+     * Returns {@code true} when a translator is registered for the given aggregation type. Used
+     * by routing (grammar) to decide whether a request can be sent to the Calcite path before
+     * any conversion work is attempted.
+     *
+     * @param type the concrete {@link AggregationBuilder} class
+     */
+    public boolean hasTranslator(Class<? extends AggregationBuilder> type) {
+        return translators.containsKey(type);
+    }
+
+    /**
      * Returns the translator for the given class, or null.
      * Caller checks {@code instanceof MetricTranslator} or {@code instanceof BucketTranslator}.
      *
