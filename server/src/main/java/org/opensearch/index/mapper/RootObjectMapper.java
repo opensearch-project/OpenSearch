@@ -74,6 +74,7 @@ import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 @PublicApi(since = "1.0.0")
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(RootObjectMapper.class);
 
     /**
      * Default parameters for root object
@@ -770,7 +771,16 @@ public class RootObjectMapper extends ObjectMapper {
         } catch (IllegalStateException | IOException e) {
             // A complete config performs no I/O and must not read the field value. If a handler
             // violates that contract, treat it as non-fatal and defer validation to document-parse time
-            // rather than failing index creation.
+            // rather than failing index creation — but log it so the contract violation is visible.
+            logger.warn(
+                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                    "dynamic template type handler for [{}] threw while normalizing a complete config for template [{}]; "
+                        + "deferring validation to document-parse time",
+                    dynamicTemplate.getName(),
+                    templateName
+                ),
+                e
+            );
             return;
         }
         typeParser.parse(templateName, fieldTypeConfig, parserContext);
