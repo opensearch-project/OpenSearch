@@ -49,16 +49,20 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     ) {
         assert breakdown instanceof ConcurrentQueryProfileBreakdown;
         final ConcurrentQueryProfileBreakdown concurrentBreakdown = (ConcurrentQueryProfileBreakdown) breakdown;
+        // toBreakdownMap() populates the per-slice results (via buildSliceLevelBreakdown), so it must
+        // run before getSliceProfileResults() is read.
+        final Map<String, Long> breakdownMap = concurrentBreakdown.toBreakdownMap();
         return new ProfileResult(
             type,
             description,
-            concurrentBreakdown.toBreakdownMap(),
+            breakdownMap,
             concurrentBreakdown.toDebugMap(),
             concurrentBreakdown.toNodeTime(),
             childrenProfileResults,
             concurrentBreakdown.getMaxSliceNodeTime(),
             concurrentBreakdown.getMinSliceNodeTime(),
-            concurrentBreakdown.getAvgSliceNodeTime()
+            concurrentBreakdown.getAvgSliceNodeTime(),
+            concurrentBreakdown.getSliceProfileResults()
         );
     }
 
@@ -76,10 +80,11 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         for (Integer root : roots) {
             final ContextualProfileBreakdown parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
-            final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
-                .getSliceCollectorsToLeaves();
-            // update all the children with the parent collectorToLeaves association
-            updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves);
+            final ConcurrentQueryProfileBreakdown concurrentParent = (ConcurrentQueryProfileBreakdown) parentBreakdown;
+            final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = concurrentParent.getSliceCollectorsToLeaves();
+            // update all the children with the parent collectorToLeaves association (and the doc-id
+            // ranges, so child nodes report the same per-partition doc_range as the parent)
+            updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves, concurrentParent.getSliceLeafDocRanges());
         }
         // once the collector to leaves mapping is updated, get the result
         return super.getTree();
@@ -89,14 +94,22 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
      * Updates the children with collector to leaves mapping as recorded by parent breakdown
      * @param parentToken parent token number in the tree
      * @param collectorToLeaves collector to leaves mapping recorded by parent
+     * @param sliceLeafDocRanges per-(collector, leaf) doc-id ranges recorded by parent
      */
-    private void updateCollectorToLeavesForChildBreakdowns(Integer parentToken, Map<Collector, List<LeafReaderContext>> collectorToLeaves) {
+    private void updateCollectorToLeavesForChildBreakdowns(
+        Integer parentToken,
+        Map<Collector, List<LeafReaderContext>> collectorToLeaves,
+        Map<Collector, Map<LeafReaderContext, int[]>> sliceLeafDocRanges
+    ) {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
                 final ContextualProfileBreakdown currentChildBreakdown = breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
-                updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
+                if (currentChildBreakdown instanceof ConcurrentQueryProfileBreakdown) {
+                    ((ConcurrentQueryProfileBreakdown) currentChildBreakdown).associateSliceLeafDocRanges(sliceLeafDocRanges);
+                }
+                updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves, sliceLeafDocRanges);
             }
         }
     }

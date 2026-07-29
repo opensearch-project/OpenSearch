@@ -14,6 +14,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.SliceProfileResult;
 import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
@@ -54,6 +55,21 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
+
+    // Additive per-slice breakdowns captured during the eager reduce. These are the raw per-slice
+    // detail from which max_/min_/avg_ are derived; retained (instead of discarded) so consumers can
+    // inspect individual slices. Populated in buildSliceLevelBreakdown; does not affect the existing
+    // aggregates.
+    private final List<SliceProfileResult> sliceProfileResults = new ArrayList<>();
+
+    // Additive side map recording the doc-id range [minDocId, maxDocId) each leaf was searched with,
+    // captured at the searchLeaf seam (where the bounds are in scope). Used only to attach doc-ranges
+    // to the per-slice partitions; the existing sliceCollectorsToLeaves reduce is unaffected.
+    // Keyed by (collector, leaf) so that when a single segment is split across multiple slices
+    // (intra-segment search), each slice's partition of that leaf records its OWN doc-id range.
+    // Whole-segment partitions record [0, segment maxDoc) (resolved from the NO_MORE_DOCS sentinel at
+    // the searchLeaf seam) so the reported doc_range reflects the real segment size.
+    private final Map<Collector, Map<LeafReaderContext, int[]>> sliceLeafDocRanges = new ConcurrentHashMap<>();
 
     private final Collection<Supplier<ProfileMetric>> metricSuppliers;
     private final Set<String> timingMetrics;
@@ -165,6 +181,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     Map<Collector, Map<String, Long>> buildSliceLevelBreakdown() {
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
         long totalSliceNodeTime = 0L;
+        // Rebuild the per-slice results from scratch; toBreakdownMap() (hence this method) may be
+        // invoked more than once for the same breakdown, and we must not accumulate duplicates.
+        sliceProfileResults.clear();
         for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorsToLeaves.entrySet()) {
             final Collector sliceCollector = slice.getKey();
             // initialize each slice level breakdown
@@ -293,6 +312,32 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             minSliceNodeTime = Math.min(minSliceNodeTime, currentSliceNodeTime);
             // total time at query level
             totalSliceNodeTime += currentSliceNodeTime;
+
+            // Additively capture this slice's raw breakdown (the detail behind max_/min_/avg_) along
+            // with the partitions (segment ordinal + doc-id range) it searched, so consumers can
+            // inspect individual slices/partitions — mirroring Lucene's per-slice/per-partition shape.
+            final Map<LeafReaderContext, int[]> leafRangesForSlice = sliceLeafDocRanges.getOrDefault(
+                sliceCollector,
+                Collections.emptyMap()
+            );
+            final List<SliceProfileResult.PartitionInfo> slicePartitions = new ArrayList<>(slice.getValue().size());
+            for (LeafReaderContext sliceLeaf : slice.getValue()) {
+                // Fall back to the whole segment (0 .. segment maxDoc) when no explicit doc-range was
+                // recorded, using the real segment size rather than a sentinel so doc_range is meaningful.
+                final int[] docRange = leafRangesForSlice.getOrDefault(
+                    sliceLeaf,
+                    new int[] { 0, sliceLeaf.reader().maxDoc() }
+                );
+                slicePartitions.add(new SliceProfileResult.PartitionInfo(sliceLeaf.ord, docRange[0], docRange[1]));
+            }
+            sliceProfileResults.add(
+                new SliceProfileResult(
+                    sliceProfileResults.size(),
+                    currentSliceNodeTime,
+                    slicePartitions,
+                    new TreeMap<>(currentSliceBreakdown)
+                )
+            );
         }
         avgSliceNodeTime = totalSliceNodeTime / sliceCollectorsToLeaves.size();
         return sliceLevelBreakdowns;
@@ -456,6 +501,16 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     @Override
+    public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf, int minDocId, int maxDocId) {
+        associateCollectorToLeaves(collector, leaf);
+        // Additively record the doc-id range this (collector=slice, leaf) was searched with, from the
+        // searchLeaf seam where the bounds are in scope. Keyed by (collector, leaf) so that under
+        // intra-segment search — where one segment is split across multiple slices — each slice's
+        // partition of that leaf keeps its own range. Does not affect the existing reduce.
+        sliceLeafDocRanges.computeIfAbsent(collector, k -> new HashMap<>()).put(leaf, new int[] { minDocId, maxDocId });
+    }
+
+    @Override
     public void associateCollectorsToLeaves(Map<Collector, List<LeafReaderContext>> collectorsToLeaves) {
         sliceCollectorsToLeaves.putAll(collectorsToLeaves);
     }
@@ -464,9 +519,33 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         return Collections.unmodifiableMap(sliceCollectorsToLeaves);
     }
 
+    /**
+     * The per-(collector, leaf) doc-id ranges recorded at the searchLeaf seam. Exposed so the tree
+     * can propagate them to child breakdowns (whose weights are not exposed by Lucene and therefore
+     * never receive the searchLeaf association directly), mirroring how {@link
+     * #getSliceCollectorsToLeaves()} is propagated.
+     */
+    Map<Collector, Map<LeafReaderContext, int[]>> getSliceLeafDocRanges() {
+        return Collections.unmodifiableMap(sliceLeafDocRanges);
+    }
+
+    /** Copies parent doc-range associations into this (child) breakdown. */
+    void associateSliceLeafDocRanges(Map<Collector, Map<LeafReaderContext, int[]>> docRanges) {
+        sliceLeafDocRanges.putAll(docRanges);
+    }
+
     // used by tests
     Map<Object, AbstractProfileBreakdown> getContexts() {
         return contexts;
+    }
+
+    /**
+     * Returns the additive per-slice breakdowns captured during {@link #buildSliceLevelBreakdown()}.
+     * Empty until {@link #toBreakdownMap()} has run. These are the raw per-slice detail behind the
+     * {@code max_/min_/avg_} aggregates.
+     */
+    public List<SliceProfileResult> getSliceProfileResults() {
+        return Collections.unmodifiableList(sliceProfileResults);
     }
 
     long getMaxSliceNodeTime() {

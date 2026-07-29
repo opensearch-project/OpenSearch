@@ -29,14 +29,17 @@ import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileMetricTests;
 import org.opensearch.search.profile.ProfileMetricUtil;
+import org.opensearch.search.profile.SliceProfileResult;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
@@ -210,6 +213,37 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         assertEquals(10, testQueryProfileBreakdown.getMaxSliceNodeTime());
         assertEquals(10, testQueryProfileBreakdown.getMinSliceNodeTime());
         assertEquals(10, testQueryProfileBreakdown.getAvgSliceNodeTime());
+
+        // The additive per-slice breakdowns are captured alongside the (unchanged) max/min/avg
+        // aggregates: one SliceProfileResult per slice, each covering exactly its one segment, with a
+        // node time equal to the slice node time computed above (10 for both slices here).
+        final List<SliceProfileResult> sliceProfileResults = testQueryProfileBreakdown.getSliceProfileResults();
+        assertEquals(2, sliceProfileResults.size());
+        final Set<Integer> sliceIds = new HashSet<>();
+        final Set<Integer> coveredSegmentOrds = new HashSet<>();
+        for (SliceProfileResult sliceProfileResult : sliceProfileResults) {
+            sliceIds.add(sliceProfileResult.getSliceId());
+            assertEquals(1, sliceProfileResult.getPartitions().size());
+            final SliceProfileResult.PartitionInfo partition = sliceProfileResult.getPartitions().get(0);
+            coveredSegmentOrds.add(partition.getSegmentOrd());
+            // These leaves were associated without an explicit doc-range, so the whole-segment
+            // fallback applies: [0, segment maxDoc). Each leaf here holds exactly one document.
+            assertEquals(0, partition.getMinDocId());
+            assertEquals(1, partition.getMaxDocId());
+            assertEquals(10, sliceProfileResult.getSliceNodeTime());
+            // create_weight is a query-level timing and must not appear in a per-slice breakdown
+            assertNull(sliceProfileResult.getBreakdown().get(QueryTimingType.CREATE_WEIGHT.toString()));
+            // a leaf-level timing is present
+            assertNotNull(sliceProfileResult.getBreakdown().get(QueryTimingType.NEXT_DOC.toString()));
+        }
+        assertEquals(Set.of(0, 1), sliceIds);
+        assertEquals(Set.of(0, 1), coveredSegmentOrds);
+
+        // buildSliceLevelBreakdown may be invoked more than once for the same breakdown; the
+        // captured per-slice results must be rebuilt (not appended), so the count stays stable.
+        testQueryProfileBreakdown.buildSliceLevelBreakdown();
+        assertEquals(2, testQueryProfileBreakdown.getSliceProfileResults().size());
+
         directoryReader.close();
         directory.close();
     }
