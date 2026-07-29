@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Liquid Cache native crates — a self-contained Cargo workspace holding the
-# in-memory decoded-batch cache (./core) and its DataFusion parquet reader
-# (./datafusion). These crates are compiled into the analytics engine's native
-# library only when it is built with the `liquid_cache` cargo feature; on their
-# own they are just a buildable, self-testing library.
+# Liquid Cache plugin native crate — its own Cargo workspace. Built as an rlib
+# and compiled into the analytics engine's shared native library when that
+# library is built with the `liquid_cache` cargo feature (Gradle -PliquidCache).
+# Vendored in-memory subset lives in ./core and ./datafusion.
+
 [workspace]
 resolver = "2"
-members = ["core", "datafusion"]
+members = [".", "core", "datafusion"]
 
 [workspace.dependencies]
 arrow = { version = "=58.3.0", features = ["ffi"] }
@@ -31,6 +31,23 @@ num-traits = "=0.2.19"
 tempfile = "=3.27.0"
 opensearch-liquid-cache-core = { path = "core" }
 opensearch-liquid-cache-datafusion = { path = "datafusion" }
+
+[package]
+name = "opensearch-liquid-cache"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Liquid Cache native query-optimizer provider (standalone cdylib)"
+
+[lib]
+name = "opensearch_liquid_cache"
+crate-type = ["rlib"]
+
+[dependencies]
+opensearch-liquid-cache-core = { workspace = true }
+opensearch-liquid-cache-datafusion = { workspace = true }
+datafusion = { workspace = true }
+log = { workspace = true }
 
 [profile.release]
 lto = true
