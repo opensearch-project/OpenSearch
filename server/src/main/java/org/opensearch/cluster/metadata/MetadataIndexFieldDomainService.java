@@ -95,6 +95,7 @@ public class MetadataIndexFieldDomainService {
             currentIndexMetadata.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY),
             updatedIndexMetadata.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY)
         )) {
+            // Avoid publishing a new cluster state when the stored field-domain metadata is unchanged.
             return currentState;
         }
 

@@ -83,8 +83,7 @@ public class TransportPutIndexFieldDomainsAction extends TransportClusterManager
         if (request.targetIndex() == null) {
             return null;
         }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, new String[] { request.targetIndex().getName() });
     }
 
     @Override
