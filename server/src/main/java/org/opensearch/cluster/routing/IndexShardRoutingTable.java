@@ -675,6 +675,14 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
     }
 
     /**
+     * Returns an iterator over search only replicas ordered deterministically by the provided seed, so that a
+     * caller-supplied routing preference resolves to the same search replica across requests.
+     */
+    public ShardIterator searchReplicaActiveInitializingShardIt(int seed) {
+        return filterAndOrderShards(ShardRouting::isSearchOnly, seed);
+    }
+
+    /**
      * Returns an ordered iterator on active replica shards, followed by the primary shard.
      */
     public ShardIterator replicaFirstActiveInitializingShardsIt() {
@@ -703,8 +711,12 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
     }
 
     private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter) {
+        return filterAndOrderShards(filter, shuffler.nextSeed());
+    }
+
+    private ShardIterator filterAndOrderShards(Predicate<ShardRouting> filter, int seed) {
         LinkedList<ShardRouting> ordered = new LinkedList<>();
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+        for (ShardRouting replica : shuffler.shuffle(replicas, seed)) {
             if (filter.test(replica)) {
                 if (replica.active()) {
                     ordered.addFirst(replica);

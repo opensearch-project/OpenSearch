@@ -224,7 +224,8 @@ public class OperationRouting {
             preference,
             null,
             null,
-            clusterState.getMetadata().weightedRoutingMetadata()
+            clusterState.getMetadata().weightedRoutingMetadata(),
+            false // defaultToSearchReplicas: realtime GET may need the primary or writer replicas
         );
     }
 
@@ -237,7 +238,8 @@ public class OperationRouting {
             preference,
             null,
             null,
-            clusterState.metadata().weightedRoutingMetadata()
+            clusterState.metadata().weightedRoutingMetadata(),
+            false // defaultToSearchReplicas: realtime GET may need the primary or writer replicas
         );
     }
 
@@ -275,11 +277,7 @@ public class OperationRouting {
                 preference = Preference.PRIMARY_FIRST.type();
             }
 
-            if (preference == null || preference.isEmpty()) {
-                if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0 && isStrictSearchOnlyShardRouting) {
-                    preference = Preference.SEARCH_REPLICA.type();
-                }
-            }
+            boolean defaultToSearchReplicas = isStrictSearchOnlyShardRouting && indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0;
 
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
@@ -288,7 +286,8 @@ public class OperationRouting {
                 preference,
                 collectorService,
                 nodeCounts,
-                clusterState.metadata().weightedRoutingMetadata()
+                clusterState.metadata().weightedRoutingMetadata(),
+                defaultToSearchReplicas
             );
             if (iterator != null) {
                 shardIterators.computeIfAbsent(iterator.shardId().getIndex(), k -> new ArrayList<>()).add(iterator);
@@ -361,9 +360,17 @@ public class OperationRouting {
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts,
-        @Nullable WeightedRoutingMetadata weightedRoutingMetadata
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata,
+        boolean defaultToSearchReplicas
     ) {
+        // When search replicas are the default target, search traffic stays isolated on them unless the caller gives an
+        // explicit shard-type preference. This covers an empty preference and a custom preference key (which selects a
+        // shard for consistency, not a shard type); explicit '_' preferences such as _primary override it. Non-search
+        // requests (e.g. realtime GET) pass false here since they may need the primary or writer replicas.
         if (preference == null || preference.isEmpty()) {
+            if (defaultToSearchReplicas) {
+                return indexShard.searchReplicaActiveInitializingShardIt();
+            }
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
 
@@ -435,6 +442,9 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
+        if (defaultToSearchReplicas) {
+            return indexShard.searchReplicaActiveInitializingShardIt(routingHash);
+        }
         if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
             isStrictWeightedShardRouting,
             ignoreWeightedRouting,
