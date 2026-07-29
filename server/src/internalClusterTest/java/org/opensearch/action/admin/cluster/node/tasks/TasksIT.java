@@ -991,7 +991,9 @@ public class TasksIT extends AbstractTasksIT {
         assertDeleteTaskConflict(childTaskId, "stored child task results");
 
         assertTrue(client().admin().cluster().prepareDeleteTask(grandchildTaskId).get().isAcknowledged());
+        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
         assertTrue(client().admin().cluster().prepareDeleteTask(childTaskId).get().isAcknowledged());
+        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
         assertTrue(client().admin().cluster().prepareDeleteTask(parentTaskId).get().isAcknowledged());
     }
 
