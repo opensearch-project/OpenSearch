@@ -129,6 +129,7 @@ pub async fn build_segments(
             object_path: meta.location.clone(),
             parquet_size: size,
             row_groups,
+            arrow_schema: file_schema,
             metadata: pq_meta,
             global_base,
             sort_min,
