@@ -55,7 +55,7 @@ public class MetadataIndexFieldDomainService {
     ) {
         clusterService.submitStateUpdateTask(
             "put-index-field-domains [" + request.targetIndex() + "]",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
+            new AckedClusterStateUpdateTask<>(Priority.NORMAL, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
