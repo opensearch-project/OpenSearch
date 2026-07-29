@@ -151,12 +151,15 @@ public class AggregationMetadataBuilder {
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
             boolean isCount = call.getAggregation().getKind() == SqlKind.COUNT;
+            String functionName = call.getAggregation().getName();
+            // Percentile results are nullable even under GROUP BY (engine may emit NULL per group).
+            boolean forcedNullable = "PERCENTILE_APPROX".equals(functionName) || "PERCENTILE_APPROX_N".equals(functionName);
             RelDataType targetType;
             if (isCount) {
                 // COUNT is always BIGINT NOT NULL regardless of the input field's type; normalize here
                 // (translators have no type factory) — LogicalAggregate.create asserts the type matches.
                 targetType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), false);
-            } else if (noGroupBy) {
+            } else if (noGroupBy || forcedNullable) {
                 // AVG, MIN, MAX, SUM return null for empty sets when there's no GROUP BY.
                 targetType = typeFactory.createTypeWithNullability(call.getType(), true);
             } else {

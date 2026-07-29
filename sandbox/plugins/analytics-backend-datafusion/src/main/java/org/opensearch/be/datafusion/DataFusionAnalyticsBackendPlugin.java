@@ -475,6 +475,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.AVG,
         AggregateFunction.APPROX_COUNT_DISTINCT,
         AggregateFunction.PERCENTILE_APPROX,
+        AggregateFunction.PERCENTILE_APPROX_N,
         AggregateFunction.TAKE,
         AggregateFunction.FIRST,
         AggregateFunction.LAST,

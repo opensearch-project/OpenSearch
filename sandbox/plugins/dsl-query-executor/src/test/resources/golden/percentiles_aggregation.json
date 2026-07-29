@@ -1,0 +1,51 @@
+{
+  "testName": "percentiles_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "pcts": {
+        "percentiles": {
+          "field": "price",
+          "percents": [50, 95, 99]
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], pcts_p50_0=[PERCENTILE_APPROX(APPROXIMATE $1, $4)], pcts_p95_0=[PERCENTILE_APPROX(APPROXIMATE $1, $5)], pcts_p99_0=[PERCENTILE_APPROX(APPROXIMATE $1, $6)])",
+    "  LogicalProject(name=[$0], price=[$1], brand=[$2], rating=[$3], _lit0=[50.0E0:DOUBLE], _lit1=[95.0E0:DOUBLE], _lit2=[99.0E0:DOUBLE])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["pcts_p50_0", "pcts_p95_0", "pcts_p99_0"],
+  "mockResultRows": [
+    [899.0, 1287.0, 1299.0]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "pcts": {
+        "values": {
+          "50.0": 899.0,
+          "95.0": 1287.0,
+          "99.0": 1299.0
+        }
+      }
+    }
+  }
+}

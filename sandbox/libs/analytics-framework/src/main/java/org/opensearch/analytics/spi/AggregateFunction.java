@@ -40,6 +40,8 @@ public enum AggregateFunction {
     PERCENTILE_CONT(Type.STATE_EXPANDING, SqlKind.PERCENTILE_CONT),
     PERCENTILE_DISC(Type.STATE_EXPANDING, SqlKind.PERCENTILE_DISC),
     PERCENTILE_APPROX(Type.STATE_EXPANDING, SqlKind.OTHER),
+    /** Explicit-compression percentile: {@code (field, percent, centroids)}. */
+    PERCENTILE_APPROX_N(Type.STATE_EXPANDING, SqlKind.OTHER),
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
 

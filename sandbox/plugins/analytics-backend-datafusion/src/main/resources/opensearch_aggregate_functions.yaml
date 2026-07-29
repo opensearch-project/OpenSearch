@@ -109,13 +109,23 @@ aggregate_functions:
   - name: approx_percentile_cont
     description: >-
       PPL `percentile_approx(field, percentile)` — t-digest based approximate
-      percentile. Maps to DataFusion's builtin `approx_percentile_cont`.
+      percentile. Maps to DataFusion's builtin `approx_percentile_cont`. The
+      three-arg overload carries an explicit centroid count (DSL percentiles
+      `tdigest.compression`, PERCENTILE_APPROX_N).
     impls:
       - args:
           - name: x
             value: any1
           - name: percentile
             value: any2
+        return: any1
+      - args:
+          - name: x
+            value: any1
+          - name: percentile
+            value: any2
+          - name: centroids
+            value: any3
         return: any1
   - name: os_count_distinct
     description: >-

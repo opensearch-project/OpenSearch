@@ -1,0 +1,77 @@
+{
+  "testName": "terms_with_percentiles_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "by_brand": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "pcts": {
+            "percentiles": {
+              "field": "price",
+              "percents": [50]
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], pcts_p50_0=[PERCENTILE_APPROX(APPROXIMATE $1, $4)], _count=[COUNT()])",
+    "    LogicalProject(name=[$0], price=[$1], brand=[$2], rating=[$3], _lit0=[50.0E0:DOUBLE])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "pcts_p50_0", "_count"],
+  "mockResultRows": [
+    ["BrandA", 700.0, 3],
+    ["BrandB", 1100.0, 2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "by_brand": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "BrandA",
+            "doc_count": 3,
+            "pcts": {
+              "values": {
+                "50.0": 700.0
+              }
+            }
+          },
+          {
+            "key": "BrandB",
+            "doc_count": 2,
+            "pcts": {
+              "values": {
+                "50.0": 1100.0
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
