@@ -38,6 +38,17 @@ public class QueryRegistry {
     }
 
     /**
+     * Returns {@code true} when a translator is registered for the given query type. Used by
+     * routing (grammar) to decide whether a request can be sent to the Calcite path before any
+     * conversion work is attempted.
+     *
+     * @param type the concrete {@link QueryBuilder} class
+     */
+    public boolean hasTranslator(Class<? extends QueryBuilder> type) {
+        return translators.containsKey(type);
+    }
+
+    /**
      * Converts a query using the registered translator for its type.
      * If no translator is registered, wraps the query in an {@link UnresolvedQueryCall}
      * for the analytics engine's optimizer to resolve or reject.
