@@ -21,6 +21,7 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
     private static final IndexFieldDomainMetadata METADATA = IndexFieldDomainMetadata.getInstance();
@@ -419,6 +420,16 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         assertThat(customData.get("producer"), equalTo("existing"));
     }
 
+    public void testPutFieldDomainReturnsOriginalMetadataWhenMergedCustomDataIsUnchanged() {
+        DateRangeFieldDomain timestampDomain = new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test");
+        Map<String, String> existing = new HashMap<>(METADATA.toCustomData(timestampDomain));
+        existing.putAll(METADATA.toCustomData(new DateRangeFieldDomain("event.ingested", 300L, 400L, true, "test")));
+
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, existing).build();
+
+        assertThat(METADATA.putFieldDomain(metadata, timestampDomain), sameInstance(metadata));
+    }
+
     public void testPutFieldDomainPreservesFieldsWithSharedPrefixes() {
         Map<String, String> existing = new HashMap<>();
         existing.put("fields.event.type", "keyword_set");
@@ -513,6 +524,17 @@ public class IndexFieldDomainMetadataTests extends OpenSearchTestCase {
         Map<String, String> customData = updated.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY);
         assertThat(customData.get("fields.@timestamp.min"), equalTo("100"));
         assertThat(customData.get("fields.event.ingested.max"), equalTo("400"));
+    }
+
+    public void testPutFieldDomainsFromEncodedMetadataReturnsOriginalMetadataWhenMergedCustomDataIsUnchanged() {
+        DateRangeFieldDomain timestampDomain = new DateRangeFieldDomain("@timestamp", 100L, 200L, true, "test");
+        DateRangeFieldDomain ingestedDomain = new DateRangeFieldDomain("event.ingested", 300L, 400L, true, "test");
+        Map<String, String> existing = METADATA.toCustomData(List.of(timestampDomain, ingestedDomain));
+        Map<String, String> encodedPartialUpdate = METADATA.toCustomData(timestampDomain);
+
+        IndexMetadata metadata = indexMetadataBuilder("logs-000001").putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, existing).build();
+
+        assertThat(METADATA.putFieldDomains(metadata, encodedPartialUpdate), sameInstance(metadata));
     }
 
     public void testPutFieldDomainsFromEncodedMetadataRejectsEmptyMetadata() {

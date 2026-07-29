@@ -174,6 +174,9 @@ public final class IndexFieldDomainMetadata {
         updated.putAll(toCustomData(domain));
         ensureCustomDataWithinLimit(updated);
 
+        if (Objects.equals(existing, updated)) {
+            return metadata;
+        }
         return IndexMetadata.builder(metadata).putCustom(CUSTOM_KEY, updated).build();
     }
 
@@ -200,6 +203,9 @@ public final class IndexFieldDomainMetadata {
         updated.putAll(toCustomData(domains));
         ensureCustomDataWithinLimit(updated);
 
+        if (Objects.equals(existing, updated)) {
+            return metadata;
+        }
         return IndexMetadata.builder(metadata).putCustom(CUSTOM_KEY, updated).build();
     }
 
