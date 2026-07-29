@@ -22,13 +22,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.opensearch.test.OpenSearchTestCase.waitUntil;
 import static org.awaitility.Awaitility.await;
 
 public class KafkaUtils {
     private static final Logger LOGGER = LogManager.getLogger(KafkaUtils.class);
 
     private static final int CREATE_TOPIC_ATTEMPTS = 3;
-    private static final long CREATE_TOPIC_ATTEMPT_TIMEOUT_SECONDS = 30;
+    private static final long CREATE_TOPIC_ATTEMPT_TIMEOUT_SECONDS = 65;
     private static final long DESCRIBE_TOPIC_WAIT_SECONDS = 60;
 
     /**
@@ -75,7 +76,7 @@ public class KafkaUtils {
                     LOGGER.warn("createTopic attempt {}/{} for {} timed out", attempt, CREATE_TOPIC_ATTEMPTS, topicName);
                 }
                 if (created == false && attempt < CREATE_TOPIC_ATTEMPTS) {
-                    Thread.sleep(500L * attempt);
+                    created = waitUntil(() -> topicVisible(adminClient, topicName), 500L * attempt, TimeUnit.MILLISECONDS);
                 }
             }
             if (created == false) {
@@ -98,6 +99,7 @@ public class KafkaUtils {
         try {
             return adminClient.describeTopics(List.of(topicName)).topicNameValues().get(topicName).get().name().equals(topicName);
         } catch (Exception e) {
+            LOGGER.debug("Topic {} not yet visible: {}", topicName, e.getMessage());
             return false;
         }
     }
