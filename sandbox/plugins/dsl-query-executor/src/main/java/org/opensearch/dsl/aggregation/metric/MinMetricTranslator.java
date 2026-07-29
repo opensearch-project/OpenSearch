@@ -10,7 +10,6 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -43,6 +42,6 @@ public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregation
     public InternalAggregation toInternalAggregation(MinAggregationBuilder agg, Map<String, Object> values) {
         Object value = singleValue(agg, values);
         double min = value == null ? Double.POSITIVE_INFINITY : toDouble(value);
-        return new InternalMin(agg.getName(), min, DocValueFormat.RAW, null);
+        return new InternalMin(agg.getName(), min, MetricTranslator.parseFormat(agg.format()), null);
     }
 }

@@ -12,11 +12,12 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,21 +50,29 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
         return ExtendedStatsAggregationBuilder.class;
     }
 
+    /** See {@link AbstractMetricTranslator#toAggregateCalls(ValuesSourceAggregationBuilder, RelDataType)}. */
     @Override
     public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType) throws ConversionException {
-        String fieldName = agg.field();
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+        if (agg.missing() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
         }
+        return toAggregateCalls(agg, rowType, null);
+    }
+
+    @Override
+    public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType, LiteralColumns literals)
+        throws ConversionException {
+        MetricTranslator.validateFormat(agg.format(), agg.getName());
+        RelDataTypeField field = MetricTranslator.resolveNumericField(rowType, agg.field(), agg.getType());
+        int inputColumn = AbstractMetricTranslator.inputColumn(agg, field, literals);
         String baseName = agg.getName();
 
         List<AggregateCall> calls = new ArrayList<>(5);
-        calls.add(createCall(SqlStdOperatorTable.COUNT, field, baseName + COUNT_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.MIN, field, baseName + MIN_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.MAX, field, baseName + MAX_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.SUM, field, baseName + SUM_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.VAR_POP, field, baseName + VARIANCE_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.COUNT, inputColumn, field.getType(), baseName + COUNT_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.MIN, inputColumn, field.getType(), baseName + MIN_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.MAX, inputColumn, field.getType(), baseName + MAX_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.SUM, inputColumn, field.getType(), baseName + SUM_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.VAR_POP, inputColumn, field.getType(), baseName + VARIANCE_SUFFIX));
         return calls;
     }
 
@@ -92,6 +101,6 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
         double avg = count > 0 ? sum / count : 0;
         double sumOfSquares = count > 0 ? (variance + avg * avg) * count : 0;
 
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSquares, sigma, DocValueFormat.RAW, null);
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSquares, sigma, MetricTranslator.parseFormat(agg.format()), null);
     }
 }

@@ -45,10 +45,11 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
      */
     @Override
     public InternalAggregation toInternalAggregation(AvgAggregationBuilder agg, Map<String, Object> values) {
+        DocValueFormat format = MetricTranslator.parseFormat(agg.format());
         Object value = singleValue(agg, values);
         if (value == null) {
-            return new InternalAvg(agg.getName(), 0.0, 0, DocValueFormat.RAW, null);
+            return new InternalAvg(agg.getName(), 0.0, 0, format, null);
         }
-        return new InternalAvg(agg.getName(), toDouble(value), 1, DocValueFormat.RAW, null);
+        return new InternalAvg(agg.getName(), toDouble(value), 1, format, null);
     }
 }

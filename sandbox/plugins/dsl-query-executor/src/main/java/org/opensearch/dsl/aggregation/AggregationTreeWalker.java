@@ -121,7 +121,7 @@ public class AggregationTreeWalker {
         RelDataType rowType
     ) throws ConversionException {
         AggregationMetadataBuilder builder = getOrCreateBuilder(currentGroupings, granularities);
-        List<AggregateCall> calls = translator.toAggregateCalls(aggBuilder, rowType);
+        List<AggregateCall> calls = translator.toAggregateCalls(aggBuilder, rowType, builder.literalColumns(rowType.getFieldCount()));
         List<String> fieldNames = translator.getAggregateFieldNames(aggBuilder);
         if (calls.size() != fieldNames.size()) {
             throw new ConversionException(

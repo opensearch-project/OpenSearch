@@ -38,6 +38,7 @@ public class AggregationMetadataBuilder {
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private final List<BucketOrder> bucketOrders = new ArrayList<>();
+    private final List<LiteralColumn> literalColumns = new ArrayList<>();
     private boolean implicitCountRequested = false;
 
     /** Creates a new empty builder. */
@@ -84,6 +85,41 @@ public class AggregationMetadataBuilder {
      */
     public void requestImplicitCount() {
         this.implicitCountRequested = true;
+    }
+
+    /**
+     * Returns a literal-column allocator. Allocated columns are appended after the
+     * {@code baseFieldCount} input fields (deduplicated) and materialized by the converter
+     * in a pre-aggregate project.
+     *
+     * @param baseFieldCount the field count of the aggregate's un-projected input
+     */
+    public LiteralColumns literalColumns(int baseFieldCount) {
+        return new LiteralColumns() {
+            @Override
+            public int columnFor(double value) {
+                return indexFor(LiteralColumn.constant(value));
+            }
+
+            @Override
+            public int integerColumnFor(long value) {
+                return indexFor(LiteralColumn.integerConstant(value));
+            }
+
+            @Override
+            public int coalescedColumnFor(int fieldIndex, double missingValue) {
+                return indexFor(LiteralColumn.coalesced(fieldIndex, missingValue));
+            }
+
+            private int indexFor(LiteralColumn column) {
+                int existing = literalColumns.indexOf(column);
+                if (existing >= 0) {
+                    return baseFieldCount + existing;
+                }
+                literalColumns.add(column);
+                return baseFieldCount + literalColumns.size() - 1;
+            }
+        };
     }
 
     /** Returns true if this builder has at least one aggregate call or implicit count. */
@@ -163,7 +199,14 @@ public class AggregationMetadataBuilder {
             allFieldNames.add(IMPLICIT_COUNT_NAME);
         }
 
-        return new AggregationMetadata(ImmutableBitSet.of(allGroupIndices), allGroupFieldNames, allCalls, allFieldNames, bucketOrders);
+        return new AggregationMetadata(
+            ImmutableBitSet.of(allGroupIndices),
+            allGroupFieldNames,
+            allCalls,
+            allFieldNames,
+            bucketOrders,
+            literalColumns
+        );
     }
 
     /**

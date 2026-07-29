@@ -10,7 +10,6 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -43,6 +42,6 @@ public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregation
     public InternalAggregation toInternalAggregation(MaxAggregationBuilder agg, Map<String, Object> values) {
         Object value = singleValue(agg, values);
         double max = value == null ? Double.NEGATIVE_INFINITY : toDouble(value);
-        return new InternalMax(agg.getName(), max, DocValueFormat.RAW, null);
+        return new InternalMax(agg.getName(), max, MetricTranslator.parseFormat(agg.format()), null);
     }
 }

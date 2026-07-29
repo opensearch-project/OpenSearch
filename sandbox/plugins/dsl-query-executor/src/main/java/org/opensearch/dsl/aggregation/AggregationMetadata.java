@@ -31,6 +31,7 @@ public class AggregationMetadata {
     private final List<AggregateCall> aggregateCalls;
     private final List<String> aggregateFieldNames;
     private final List<BucketOrder> bucketOrders;
+    private final List<LiteralColumn> literalColumns;
 
     /**
      * Creates aggregation metadata.
@@ -40,19 +41,23 @@ public class AggregationMetadata {
      * @param aggregateCalls Calcite aggregate calls (AVG, SUM, etc.)
      * @param aggregateFieldNames output names for aggregate results
      * @param bucketOrders bucket orders for post-aggregation sorting
+     * @param literalColumns literal-derived columns to append to the aggregate's input, in
+     *                       allocation order (see {@link LiteralColumns})
      */
     public AggregationMetadata(
         ImmutableBitSet groupByBitSet,
         List<String> groupByFieldNames,
         List<AggregateCall> aggregateCalls,
         List<String> aggregateFieldNames,
-        List<BucketOrder> bucketOrders
+        List<BucketOrder> bucketOrders,
+        List<LiteralColumn> literalColumns
     ) {
         this.groupByBitSet = groupByBitSet;
         this.groupByFieldNames = List.copyOf(groupByFieldNames);
         this.aggregateCalls = List.copyOf(aggregateCalls);
         this.aggregateFieldNames = List.copyOf(aggregateFieldNames);
         this.bucketOrders = List.copyOf(bucketOrders);
+        this.literalColumns = List.copyOf(literalColumns);
     }
 
     /** Returns the GROUP BY column indices. */
@@ -83,5 +88,10 @@ public class AggregationMetadata {
     /** Returns true if bucket orders are present. */
     public boolean hasBucketOrders() {
         return !bucketOrders.isEmpty();
+    }
+
+    /** Returns the literal-derived columns to append to the aggregate's input, in allocation order. */
+    public List<LiteralColumn> getLiteralColumns() {
+        return literalColumns;
     }
 }

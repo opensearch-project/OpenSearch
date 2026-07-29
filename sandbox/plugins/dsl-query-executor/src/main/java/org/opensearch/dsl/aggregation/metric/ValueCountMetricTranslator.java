@@ -40,6 +40,12 @@ public class ValueCountMetricTranslator extends AbstractMetricTranslator<ValueCo
         return agg.field();
     }
 
+    /** value_count only tests value presence — any field type counts, matching classic search. */
+    @Override
+    protected boolean requiresNumericField() {
+        return false;
+    }
+
     /** Null (no matching docs) becomes 0 — a count over nothing is zero. */
     @Override
     public InternalAggregation toInternalAggregation(ValueCountAggregationBuilder agg, Map<String, Object> values) {

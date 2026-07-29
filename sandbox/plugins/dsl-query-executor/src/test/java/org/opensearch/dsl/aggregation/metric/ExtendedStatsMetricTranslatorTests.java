@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -47,6 +49,28 @@ public class ExtendedStatsMetricTranslatorTests extends OpenSearchTestCase {
         ExtendedStatsAggregationBuilder agg = new ExtendedStatsAggregationBuilder("price_stats").field("invalid");
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    public void testNonNumericFieldRejected() {
+        ExtendedStatsAggregationBuilder agg = new ExtendedStatsAggregationBuilder("brand_stats").field("brand");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+
+        assertEquals("Field [brand] of type [VARCHAR] is not supported for aggregation [extended_stats]", e.getMessage());
+    }
+
+    public void testMissingAggregatesAllCallsOverCoalescedColumn() throws ConversionException {
+        ExtendedStatsAggregationBuilder agg = new ExtendedStatsAggregationBuilder("price_stats").field("price");
+        agg.missing(0);
+        int baseFieldCount = ctx.getRowType().getFieldCount();
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(baseFieldCount);
+
+        List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType(), allocator);
+
+        assertEquals(5, calls.size());
+        for (AggregateCall call : calls) {
+            assertEquals(List.of(baseFieldCount), call.getArgList());
+        }
     }
 
     public void testGetAggregateFieldNames() {
