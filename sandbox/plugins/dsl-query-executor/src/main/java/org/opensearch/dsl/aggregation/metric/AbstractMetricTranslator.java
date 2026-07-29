@@ -13,7 +13,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.opensearch.dsl.aggregation.LiteralColumns;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
@@ -48,7 +48,7 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
         return true;
     }
 
-    /** Literal-free variant; {@code missing} needs the {@link LiteralColumns} variant. */
+    /** Literal-free variant; {@code missing} needs the {@link LiteralColumnAllocator} variant. */
     @Override
     public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
         if (agg.missing() != null) {
@@ -58,7 +58,7 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
     }
 
     @Override
-    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumns literals) throws ConversionException {
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
         MetricTranslator.validateFormat(agg.format(), agg.getName());
         String fieldName = getFieldName(agg);
         RelDataTypeField field;
@@ -91,7 +91,7 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
      * request sets {@code missing}. The coalesced column keeps the field's value type, so
      * declared call types are unaffected. {@code literals} may be null only when missing is unset.
      */
-    static int inputColumn(ValuesSourceAggregationBuilder<?> agg, RelDataTypeField field, LiteralColumns literals)
+    static int inputColumn(ValuesSourceAggregationBuilder<?> agg, RelDataTypeField field, LiteralColumnAllocator literals)
         throws ConversionException {
         if (agg.missing() == null) {
             return field.getIndex();

@@ -54,7 +54,7 @@ public class AggregationMetadataBuilderTests extends OpenSearchTestCase {
 
     public void testLiteralColumnAllocatorAssignsSequentialPositionsAfterBase() {
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
-        LiteralColumns allocator = builder.literalColumns(4);
+        LiteralColumnAllocator allocator = builder.literalColumnAllocator(4);
 
         assertEquals(4, allocator.columnFor(50.0));
         assertEquals(5, allocator.columnFor(95.0));
@@ -64,7 +64,7 @@ public class AggregationMetadataBuilderTests extends OpenSearchTestCase {
 
     public void testLiteralColumnAllocatorDeduplicatesEqualColumns() {
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
-        LiteralColumns allocator = builder.literalColumns(4);
+        LiteralColumnAllocator allocator = builder.literalColumnAllocator(4);
 
         assertEquals(4, allocator.columnFor(50.0));
         assertEquals(4, allocator.columnFor(50.0));
@@ -77,7 +77,7 @@ public class AggregationMetadataBuilderTests extends OpenSearchTestCase {
 
     public void testLiteralColumnsTravelIntoMetadataInAllocationOrder() throws ConversionException {
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
-        LiteralColumns allocator = builder.literalColumns(4);
+        LiteralColumnAllocator allocator = builder.literalColumnAllocator(4);
         allocator.coalescedColumnFor(1, 0.0);
         allocator.columnFor(99.0);
         builder.requestImplicitCount();

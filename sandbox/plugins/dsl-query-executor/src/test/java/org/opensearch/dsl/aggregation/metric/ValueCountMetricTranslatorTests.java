@@ -12,7 +12,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
-import org.opensearch.dsl.aggregation.LiteralColumns;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -63,7 +63,7 @@ public class ValueCountMetricTranslatorTests extends OpenSearchTestCase {
         ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("price_count").field("price");
         agg.missing(0);
         int baseFieldCount = ctx.getRowType().getFieldCount();
-        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(baseFieldCount);
+        LiteralColumnAllocator allocator = new AggregationMetadataBuilder().literalColumnAllocator(baseFieldCount);
 
         List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType(), allocator);
 
@@ -74,7 +74,7 @@ public class ValueCountMetricTranslatorTests extends OpenSearchTestCase {
     public void testNonNumericMissingRejected() {
         ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("brand_count").field("brand");
         agg.missing("N/A");
-        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(ctx.getRowType().getFieldCount());
+        LiteralColumnAllocator allocator = new AggregationMetadataBuilder().literalColumnAllocator(ctx.getRowType().getFieldCount());
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType(), allocator));
     }

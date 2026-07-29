@@ -42,7 +42,7 @@ public class AggregationMetadata {
      * @param aggregateFieldNames output names for aggregate results
      * @param bucketOrders bucket orders for post-aggregation sorting
      * @param literalColumns literal-derived columns to append to the aggregate's input, in
-     *                       allocation order (see {@link LiteralColumns})
+     *                       allocation order (see {@link LiteralColumnAllocator})
      */
     public AggregationMetadata(
         ImmutableBitSet groupByBitSet,

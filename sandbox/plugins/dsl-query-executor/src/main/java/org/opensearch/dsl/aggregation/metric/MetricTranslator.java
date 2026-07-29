@@ -13,7 +13,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
-import org.opensearch.dsl.aggregation.LiteralColumns;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -127,7 +127,7 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      * @return list of Calcite AggregateCalls
      * @throws ConversionException if conversion fails
      */
-    default List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumns literals) throws ConversionException {
+    default List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
         return toAggregateCalls(agg, rowType);
     }
 
