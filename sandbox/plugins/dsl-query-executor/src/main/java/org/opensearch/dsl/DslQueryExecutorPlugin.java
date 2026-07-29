@@ -63,9 +63,6 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        // Grammar owns its own long-lived registries — a few kilobytes for the lifetime of
-        // the node. The per-request SearchSourceConverter still builds its own copies; the
-        // duplication is intentional (see plugin-startup notes) and negligible under GC.
         DslCalciteGrammar grammar = new DslCalciteGrammar(QueryRegistryFactory.create(), AggregationRegistryFactory.create());
         this.searchActionFilter = new SearchActionFilter((NodeClient) client, clusterService, grammar);
         return Collections.emptyList();
