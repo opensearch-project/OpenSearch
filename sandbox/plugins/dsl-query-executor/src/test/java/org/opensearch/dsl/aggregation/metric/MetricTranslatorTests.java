@@ -11,9 +11,12 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -77,6 +80,32 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
         );
     }
 
+    public void testNonNumericFieldRejectedWithClassicMessage() {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> translator.toAggregateCalls(new AvgAggregationBuilder("bad").field("brand"), ctx.getRowType())
+        );
+
+        assertEquals("Field [brand] of type [VARCHAR] is not supported for aggregation [avg]", e.getMessage());
+    }
+
+    public void testNonNumericFieldRejectedForAllArithmeticMetrics() {
+        assertNonNumericRejected(new SumMetricTranslator(), new SumAggregationBuilder("s").field("brand"), "sum");
+        assertNonNumericRejected(new MinMetricTranslator(), new MinAggregationBuilder("m").field("brand"), "min");
+        assertNonNumericRejected(new MaxMetricTranslator(), new MaxAggregationBuilder("x").field("brand"), "max");
+    }
+
+    private <T extends org.opensearch.search.aggregations.AggregationBuilder> void assertNonNumericRejected(
+        MetricTranslator<T> translator,
+        T agg,
+        String aggregationType
+    ) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+        assertTrue(e.getMessage().contains("is not supported for aggregation [" + aggregationType + "]"));
+    }
+
     public void testAggregateFieldName() {
         AvgMetricTranslator translator = new AvgMetricTranslator();
         List<String> names = translator.getAggregateFieldNames(new AvgAggregationBuilder("avg_price").field("price"));
@@ -114,5 +143,53 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
             new AvgMetricTranslator().toInternalAggregation(new AvgAggregationBuilder("a").field("price"), Map.of("a", 1.0)).getMetadata()
         );
         assertNull(new MaxMetricTranslator().toInternalAggregation(new MaxAggregationBuilder("mx").field("price"), null).getMetadata());
+    }
+
+    public void testMissingAggregatesOverCoalescedColumn() throws ConversionException {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
+        agg.missing(0);
+        int baseFieldCount = ctx.getRowType().getFieldCount();
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(baseFieldCount);
+
+        List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType(), allocator);
+
+        assertEquals(List.of(baseFieldCount), calls.get(0).getArgList());
+    }
+
+    public void testMissingWithoutAllocatorRejected() {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
+        agg.missing(0);
+
+        expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    public void testNonNumericMissingRejected() {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
+        agg.missing("not-a-number");
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(ctx.getRowType().getFieldCount());
+
+        expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType(), allocator));
+    }
+
+    public void testFormatAppliedToResponse() {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
+        agg.format("0.00");
+
+        InternalAvg result = (InternalAvg) translator.toInternalAggregation(agg, Map.of("avg_price", 30.2));
+
+        assertEquals("30.20", result.getValueAsString());
+    }
+
+    public void testInvalidFormatRejected() {
+        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
+        agg.format("0.0.0");
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(ctx.getRowType().getFieldCount());
+
+        expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType(), allocator));
     }
 }

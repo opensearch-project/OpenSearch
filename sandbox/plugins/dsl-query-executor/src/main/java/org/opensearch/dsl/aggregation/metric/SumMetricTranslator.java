@@ -11,7 +11,6 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -44,6 +43,6 @@ public class SumMetricTranslator extends AbstractMetricTranslator<SumAggregation
     public InternalAggregation toInternalAggregation(SumAggregationBuilder agg, Map<String, Object> values) {
         Object value = singleValue(agg, values);
         double sum = value == null ? 0.0 : toDouble(value);
-        return new InternalSum(agg.getName(), sum, DocValueFormat.RAW, AggregationTranslator.userMetadata(agg));
+        return new InternalSum(agg.getName(), sum, MetricTranslator.parseFormat(agg.format()), AggregationTranslator.userMetadata(agg));
     }
 }
