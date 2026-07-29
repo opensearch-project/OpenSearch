@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -75,6 +77,8 @@ import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
  * @opensearch.internal
  */
 final class DocumentParser {
+
+    private static final Logger logger = LogManager.getLogger(DocumentParser.class);
 
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
@@ -1263,8 +1267,14 @@ final class DocumentParser {
         // has declared their intent; we must not reject it because it falls below the inferencer
         // threshold. Template matching is already scoped by the user's match/path_match patterns
         // on the DynamicTemplate, so it only fires for fields the user intended.
+        //
+        // We evaluate ALL registered template types rather than stopping at the first match: if two
+        // plugin types both match the same field, that is an ambiguous configuration and we fail
+        // loudly (per OpenSearch triage) rather than silently letting registration order decide.
+        Mapper.Builder templateBuilder = null;
+        String templateMatchedType = null;
         for (Map.Entry<String, DynamicTemplateTypeHandler> entry : templateTypes.entrySet()) {
-            Mapper.Builder templateBuilder = findPluginTemplateBuilder(
+            Mapper.Builder candidate = findPluginTemplateBuilder(
                 context,
                 resolvedFieldName,
                 entry,
@@ -1272,43 +1282,88 @@ final class DocumentParser {
                 resolvedParent.fullPath(),
                 fieldValueParser
             );
-            if (templateBuilder != null) {
-                Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(
-                    context.indexSettings().getSettings(),
-                    context.path()
-                );
-                Mapper templateMapper = templateBuilder.build(templateBuilderContext);
-                context.addDynamicMapper(templateMapper);
-                try (
-                    XContentParser replayParser = contentType.xContent()
-                        .createParser(context.parser().getXContentRegistry(), context.parser().getDeprecationHandler(), rawContent)
-                ) {
-                    replayParser.nextToken();
-                    ParseContext replayContext = context.switchParser(replayParser);
-                    context.path().add(resolvedFieldName);
+            if (candidate != null) {
+                if (templateBuilder != null) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + resolvedFieldName
+                            + "] matched more than one dynamic template plugin type: ["
+                            + templateMatchedType
+                            + "] and ["
+                            + entry.getKey()
+                            + "]; the mapping is ambiguous"
+                    );
+                }
+                templateBuilder = candidate;
+                templateMatchedType = entry.getKey();
+            }
+        }
+        if (templateBuilder != null) {
+            Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+            Mapper templateMapper = templateBuilder.build(templateBuilderContext);
+            context.addDynamicMapper(templateMapper);
+            try (
+                XContentParser replayParser = contentType.xContent()
+                    .createParser(context.parser().getXContentRegistry(), context.parser().getDeprecationHandler(), rawContent)
+            ) {
+                replayParser.nextToken();
+                ParseContext replayContext = context.switchParser(replayParser);
+                context.path().add(resolvedFieldName);
+                try {
                     parseObjectOrField(replayContext, templateMapper);
+                } finally {
+                    // Release the field-name slot even if replay throws, so ContentPath is not left
+                    // corrupt for subsequent fields in the same document.
                     context.path().remove();
                 }
+            } finally {
                 for (int i = 0; i < parentMapperTuple.v1(); i++) {
                     context.path().remove();
                 }
-                return true;
             }
+            return true;
         }
 
-        // Step 2: No template matched — run the inferencer as the auto-detection fallback.
-        // This is the path for fields with no user-defined template: the inferencer checks
-        // whether the field looks like a plugin-managed type (e.g. numeric array >= 128 elements).
+        // Step 2: No template matched — run the inferencers as the auto-detection fallback.
+        // This is the path for fields with no user-defined template: each inferencer checks whether
+        // the field looks like a plugin-managed type (e.g. numeric array >= 128 elements).
+        //
+        // We consult ALL registered inferencers rather than stopping at the first claim: if two
+        // inferencers both claim the same field, that is ambiguous and we fail loudly (per OpenSearch
+        // triage) rather than letting plugin load order silently pick a winner.
         Map<String, Object> inferredFieldMapping = null;
+        DynamicFieldTypeInferencer claimingInferencer = null;
         for (DynamicFieldTypeInferencer inferencer : inferencers) {
+            Map<String, Object> claim;
             try {
-                inferredFieldMapping = inferencer.inferFieldType(fieldValueParser);
+                claim = inferencer.inferFieldType(fieldValueParser);
             } catch (Exception e) {
-                // A buggy inferencer must not break document parsing
+                // A buggy inferencer must not break document parsing, but the failure must be visible:
+                // log it rather than swallowing silently, then move on to the next inferencer.
+                logger.warn(
+                    () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                        "dynamic field type inferencer [{}] threw while inspecting field [{}]; skipping it",
+                        inferencer.getClass().getName(),
+                        resolvedFieldName
+                    ),
+                    e
+                );
                 continue;
             }
-            if (inferredFieldMapping != null) {
-                break;
+            if (claim != null) {
+                if (inferredFieldMapping != null) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + resolvedFieldName
+                            + "] was claimed by more than one dynamic field type inferencer: ["
+                            + claimingInferencer.getClass().getName()
+                            + "] and ["
+                            + inferencer.getClass().getName()
+                            + "]; the inferred type is ambiguous"
+                    );
+                }
+                inferredFieldMapping = claim;
+                claimingInferencer = inferencer;
             }
         }
 
@@ -1346,12 +1401,17 @@ final class DocumentParser {
             replayParser.nextToken(); // position at the start of the value
             ParseContext replayContext = context.switchParser(replayParser);
             context.path().add(resolvedFieldName);
-            parseObjectOrField(replayContext, inferredMapper);
-            context.path().remove();
-        }
-
-        for (int i = 0; i < parentMapperTuple.v1(); i++) {
-            context.path().remove();
+            try {
+                parseObjectOrField(replayContext, inferredMapper);
+            } finally {
+                // Release the field-name slot even if replay throws, so ContentPath is not left
+                // corrupt for subsequent fields in the same document.
+                context.path().remove();
+            }
+        } finally {
+            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                context.path().remove();
+            }
         }
         return true;
     }

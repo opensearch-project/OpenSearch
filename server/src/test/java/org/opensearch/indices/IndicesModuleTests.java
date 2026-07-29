@@ -290,4 +290,59 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("hidden_index"));
         assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("filtered"));
     }
+
+    /** A no-op dynamic template type handler for registration tests. */
+    private static org.opensearch.index.mapper.DynamicTemplateTypeHandler noopHandler() {
+        return new org.opensearch.index.mapper.DynamicTemplateTypeHandler() {
+            @Override
+            public void adjustMappingConfig(
+                Map<String, Object> mappingConfig,
+                org.opensearch.index.mapper.FieldValueParserSupplier fieldValueParser
+            ) {}
+        };
+    }
+
+    /** A no-op inferencer for registration tests. */
+    private static org.opensearch.index.mapper.DynamicFieldTypeInferencer noopInferencer() {
+        return fieldValueParser -> null;
+    }
+
+    public void testInferencersAndTemplateTypesRegisteredFromPlugins() {
+        List<MapperPlugin> plugins = Collections.singletonList(new MapperPlugin() {
+            @Override
+            public List<org.opensearch.index.mapper.DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+                return Collections.singletonList(noopInferencer());
+            }
+
+            @Override
+            public Map<String, org.opensearch.index.mapper.DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+                return Collections.singletonMap("my_type", noopHandler());
+            }
+        });
+        MapperRegistry registry = new IndicesModule(plugins).getMapperRegistry();
+        assertEquals(1, registry.getDynamicFieldTypeInferencers().size());
+        assertTrue(registry.getDynamicTemplateTypes().containsKey("my_type"));
+    }
+
+    public void testDuplicateTemplateTypeAcrossPluginsRejectedAtStartup() {
+        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Map<String, org.opensearch.index.mapper.DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+                return Collections.singletonMap("dup_type", noopHandler());
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Map<String, org.opensearch.index.mapper.DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+                return Collections.singletonMap("dup_type", noopHandler());
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("dynamic template type [dup_type] is already registered"));
+    }
+
+    public void testNoDynamicInferencersOrTemplateTypesByDefault() {
+        MapperRegistry registry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        assertTrue(registry.getDynamicFieldTypeInferencers().isEmpty());
+        assertTrue(registry.getDynamicTemplateTypes().isEmpty());
+    }
 }
