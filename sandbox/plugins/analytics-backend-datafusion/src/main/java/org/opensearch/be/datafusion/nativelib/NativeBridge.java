@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.be.datafusion.NativeErrorConverter;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
@@ -152,6 +153,7 @@ public final class NativeBridge {
     private static final MethodHandle FETCH_BY_ROW_IDS;
     private static final MethodHandle UPDATE_CONCURRENCY_GATE;
     private static final MethodHandle CAN_MATCH;
+    private static final MethodHandle SHARD_SORT_BOUNDS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -648,6 +650,19 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,   // column_name_len
                 ValueLayout.JAVA_LONG,   // filter_min
                 ValueLayout.JAVA_LONG    // filter_max
+            )
+        );
+
+        // i64 df_shard_sort_bounds(runtime_ptr, shard_view_ptr, column_name_ptr, column_name_len, out_ptr)
+        SHARD_SORT_BOUNDS = linker.downcallHandle(
+            lib.find("df_shard_sort_bounds").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: 1=bounds written, 0=unavailable
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // column_name_ptr
+                ValueLayout.JAVA_LONG,   // column_name_len
+                ValueLayout.ADDRESS      // out_ptr — 3 i64 slots: [min, max, value_kind]
             )
         );
     }
@@ -1794,6 +1809,34 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var cn = call.str(columnName);
             return call.invoke(CAN_MATCH, runtimePtr, shardViewPtr, cn.segment(), cn.len(), filterMin, filterMax);
+        }
+    }
+
+    /** Number of i64 slots {@code df_shard_sort_bounds} writes: [min, max, valueKind]. */
+    private static final int SORT_BOUNDS_SLOTS = 3;
+
+    /**
+     * Folds the shard-wide min/max of {@code columnName} across every parquet file and row
+     * group in the shard view. Unlike {@link #canMatch}, this does not short-circuit — a
+     * range covering only part of the shard would be narrower than the truth.
+     *
+     * @return the folded bounds, or {@code null} when no shard-wide range is available
+     *         (column absent, unsupported physical type, statistics missing, or files
+     *         disagreeing on physical type)
+     */
+    public static ShardSortBounds shardSortBounds(long runtimePtr, long shardViewPtr, String columnName) {
+        try (var call = new NativeCall()) {
+            var cn = call.str(columnName);
+            MemorySegment out = call.buf(SORT_BOUNDS_SLOTS * Long.BYTES);
+            long found = call.invoke(SHARD_SORT_BOUNDS, runtimePtr, shardViewPtr, cn.segment(), cn.len(), out);
+            if (found != 1L) {
+                return null;
+            }
+            return new ShardSortBounds(
+                out.getAtIndex(ValueLayout.JAVA_LONG, 0),
+                out.getAtIndex(ValueLayout.JAVA_LONG, 1),
+                (byte) out.getAtIndex(ValueLayout.JAVA_LONG, 2)
+            );
         }
     }
 

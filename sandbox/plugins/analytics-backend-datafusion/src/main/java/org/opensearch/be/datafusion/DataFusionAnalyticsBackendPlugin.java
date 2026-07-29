@@ -503,6 +503,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
+    public CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        return ParquetRangeEvaluator.evaluateWithBounds(shard, filterBytes, sortColumn, plugin);
+    }
+
+    @Override
     public BackendCapabilityProvider getCapabilityProvider() {
         return new BackendCapabilityProvider() {
             @Override

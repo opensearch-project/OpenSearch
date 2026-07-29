@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.LongRange;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin.CanMatchResult;
+import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -48,54 +50,86 @@ final class ParquetRangeEvaluator {
      * @return true if the shard might match (or cannot determine), false if provably cannot
      */
     static boolean evaluate(IndexShard shard, byte[] filterBytes, DataFusionPlugin plugin) {
+        return evaluateWithBounds(shard, filterBytes, null, plugin).canMatch();
+    }
+
+    /**
+     * Evaluates the prune predicate and, for a surviving shard, folds {@code sortColumn}'s
+     * min/max — both under a single reader acquisition, since both read the same parquet footers.
+     *
+     * <p>Prune first and short-circuit: a pruned shard is never dispatched, so nothing reads its
+     * bounds, and the fold is the costlier call (every file and row group, versus a prune check
+     * that can exit on the first overlap).
+     *
+     * <p>Fails open on every path, logging the cause at DEBUG. Null bounds are not necessarily a
+     * failure — the fold legitimately returns nothing for a column with no usable statistics.
+     */
+    static CanMatchResult evaluateWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn, DataFusionPlugin plugin) {
         try {
             List<CanMatchFilter> filters = CanMatchFilterSerializer.deserialize(filterBytes);
-            if (filters.isEmpty()) {
-                return true;
+            // Nothing to prune, nothing to measure — don't even acquire a reader.
+            if (filters.isEmpty() && sortColumn == null) {
+                return CanMatchResult.matched(null);
             }
 
             DataFusionService svc = plugin.getDataFusionService();
             if (svc == null) {
-                return true;
+                logger.debug("can-match: DataFusion service unavailable (fail-open)");
+                return CanMatchResult.unavailable();
             }
             NativeRuntimeHandle runtimeHandle = svc.getNativeRuntime();
             if (runtimeHandle == null) {
-                return true;
+                logger.debug("can-match: native runtime unavailable (fail-open)");
+                return CanMatchResult.unavailable();
             }
             long runtimePtr = runtimeHandle.get();
             IndexReaderProvider readerProvider = shard.getReaderProvider();
             if (readerProvider == null) {
-                return true;
+                logger.debug("can-match: shard {} has no reader provider (fail-open)", shard.shardId());
+                return CanMatchResult.unavailable();
             }
 
             try (GatedCloseable<Reader> gatedReader = readerProvider.acquireReader()) {
                 Reader reader = gatedReader.get();
                 if (reader == null) {
-                    return true;
+                    logger.debug("can-match: shard {} reader unavailable (fail-open)", shard.shardId());
+                    return CanMatchResult.unavailable();
                 }
 
                 long shardViewPtr = resolveShardViewPtr(reader, plugin);
                 if (shardViewPtr == 0) {
-                    return true;
+                    logger.debug("can-match: shard {} has no native shard view (fail-open)", shard.shardId());
+                    return CanMatchResult.unavailable();
                 }
 
                 // AND across filters: all must pass
                 for (CanMatchFilter filter : filters) {
                     if (filter instanceof LongRange range) {
-                        long result = NativeBridge.canMatch(
-                            runtimePtr, shardViewPtr,
-                            range.column(), range.min(), range.max()
-                        );
+                        long result = NativeBridge.canMatch(runtimePtr, shardViewPtr, range.column(), range.min(), range.max());
                         if (result == 0L) {
-                            return false; // all files disjoint for this filter → prune
+                            // Pruned, so nobody will read this shard's bounds — skip the fold.
+                            return CanMatchResult.pruned();
                         }
                     }
                 }
-                return true;
+
+                if (sortColumn == null) {
+                    return CanMatchResult.matched(null);
+                }
+                // Keep the prune answer we already have even if the fold blows up.
+                ShardSortBounds bounds;
+                try {
+                    bounds = NativeBridge.shardSortBounds(runtimePtr, shardViewPtr, sortColumn);
+                } catch (Exception e) {
+                    logger.debug("can-match: sort-bounds fold failed for column {} (fail-open): {}", sortColumn, e.getMessage());
+                    return CanMatchResult.unavailable();
+                }
+                // null means the column has no usable range — a real answer, not a failure.
+                return CanMatchResult.matched(bounds);
             }
         } catch (Exception e) {
             logger.debug("can-match evaluation failed, returning true (fail-open): {}", e.getMessage());
-            return true;
+            return CanMatchResult.unavailable();
         }
     }
 

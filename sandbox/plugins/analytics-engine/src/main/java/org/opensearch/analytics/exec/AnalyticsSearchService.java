@@ -134,14 +134,29 @@ public class AnalyticsSearchService implements AutoCloseable {
      * Dispatches to the named backend. Fail-open on any error or unknown backend.
      */
     public void canMatch(IndexShard shard, byte[] filterBytes, String backendId, ActionListener<AnalyticsCanMatchResponse> listener) {
+        canMatch(shard, filterBytes, backendId, null, listener);
+    }
+
+    /**
+     * As {@link #canMatch(IndexShard, byte[], String, ActionListener)}, plus the shard-wide
+     * min/max of {@code sortColumn} when one is given. The backend owns the sequencing; this
+     * just forwards. Fail-open on any error or unknown backend: match, no bounds.
+     */
+    public void canMatch(
+        IndexShard shard,
+        byte[] filterBytes,
+        String backendId,
+        String sortColumn,
+        ActionListener<AnalyticsCanMatchResponse> listener
+    ) {
         try {
             AnalyticsSearchBackendPlugin backend = backends.get(backendId);
             if (backend == null) {
                 listener.onResponse(new AnalyticsCanMatchResponse(true));
                 return;
             }
-            boolean result = backend.canMatch(shard, filterBytes);
-            listener.onResponse(new AnalyticsCanMatchResponse(result));
+            AnalyticsSearchBackendPlugin.CanMatchResult result = backend.canMatchWithBounds(shard, filterBytes, sortColumn);
+            listener.onResponse(new AnalyticsCanMatchResponse(result.canMatch(), result.bounds()));
         } catch (Exception e) {
             listener.onResponse(new AnalyticsCanMatchResponse(true));
         }

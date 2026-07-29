@@ -174,25 +174,31 @@ public class AnalyticsSearchTransportService {
             AnalyticsCanMatchRequest::new,
             (request, channel, task) -> {
                 IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
-                searchService.canMatch(shard, request.getFilterBytes(), request.getBackendId(), new ActionListener<>() {
-                    @Override
-                    public void onResponse(AnalyticsCanMatchResponse response) {
-                        try {
-                            channel.sendResponse(response);
-                        } catch (IOException e) {
-                            onFailure(e);
+                searchService.canMatch(
+                    shard,
+                    request.getFilterBytes(),
+                    request.getBackendId(),
+                    request.getSortColumn(),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AnalyticsCanMatchResponse response) {
+                            try {
+                                channel.sendResponse(response);
+                            } catch (IOException e) {
+                                onFailure(e);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(new AnalyticsCanMatchResponse(true));
-                        } catch (IOException ioe) {
-                            // nothing more we can do
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(new AnalyticsCanMatchResponse(true));
+                            } catch (IOException ioe) {
+                                // nothing more we can do
+                            }
                         }
                     }
-                });
+                );
             }
         );
     }

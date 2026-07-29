@@ -21,6 +21,7 @@ import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase;
+import org.opensearch.analytics.exec.canmatch.SortSpec;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -96,14 +97,19 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         }
 
         List<CanMatchFilter> filters = stage.getCanMatchFilters();
-        if (dispatcher == null || filters == null || filters.isEmpty()) {
+        // A sort alone is reason enough to probe: it prunes nothing, but the min/max it returns
+        // orders the dispatch.
+        SortSpec sortSpec = stage.getSortSpec();
+        boolean hasFilters = filters != null && filters.isEmpty() == false;
+        if (dispatcher == null || (hasFilters == false && sortSpec == null)) {
             listener.onResponse(buildTasks(resolved));
             return;
         }
 
+        // null with no filters; CanMatchPreFilterPhase owns the empty-filter normalization.
         byte[] filterBytes;
         try {
-            filterBytes = CanMatchFilterSerializer.serialize(filters);
+            filterBytes = hasFilters ? CanMatchFilterSerializer.serialize(filters) : null;
         } catch (Exception e) {
             logger.debug("can-match: filter serialization failed, skipping prune: {}", e.getMessage());
             listener.onResponse(buildTasks(resolved));
@@ -120,6 +126,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             resolved,
             filterBytes,
             backendId,
+            sortSpec,
             canMatchPhase,
             CAN_MATCH_TIMEOUT,
             ActionListener.wrap(filtered -> listener.onResponse(buildTasks(filtered)), e -> listener.onResponse(buildTasks(resolved)))
@@ -134,6 +141,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<ExecutionTarget> targets,
         byte[] filterBytes,
         String backendId,
+        SortSpec sortSpec,
         CanMatchPreFilterPhase phase,
         TimeValue timeout,
         ActionListener<List<ExecutionTarget>> listener
@@ -156,15 +164,16 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             }
         }, timeout, ThreadPool.Names.SAME);
 
-        phase.filter(targets, filterBytes, backendId, ActionListener.wrap(filtered -> {
+        phase.filter(targets, filterBytes, backendId, sortSpec, ActionListener.wrap(filtered -> {
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 long elapsed = (System.nanoTime() - startNanos) / 1_000_000;
                 logger.debug(
-                    "can-match complete: {} shards checked, {} pruned, {}ms",
+                    "can-match complete: {} shards checked, {} pruned, {}ms, sortColumn={}",
                     targets.size(),
                     targets.size() - filtered.size(),
-                    elapsed
+                    elapsed,
+                    sortSpec != null ? sortSpec.column() : "none"
                 );
                 resumeOnPool(threadPool, () -> listener.onResponse(filtered));
             }
@@ -209,6 +218,17 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             shardTargets.add((ShardExecutionTarget) target);
         }
         config.recordResolvedTargets(getStageId(), shardTargets);
+        // TODO: remove once sort-based shard ordering is settled. Temporary diagnostic — this list
+        // order is the dispatch order, so logging it shows what can-match reordering actually did
+        // rather than what it intended.
+        if (logger.isDebugEnabled()) {
+            StringBuilder order = new StringBuilder();
+            for (ShardExecutionTarget t : shardTargets) {
+                if (order.length() > 0) order.append(" -> ");
+                order.append(t.shardId());
+            }
+            logger.debug("dispatch order (stage {}): {}", getStageId(), order);
+        }
         return tasks;
     }
 

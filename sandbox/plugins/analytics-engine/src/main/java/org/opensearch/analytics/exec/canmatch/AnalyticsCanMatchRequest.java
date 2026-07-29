@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.canmatch;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -21,6 +22,10 @@ import java.io.IOException;
  * produced by {@link CanMatchFilterSerializer}. The data node
  * deserializes and evaluates against parquet row-group statistics.
  *
+ * <p>An optional {@code sortColumn} asks the data node to also fold that column's min/max
+ * onto the response, for coordinator-side shard ordering. Independent of the filters — a
+ * query may have either, both, or neither.
+ *
  * @opensearch.internal
  */
 public class AnalyticsCanMatchRequest extends ActionRequest {
@@ -28,11 +33,18 @@ public class AnalyticsCanMatchRequest extends ActionRequest {
     private final ShardId shardId;
     private final byte[] filterBytes;
     private final String backendId;
+    @Nullable
+    private final String sortColumn;
 
     public AnalyticsCanMatchRequest(ShardId shardId, byte[] filterBytes, String backendId) {
+        this(shardId, filterBytes, backendId, null);
+    }
+
+    public AnalyticsCanMatchRequest(ShardId shardId, byte[] filterBytes, String backendId, @Nullable String sortColumn) {
         this.shardId = shardId;
         this.filterBytes = filterBytes;
         this.backendId = backendId;
+        this.sortColumn = sortColumn;
     }
 
     public AnalyticsCanMatchRequest(StreamInput in) throws IOException {
@@ -40,6 +52,7 @@ public class AnalyticsCanMatchRequest extends ActionRequest {
         this.shardId = new ShardId(in);
         this.filterBytes = in.readByteArray();
         this.backendId = in.readString();
+        this.sortColumn = in.readOptionalString();
     }
 
     @Override
@@ -48,6 +61,7 @@ public class AnalyticsCanMatchRequest extends ActionRequest {
         shardId.writeTo(out);
         out.writeByteArray(filterBytes);
         out.writeString(backendId);
+        out.writeOptionalString(sortColumn);
     }
 
     @Override
@@ -65,5 +79,11 @@ public class AnalyticsCanMatchRequest extends ActionRequest {
 
     public String getBackendId() {
         return backendId;
+    }
+
+    /** Column to fold shard-wide min/max for, or {@code null} when the query has no usable sort. */
+    @Nullable
+    public String getSortColumn() {
+        return sortColumn;
     }
 }
