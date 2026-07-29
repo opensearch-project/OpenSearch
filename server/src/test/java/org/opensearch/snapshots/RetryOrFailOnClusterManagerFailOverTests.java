@@ -20,6 +20,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -52,7 +54,7 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        Settings settings = Settings.builder().put("node.name", "test").build();
+        Settings settings = Settings.builder().put("node.name", "test").putList("node.roles", "cluster_manager", "data").build();
 
         snapshotsService = new SnapshotsService(
             settings,
@@ -289,6 +291,306 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
 
         SnapshotsInProgress resultSnapshots = result.custom(SnapshotsInProgress.TYPE);
         assertTrue("Snapshot entry should be removed", resultSnapshots.entries().isEmpty());
+    }
+
+    public void testRejectedExecutionRunsFallback() {
+        AtomicBoolean fallbackCalled = new AtomicBoolean(false);
+        snapshotsService.retryOrFailOnClusterManagerFailOver(new FailedToCommitClusterStateException("test"), 100, "test-source", () -> {
+            throw new AssertionError("should not be called");
+        }, () -> fallbackCalled.set(true));
+        assertTrue("Fallback should be called when retries exhausted", fallbackCalled.get());
+    }
+
+    public void testComputeBackoffWithZeroBase() {
+        TimeValue result = SnapshotsService.computeBackoff(TimeValue.ZERO, 5);
+        assertEquals(TimeValue.ZERO, result);
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStateWithoutSnapshotV2TaskOnFailureRetries() throws Exception {
+        ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 0);
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStateWithoutSnapshotV2TaskOnFailureNotCMRunsFallback() throws Exception {
+        ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 0);
+        task.onFailure("test-source", new NotClusterManagerException("simulated"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveFailedSnapshotTaskOnFailureRetries() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated publish failure"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveFailedSnapshotTaskOnFailureNotCM() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+        task.onFailure("test-source", new NotClusterManagerException("simulated"));
+    }
+
+    public void testCreateStateWithoutSnapshotV2TaskNoChangeReturnsOriginal() throws Exception {
+        Snapshot normalSnapshot = new Snapshot("repo", new SnapshotId("normal-snap", UUIDs.randomBase64UUID()));
+        SnapshotsInProgress.Entry normalEntry = SnapshotsInProgress.startedEntry(
+            normalSnapshot,
+            true,
+            false,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            1L,
+            1L,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Version.CURRENT,
+            false,
+            false
+        );
+
+        String localNodeId = UUIDs.randomBase64UUID();
+        ClusterState currentState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().localNodeId(localNodeId).clusterManagerNodeId(localNodeId).build())
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(List.of(normalEntry)))
+            .build();
+
+        ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 0);
+        ClusterState result = task.execute(currentState);
+
+        assertSame("Should return same state when no V2 entries to remove", currentState, result);
+    }
+
+    public void testComputeBackoffAttemptZero() {
+        TimeValue result = SnapshotsService.computeBackoff(TimeValue.timeValueSeconds(1), 0);
+        assertEquals(TimeValue.timeValueSeconds(1), result);
+    }
+
+    public void testComputeBackoffAttemptTwo() {
+        TimeValue result = SnapshotsService.computeBackoff(TimeValue.timeValueSeconds(1), 2);
+        assertEquals(TimeValue.timeValueSeconds(4), result);
+    }
+
+    public void testComputeBackoffCapsAtOneDay() {
+        TimeValue result = SnapshotsService.computeBackoff(TimeValue.timeValueHours(25), 0);
+        assertEquals(TimeValue.timeValueDays(1), result);
+    }
+
+    public void testComputeBackoffHighAttemptCapped() {
+        TimeValue result = SnapshotsService.computeBackoff(TimeValue.timeValueSeconds(1), 50);
+        assertEquals(TimeValue.timeValueDays(1), result);
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStateWithoutSnapshotV2TaskOnFailureExhaustedRetries() throws Exception {
+        ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 100);
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveFailedSnapshotTaskOnFailureExhaustedRetries() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            100,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+        task.onFailure("test-source", new FailedToCommitClusterStateException("simulated"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testStateWithoutSnapshotV2TaskOnFailureUnexpectedException() throws Exception {
+        ClusterStateUpdateTask task = snapshotsService.createStateWithoutSnapshotV2Task("test-source", 0);
+        expectThrows(AssertionError.class, () -> task.onFailure("test-source", new RuntimeException("unexpected")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveFailedSnapshotTaskOnFailureUnexpectedException() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+        expectThrows(AssertionError.class, () -> task.onFailure("test-source", new RuntimeException("unexpected")));
+    }
+
+    public void testRemoveFailedSnapshotTaskOnNoLongerClusterManagerWithoutListener() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+
+        task.onNoLongerClusterManager("test-source");
+    }
+
+    public void testRemoveFailedSnapshotTaskOnNoLongerClusterManagerWithListener() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        ActionListener<Snapshot> userListener = ActionListener.wrap(s -> {}, e -> listenerCalled.set(true));
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+
+        task.onNoLongerClusterManager("test-source");
+    }
+
+    public void testRemoveFailedSnapshotTaskClusterStateProcessedWithoutListenerNullRepoData() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("test failure"),
+            null,
+            null
+        );
+
+        String localNodeId = UUIDs.randomBase64UUID();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().localNodeId(localNodeId).clusterManagerNodeId(localNodeId).build())
+            .build();
+
+        task.clusterStateProcessed("test-source", state, state);
+    }
+
+    public void testRejectedExecutionExceptionInRetryRunsFallback() throws Exception {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+
+        TestThreadPool terminatedPool = new TestThreadPool(getTestName());
+        ThreadPool.terminate(terminatedPool, 0, TimeUnit.MILLISECONDS);
+
+        ClusterService localClusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(localClusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        TransportService localTransportService = mock(TransportService.class);
+        when(localTransportService.getThreadPool()).thenReturn(terminatedPool);
+
+        Settings settings = Settings.builder().put("node.name", "test").putList("node.roles", "cluster_manager", "data").build();
+
+        SnapshotsService localService = new SnapshotsService(
+            settings,
+            localClusterService,
+            mock(org.opensearch.cluster.metadata.IndexNameExpressionResolver.class),
+            mock(org.opensearch.repositories.RepositoriesService.class),
+            localTransportService,
+            mock(org.opensearch.action.support.ActionFilters.class),
+            null,
+            new org.opensearch.indices.RemoteStoreSettings(Settings.EMPTY, clusterSettings),
+            null
+        );
+
+        AtomicBoolean fallbackCalled = new AtomicBoolean(false);
+
+        localService.retryOrFailOnClusterManagerFailOver(
+            new FailedToCommitClusterStateException("test"),
+            0,
+            "test-source",
+            () -> mock(ClusterStateUpdateTask.class),
+            () -> fallbackCalled.set(true)
+        );
+
+        assertTrue("Fallback should be called when scheduling is rejected", fallbackCalled.get());
+    }
+
+    public void testSettingsUpdateConsumerForRetries() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
+        Settings settings = Settings.builder()
+            .put("node.name", "test")
+            .putList("node.roles", "cluster_manager", "data")
+            .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getKey(), 5)
+            .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.getKey(), "2s")
+            .build();
+
+        SnapshotsService svc = new SnapshotsService(
+            settings,
+            clusterService,
+            mock(org.opensearch.cluster.metadata.IndexNameExpressionResolver.class),
+            mock(org.opensearch.repositories.RepositoriesService.class),
+            transportService,
+            mock(org.opensearch.action.support.ActionFilters.class),
+            null,
+            new org.opensearch.indices.RemoteStoreSettings(Settings.EMPTY, clusterSettings),
+            null
+        );
+
+        AtomicBoolean fallbackCalled = new AtomicBoolean(false);
+        svc.retryOrFailOnClusterManagerFailOver(
+            new FailedToCommitClusterStateException("test"),
+            5,
+            "test-source",
+            () -> mock(ClusterStateUpdateTask.class),
+            () -> fallbackCalled.set(true)
+        );
+        assertTrue("Fallback should be called at attempt==maxRetries", fallbackCalled.get());
+
+        Settings newSettings = Settings.builder()
+            .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING.getKey(), 10)
+            .put(SnapshotsService.SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.getKey(), "5s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+
+        AtomicBoolean fallbackCalled2 = new AtomicBoolean(false);
+        CountDownLatch retryLatch = new CountDownLatch(1);
+        svc.retryOrFailOnClusterManagerFailOver(new FailedToCommitClusterStateException("test"), 5, "test-source", () -> {
+            retryLatch.countDown();
+            return mock(ClusterStateUpdateTask.class);
+        }, () -> fallbackCalled2.set(true));
+        assertFalse("Fallback should NOT be called when retries increased", fallbackCalled2.get());
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testRemoveFailedSnapshotTaskOnFailureWithListenerNotNull() throws Exception {
+        Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+
+        ClusterStateUpdateTask task = snapshotsService.createRemoveFailedSnapshotTask(
+            "test-source",
+            0,
+            snapshot,
+            new RuntimeException("original failure"),
+            null,
+            null
+        );
+        task.onFailure("test-source", new NotClusterManagerException("simulated"));
     }
 
 }
