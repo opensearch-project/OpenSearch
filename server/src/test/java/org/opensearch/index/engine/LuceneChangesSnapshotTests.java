@@ -32,11 +32,17 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.tests.index.FieldFilterLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.IndexSettingsModule;
@@ -44,6 +50,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -209,6 +216,28 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    public void testNoOpWithMissingSourceUsesFallbackReasonWhenFullRangeNotRequired() throws Exception {
+        final long seqNo = addNoOpAndRefresh();
+        try (Translog.Snapshot snapshot = newSnapshotHidingSource(seqNo, seqNo, false)) {
+            assertNoOpWithFallbackReason(snapshot, seqNo);
+        }
+    }
+
+    public void testNoOpWithMissingSourceUsesFallbackReasonWhenFullRangeRequired() throws Exception {
+        final long seqNo = addNoOpAndRefresh();
+        try (Translog.Snapshot snapshot = newSnapshotHidingSource(seqNo, seqNo, true)) {
+            assertNoOpWithFallbackReason(snapshot, seqNo);
+        }
+    }
+
+    public void testNoOpWithSourcePreservesStoredReason() throws Exception {
+        final String reason = "test reason";
+        final long seqNo = addNoOpAndRefresh(reason);
+        try (Translog.Snapshot snapshot = newSnapshot(seqNo, seqNo, randomBoolean())) {
+            assertNoOpReason(snapshot, seqNo, reason);
+        }
+    }
+
     /**
      * A nested document is indexed into Lucene as multiple documents. While the root document has both sequence number and primary term,
      * non-root documents don't have primary term but only sequence numbers. This test verifies that {@link LuceneChangesSnapshot}
@@ -356,6 +385,101 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             operations.add(newOp);
         }
         return operations;
+    }
+
+    private void assertNoOpWithFallbackReason(Translog.Snapshot snapshot, long seqNo) throws IOException {
+        assertNoOpReason(snapshot, seqNo, "stored _source is missing");
+    }
+
+    private void assertNoOpReason(Translog.Snapshot snapshot, long seqNo, String reason) throws IOException {
+        assertThat(snapshot.totalOperations(), equalTo(1));
+        final List<Translog.Operation> operations = drainAll(snapshot);
+        assertThat(operations.size(), equalTo(1));
+        assertThat(snapshot.skippedOperations(), equalTo(0));
+
+        final Translog.NoOp op = (Translog.NoOp) operations.get(0);
+        assertThat(op.seqNo(), equalTo(seqNo));
+        assertThat(op.reason(), containsString(reason));
+    }
+
+    private long addNoOpAndRefresh() throws IOException {
+        return addNoOpAndRefresh("test");
+    }
+
+    private long addNoOpAndRefresh(String reason) throws IOException {
+        final long seqNo = 0;
+        final Engine.NoOpResult result = engine.noOp(
+            new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA, System.nanoTime(), reason)
+        );
+        assertThat(result.getSeqNo(), equalTo(seqNo));
+        engine.refresh("test");
+        return seqNo;
+    }
+
+    private Translog.Snapshot newSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try {
+            final Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                searcher,
+                LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
+                fromSeqNo,
+                toSeqNo,
+                requiredFullRange,
+                true
+            );
+            searcher = null;
+            return snapshot;
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    private Translog.Snapshot newSnapshotHidingSource(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        Engine.Searcher sourceHidingSearcher = null;
+        try {
+            sourceHidingSearcher = IndexShard.wrapSearcher(
+                searcher,
+                reader -> new FieldMaskingDirectoryReader(reader, SourceFieldMapper.NAME)
+            );
+            searcher = null;
+            final Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                sourceHidingSearcher,
+                LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
+                fromSeqNo,
+                toSeqNo,
+                requiredFullRange,
+                true
+            );
+            sourceHidingSearcher = null;
+            return snapshot;
+        } finally {
+            IOUtils.close(sourceHidingSearcher, searcher);
+        }
+    }
+
+    private static class FieldMaskingDirectoryReader extends FilterDirectoryReader {
+        private final String field;
+
+        FieldMaskingDirectoryReader(DirectoryReader in, String field) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FieldFilterLeafReader(reader, Collections.singleton(field), true);
+                }
+            });
+            this.field = field;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new FieldMaskingDirectoryReader(in, field);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
     }
 
     public void testOverFlow() throws Exception {
