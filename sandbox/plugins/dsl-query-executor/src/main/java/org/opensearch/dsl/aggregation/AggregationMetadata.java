@@ -44,6 +44,7 @@ public class AggregationMetadata {
     private final Integer perParentFetch;
     private final Long havingMinDocCount;
     private final Map<String, Object> missingValues;
+    private final List<LiteralColumn> literalColumns;
 
     /**
      * Creates aggregation metadata.
@@ -62,6 +63,8 @@ public class AggregationMetadata {
      *        for none
      * @param missingValues null-substitution value per group field ({@code missing} parameter);
      *        fields absent from the map get an {@code IS NOT NULL} filter instead
+     * @param literalColumns literal-derived columns to append to the aggregate's input, in
+     *                       allocation order (see {@link LiteralColumns})
      */
     public AggregationMetadata(
         List<String> aggNamePath,
@@ -73,7 +76,8 @@ public class AggregationMetadata {
         Integer fetch,
         Integer perParentFetch,
         Long havingMinDocCount,
-        Map<String, Object> missingValues
+        Map<String, Object> missingValues,
+        List<LiteralColumn> literalColumns
     ) {
         this.aggNamePath = List.copyOf(aggNamePath);
         this.groupByBitSet = groupByBitSet;
@@ -85,6 +89,7 @@ public class AggregationMetadata {
         this.perParentFetch = perParentFetch;
         this.havingMinDocCount = havingMinDocCount;
         this.missingValues = Map.copyOf(missingValues);
+        this.literalColumns = List.copyOf(literalColumns);
     }
 
     /**
@@ -187,5 +192,10 @@ public class AggregationMetadata {
      */
     public boolean eligibleDocCountIsTotal() {
         return havingMinDocCount == null && !groupByFieldNames.isEmpty() && missingValues.containsKey(groupByFieldNames.get(0));
+    }
+
+    /** Returns the literal-derived columns to append to the aggregate's input, in allocation order. */
+    public List<LiteralColumn> getLiteralColumns() {
+        return literalColumns;
     }
 }

@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -47,6 +49,47 @@ public class StatsMetricTranslatorTests extends OpenSearchTestCase {
         StatsAggregationBuilder agg = new StatsAggregationBuilder("price_stats").field("invalid");
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    public void testNonNumericFieldRejected() {
+        StatsAggregationBuilder agg = new StatsAggregationBuilder("brand_stats").field("brand");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+
+        assertEquals("Field [brand] of type [VARCHAR] is not supported for aggregation [stats]", e.getMessage());
+    }
+
+    public void testMissingAggregatesAllCallsOverCoalescedColumn() throws ConversionException {
+        StatsAggregationBuilder agg = new StatsAggregationBuilder("price_stats").field("price");
+        agg.missing(0);
+        int baseFieldCount = ctx.getRowType().getFieldCount();
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(baseFieldCount);
+
+        List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType(), allocator);
+
+        assertEquals(4, calls.size());
+        for (AggregateCall call : calls) {
+            assertEquals(List.of(baseFieldCount), call.getArgList());
+        }
+    }
+
+    public void testFormatAppliedToResponse() {
+        StatsAggregationBuilder agg = new StatsAggregationBuilder("price_stats").field("price");
+        agg.format("0.00");
+        Map<String, Object> values = Map.of(
+            "price_stats_count",
+            2L,
+            "price_stats_min",
+            1.0,
+            "price_stats_max",
+            3.0,
+            "price_stats_sum",
+            4.0
+        );
+
+        InternalStats result = (InternalStats) translator.toInternalAggregation(agg, values);
+
+        assertEquals("2.00", result.getAvgAsString());
     }
 
     public void testGetAggregateFieldNames() {

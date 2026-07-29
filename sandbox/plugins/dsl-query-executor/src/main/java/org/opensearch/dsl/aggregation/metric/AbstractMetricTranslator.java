@@ -13,8 +13,8 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
@@ -23,32 +23,26 @@ import java.util.Map;
 
 /**
  * Base class for simple metric translators (single value: AVG, SUM, MIN, MAX, COUNT).
- * Provides default implementations for single-value metrics.
+ * Provides default implementations for single-value metrics, including the shared
+ * {@code missing} handling (aggregate over {@code COALESCE(field, missing)}) and
+ * {@code format} validation.
  */
-public abstract class AbstractMetricTranslator<T extends AggregationBuilder> implements MetricTranslator<T> {
+public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
     /** Creates a metric translator. */
     protected AbstractMetricTranslator() {}
 
     /**
-     * Rejects {@code missing} (substitutes a value for docs lacking the field) and
-     * {@code script} (computes the metric input from a script): the translation implements
-     * neither — it emits plain {@code fn(field)}, whose result differs from classic search
-     * when either parameter is present.
+     * Rejects {@code script} (computes the metric input from a script): the translation
+     * emits plain {@code fn(field)} and a scripted input has no SQL equivalent, so its
+     * result would differ from classic search if ignored.
      */
     @Override
     public void validate(T agg) throws ConversionException {
-        if (agg instanceof ValuesSourceAggregationBuilder<?> vs) {
-            if (vs.missing() != null) {
-                throw new ConversionException(
-                    "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-                );
-            }
-            if (vs.script() != null) {
-                throw new ConversionException(
-                    "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-                );
-            }
+        if (agg.script() != null) {
+            throw new ConversionException(
+                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
         }
     }
 
@@ -63,12 +57,32 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
      */
     protected abstract String getFieldName(T agg);
 
+    /** Whether the field must be numeric; count-like metrics override to accept any type. */
+    protected boolean requiresNumericField() {
+        return true;
+    }
+
+    /** Literal-free variant; {@code missing} needs the {@link LiteralColumns} variant. */
     @Override
     public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
+        if (agg.missing() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
+        }
+        return toAggregateCalls(agg, rowType, null);
+    }
+
+    @Override
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumns literals) throws ConversionException {
+        MetricTranslator.validateFormat(agg.format(), agg.getName());
         String fieldName = getFieldName(agg);
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+        RelDataTypeField field;
+        if (requiresNumericField()) {
+            field = MetricTranslator.resolveNumericField(rowType, fieldName, agg.getType());
+        } else {
+            field = rowType.getField(fieldName, false, false);
+            if (field == null) {
+                throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+            }
         }
 
         // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
@@ -77,13 +91,26 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
             false,
             false,
             false,
-            Collections.singletonList(field.getIndex()),
+            Collections.singletonList(inputColumn(agg, field, literals)),
             -1,
             RelCollations.EMPTY,
             field.getType(),
             agg.getName()
         );
         return Collections.singletonList(call);
+    }
+
+    /**
+     * The aggregate's input column: the field, or {@code COALESCE(field, missing)} when the
+     * request sets {@code missing}. The coalesced column keeps the field's value type, so
+     * declared call types are unaffected. {@code literals} may be null only when missing is unset.
+     */
+    static int inputColumn(ValuesSourceAggregationBuilder<?> agg, RelDataTypeField field, LiteralColumns literals)
+        throws ConversionException {
+        if (agg.missing() == null) {
+            return field.getIndex();
+        }
+        return literals.coalescedColumnFor(field.getIndex(), MetricTranslator.missingValue(agg.missing(), agg.getName()));
     }
 
     @Override

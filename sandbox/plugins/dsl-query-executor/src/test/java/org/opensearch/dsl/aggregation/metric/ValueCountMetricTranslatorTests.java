@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -45,6 +47,36 @@ public class ValueCountMetricTranslatorTests extends OpenSearchTestCase {
         ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("count").field("invalid");
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    /** Classic parity: value_count accepts any field type (it only tests value presence). */
+    public void testNonNumericFieldAccepted() throws ConversionException {
+        ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("brand_count").field("brand");
+
+        List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType());
+
+        assertEquals(1, calls.size());
+        assertEquals(SqlKind.COUNT, calls.get(0).getAggregation().getKind());
+    }
+
+    public void testNumericMissingCountsOverCoalescedColumn() throws ConversionException {
+        ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("price_count").field("price");
+        agg.missing(0);
+        int baseFieldCount = ctx.getRowType().getFieldCount();
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(baseFieldCount);
+
+        List<AggregateCall> calls = translator.toAggregateCalls(agg, ctx.getRowType(), allocator);
+
+        assertEquals(List.of(baseFieldCount), calls.get(0).getArgList());
+    }
+
+    /** Non-numeric substitutes are rejected — the substitute column is numeric on this path. */
+    public void testNonNumericMissingRejected() {
+        ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("brand_count").field("brand");
+        agg.missing("N/A");
+        LiteralColumns allocator = new AggregationMetadataBuilder().literalColumns(ctx.getRowType().getFieldCount());
+
+        expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType(), allocator));
     }
 
     public void testGetAggregateFieldNames() {

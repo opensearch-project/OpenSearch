@@ -13,11 +13,12 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.dsl.aggregation.LiteralColumns;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,18 +52,12 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
     }
 
     /**
-     * Rejects {@code missing} (substitutes a value for docs lacking the field) and
-     * {@code script} (computes the metric input from a script): the translation implements
-     * neither — it emits plain {@code fn(field)}, whose result differs from classic search
-     * when either parameter is present.
+     * Rejects {@code script} (computes the metric input from a script): the translation
+     * emits plain {@code fn(field)} and a scripted input has no SQL equivalent, so its
+     * result would differ from classic search if ignored.
      */
     @Override
     public void validate(ExtendedStatsAggregationBuilder agg) throws ConversionException {
-        if (agg.missing() != null) {
-            throw new ConversionException(
-                "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-            );
-        }
         if (agg.script() != null) {
             throw new ConversionException(
                 "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
@@ -70,21 +65,29 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
         }
     }
 
+    /** See {@link AbstractMetricTranslator#toAggregateCalls(ValuesSourceAggregationBuilder, RelDataType)}. */
     @Override
     public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType) throws ConversionException {
-        String fieldName = agg.field();
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+        if (agg.missing() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
         }
+        return toAggregateCalls(agg, rowType, null);
+    }
+
+    @Override
+    public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType, LiteralColumns literals)
+        throws ConversionException {
+        MetricTranslator.validateFormat(agg.format(), agg.getName());
+        RelDataTypeField field = MetricTranslator.resolveNumericField(rowType, agg.field(), agg.getType());
+        int inputColumn = AbstractMetricTranslator.inputColumn(agg, field, literals);
 
         String baseName = agg.getName();
         List<AggregateCall> calls = new ArrayList<>(5);
-        calls.add(createCall(SqlStdOperatorTable.COUNT, field, baseName + COUNT_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.MIN, field, baseName + MIN_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.MAX, field, baseName + MAX_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.SUM, field, baseName + SUM_SUFFIX));
-        calls.add(createCall(SqlStdOperatorTable.VAR_POP, field, baseName + VARIANCE_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.COUNT, inputColumn, field.getType(), baseName + COUNT_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.MIN, inputColumn, field.getType(), baseName + MIN_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.MAX, inputColumn, field.getType(), baseName + MAX_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.SUM, inputColumn, field.getType(), baseName + SUM_SUFFIX));
+        calls.add(createCall(SqlStdOperatorTable.VAR_POP, inputColumn, field.getType(), baseName + VARIANCE_SUFFIX));
         return calls;
     }
 
@@ -119,7 +122,7 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
             max,
             sumOfSquares,
             sigma,
-            DocValueFormat.RAW,
+            MetricTranslator.parseFormat(agg.format()),
             AggregationTranslator.userMetadata(agg)
         );
     }

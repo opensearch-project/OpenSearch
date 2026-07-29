@@ -51,4 +51,39 @@ public class AggregationMetadataBuilderTests extends OpenSearchTestCase {
 
         expectThrows(ConversionException.class, () -> builder.build(ctx.getRowType(), ctx.getCluster().getTypeFactory()));
     }
+
+    public void testLiteralColumnAllocatorAssignsSequentialPositionsAfterBase() {
+        AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
+        LiteralColumns allocator = builder.literalColumns(4);
+
+        assertEquals(4, allocator.columnFor(50.0));
+        assertEquals(5, allocator.columnFor(95.0));
+        assertEquals(6, allocator.integerColumnFor(200));
+        assertEquals(7, allocator.coalescedColumnFor(1, 0.0));
+    }
+
+    public void testLiteralColumnAllocatorDeduplicatesEqualColumns() {
+        AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
+        LiteralColumns allocator = builder.literalColumns(4);
+
+        assertEquals(4, allocator.columnFor(50.0));
+        assertEquals(4, allocator.columnFor(50.0));
+        assertEquals(5, allocator.coalescedColumnFor(1, 0.0));
+        assertEquals(5, allocator.coalescedColumnFor(1, 0.0));
+        // Same value, different kind or different field: distinct columns.
+        assertEquals(6, allocator.integerColumnFor(50));
+        assertEquals(7, allocator.coalescedColumnFor(2, 0.0));
+    }
+
+    public void testLiteralColumnsTravelIntoMetadataInAllocationOrder() throws ConversionException {
+        AggregationMetadataBuilder builder = new AggregationMetadataBuilder();
+        LiteralColumns allocator = builder.literalColumns(4);
+        allocator.coalescedColumnFor(1, 0.0);
+        allocator.columnFor(99.0);
+        builder.requestImplicitCount();
+
+        AggregationMetadata metadata = builder.build(ctx.getRowType(), ctx.getCluster().getTypeFactory());
+
+        assertEquals(List.of(LiteralColumn.coalesced(1, 0.0), LiteralColumn.constant(99.0)), metadata.getLiteralColumns());
+    }
 }
