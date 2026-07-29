@@ -33,6 +33,8 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -53,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
     private MapperService mapperService;
@@ -356,6 +359,42 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             operations.add(newOp);
         }
         return operations;
+    }
+
+    /**
+     * Verifies that routing values round-trip correctly through Translog.Delete serialization.
+     */
+    public void testDeleteRoutingSerialization() throws Exception {
+        final String routingValue = "tenant-abc";
+
+        // Delete WITH routing
+        Translog.Delete deleteWithRouting = new Translog.Delete("doc-1", 1, 1, 1, routingValue);
+        assertThat(deleteWithRouting.routing(), equalTo(routingValue));
+        assertThat(deleteWithRouting.id(), equalTo("doc-1"));
+
+        // Round-trip through Engine.Delete → Translog.Delete
+        Engine.Delete engineDelete = new Engine.Delete(
+            "doc-2",
+            newUid("doc-2"),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            1L,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            routingValue
+        );
+        assertThat("Engine.Delete should carry routing", engineDelete.routing(), equalTo(routingValue));
+
+        // Delete WITHOUT routing (backward compatibility)
+        Translog.Delete deleteNoRouting = new Translog.Delete("doc-3", 2, 1, 1);
+        assertNull("Delete without routing should have null routing", deleteNoRouting.routing());
+
+        // Verify toString includes routing
+        assertThat(deleteWithRouting.toString(), containsString("routing=" + routingValue));
+        assertThat(deleteNoRouting.toString(), not(containsString("routing=")));
     }
 
     public void testOverFlow() throws Exception {
