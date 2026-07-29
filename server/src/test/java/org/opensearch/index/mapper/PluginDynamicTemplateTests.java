@@ -41,6 +41,9 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
     // A plugin type whose handler always reads the field value, i.e. it depends on data-derived
     // parameters and therefore cannot be validated at index-creation time.
     private static final String MOCK_INFERRED_TYPE = "mock_inferred_type";
+    // A plugin type whose handler reports its config complete but throws when normalizing it — used to
+    // verify eager index-creation validation treats a handler contract violation as non-fatal (defer).
+    private static final String MOCK_THROWING_TYPE = "mock_throwing_type";
 
     /** No-op handler — template config used as-is. Reports its config as always complete. */
     static class MockTemplateTypeHandler implements DynamicTemplateTypeHandler {
@@ -65,6 +68,22 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         @Override
         public boolean isConfigComplete(Map<String, Object> mappingConfig) {
             return false;
+        }
+    }
+
+    /**
+     * Reports its config as complete (so index-creation validation runs eagerly) but throws from
+     * adjustMappingConfig — a handler-contract violation. Core must treat this as non-fatal and defer.
+     */
+    static class ThrowingTemplateTypeHandler implements DynamicTemplateTypeHandler {
+        @Override
+        public void adjustMappingConfig(Map<String, Object> mappingConfig, FieldValueParserSupplier fieldValueParser) {
+            throw new IllegalStateException("handler contract violation");
+        }
+
+        @Override
+        public boolean isConfigComplete(Map<String, Object> mappingConfig) {
+            return true;
         }
     }
 
@@ -108,6 +127,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
             Map<String, DynamicTemplateTypeHandler> handlers = new HashMap<>();
             handlers.put(MOCK_TYPE, new MockTemplateTypeHandler());
             handlers.put(MOCK_INFERRED_TYPE, new MockInferredTemplateTypeHandler());
+            handlers.put(MOCK_THROWING_TYPE, new ThrowingTemplateTypeHandler());
             return handlers;
         }
 
@@ -116,6 +136,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
             Map<String, Mapper.TypeParser> mappers = new HashMap<>();
             mappers.put(MOCK_TYPE, new RequiresParamTypeParser());
             mappers.put(MOCK_INFERRED_TYPE, new RequiresParamTypeParser());
+            mappers.put(MOCK_THROWING_TYPE, new RequiresParamTypeParser());
             return mappers;
         }
 
@@ -379,6 +400,24 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
             b.field("match_mapping_type", MOCK_INFERRED_TYPE);
             b.startObject("mapping");
             b.field("type", MOCK_INFERRED_TYPE);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.endArray();
+        }));
+    }
+
+    public void testHandlerThrowingDuringEagerValidationIsNonFatal() throws IOException {
+        // The handler reports its config complete but throws from adjustMappingConfig. Core must treat
+        // this contract violation as non-fatal (log + defer) rather than failing index creation.
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject();
+            b.startObject("throwing_template");
+            b.field("match_mapping_type", MOCK_THROWING_TYPE);
+            b.startObject("mapping");
+            b.field("type", MOCK_THROWING_TYPE);
+            b.field("required_param", "present");
             b.endObject();
             b.endObject();
             b.endObject();
