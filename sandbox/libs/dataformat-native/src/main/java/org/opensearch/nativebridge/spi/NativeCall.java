@@ -268,6 +268,37 @@ public final class NativeCall implements AutoCloseable {
         }
     }
 
+    /**
+     * Invokes a {@code long}-returning native call and checks its status: returns the value
+     * when {@code >= 0} (positive status codes are passed through), throws {@link IOException}
+     * when {@code < 0}. Static (no {@link Arena}), so the caller must own every argument.
+     */
+    public static long invokeIOStatic(MethodHandle handle, Object... args) throws IOException {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResultIO(result);
+        } catch (IOException | RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IOException(t);
+        }
+    }
+
+    /**
+     * Same as {@link #invokeIOStatic} but throws {@link RuntimeException} on a {@code < 0}
+     * status instead of {@link IOException}.
+     */
+    public static long invokeStatic(MethodHandle handle, Object... args) {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResult(result);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     @Override
     public void close() {
         closed = true;
