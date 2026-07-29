@@ -163,6 +163,10 @@ public class Cache<K, V> {
         this.maximumWeight = maximumWeight;
     }
 
+    public void unsetMaximumWeight() {
+        this.maximumWeight = -1;
+    }
+
     public long getMaximumWeight() {
         return maximumWeight;
     }
