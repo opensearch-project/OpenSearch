@@ -24,7 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -55,7 +55,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -260,7 +260,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         for (int i = 0; i < shardCount; i++) {
-            client().prepareIndex(indexName).setId(indexName + "-" + i).setSource("val", i + 1).get();
+            client().prepareIndex(indexName).setSource("val", i + 1).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -290,7 +290,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
 
         for (int i = 0; i < shardCount; i++) {
-            client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("val", i + 1).get();
+            client().prepareIndex(indexName).setSource("val", i + 1).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();

@@ -12,8 +12,13 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.List;
@@ -24,20 +29,7 @@ public enum AggregateFunction {
     SUM0(Type.SIMPLE, SqlKind.SUM0),
     MIN(Type.SIMPLE, SqlKind.MIN),
     MAX(Type.SIMPLE, SqlKind.MAX),
-    COUNT(Type.SIMPLE, SqlKind.COUNT, fields(IF("count", new ArrowType.Int(64, true), SUM))) {
-        /**
-         * Single-arg {@code COUNT(DISTINCT x)} collapses onto {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT}.
-         * Distinctness is global and cannot be reduced additively across shards;
-         * {@link #APPROX_COUNT_DISTINCT} (Type.APPROXIMATE) carries the cross-shard merge.
-         */
-        @Override
-        public SqlAggFunction resolveOperator(SqlAggFunction op, boolean isDistinct, int argCount) {
-            if (isDistinct && argCount == 1) {
-                return SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
-            }
-            return op;
-        }
-    },
+    COUNT(Type.SIMPLE, SqlKind.COUNT, fields(IF("count", new ArrowType.Int(64, true), SUM))),
     AVG(Type.SIMPLE, SqlKind.AVG),
 
     STDDEV_POP(Type.STATISTICAL, SqlKind.STDDEV_POP),
@@ -51,7 +43,7 @@ public enum AggregateFunction {
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
 
-    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER, fields(IF("sketch", new ArrowType.Binary(), null))),
+    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER, fields(IF("hll_registers", new ArrowType.Binary(), null))),
     TAKE(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("take_state", IntermediateTypeResolver.passThroughArg0(), null))),
     FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
@@ -145,14 +137,6 @@ public enum AggregateFunction {
         return null;
     }
 
-    /**
-     * Resolves an aggregate call shape (operator + flags) onto a standard {@link SqlAggFunction}.
-     * Default returns {@code op} unchanged; override per enum value to encode rewrites.
-     */
-    public SqlAggFunction resolveOperator(SqlAggFunction op, boolean isDistinct, int argCount) {
-        return op;
-    }
-
     /** Case-insensitive name lookup; throws if not recognized. */
     public static AggregateFunction fromNameOrError(String name) {
         try {
@@ -186,6 +170,39 @@ public enum AggregateFunction {
             return byKind;
         }
         throw new IllegalStateException("No AggregateFunction mapping for SqlAggFunction [" + op.getName() + "]");
+    }
+
+    /** Evaluates opaque engine-native-merge state to a sortable scalar (used by TopK). */
+    public static final SqlOperator REDUCE_EVAL_OP = new SqlFunction(
+        "reduce_eval",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    /**
+     * Returns true if the given aggregate call uses engine-native merge (single intermediate
+     * field whose reducer is the function itself — e.g. APPROX_COUNT_DISTINCT with HLL sketches).
+     */
+    /** Returns the UDAF name used by the reduce_eval UDF to evaluate partial state to a scalar. */
+    public String reduceEvalName() {
+        return switch (this) {
+            case APPROX_COUNT_DISTINCT -> "approx_distinct";
+            default -> throw new IllegalStateException(this + " has no reduce_eval mapping");
+        };
+    }
+
+    public static boolean isEngineNativeMerge(org.apache.calcite.rel.core.AggregateCall call) {
+        AggregateFunction func;
+        try {
+            func = fromSqlAggFunction(call.getAggregation());
+        } catch (IllegalStateException e) {
+            return false;
+        }
+        List<IntermediateField> fields = func.intermediateFields();
+        return fields != null && fields.size() == 1 && fields.get(0).reducer() == func;
     }
 
     private static List<IntermediateField> fields(IntermediateField... fs) {

@@ -27,9 +27,7 @@ import java.util.List;
  * MySQL/PPL uses 1=Sun..7=Sat but DataFusion/Postgres {@code date_part('dow')} returns 0..6, so we
  * add 1 and cast back to the original call's return type.
  *
- * <p>VARCHAR operands (bare PPL string literals like {@code DAYOFWEEK('2020-09-16')}) are coerced
- * to TIMESTAMP so the {@code (string, precision_timestamp<P>)} signature resolves — same rationale
- * as {@link DatePartAdapters}.
+ * <p>VARCHAR / TIME operand handling: see {@link DatePartAdapters}.
  *
  * @opensearch.internal
  */

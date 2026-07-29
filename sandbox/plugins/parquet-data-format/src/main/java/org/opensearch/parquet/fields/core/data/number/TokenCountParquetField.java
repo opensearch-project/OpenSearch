@@ -12,13 +12,12 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for token count values stored as 32-bit integers using {@link IntVector}.
  */
-public class TokenCountParquetField extends ParquetField {
+public class TokenCountParquetField extends NumericParquetField {
 
     /** Creates a new TokenCountParquetField. */
     public TokenCountParquetField() {}

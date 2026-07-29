@@ -74,7 +74,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         assertNotNull(writer.getMetadata());
         assertEquals(3, writer.getMetadata().numRows());
 
-        writer.sync();
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
@@ -94,7 +93,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
         writer.flush();
         assertEquals(5, writer.getMetadata().numRows());
-        writer.sync();
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
@@ -119,22 +117,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         ParquetFileMetadata first = writer.getMetadata();
         writer.flush();
         assertSame(first, writer.getMetadata());
-    }
-
-    public void testSyncAutoFlushesIfNotFlushed() throws Exception {
-        String filePath = createTempDir().resolve("auto-flush.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-
-        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
-        }
-
-        // sync without explicit close — should auto-close first
-        assertNull(writer.getMetadata());
-        writer.sync();
-        assertNotNull(writer.getMetadata());
-        assertEquals(1, writer.getMetadata().numRows());
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
     public void testWriteAfterFlushThrows() throws Exception {
@@ -222,21 +204,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         }
 
         writer1.flush();
-    }
-
-    public void testSyncCalledTwice() throws Exception {
-        String filePath = createTempDir().resolve("double-sync.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-
-        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
-        }
-
-        writer.flush();
-        writer.sync();
-        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
-        // Second sync fails — native side removed file from FILE_MANAGER after first fsync
-        expectThrows(IOException.class, writer::sync);
     }
 
     public void testWriteEmptyBatch() throws Exception {

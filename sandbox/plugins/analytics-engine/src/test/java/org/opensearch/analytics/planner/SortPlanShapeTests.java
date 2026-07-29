@@ -72,6 +72,8 @@ public class SortPlanShapeTests extends PlanShapeTestBase {
             """, result);
     }
 
+    /** A bare LIMIT is pushed below the ER so each shard caps locally instead of streaming its whole
+     *  scan to the coordinator. See {@link SortPushdownPlanShapeTests#testBareLimit_2shard_pushed}. */
     public void testPureLimit_2shard() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
         RelNode plan = makeLimit(scan, 10);
@@ -80,7 +82,8 @@ public class SortPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                    OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

@@ -244,7 +244,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         Stage leaf = dag.rootStage();
         while (!leaf.getChildStages().isEmpty()) {

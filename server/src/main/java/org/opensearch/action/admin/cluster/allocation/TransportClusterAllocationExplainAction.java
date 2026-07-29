@@ -134,7 +134,8 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
             state,
             clusterInfo,
             snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
+            System.nanoTime(),
+            clusterService.getSettings()
         );
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);
@@ -194,6 +195,9 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
             if (request.isPrimary()) {
                 // If we're looking for the primary shard, there's only one copy, so pick it directly
                 foundShard = allocation.routingTable().shardRoutingTable(index, shard).primaryShard();
+                if (foundShard == null) {
+                    throw new IllegalArgumentException("unable to find primary shard to explain [" + request + "] in the routing table");
+                }
                 if (request.getCurrentNode() != null) {
                     DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request

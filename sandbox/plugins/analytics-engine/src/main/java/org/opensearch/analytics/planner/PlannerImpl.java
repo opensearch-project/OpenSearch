@@ -15,21 +15,32 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
+import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelShuttle;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
+import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
@@ -45,6 +56,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,6 +85,30 @@ public class PlannerImpl {
 
     private static final Logger LOGGER = LogManager.getLogger(PlannerImpl.class);
 
+    /**
+     * Like {@link CoreRules#FILTER_PROJECT_TRANSPOSE} but refuses to push a Filter below a Project
+     * that computes any non-deterministic expression (e.g. {@code eval r = rand() | where r > 0}).
+     *
+     * <p>This is a <b>semantic-correctness</b> guard, not a delegation/performance one. The stock
+     * rule only guards against window functions ({@code !containsOver()}); pushing a Filter past a
+     * {@code rand()} Project inlines {@code RAND()} into the predicate, so a reference to one
+     * already-computed random value ({@code $ref > literal}) becomes a fresh {@code RAND() > literal}
+     * evaluated again at scan time. That re-evaluates / duplicates the non-deterministic expression
+     * and changes results, so the Filter must stay above the Project regardless of backend.
+     *
+     * <p>(Aside: such an inlined {@code RAND() > literal} predicate is also what gets incorrectly
+     * marked Lucene-delegation-viable today — a separate filter-viability gap where a field-less
+     * predicate inherits its child's viable backends instead of validating its scalar calls. That is
+     * tracked/fixed separately; it is not the reason for this rule.)
+     */
+    private static final FilterProjectTransposeRule FILTER_PROJECT_TRANSPOSE_DETERMINISTIC = FilterProjectTransposeRule.Config.DEFAULT
+        .withOperandFor(
+            Filter.class,
+            filter -> true,
+            Project.class,
+            project -> project.getProjects().stream().allMatch(RexUtil::isDeterministic)
+        ).toRule();
+
     public static RelNode createPlan(RelNode rawRelNode, PlannerContext context) {
         return runAllOptimizations(rawRelNode, context);
     }
@@ -93,6 +130,7 @@ public class PlannerImpl {
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
         // FFM round-trips per RG into one. Blocked on two open design points:
@@ -140,6 +178,14 @@ public class PlannerImpl {
      * emission. Runs first so every later phase observes a subquery-free tree.
      */
     private static RelNode removeSubQueries(RelNode input, RuleProfilingListener listener) {
+        // The PPL frontend injects a SUBSEARCH_MAXOUT Sort(fetch=N) at the top of every subsearch.
+        // Inside an EXISTS that limit is semantically irrelevant (existence needs only one row), but
+        // it becomes a correlated Sort(fetch>1) after FILTER_SUB_QUERY_TO_CORRELATE, which
+        // RelDecorrelator refuses to decorrelate (it only handles fetch==1) — leaving a
+        // LogicalCorrelate that the marking phase rejects with "unmarked child [LogicalCorrelate]".
+        // Strip that limit while the subquery is still an identifiable EXISTS RexSubQuery so the
+        // decorrelation below can fold it into a standard join.
+        RelNode prepared = stripExistsSubqueryLimits(input);
         return HepPhase.named("subquery-remove")
             .addRuleCollection(
                 List.of(
@@ -155,10 +201,59 @@ public class PlannerImpl {
             .postProcess(
                 withCorrelates -> RelDecorrelator.decorrelateQuery(
                     withCorrelates,
-                    RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null)
+                    RelBuilder.proto(Contexts.empty()).create(prepared.getCluster(), null)
                 )
             )
-            .run(input, listener);
+            .run(prepared, listener);
+    }
+
+    /**
+     * Removes a top-level fetch-only {@link Sort} (no collation, no offset) from the body of every
+     * {@code EXISTS} {@link RexSubQuery} in the tree. The PPL frontend injects a SUBSEARCH_MAXOUT
+     * {@code Sort(fetch=N)} at the top of each subsearch; for an EXISTS that limit cannot change the
+     * boolean result (it only tests for ≥1 row), yet it blocks {@link RelDecorrelator} from
+     * decorrelating the correlated subquery. Scoped to EXISTS only — IN / scalar subqueries keep
+     * their limit, where it is semantically meaningful.
+     */
+    private static RelNode stripExistsSubqueryLimits(RelNode input) {
+        RexShuttle rexShuttle = new RexShuttle() {
+            @Override
+            public RexNode visitSubQuery(RexSubQuery subQuery) {
+                RexSubQuery rewritten = (RexSubQuery) super.visitSubQuery(subQuery);
+                if (rewritten.getOperator().getKind() == SqlKind.EXISTS) {
+                    RelNode body = stripExistsSubqueryLimits(rewritten.rel);
+                    RelNode unlimited = stripTopFetchOnlySort(body);
+                    if (unlimited != rewritten.rel) {
+                        return rewritten.clone(unlimited);
+                    }
+                    if (body != rewritten.rel) {
+                        return rewritten.clone(body);
+                    }
+                }
+                return rewritten;
+            }
+        };
+        RelShuttle relShuttle = new RelHomogeneousShuttle() {
+            @Override
+            public RelNode visit(RelNode node) {
+                RelNode visited = super.visit(node);
+                return visited.accept(rexShuttle);
+            }
+        };
+        return input.accept(relShuttle);
+    }
+
+    /**
+     * If {@code node} is a {@link Sort} that only limits row count (a {@code fetch} with no sort
+     * keys and no {@code offset}), returns its input; otherwise returns {@code node} unchanged. A
+     * sort with collation or an offset is preserved — dropping either could change which rows the
+     * EXISTS sees relative to a correlated predicate.
+     */
+    private static RelNode stripTopFetchOnlySort(RelNode node) {
+        if (node instanceof Sort sort && sort.getCollation().getFieldCollations().isEmpty() && sort.offset == null && sort.fetch != null) {
+            return sort.getInput();
+        }
+        return node;
     }
 
     /**
@@ -181,6 +276,20 @@ public class PlannerImpl {
      */
     private static RelNode extractLiteralAgg(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("literal-agg-extract").addRuleInstance(new ExtractLiteralAggRule()).run(input, listener);
+    }
+
+    /**
+     * Phase 1c': duplicate an aggregate's literal-config-arg Project (e.g. percentile's {@code 50})
+     * into a pinned upper copy (literal stays with the aggregate) over an unpinned physical-only
+     * lower copy (pushes below the ExchangeReducer). Runs AFTER marking — operates on
+     * {@code OpenSearch*} nodes and emits a pinned {@code OpenSearchProject} whose
+     * {@code computeSelfCost} forces the CBO-inserted ER below it, keeping the literal in the
+     * coordinator fragment for the DataFusion substrait converter. Placed after marking so the
+     * pre-marking {@code PROJECT_MERGE} cannot re-fuse the two copies. See
+     * {@link OpenSearchAggLiteralArgProjectSplitRule}.
+     */
+    private static RelNode splitAggLiteralArgProject(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("agg-literal-arg-split").addRuleInstance(new OpenSearchAggLiteralArgProjectSplitRule()).run(input, listener);
     }
 
     /**
@@ -212,22 +321,30 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("pushdown-rules")
             .bottomUp()
-            // Transposes (filter-into-* and sort-into-project) cascade together within
-            // one fixpoint, alongside PROJECT_MERGE which collapses the intermediate
-            // adjacent Projects that SORT_PROJECT_TRANSPOSE produces. FILTER_MERGE
-            // runs as its own instruction so it only fires after the transposes have
-            // settled — that way any auto-injected NOT NULL collapses with the user's
-            // WHERE on the post-pushdown filter, not on a half-pushed intermediate.
-            // SORT_PROJECT_TRANSPOSE + PROJECT_MERGE feed the QTF (late-materialization)
-            // rewriter by lifting Project above Sort so it sees a single Project layer
-            // above the anchor.
+            // Transposes (filter-into-*) cascade together within one fixpoint, alongside
+            // PROJECT_MERGE which collapses adjacent Projects. FILTER_MERGE runs as its own
+            // instruction so it only fires after the transposes have settled — that way any
+            // auto-injected NOT NULL collapses with the user's WHERE on the post-pushdown filter,
+            // not on a half-pushed intermediate.
+            //
+            // SORT_PROJECT_TRANSPOSE is intentionally omitted: lifting Project above Sort puts it
+            // above the Exchange, defeating projection pushdown. Keeping it below lets DataFusion
+            // prune the scan. QTF relocates the below-Sort Project above its wrapper itself.
+            //
+            // SORT_REMOVE_REDUNDANT drops a Sort/LIMIT whose input is provably bounded to
+            // within the limit (e.g. a collation-less `head N` or a sort over a scalar
+            // aggregate, getMaxRowCount <= 1): a no-op that the marking rule must not have to
+            // special-case. Runs here, pre-marking, on plain Logical* so marking stays a pure
+            // Logical* -> OpenSearch* conversion. Cascades with LIMIT_MERGE in the same
+            // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
-                    CoreRules.FILTER_PROJECT_TRANSPOSE,
+                    FILTER_PROJECT_TRANSPOSE_DETERMINISTIC,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
-                    CoreRules.SORT_PROJECT_TRANSPOSE,
-                    CoreRules.PROJECT_MERGE
+                    CoreRules.PROJECT_MERGE,
+                    CoreRules.LIMIT_MERGE,
+                    CoreRules.SORT_REMOVE_REDUNDANT
                 )
             )
             .addRuleInstance(CoreRules.FILTER_MERGE)
@@ -235,13 +352,24 @@ public class PlannerImpl {
     }
 
     /**
-     * Phase 1b: decompose AVG / STDDEV / VAR into primitive SUM/COUNT (+ SUM_SQ for variance) plus a
-     * scalar LogicalProject computing the quotient. Runs as its own HEP pass on plain LogicalAggregate
-     * before {@link OpenSearchAggregateRule} marks it; the marking phase, the Volcano split rule, and
-     * the AggregateDecompositionResolver then see correctly-typed primitives.
+     * Phase 1b: pre-marking rewrites on plain {@link org.apache.calcite.rel.logical.LogicalAggregate}.
+     * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
+     * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
+     * <ul>
+     *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
+     *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
+     *       HLL sketch merge instead of additive SUM-of-counts.</li>
+     *   <li>{@link OpenSearchAggregateReduceRule} — {@code AVG} / {@code STDDEV} / {@code VAR} →
+     *       primitive {@code SUM} / {@code COUNT} (+ {@code SUM_SQ} for variance) plus a scalar
+     *       {@link org.apache.calcite.rel.logical.LogicalProject} computing the quotient.</li>
+     * </ul>
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
-        return HepPhase.named("aggregate-decompose").bottomUp().addRuleInstance(new OpenSearchAggregateReduceRule()).run(input, listener);
+        return HepPhase.named("aggregate-decompose")
+            .bottomUp()
+            .addRuleInstance(new OpenSearchDistinctCountRule())
+            .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .run(input, listener);
     }
 
     /**
@@ -253,6 +381,7 @@ public class PlannerImpl {
      * <p>TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
      * optimization.
      */
+
     private static RelNode mark(RelNode input, PlannerContext context, RuleProfilingListener listener) {
         return HepPhase.named("marking")
             .bottomUp()
@@ -305,7 +434,13 @@ public class PlannerImpl {
             if (!copied.getTraitSet().equals(desiredTraits)) {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
-            return volcanoPlanner.findBestExp();
+            RelNode best = volcanoPlanner.findBestExp();
+            if (LOGGER.isDebugEnabled()) {
+                StringWriter sw = new StringWriter();
+                volcanoPlanner.dump(new PrintWriter(sw));
+                LOGGER.debug("Volcano memo:\n{}", sw);
+            }
+            return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");
         }

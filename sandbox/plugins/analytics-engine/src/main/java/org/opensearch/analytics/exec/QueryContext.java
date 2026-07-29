@@ -19,9 +19,9 @@ import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,6 +47,7 @@ public class QueryContext {
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
+    private final boolean profile;
     private volatile ExecutorService localTaskExecutor;
     private boolean closed;  // guarded by `this`
     /**
@@ -61,47 +62,14 @@ public class QueryContext {
      * {@code Stage} alongside {@code targetResolver}, or reify a typed cross-stage routing
      * table. Revisit when a second consumer appears or when extending QTF to UNION/JOIN.
      *
-     * <p>Single-threaded write inside one stage's {@code materializeTasks}; reads happen
-     * only after that stage SUCCEEDED → plain {@link HashMap} suffices.
+     * <p>The inner map is a {@link java.util.concurrent.ConcurrentHashMap} because
+     * {@code retargetForRetry} may update entries concurrently when multiple shards
+     * fail and retry in parallel on the scheduler thread pool.
      */
-    private final Map<Integer, Map<Integer, ShardExecutionTarget>> resolvedTargetsByStage = new HashMap<>();
+    private final Map<Integer, Map<Integer, ShardExecutionTarget>> resolvedTargetsByStage = new ConcurrentHashMap<>();
 
+    /** Full-parameter constructor. Tests use {@link #forTest} factories. */
     public QueryContext(
-        QueryDAG dag,
-        ThreadPool threadPool,
-        AnalyticsQueryTask parentTask,
-        BufferAllocator allocator,
-        boolean ownsAllocator,
-        int maxConcurrentShardRequestsPerNode,
-        int maxShardsPerQuery
-    ) {
-        this(dag, threadPool, parentTask, maxConcurrentShardRequestsPerNode, maxShardsPerQuery, List.of(), allocator, ownsAllocator);
-    }
-
-    public QueryContext(
-        QueryDAG dag,
-        ThreadPool threadPool,
-        AnalyticsQueryTask parentTask,
-        BufferAllocator allocator,
-        boolean ownsAllocator,
-        int maxConcurrentShardRequestsPerNode,
-        int maxShardsPerQuery,
-        List<AnalyticsOperationListener> operationListeners
-    ) {
-        this(
-            dag,
-            threadPool,
-            parentTask,
-            maxConcurrentShardRequestsPerNode,
-            maxShardsPerQuery,
-            operationListeners,
-            allocator,
-            ownsAllocator
-        );
-    }
-
-    /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
-    private QueryContext(
         QueryDAG dag,
         ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
@@ -109,7 +77,8 @@ public class QueryContext {
         int maxShardsPerQuery,
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
-        boolean ownsAllocator
+        boolean ownsAllocator,
+        boolean profile
     ) {
         this.dag = dag;
         this.threadPool = threadPool;
@@ -119,10 +88,16 @@ public class QueryContext {
         this.operationListeners = operationListeners;
         this.allocator = allocator;
         this.ownsAllocator = ownsAllocator;
+        this.profile = profile;
     }
 
     public QueryDAG dag() {
         return dag;
+    }
+
+    /** Whether profiling is enabled for this query (data nodes should collect and return metrics). */
+    public boolean profile() {
+        return profile;
     }
 
     public Executor searchExecutor() {
@@ -172,11 +147,23 @@ public class QueryContext {
      * {@code QueryContext}.
      */
     public void recordResolvedTargets(int stageId, List<ShardExecutionTarget> targets) {
-        Map<Integer, ShardExecutionTarget> byOrdinal = new HashMap<>(targets.size());
+        Map<Integer, ShardExecutionTarget> byOrdinal = new ConcurrentHashMap<>(targets.size());
         for (ShardExecutionTarget t : targets) {
             byOrdinal.put(t.ordinal(), t);
         }
         resolvedTargetsByStage.put(stageId, byOrdinal);
+    }
+
+    /**
+     * Updates a single resolved target after a successful shard retry on a different copy.
+     * This ensures downstream stages (e.g. LM fetch) route to the node that actually
+     * executed the query, not the original primary that failed.
+     */
+    public void updateResolvedTarget(int stageId, int ordinal, ShardExecutionTarget target) {
+        Map<Integer, ShardExecutionTarget> byOrdinal = resolvedTargetsByStage.get(stageId);
+        if (byOrdinal != null) {
+            byOrdinal.put(ordinal, target);
+        }
     }
 
     /**
@@ -251,7 +238,8 @@ public class QueryContext {
             DEFAULT_MAX_SHARDS_PER_QUERY,
             operationListeners,
             testAllocator,
-            true
+            true,
+            false
         );
     }
 }

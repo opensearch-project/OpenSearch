@@ -98,6 +98,21 @@ public class ExtraTestFieldMapper extends ParametrizedFieldMapper {
             if (fav.dimension() > 0) {
                 context.doc().add(new StoredField(fieldType().name() + "_f0", fav.get(0)));
             }
+        } else if (v instanceof IntArrayValue iav) {
+            context.doc().add(new StoredField(fieldType().name() + "_dim", iav.dimension()));
+            if (iav.dimension() > 0) {
+                context.doc().add(new StoredField(fieldType().name() + "_i0", iav.get(0)));
+            }
+        } else if (v instanceof LongArrayValue lav) {
+            context.doc().add(new StoredField(fieldType().name() + "_dim", lav.dimension()));
+            if (lav.dimension() > 0) {
+                context.doc().add(new StoredField(fieldType().name() + "_l0", lav.get(0)));
+            }
+        } else if (v instanceof DoubleArrayValue dav) {
+            context.doc().add(new StoredField(fieldType().name() + "_dim", dav.dimension()));
+            if (dav.dimension() > 0) {
+                context.doc().add(new StoredField(fieldType().name() + "_d0", dav.get(0)));
+            }
         } else {
             throw new MapperParsingException("Unsupported ExtraFieldValue impl: " + v.getClass().getName());
         }

@@ -1,0 +1,1 @@
+source=function_tests | eval is_positive = case(amount > 0, true else false) | where not false = is_positive | fields user, amount, is_positive | head 10

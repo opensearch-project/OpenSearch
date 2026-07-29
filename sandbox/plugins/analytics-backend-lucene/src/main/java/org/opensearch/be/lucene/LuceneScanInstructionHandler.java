@@ -90,7 +90,10 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
             if (hasFilter) {
                 QueryShardContext qsc = LuceneAnalyticsBackendPlugin.buildMinimalQueryShardContext(shardCtx, searcher);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                filterQuery = queryBuilder.toQuery(qsc);
+                // Rewrite FieldExistsQuery → postings-only equivalent for the doc-values-less
+                // lucene-secondary segment (same reason as the filter-delegation path). This covers
+                // the Lucene-driver scan path (count + non-count) executed by LuceneSearchExecEngine.
+                filterQuery = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(qsc));
             } else {
                 filterQuery = new MatchAllDocsQuery();
             }

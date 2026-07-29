@@ -69,12 +69,6 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
-    public void testSyncDoesNotThrow() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
-        writer.sync();
-        writer.close();
-    }
-
     public void testCloseDoesNotThrow() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
         writer.close();

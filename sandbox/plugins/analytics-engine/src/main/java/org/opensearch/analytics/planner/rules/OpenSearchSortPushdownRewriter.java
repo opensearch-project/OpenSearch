@@ -73,6 +73,11 @@ public final class OpenSearchSortPushdownRewriter {
                 if (bound != null && canComputeShardFetch(bound) && isPushTarget(below)) {
                     return new RewriteContext(sort, bound, below);
                 }
+            } else if (sort.fetch != null && canComputeShardFetch(sort) && isPushTarget(sort.getInput())) {
+                // Bare LIMIT, no ORDER BY (`head N`): push a fetch-only Sort below the ER so each
+                // shard caps at N instead of streaming its whole scan. Safe with no order — the
+                // coordinator just needs some N rows, and each shard's local N supplies them.
+                return new RewriteContext(sort, sort, sort.getInput());
             }
             OpenSearchSort carry = (collated == false && sort.fetch != null) ? sort : null;
             return find(sort.getInput(), carry);

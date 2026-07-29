@@ -30,6 +30,11 @@ public class FieldStorageInfo {
     private final List<String> storedFieldFormats;
     private final boolean derived;
     private final LinkedHashSet<String> dependsOnPhysicalCols;
+    /**
+     * Subfield to target for exact-match (term) predicates — e.g. a text field's keyword
+     * multifield — or {@code null} when the field is queried directly. Resolved from the mapping.
+     */
+    private final String exactMatchSubfield;
 
     public FieldStorageInfo(
         String fieldName,
@@ -45,6 +50,30 @@ public class FieldStorageInfo {
         this(fieldName, mappingType, fieldType, docValueFormats, indexFormats, storedFieldFormats, derived, new LinkedHashSet<>());
     }
 
+    /** Physical-field ctor with an explicit exact-match subfield name (or {@code null} if none). */
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        String exactMatchSubfield
+    ) {
+        this(
+            fieldName,
+            mappingType,
+            fieldType,
+            docValueFormats,
+            indexFormats,
+            storedFieldFormats,
+            derived,
+            new LinkedHashSet<>(),
+            exactMatchSubfield
+        );
+    }
+
     public FieldStorageInfo(
         String fieldName,
         String mappingType,
@@ -55,6 +84,20 @@ public class FieldStorageInfo {
         boolean derived,
         LinkedHashSet<String> dependsOnPhysicalCols
     ) {
+        this(fieldName, mappingType, fieldType, docValueFormats, indexFormats, storedFieldFormats, derived, dependsOnPhysicalCols, null);
+    }
+
+    public FieldStorageInfo(
+        String fieldName,
+        String mappingType,
+        FieldType fieldType,
+        List<String> docValueFormats,
+        List<String> indexFormats,
+        List<String> storedFieldFormats,
+        boolean derived,
+        LinkedHashSet<String> dependsOnPhysicalCols,
+        String exactMatchSubfield
+    ) {
         this.fieldName = fieldName;
         this.mappingType = mappingType;
         this.fieldType = fieldType;
@@ -63,6 +106,7 @@ public class FieldStorageInfo {
         this.storedFieldFormats = storedFieldFormats;
         this.derived = derived;
         this.dependsOnPhysicalCols = dependsOnPhysicalCols;
+        this.exactMatchSubfield = exactMatchSubfield;
     }
 
     /** Creates a derived column (agg result, expression) with no physical storage and no deps.
@@ -91,6 +135,12 @@ public class FieldStorageInfo {
 
     public String getFieldName() {
         return fieldName;
+    }
+
+    /** Subfield to target for exact-match (term) predicates — e.g. a text field's {@code keyword}
+     *  multifield — or {@code null} when the field is queried directly. */
+    public String getExactMatchSubfield() {
+        return exactMatchSubfield;
     }
 
     public String getMappingType() {

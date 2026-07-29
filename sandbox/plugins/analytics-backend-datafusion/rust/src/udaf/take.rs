@@ -30,7 +30,6 @@
 //!
 //! [`TakeAggFunction`]: https://github.com/opensearch-project/sql/blob/main/core/src/main/java/org/opensearch/sql/calcite/udf/udaf/TakeAggFunction.java
 
-use std::any::Any;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -40,7 +39,9 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::{Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility,
+};
 use datafusion::physical_expr::expressions::Literal;
 
 const DEFAULT_LIMIT: i64 = 10;
@@ -93,10 +94,6 @@ impl Hash for TakeUdaf {
 }
 
 impl AggregateUDFImpl for TakeUdaf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "take"
     }
@@ -139,7 +136,11 @@ impl AggregateUDFImpl for TakeUdaf {
         );
         let element_type = inner_element_type(&raw_arg0);
         let limit = limit_from_args(&acc_args)?;
-        Ok(Box::new(TakeAccumulator::new(element_type, limit, arg0_is_list)))
+        Ok(Box::new(TakeAccumulator::new(
+            element_type,
+            limit,
+            arg0_is_list,
+        )))
     }
 
     fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<FieldRef>> {
@@ -167,7 +168,7 @@ fn limit_from_args(acc_args: &AccumulatorArgs) -> Result<Option<i64>> {
     let Some(expr) = acc_args.exprs.get(1) else {
         return Ok(Some(DEFAULT_LIMIT));
     };
-    if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+    if let Some(lit) = expr.downcast_ref::<Literal>() {
         return scalar_to_i64(lit.value()).map(Some);
     }
     Ok(None)
@@ -354,7 +355,13 @@ mod tests {
                 let inner = l.value(0);
                 let typed = inner.as_any().downcast_ref::<Int32Array>().unwrap();
                 (0..typed.len())
-                    .map(|i| if typed.is_null(i) { None } else { Some(typed.value(i)) })
+                    .map(|i| {
+                        if typed.is_null(i) {
+                            None
+                        } else {
+                            Some(typed.value(i))
+                        }
+                    })
                     .collect()
             }
             other => panic!("expected list scalar, got {other:?}"),
@@ -393,7 +400,12 @@ mod tests {
         // Simulate Calcite's "literal materialised as a Project column" case:
         // limit is None at construction, accumulator reads row 0 of arg 1.
         let mut acc = TakeAccumulator::new(DataType::Int32, None, false);
-        let values: ArrayRef = Arc::new(Int32Array::from(vec![Some(10), Some(20), Some(30), Some(40)]));
+        let values: ArrayRef = Arc::new(Int32Array::from(vec![
+            Some(10),
+            Some(20),
+            Some(30),
+            Some(40),
+        ]));
         let n_col: ArrayRef = Arc::new(Int32Array::from(vec![3, 3, 3, 3]));
         acc.update_batch(&[values, n_col]).unwrap();
         let out = match acc.evaluate().unwrap() {
@@ -434,7 +446,13 @@ mod tests {
                 let inner = l.value(0);
                 let typed = inner.as_any().downcast_ref::<Int32Array>().unwrap();
                 (0..typed.len())
-                    .map(|i| if typed.is_null(i) { None } else { Some(typed.value(i)) })
+                    .map(|i| {
+                        if typed.is_null(i) {
+                            None
+                        } else {
+                            Some(typed.value(i))
+                        }
+                    })
                     .collect::<Vec<_>>()
             }
             o => panic!("expected list result, got {o:?}"),
@@ -501,7 +519,13 @@ mod tests {
                 let inner = l.value(0);
                 let typed = inner.as_any().downcast_ref::<StringArray>().unwrap();
                 (0..typed.len())
-                    .map(|i| if typed.is_null(i) { None } else { Some(typed.value(i).to_string()) })
+                    .map(|i| {
+                        if typed.is_null(i) {
+                            None
+                        } else {
+                            Some(typed.value(i).to_string())
+                        }
+                    })
                     .collect::<Vec<_>>()
             }
             o => panic!("expected list result, got {o:?}"),

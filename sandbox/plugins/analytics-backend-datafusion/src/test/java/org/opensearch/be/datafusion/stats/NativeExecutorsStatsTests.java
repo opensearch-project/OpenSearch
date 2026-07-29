@@ -67,7 +67,7 @@ public class NativeExecutorsStatsTests extends OpenSearchTestCase {
     }
 
     private TaskMonitorStats randomTaskMonitorStats() {
-        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong());
+        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong());
     }
 
     private Map<String, TaskMonitorStats> randomTaskMonitors() {

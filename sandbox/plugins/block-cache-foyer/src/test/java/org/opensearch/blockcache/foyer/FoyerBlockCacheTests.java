@@ -23,7 +23,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenDiskBytesIsZero() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(0L, "/tmp/cache", 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(0L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue("message should mention diskBytes", ex.getMessage().contains("diskBytes"));
     }
@@ -31,7 +31,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenDiskBytesIsNegative() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(-1L, "/tmp/cache", 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(-1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue(ex.getMessage().contains("diskBytes"));
     }
@@ -39,14 +39,17 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     // ── diskDir validation ────────────────────────────────────────────────────
 
     public void testConstructorThrowsWhenDiskDirIsNull() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new FoyerBlockCache(1L, null, 1L, "auto", 0L, 0.0, 0L));
+        NullPointerException ex = expectThrows(
+            NullPointerException.class,
+            () -> new FoyerBlockCache(1L, null, 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
+        );
         assertTrue("message should mention diskDir", ex.getMessage().contains("diskDir"));
     }
 
     public void testConstructorThrowsWhenDiskDirIsBlank() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "   ", 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "   ", 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue(ex.getMessage().contains("diskDir"));
     }
@@ -54,7 +57,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenDiskDirIsEmptyString() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "", 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "", 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue(ex.getMessage().contains("diskDir"));
     }
@@ -64,7 +67,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenBlockSizeBytesIsZero() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 0L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", 0L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue("message should mention blockSizeBytes", ex.getMessage().contains("blockSizeBytes"));
     }
@@ -72,7 +75,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenBlockSizeBytesIsNegative() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", -1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", -1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue(ex.getMessage().contains("blockSizeBytes"));
     }
@@ -82,7 +85,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenIoEngineIsNull() {
         NullPointerException ex = expectThrows(
             NullPointerException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, null, 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, null, 0L, 0.0, 0L)
         );
         assertTrue("message should mention ioEngine", ex.getMessage().contains("ioEngine"));
     }
@@ -92,7 +95,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenSweepIntervalSecsIsNegative() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", -1L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", -1L, 0.0, 0L)
         );
         assertTrue("message should mention sweepIntervalSecs", ex.getMessage().contains("sweepIntervalSecs"));
         assertTrue("message should contain the bad value -1", ex.getMessage().contains("-1"));
@@ -104,7 +107,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
         // We can't fully invoke the constructor without the native library, so we just
         // verify the guard doesn't fire for 0.
         try {
-            new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, 0.0, 0L);
+            new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.0, 0L);
             fail("Expected native library call to fail (UnsatisfiedLinkError or similar)");
         } catch (IllegalArgumentException e) {
             fail("Validation guard fired unexpectedly for sweepIntervalSecs=0: " + e.getMessage());
@@ -118,7 +121,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenSweepThresholdRatioIsNegative() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, -0.01, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, -0.01, 0L)
         );
         assertTrue("message should mention sweepThresholdRatio", ex.getMessage().contains("sweepThresholdRatio"));
     }
@@ -126,7 +129,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorThrowsWhenSweepThresholdRatioExceedsOne() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, 1.01, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 1.01, 0L)
         );
         assertTrue("message should mention sweepThresholdRatio", ex.getMessage().contains("sweepThresholdRatio"));
     }
@@ -134,7 +137,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorAcceptsSweepThresholdRatioOfZero() {
         // 0.0 = disabled (always sweep); must NOT throw before reaching FoyerBridge
         try {
-            new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, 0.0, 0L);
+            new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.0, 0L);
             fail("Expected native library call to fail");
         } catch (IllegalArgumentException e) {
             fail("Validation guard fired unexpectedly for sweepThresholdRatio=0.0: " + e.getMessage());
@@ -146,7 +149,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorAcceptsSweepThresholdRatioOfOne() {
         // 1.0 = only sweep when cache is 100% full; valid boundary value
         try {
-            new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, 1.0, 0L);
+            new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 1.0, 0L);
             fail("Expected native library call to fail");
         } catch (IllegalArgumentException e) {
             fail("Validation guard fired unexpectedly for sweepThresholdRatio=1.0: " + e.getMessage());
@@ -158,7 +161,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testConstructorAcceptsSweepThresholdRatioOf0dot75() {
         // typical production value: skip sweep when < 75% full
         try {
-            new FoyerBlockCache(1L, "/tmp/cache", 1L, "auto", 0L, 0.75, 0L);
+            new FoyerBlockCache(1L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.75, 0L);
             fail("Expected native library call to fail");
         } catch (IllegalArgumentException e) {
             fail("Validation guard fired unexpectedly for sweepThresholdRatio=0.75: " + e.getMessage());
@@ -176,7 +179,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testDiskBytesErrorMessageContainsBadValue() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(-42L, "/tmp/cache", 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(-42L, "/tmp/cache", 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue("error message should contain the bad value -42", ex.getMessage().contains("-42"));
     }
@@ -184,7 +187,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     public void testBlockSizeBytesErrorMessageContainsBadValue() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", -8L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(1L, "/tmp/cache", -8L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue("error message should contain the bad value -8", ex.getMessage().contains("-8"));
     }
@@ -199,7 +202,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
         // zero diskBytes + null diskDir: first guard (diskBytes) should fire
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new FoyerBlockCache(0L, null, 1L, "auto", 0L, 0.0, 0L)
+            () -> new FoyerBlockCache(0L, null, 1L, 1L, 2L, "auto", 0L, 0.0, 0L)
         );
         assertTrue(ex.getMessage().contains("diskBytes"));
     }

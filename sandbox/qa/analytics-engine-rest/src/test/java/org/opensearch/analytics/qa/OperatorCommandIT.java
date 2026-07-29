@@ -237,6 +237,22 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** Literal-literal {@code 22 / 0} → null. */
+    public void testArithmeticDivideByZeroLiteral() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval q = 22 / 0 | fields q",
+            null
+        );
+    }
+
+    /** Literal-literal {@code mod(5, 0)} → null. */
+    public void testArithmeticModByZeroLiteral() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = mod(5, 0) | fields r",
+            null
+        );
+    }
+
     // ── Project-side comparisons: eval boolean result, filter by it ───────────
 
     public void testEqualsInEvalProjection() throws IOException {

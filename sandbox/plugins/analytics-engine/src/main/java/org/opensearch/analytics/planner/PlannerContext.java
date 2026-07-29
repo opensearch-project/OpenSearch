@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.settings.DelegationBlockList;
+import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Nullable;
@@ -31,6 +33,10 @@ public class PlannerContext {
     private final boolean preferMetadataDriver;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
+    // Cluster settings the planner consults at planning time (oversampling factor + delegation
+    // block-list). Defaults to planner defaults; DefaultPlanExecutor injects the live, settings-backed
+    // instance via setPlannerSettings before planning.
+    private PlannerSettings plannerSettings = PlannerSettings.defaults();
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
         this(capabilityRegistry, clusterState, null, false, true);
@@ -99,8 +105,22 @@ public class PlannerContext {
         return capabilityRegistry;
     }
 
+    /** Per-backend delegation block-list consulted at marking time. Never null (defaults to empty). */
+    public DelegationBlockList getDelegationBlockList() {
+        return plannerSettings.getDelegationBlockList();
+    }
+
+    /** Inject the live, settings-backed planner settings. Called by {@code DefaultPlanExecutor} before planning. */
+    public void setPlannerSettings(PlannerSettings plannerSettings) {
+        this.plannerSettings = plannerSettings;
+    }
+
     public ClusterState getClusterState() {
         return clusterState;
+    }
+
+    public double getOversamplingFactor() {
+        return plannerSettings.getOversamplingFactor();
     }
 
     public OpenSearchDistributionTraitDef getDistributionTraitDef() {

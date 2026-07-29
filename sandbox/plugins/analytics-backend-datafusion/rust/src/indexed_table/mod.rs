@@ -56,14 +56,15 @@
 
 pub mod bloom_pruner;
 pub mod bool_tree;
+pub mod dynamic_filter;
 pub mod eval;
-pub mod row_id_injection;
 pub mod ffm_callbacks;
 pub mod index;
 pub mod metrics;
 pub mod page_pruner;
 pub mod parquet_bridge;
 pub mod partitioning;
+pub mod row_id_injection;
 pub mod row_selection;
 pub mod segment_info;
 pub mod stream;
@@ -72,3 +73,6 @@ pub mod table_provider;
 
 #[cfg(test)]
 mod tests_e2e;
+
+#[cfg(test)]
+mod dynamic_filter_probe;

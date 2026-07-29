@@ -178,15 +178,6 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             );
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        final int tokenCount = parseTokenCount(context);
-        if (tokenCount == Integer.MIN_VALUE) {
-            return;
-        }
-        context.documentInput().addField(fieldType(), tokenCount);
-    }
-
     private int parseTokenCount(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {

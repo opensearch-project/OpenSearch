@@ -25,7 +25,7 @@ java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = Ja
 // `./gradlew :ppl:publishUnifiedQueryPublicationToMavenLocal` from the sql repo first.
 // Override via `-PsqlUnifiedQueryVersion=<version>` for local development against an
 // out-of-tree SQL plugin checkout (e.g. feature/mustang-ppl-integration).
-def sqlUnifiedQueryVersion = providers.gradleProperty('sqlUnifiedQueryVersion').getOrElse('3.7.0.0-SNAPSHOT')
+def sqlUnifiedQueryVersion = providers.gradleProperty('sqlUnifiedQueryVersion').getOrElse('3.8.0.0-SNAPSHOT')
 
 opensearchplugin {
   description = 'Test PPL front-end: REST endpoint backed by the unified PPL pipeline.'

@@ -159,7 +159,30 @@ public class FieldStorageResolver {
             docValueFormats,
             indexFormats,
             storedFieldFormats,
-            false
+            false,
+            exactMatchSubfieldOf(fieldType, fieldProps)
         );
+    }
+
+    /**
+     * For a {@code text} field with a {@code fields} multifield block, returns the name of the
+     * first {@code keyword} subfield (e.g. {@code "keyword"}), or {@code null} if there is none.
+     * Exact-equality predicates route to this subfield (see {@link FieldStorageInfo#getExactMatchSubfield()}).
+     */
+    @SuppressWarnings("unchecked")
+    private static String exactMatchSubfieldOf(String fieldType, Map<String, Object> fieldProps) {
+        if (!"text".equals(fieldType)) {
+            return null;
+        }
+        Object fields = fieldProps.get("fields");
+        if (!(fields instanceof Map<?, ?> subfields)) {
+            return null;
+        }
+        for (Map.Entry<?, ?> entry : subfields.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> subProps && "keyword".equals(subProps.get("type"))) {
+                return String.valueOf(entry.getKey());
+            }
+        }
+        return null;
     }
 }

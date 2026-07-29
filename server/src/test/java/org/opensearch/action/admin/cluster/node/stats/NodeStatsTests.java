@@ -1056,7 +1056,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats,
             remoteStoreNodeStats,
             null,
-            null,
             -1L
         );
     }
@@ -1524,7 +1523,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1554,7 +1552,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(
                 new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L),
                 new NativeAllocatorPoolStats.PoolStats("ingest", 200L, 400L, 4096L),
@@ -1572,9 +1569,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 NodeStats roundtripped = new NodeStats(in);
                 NativeAllocatorPoolStats decoded = roundtripped.getNativeAllocatorStats();
                 assertNotNull("native allocator stats must round-trip on current wire version", decoded);
-                assertEquals(1024L, decoded.getRootAllocatedBytes());
-                assertEquals(2048L, decoded.getRootPeakBytes());
-                assertEquals(8192L, decoded.getRootLimitBytes());
+                assertEquals(1024L, decoded.getNativeAllocatedBytes());
+                assertEquals(2048L, decoded.getNativeResidentBytes());
                 assertEquals(3, decoded.getPools().size());
                 assertEquals("flight", decoded.getPools().get(0).getName());
                 assertEquals(100L, decoded.getPools().get(0).getAllocatedBytes());
@@ -1586,15 +1582,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     /**
      * Renders {@code NodeStats.toXContent} when {@code nativeAllocatorStats} is non-null and
-     * asserts the JSON shape: a top-level {@code native_memory.native_allocator} block with
-     * the SPI's inner {@code root}/{@code pools.<name>} structure. Covers the conditional
-     * branch in {@code NodeStats.toXContent} that opens the {@code native_allocator} wrapper.
+     * asserts the JSON shape: a top-level {@code native_memory} block with
+     * {@code runtime.allocated_bytes}/{@code runtime.resident_bytes} and grouped {@code memory_pools}.
      */
     public void testNativeAllocatorStatsXContentRendersInsideNativeMemory() throws IOException {
         NativeAllocatorPoolStats stats = new NativeAllocatorPoolStats(
             1024L,
             2048L,
-            8192L,
             List.of(new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 2048L))
         );
         DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1608,20 +1602,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
         assertNotNull("native_memory wrapper must be opened when allocator stats are present", nativeMemory);
+
+        // Runtime stats are nested under "runtime"
         @SuppressWarnings("unchecked")
-        Map<String, Object> nativeAllocator = (Map<String, Object>) nativeMemory.get("native_allocator");
-        assertNotNull("native_allocator block must be present", nativeAllocator);
+        Map<String, Object> runtime = (Map<String, Object>) nativeMemory.get("runtime");
+        assertNotNull("runtime block must be present", runtime);
+        assertEquals(1024L, ((Number) runtime.get("allocated_bytes")).longValue());
+        assertEquals(2048L, ((Number) runtime.get("resident_bytes")).longValue());
+
+        // Pools are grouped under "memory_pools"
         @SuppressWarnings("unchecked")
-        Map<String, Object> rootBlock = (Map<String, Object>) nativeAllocator.get("root");
-        assertEquals(1024L, ((Number) rootBlock.get("allocated_bytes")).longValue());
-        assertEquals(2048L, ((Number) rootBlock.get("peak_bytes")).longValue());
-        assertEquals(8192L, ((Number) rootBlock.get("limit_bytes")).longValue());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> pools = (Map<String, Object>) nativeAllocator.get("pools");
+        Map<String, Object> pools = (Map<String, Object>) nativeMemory.get("memory_pools");
+        assertNotNull("memory_pools block must be present", pools);
         @SuppressWarnings("unchecked")
         Map<String, Object> flight = (Map<String, Object>) pools.get("flight");
+        assertNotNull("flight pool must be present in memory_pools", flight);
         assertEquals(100L, ((Number) flight.get("allocated_bytes")).longValue());
-        assertEquals(200L, ((Number) flight.get("peak_bytes")).longValue());
         assertEquals(2048L, ((Number) flight.get("limit_bytes")).longValue());
     }
 
@@ -1704,7 +1700,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null, // nodeCacheStats
             null,
             nativeAllocatorStats,
-            null,
             totalEstimatedNativeBytes
         );
     }

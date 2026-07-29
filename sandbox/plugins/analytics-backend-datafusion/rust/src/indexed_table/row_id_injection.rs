@@ -63,7 +63,9 @@ pub fn inject_row_ids(
                 ctx.position_map.as_ref(),
                 ctx.base,
             );
-            Arc::new(Int64Array::from_iter_values(ids.into_iter().map(|id| id as i64)))
+            Arc::new(Int64Array::from_iter_values(
+                ids.into_iter().map(|id| id as i64),
+            ))
         }
     };
 
@@ -77,14 +79,17 @@ pub fn inject_row_ids(
             _ => batch_schema
                 .index_of(field.name())
                 .map(|col_idx| Arc::clone(output.column(col_idx)))
-                .unwrap_or_else(|_| datafusion::arrow::array::new_null_array(field.data_type(), num_surviving)),
+                .unwrap_or_else(|_| {
+                    datafusion::arrow::array::new_null_array(field.data_type(), num_surviving)
+                }),
         })
         .collect();
 
     RecordBatch::try_new_with_options(
         schema.clone(),
         columns,
-        &datafusion::arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(num_surviving)),
+        &datafusion::arrow::record_batch::RecordBatchOptions::new()
+            .with_row_count(Some(num_surviving)),
     )
     .map_err(|e| datafusion::common::DataFusionError::ArrowError(Box::new(e), None))
 }
@@ -100,29 +105,23 @@ fn compute_row_ids(
     base: u64,
 ) -> Vec<u64> {
     match eval_mask {
-        Some(mask) => {
-            (0..batch_len)
-                .filter(|&i| mask.is_valid(i) && mask.value(i))
-                .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
-                .collect()
-        }
+        Some(mask) => (0..batch_len)
+            .filter(|&i| mask.is_valid(i) && mask.value(i))
+            .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
+            .collect(),
         None => match current_mask {
-            Some(candidate_mask) => {
-                (0..batch_len)
-                    .filter(|&i| {
-                        let mi = mask_offset_before + i;
-                        mi < candidate_mask.len()
-                            && candidate_mask.is_valid(mi)
-                            && candidate_mask.value(mi)
-                    })
-                    .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
-                    .collect()
-            }
-            None => {
-                (0..batch_len)
-                    .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
-                    .collect()
-            }
+            Some(candidate_mask) => (0..batch_len)
+                .filter(|&i| {
+                    let mi = mask_offset_before + i;
+                    mi < candidate_mask.len()
+                        && candidate_mask.is_valid(mi)
+                        && candidate_mask.value(mi)
+                })
+                .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
+                .collect(),
+            None => (0..batch_len)
+                .map(|i| position_to_global_id(batch_start_delivered + i, pm, base))
+                .collect(),
         },
     }
 }
@@ -135,6 +134,11 @@ fn position_to_global_id(delivered_idx: usize, pm: Option<&PositionMap>, base: u
         None => delivered_idx,
     };
     let id = base + rg_pos as u64;
-    debug_assert!(id >= base, "position_to_global_id: underflow base={} rg_pos={}", base, rg_pos);
+    debug_assert!(
+        id >= base,
+        "position_to_global_id: underflow base={} rg_pos={}",
+        base,
+        rg_pos
+    );
     id
 }

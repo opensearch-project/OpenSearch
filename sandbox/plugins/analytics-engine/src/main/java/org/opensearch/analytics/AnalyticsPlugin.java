@@ -32,6 +32,8 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
 import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.AnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.TransportAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.ClusterState;
@@ -97,29 +99,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
 
+    // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
+    // queries share the coordinator allocator with no per-query cap.
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
-        256L * 1024 * 1024,
         0L,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * When {@code true} (default), performance-delegated leaves (driver natively evaluable,
-     * peer also viable) fuse with their correctness-delegated siblings even under {@code OR}
-     * / {@code NOT}. The combiner ships the entire boolean structure as a single delegated
-     * expression rather than throwing the dual-viable leaves back to native.
-     *
-     * <p>Default {@code true} — Lucene's term-dictionary random access typically beats
-     * managing per-leaf bitsets in DataFusion, so fusing the OR/NOT into one peer call is
-     * the favorable choice for the common workload. Flip to {@code false} for A/B comparison
-     * or to roll back if a workload regresses (e.g. very wide OR over highly-selective
-     * leaves where the driver's column scan would short-circuit before Lucene completes).
-     */
-    public static final Setting<Boolean> DELEGATION_FUSE_DUAL_VIABLE = Setting.boolSetting(
-        "analytics.delegation.fuse_dual_viable",
-        true,
+        0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -222,7 +207,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestAnalyticsStatsAction(statsCollector));
+        return List.of(new RestAnalyticsStatsAction());
     }
 
     @Override
@@ -243,14 +228,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+        return List.of(
+            new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+        );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new java.util.ArrayList<>();
         settings.add(COORDINATOR_BUFFER_LIMIT);
-        settings.add(DELEGATION_FUSE_DUAL_VIABLE);
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
         settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
@@ -273,11 +260,26 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public SearchStats contributeSearchStats() {
-        AnalyticsStats.LatencyStats elapsed = statsCollector.snapshot().queries().elapsedMs();
-        if (elapsed.count() == 0) {
+        // Contribute per-shard fragment task counts so the node-level search counters
+        // exposed via _nodes/stats match Lucene's per-shard accounting (one increment
+        // per shard query phase, not per user query).
+        //
+        // The queries.elapsed_ms bucket counts 1-per-query, which undercounts the
+        // rate by the shard fan-out factor and drops most queries' latency (the
+        // start/end window in AnalyticsStatsCollector#recordExecution is commonly
+        // 0 when stage timestamps aren't populated). The SHARD_FRAGMENT stage
+        // bucket counts 1-per-(query, node-hosting-shards), still missing the
+        // per-shard granularity Lucene reports. fragments.total walks each
+        // SHARD_FRAGMENT execution's per-shard StageTasks, giving per-shard
+        // counts matching Lucene's onPreQueryPhase semantics.
+        AnalyticsStats snapshot = statsCollector.snapshot();
+        AnalyticsStats.Fragments fragments = snapshot.fragments();
+        if (fragments == null || fragments.total() == 0) {
             return null;
         }
-        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(elapsed.count()).queryTimeInMillis(elapsed.sumMs()).build();
+        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(fragments.total())
+            .queryTimeInMillis(fragments.elapsedMs().sumMs())
+            .build();
         return new SearchStats(stats, 0, null);
     }
 

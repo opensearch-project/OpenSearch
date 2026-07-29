@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
@@ -152,6 +153,15 @@ public class CompositeLuceneTempCleanupIT extends OpenSearchIntegTestCase {
         // Force merge to 1 segment
         ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(forceMergeIndex).setMaxNumSegments(1).get();
         assertEquals(RestStatus.OK, forceMergeResponse.getStatus());
+
+        // Wait for async merge to complete — DataFormatAwareEngine's forceMerge is async
+        assertBusy(() -> {
+            IndicesSegmentResponse segResponse = client().admin().indices().prepareSegments(forceMergeIndex).get();
+            long segmentCount = segResponse.getIndices().get(forceMergeIndex).getShards().values().iterator().next().getShards()[0]
+                .getSegments()
+                .size();
+            assertEquals("Expected 1 segment after force merge", 1L, segmentCount);
+        });
 
         // Get the shard's lucene base directory
         String nodeId = getClusterState().routingTable().index(forceMergeIndex).shard(0).primaryShard().currentNodeId();

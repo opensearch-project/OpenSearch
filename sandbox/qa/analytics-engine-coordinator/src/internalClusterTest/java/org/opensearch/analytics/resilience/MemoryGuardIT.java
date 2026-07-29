@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.resilience;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -26,7 +27,7 @@ import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
-import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.ppl.TestPPLPlugin;
@@ -70,7 +71,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
         return List.of(
             classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
-            classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
+            classpathPlugin(ParquetOnlyDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))
         );
     }
@@ -95,6 +96,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
+            .put("datafusion.spill_directory", createTempDir().toString())
             .build();
     }
 
@@ -103,7 +105,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             .startObject()
             .startObject("properties")
             .startObject("user_id").field("type", "long").endObject()
-            .startObject("url").field("type", "keyword").endObject()
+            .startObject("url").field("type", "keyword").field("index", "false").endObject()
             .startObject("count").field("type", "integer").endObject()
             .endObject()
             .endObject();
@@ -173,6 +175,24 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
         assertNotNull(response);
     }
 
+    /** True if {@code t}'s cause chain carries a 429 OpenSearchException or a known memory-pressure message marker. */
+    private static boolean hasMemoryPressureSignal(Throwable t) {
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof OpenSearchException ose && ose.status() == org.opensearch.core.rest.RestStatus.TOO_MANY_REQUESTS) {
+                return true;
+            }
+            String msg = c.getMessage();
+            if (msg != null
+                && (msg.contains("CircuitBreakingException")
+                    || msg.contains("Resources exhausted")
+                    || msg.contains("analytics_backend_datafusion")
+                    || msg.contains("insufficient memory budget"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void testQueryRejectedWhenPoolExhausted() throws Exception {
         createIndexAndIngest();
 
@@ -188,11 +208,13 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
                 Exception.class,
                 () -> executePPL("source = " + INDEX_NAME + " | stats count() by url")
             );
+            // The shard fragment wraps the failure as "Stage N failed", so the memory-pressure signal lives
+            // in the CAUSE CHAIN, not the top-level message. The native trip is converted on the data node
+            // (NativeErrorConverter) to a 429-bearing OpenSearchException; walk the chain for that 429 (or
+            // the legacy message markers as a fallback).
             assertTrue(
-                "Should contain CircuitBreakingException or ResourcesExhausted in message, got: " + ex.getMessage(),
-                ex.getMessage() != null && (ex.getMessage().contains("CircuitBreakingException")
-                    || ex.getMessage().contains("Resources exhausted")
-                    || ex.getMessage().contains("analytics_backend_datafusion"))
+                "Memory-pool exhaustion must surface as HTTP 429 somewhere in the failure chain, got: " + ex,
+                hasMemoryPressureSignal(ex)
             );
         } finally {
             // Reset so cluster teardown doesn't fail

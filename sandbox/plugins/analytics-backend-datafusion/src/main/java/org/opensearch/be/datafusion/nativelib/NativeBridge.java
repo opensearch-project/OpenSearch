@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.be.datafusion.NativeErrorConverter;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -57,6 +58,29 @@ public final class NativeBridge {
 
     private static final Logger logger = LogManager.getLogger(NativeBridge.class);
 
+    /**
+     * Converts a Throwable from the FFM boundary into an appropriate Exception, applying
+     * {@link NativeErrorConverter} to translate known native error patterns into OpenSearch
+     * exception types (e.g. CircuitBreakingException, OpenSearchStatusException).
+     */
+    private static Exception convertNativeError(Throwable t) {
+        Exception ex = t instanceof Exception e ? e : new RuntimeException(t);
+        return NativeErrorConverter.convert(ex);
+    }
+
+    /**
+     * For synchronous FFM methods: converts and rethrows as RuntimeException.
+     * NativeErrorConverter only returns RuntimeException subtypes when it matches,
+     * so this preserves the unchecked throw semantics of the original call site.
+     */
+    private static RuntimeException rethrowConverted(RuntimeException e) {
+        Exception converted = NativeErrorConverter.convert(e);
+        if (converted instanceof RuntimeException rte) {
+            return rte;
+        }
+        return e;
+    }
+
     private static final MethodHandle INIT_RUNTIME_MANAGER;
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
     private static final MethodHandle CREATE_GLOBAL_RUNTIME;
@@ -78,6 +102,7 @@ public final class NativeBridge {
     private static final MethodHandle SET_SPILL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
     private static final MethodHandle SET_REDUCE_TARGET_PARTITIONS;
+    private static final MethodHandle SET_SPILL_EXEMPT_CAP_BYTES;
     private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -85,6 +110,8 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_GET_SCHEMA;
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
+    private static final MethodHandle STREAM_GET_METRICS;
+    private static final MethodHandle FREE_METRICS_BUF;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
     private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
@@ -98,16 +125,22 @@ public final class NativeBridge {
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
     private static final MethodHandle CACHE_MANAGER_ADD_FILES;
+    private static final MethodHandle CACHE_MANAGER_ADD_FILES_WITH_STORE;
     private static final MethodHandle CACHE_MANAGER_REMOVE_FILES;
     private static final MethodHandle CACHE_MANAGER_CLEAR;
     private static final MethodHandle CACHE_MANAGER_CLEAR_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
+    private static final MethodHandle SET_COLUMN_INDEX_CACHE_LIMIT;
+    private static final MethodHandle SET_OFFSET_INDEX_CACHE_LIMIT;
+    private static final MethodHandle CLEAR_SCOPED_PAGE_INDEX_CACHE;
+    private static final MethodHandle SET_SCOPED_PAGE_INDEX_ENABLED;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle SET_CANCEL_STATS_THRESHOLD_MS;
     private static final MethodHandle STATS;
@@ -117,6 +150,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
+    private static final MethodHandle UPDATE_CONCURRENCY_GATE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -192,6 +226,11 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
+        SET_SPILL_EXEMPT_CAP_BYTES = linker.downcallHandle(
+            lib.find("df_set_spill_exempt_cap_bytes").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
         SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
             lib.find("df_set_memory_guard_thresholds").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
@@ -206,8 +245,13 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // files_ptr
                 ValueLayout.ADDRESS,    // files_len_ptr
                 ValueLayout.ADDRESS,    // writer_generations_ptr
-                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
-                ValueLayout.JAVA_LONG // object store ptr
+                ValueLayout.JAVA_LONG,  // count (applies to filenames + writer_generations)
+                ValueLayout.JAVA_LONG,  // object store ptr
+                ValueLayout.ADDRESS,    // sort_fields_ptr (parallel String[] for index.sort.field)
+                ValueLayout.ADDRESS,    // sort_fields_len_ptr
+                ValueLayout.ADDRESS,    // sort_orders_ptr (parallel String[] for index.sort.order: "asc"|"desc")
+                ValueLayout.ADDRESS,    // sort_orders_len_ptr
+                ValueLayout.JAVA_LONG   // sort_count (0 when index has no sort)
             )
         );
 
@@ -216,15 +260,17 @@ public final class NativeBridge {
         EXECUTE_QUERY = linker.downcallHandle(
             lib.find("df_execute_query").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,   // returns stream_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // table_name_ptr
+                ValueLayout.JAVA_LONG,   // table_name_len
+                ValueLayout.ADDRESS,     // plan_ptr
+                ValueLayout.JAVA_LONG,   // plan_len
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // context_id
+                ValueLayout.JAVA_LONG,   // query_config_ptr
+                ValueLayout.JAVA_LONG,   // internal_search_mode
+                ValueLayout.JAVA_LONG    // internal_search_bound
             )
         );
 
@@ -240,6 +286,15 @@ public final class NativeBridge {
 
         STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        STREAM_GET_METRICS = linker.downcallHandle(
+            lib.find("df_stream_get_metrics").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        FREE_METRICS_BUF = linker.downcallHandle(
+            lib.find("df_free_metrics_buf").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
         // i64 df_sql_to_substrait(shard_ptr, table_ptr, table_len, sql_ptr, sql_len, runtime_ptr, out_ptr, out_cap, out_len)
         SQL_TO_SUBSTRAIT = linker.downcallHandle(
             lib.find("df_sql_to_substrait").orElseThrow(),
@@ -378,6 +433,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
             )
@@ -395,6 +451,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_INT,
                 ValueLayout.JAVA_BYTE,   // requestsRowIds (0/1) — QTF query phase signal
+                ValueLayout.JAVA_BYTE,   // hasPartialAggregate (0/1)
                 ValueLayout.JAVA_LONG,   // queryConfigPtr
                 ValueLayout.ADDRESS,     // planBytes (multi-index schema widening)
                 ValueLayout.JAVA_LONG    // planLen
@@ -410,6 +467,18 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_ADD_FILES_WITH_STORE = linker.downcallHandle(
+            lib.find("df_cache_manager_add_files_with_store").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // runtime_ptr
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.JAVA_LONG   // files_count
             )
         );
 
@@ -458,6 +527,33 @@ public final class NativeBridge {
             )
         );
 
+        CACHE_MANAGER_UPDATE_SIZE_LIMIT = linker.downcallHandle(
+            lib.find("df_cache_manager_update_size_limit").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        SET_COLUMN_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_column_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        SET_OFFSET_INDEX_CACHE_LIMIT = linker.downcallHandle(
+            lib.find("df_set_offset_index_cache_limit").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        CLEAR_SCOPED_PAGE_INDEX_CACHE = linker.downcallHandle(
+            lib.find("df_clear_scoped_page_index_cache").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+        SET_SCOPED_PAGE_INDEX_ENABLED = linker.downcallHandle(
+            lib.find("df_set_scoped_page_index_enabled").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
         SET_CANCEL_STATS_THRESHOLD_MS = linker.downcallHandle(
@@ -480,10 +576,10 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_stats(out_ptr, out_cap)
+        // i64 df_stats(runtime_ptr, out_ptr, out_cap)
         STATS = linker.downcallHandle(
             lib.find("df_stats").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
         // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
@@ -518,7 +614,7 @@ public final class NativeBridge {
         );
 
         // i64 df_fetch_by_row_ids(shard_view_ptr, row_ids_buf_ptr, row_ids_count,
-        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr)
+        // col_names_ptr, col_names_len_ptr, col_names_count, runtime_ptr, context_id)
         FETCH_BY_ROW_IDS = linker.downcallHandle(
             lib.find("df_fetch_by_row_ids").orElseThrow(),
             FunctionDescriptor.of(
@@ -529,8 +625,15 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
+        );
+
+        // i64 df_update_concurrency_gate(gate_name_ptr, gate_name_len, new_max_permits)
+        UPDATE_CONCURRENCY_GATE = linker.downcallHandle(
+            lib.find("df_update_concurrency_gate").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
         );
     }
 
@@ -647,6 +750,17 @@ public final class NativeBridge {
         NativeCall.invokeVoid(SHUTDOWN_RUNTIME_MANAGER);
     }
 
+    /**
+     * Updates the effective permit count of a concurrency gate at runtime.
+     * Gate names: "fragment_executor" or "reduce".
+     */
+    public static void updateConcurrencyGate(String gateName, int newMaxPermits) {
+        try (var call = new NativeCall()) {
+            var name = call.str(gateName);
+            call.invoke(UPDATE_CONCURRENCY_GATE, name.segment(), name.len(), newMaxPermits);
+        }
+    }
+
     // ---- DataFusion runtime (confined Arena for spillDir string only) ----
 
     /**
@@ -746,6 +860,19 @@ public final class NativeBridge {
         }
     }
 
+    /**
+     * Sets the spill-exemption cap in bytes — the total in-flight allocation allowed through the
+     * 85% spill gate by spillable consumers so they can finish spilling. Live-tunable; takes effect
+     * on the next try_grow.
+     */
+    public static void setSpillExemptCapBytes(long bytes) {
+        try {
+            SET_SPILL_EXEMPT_CAP_BYTES.invokeExact(bytes);
+        } catch (Throwable t) {
+            logger.debug("Failed to set spill exempt cap bytes", t);
+        }
+    }
+
     /** Sets the memory guard thresholds (0.0–1.0): admission throttle, admission reject, execution spill, execution critical. */
     public static void setMemoryGuardThresholds(
         double admissionThrottle,
@@ -774,11 +901,19 @@ public final class NativeBridge {
      * @param path     shard data directory
      * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
+     * @param sortFields index.sort.field values, or empty list if the index has no sort configured.
+     *                   Parallel to {@code sortOrders}. Two consumers Rust-side: vanilla path's
+     *                   {@code ListingOptions.with_file_sort_order(...)} so the parquet scan advertises
+     *                   {@code output_ordering} to the optimizer, and indexed path's segment-iteration
+     *                   reversal when the query's leading ORDER BY runs counter to catalog direction.
+     * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
      */
     public static long createDatafusionReader(
         String path,
         List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
-        NativeStoreHandle dataformatAwareStoreHandle
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
     ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
@@ -789,13 +924,40 @@ public final class NativeBridge {
                 storePtr = 0L;
             }
         }
+        if (sortFields == null) sortFields = List.of();
+        if (sortOrders == null) sortOrders = List.of();
+        if (sortFields.size() != sortOrders.size()) {
+            throw new IllegalArgumentException(
+                "createDatafusionReader: sortFields ("
+                    + sortFields.size()
+                    + ") and sortOrders ("
+                    + sortOrders.size()
+                    + ") must have the same length"
+            );
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
             var gens = call.longs(
                 segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
             );
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
+            var sf = call.strArray(sortFields.toArray(String[]::new));
+            var so = call.strArray(sortOrders.toArray(String[]::new));
+            return call.invoke(
+                CREATE_READER,
+                p.segment(),
+                p.len(),
+                f.ptrs(),
+                f.lens(),
+                gens,
+                f.count(),
+                storePtr,
+                sf.ptrs(),
+                sf.lens(),
+                so.ptrs(),
+                so.lens(),
+                sf.count()
+            );
         }
     }
 
@@ -805,6 +967,13 @@ public final class NativeBridge {
 
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
 
+    /** {@code internal_search_mode}: normal query — decode {@code substraitPlan} as Substrait. */
+    public static final long INTERNAL_SEARCH_OFF = 0L;
+    /** {@code internal_search_mode}: get-by-row-id — native plan filters {@code __row_id__ = bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_BY_ROW_ID = 1L;
+    /** {@code internal_search_mode}: seq-no scan — native plan filters {@code _seq_no > bound}, {@code substraitPlan} ignored. */
+    public static final long INTERNAL_SEARCH_SEQ_NO_ABOVE = 2L;
+
     public static void executeQueryAsync(
         long readerPtr,
         String tableName,
@@ -812,6 +981,30 @@ public final class NativeBridge {
         long runtimePtr,
         long contextId,
         long queryConfigPtr,
+        ActionListener<Long> listener
+    ) {
+        executeQueryAsync(readerPtr, tableName, substraitPlan, runtimePtr, contextId, queryConfigPtr, INTERNAL_SEARCH_OFF, 0L, listener);
+    }
+
+    /**
+     * Executes a query and returns an opaque stream pointer via {@code listener}.
+     * <p>
+     * When {@code internalSearchMode} is {@link #INTERNAL_SEARCH_OFF}, {@code substraitPlan} is
+     * decoded as a Substrait plan (normal search). When it is {@link #INTERNAL_SEARCH_BY_ROW_ID}
+     * or {@link #INTERNAL_SEARCH_SEQ_NO_ABOVE}, the native side ignores {@code substraitPlan} and
+     * builds a single pushed-down filter plan via the DataFusion DataFrame API, using
+     * {@code internalSearchBound} as the {@code __row_id__} value or the {@code _seq_no} floor.
+     * The returned stream is drained identically in all modes.
+     */
+    public static void executeQueryAsync(
+        long readerPtr,
+        String tableName,
+        byte[] substraitPlan,
+        long runtimePtr,
+        long contextId,
+        long queryConfigPtr,
+        long internalSearchMode,
+        long internalSearchBound,
         ActionListener<Long> listener
     ) {
         try {
@@ -832,11 +1025,13 @@ public final class NativeBridge {
                 (long) substraitPlan.length,
                 runtimePtr,
                 contextId,
-                queryConfigPtr
+                queryConfigPtr,
+                internalSearchMode,
+                internalSearchBound
             );
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -848,7 +1043,7 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_GET_SCHEMA.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
@@ -858,12 +1053,37 @@ public final class NativeBridge {
             long result = NativeLibraryLoader.checkResult((long) STREAM_NEXT.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
-            listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
+            listener.onFailure(convertNativeError(t));
         }
     }
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    /**
+     * Extracts execution metrics from the stream's physical plan as JSON bytes.
+     * Returns null if no metrics are available (e.g., plan didn't capture them).
+     * Must be called BEFORE streamClose (the stream handle must still be alive).
+     */
+    public static byte[] streamGetMetrics(long streamPtr) {
+        try (var arena = Arena.ofConfined()) {
+            var outPtr = arena.allocate(ValueLayout.ADDRESS);
+            var outLen = arena.allocate(ValueLayout.JAVA_LONG);
+            long result = (long) STREAM_GET_METRICS.invokeExact(streamPtr, outPtr, outLen);
+            if (result != 0) {
+                return null; // no metrics available
+            }
+            long len = outLen.get(ValueLayout.JAVA_LONG, 0);
+            MemorySegment dataPtr = outPtr.get(ValueLayout.ADDRESS, 0);
+            byte[] bytes = dataPtr.reinterpret(len).toArray(ValueLayout.JAVA_BYTE);
+            // Free the Rust-allocated buffer
+            FREE_METRICS_BUF.invokeExact(dataPtr, len);
+            return bytes;
+        } catch (Throwable t) {
+            logger.debug("Failed to read native stream metrics", t);
+            return null;
+        }
     }
 
     // ---- Cancellation ----
@@ -891,10 +1111,10 @@ public final class NativeBridge {
      * @return a fully constructed {@link DataFusionStats}
      * @throws IllegalStateException if the runtime manager is not initialized
      */
-    public static DataFusionStats stats() {
+    public static DataFusionStats stats(long runtimePtr) {
         try (var call = new NativeCall()) {
             var seg = call.buf((int) StatsLayout.LAYOUT.byteSize());
-            call.invoke(STATS, seg, StatsLayout.LAYOUT.byteSize());
+            call.invoke(STATS, runtimePtr, seg, StatsLayout.LAYOUT.byteSize());
 
             // IO runtime (always present — zeroed if not yet initialized)
             var ioRuntime = StatsLayout.readRuntimeMetrics(seg, "io_runtime");
@@ -909,10 +1129,22 @@ public final class NativeBridge {
             }
 
             // Partition gates
-            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
-            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
+            var fragmentExecutorGate = StatsLayout.readPartitionGate(seg, "fragment_executor_gate", "fragment_executor_gate");
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
+            // Cache stats (zeroed in native when caches are disabled)
+            var cacheStats = StatsLayout.readCacheStats(seg);
+
+            // Search stats
+            var searchStats = StatsLayout.readSearchStats(seg);
+
+            return new DataFusionStats(
+                new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors),
+                fragmentExecutorGate,
+                StatsLayout.readAdaptiveBudgetStats(seg),
+                null,
+                cacheStats,
+                searchStats
+            );
         }
     }
 
@@ -927,7 +1159,7 @@ public final class NativeBridge {
      * zero-byte trackers are filtered on the Rust side. Order within the
      * buffer is unspecified.
      *
-     * <p>Mirrors the {@link #stats()} pattern: the layout class decodes
+     * <p>Mirrors the {@link #stats(long)} pattern: the layout class decodes
      * directly into the caller's final type ({@link QueryExecutionMetrics})
      * with no transport-only intermediate.
      *
@@ -967,7 +1199,7 @@ public final class NativeBridge {
 
     /**
      * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
-     * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.
+     * Independent of {@link #stats(long)} which calls {@code df_stats} for plugin stats.
      *
      * @return a populated {@link AnalyticsBackendTaskCancellationStats}
      * @throws IllegalStateException if the FFM function returns a non-zero error code
@@ -1073,6 +1305,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1170,6 +1404,8 @@ public final class NativeBridge {
      *
      * @param tableName the logical table name (alias/pattern) to register the table under
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
+     * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
+     *                            exclude the CombinePartialFinalAggregate optimizer rule
      * @param planBytes Substrait plan bytes — used to widen the registered schema for multi-index
      *                  queries (null-filling columns this shard omits). Empty = skip widening.
      */
@@ -1178,6 +1414,7 @@ public final class NativeBridge {
         long runtimePtr,
         String tableName,
         long contextId,
+        boolean hasPartialAggregate,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1196,6 +1433,7 @@ public final class NativeBridge {
                 table.len(),
                 contextId,
                 queryConfigPtr,
+                (byte) (hasPartialAggregate ? 1 : 0),
                 planSegment,
                 planLen
             );
@@ -1209,6 +1447,8 @@ public final class NativeBridge {
      * on the Rust handle for use during execution.
      *
      * @param tableName the logical table name (alias/pattern) to register the table under
+     * @param hasPartialAggregate whether the fragment contains a partial aggregate — signals Rust to
+     *                            exclude the CombinePartialFinalAggregate optimizer rule
      * @param queryConfigPtr pointer to a WireDatafusionQueryConfig struct, or 0 for fallback defaults
      * @param planBytes Substrait plan bytes for multi-index schema widening (empty = skip)
      */
@@ -1220,6 +1460,7 @@ public final class NativeBridge {
         int treeShapeOrdinal,
         int delegatedPredicateCount,
         boolean requestsRowIds,
+        boolean hasPartialAggregate,
         long queryConfigPtr,
         byte[] planBytes
     ) {
@@ -1240,6 +1481,7 @@ public final class NativeBridge {
                 treeShapeOrdinal,
                 delegatedPredicateCount,
                 (byte) (requestsRowIds ? 1 : 0),
+                (byte) (hasPartialAggregate ? 1 : 0),
                 queryConfigPtr,
                 planSegment,
                 planLen
@@ -1289,7 +1531,7 @@ public final class NativeBridge {
             }
             listener.onResponse(result);
         } catch (Throwable throwable) {
-            listener.onFailure(throwable instanceof Exception ? (Exception) throwable : new RuntimeException(throwable));
+            listener.onFailure(convertNativeError(throwable));
         }
     }
 
@@ -1343,6 +1585,8 @@ public final class NativeBridge {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1357,7 +1601,14 @@ public final class NativeBridge {
      * @param runtimePtr pointer to the DataFusion runtime
      * @return opaque stream pointer
      */
-    public static long fetchByRowIds(long readerPtr, long rowIdsBufAddr, int rowIdsCount, String[] columns, long runtimePtr) {
+    public static long fetchByRowIds(
+        long readerPtr,
+        long rowIdsBufAddr,
+        int rowIdsCount,
+        String[] columns,
+        long runtimePtr,
+        long contextId
+    ) {
         NativeHandle.validatePointer(readerPtr, "reader");
         NativeHandle.validatePointer(runtimePtr, "runtime");
         if (rowIdsBufAddr == 0) {
@@ -1373,8 +1624,11 @@ public final class NativeBridge {
                 colNames.ptrs(),
                 colNames.lens(),
                 colNames.count(),
-                runtimePtr
+                runtimePtr,
+                contextId
             );
+        } catch (RuntimeException e) {
+            throw rethrowConverted(e);
         }
     }
 
@@ -1390,6 +1644,22 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var f = call.strArray(filePaths);
             call.invoke(CACHE_MANAGER_ADD_FILES, runtimePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
+    /**
+     * Load metadata for files through the given TieredObjectStore.
+     * Reads footer (lightweight) into heap cache, fetches page/offset index bytes
+     * through the store (populating data Foyer), and returns for promotion to metadata Foyer.
+     *
+     * @param runtimePtr pointer from createGlobalRuntime
+     * @param storePtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer (from TieredStorageBridge.getObjectStoreBoxPtr)
+     * @param filePaths array of absolute file paths
+     */
+    public static void cacheManagerAddFilesWithStore(long runtimePtr, long storePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_ADD_FILES_WITH_STORE, runtimePtr, storePtr, f.ptrs(), f.lens(), f.count());
         }
     }
 
@@ -1432,6 +1702,70 @@ public final class NativeBridge {
             var file = call.str(filePath);
             long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
             return result != 0;
+        }
+    }
+
+    public static void cacheManagerUpdateSizeLimit(long runtimePtr, String cacheType, long newLimit) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_UPDATE_SIZE_LIMIT, runtimePtr, type.segment(), type.len(), newLimit);
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped ColumnIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setColumnIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_COLUMN_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Sets the byte budget of the process-global scoped OffsetIndex cache.
+     * Shrinking evicts LRU entries immediately. Zero is ignored.
+     */
+    public static void setOffsetIndexCacheLimit(long sizeLimitBytes) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_OFFSET_INDEX_CACHE_LIMIT, sizeLimitBytes);
+        }
+    }
+
+    /**
+     * Clears the process-global scoped page-index cache (drops entries + resets
+     * counters, keeps the budget). For operational testing.
+     */
+    public static void clearScopedPageIndexCache() {
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped ColumnIndex (predicate) cache. */
+    public static void clearColumnIndexCache() {
+        // TODO(PR1): wire to df_clear_column_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /** Clears the scoped OffsetIndex (projection) cache. */
+    public static void clearOffsetIndexCache() {
+        // TODO(PR1): wire to df_clear_offset_index_cache when available
+        try (var call = new NativeCall()) {
+            call.invoke(CLEAR_SCOPED_PAGE_INDEX_CACHE);
+        }
+    }
+
+    /**
+     * Enable or disable the scoped page-index feature.
+     * When disabled, the metadata cache retains the full page index (fallback mode)
+     * and CI/OI scoped caches are bypassed entirely.
+     */
+    public static void setScopedPageIndexEnabled(boolean enabled) {
+        try (var call = new NativeCall()) {
+            call.invoke(SET_SCOPED_PAGE_INDEX_ENABLED, enabled ? 1L : 0L);
         }
     }
 

@@ -334,7 +334,7 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         LOGGER.info("QueryDAG:\n{}", dag);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         // LM at root with no above-ops: the LM stage IS the root — no synthetic post-LM stage.
         assertEquals(
@@ -406,7 +406,7 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         LOGGER.info("QueryDAG:\n{}", dag);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
-        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry(), false);
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
         // Stage 3 has real compute (the Project) on top of the StageInputScan → COORDINATOR_REDUCE.
         assertEquals(

@@ -13,8 +13,8 @@ use arrow::array::{AsArray, RecordBatch};
 use arrow::datatypes::{
     DataType as ArrowDataType, Date32Type, Date64Type, DurationMicrosecondType,
     DurationMillisecondType, DurationNanosecondType, DurationSecondType, Float32Type, Float64Type,
-    Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType,
-    TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType,
+    Int16Type, Int32Type, Int64Type, Int8Type, TimestampMicrosecondType, TimestampMillisecondType,
+    TimestampNanosecondType, TimestampSecondType,
 };
 
 use super::error::{MergeError, MergeResult};
@@ -77,8 +77,12 @@ pub fn cmp_sort_values(a: &[SortKey], b: &[SortKey], reverse_sorts: &[bool]) -> 
         if ord != Ordering::Equal {
             let reverse = reverse_sorts.get(i).copied().unwrap_or(false);
             let is_null_cmp = matches!(av, SortKey::NullFirst | SortKey::NullLast)
-                           || matches!(bv, SortKey::NullFirst | SortKey::NullLast);
-            return if reverse && !is_null_cmp { ord.reverse() } else { ord };
+                || matches!(bv, SortKey::NullFirst | SortKey::NullLast);
+            return if reverse && !is_null_cmp {
+                ord.reverse()
+            } else {
+                ord
+            };
         }
     }
     Ordering::Equal
@@ -130,7 +134,11 @@ pub fn get_sort_value(
 ) -> MergeResult<SortKey> {
     let col = batch.column(col_idx);
     if col.is_null(row) {
-        return Ok(if null_first { SortKey::NullFirst } else { SortKey::NullLast });
+        return Ok(if null_first {
+            SortKey::NullFirst
+        } else {
+            SortKey::NullLast
+        });
     }
     let key = match dtype {
         // Integer types → SortKey::Int
@@ -141,25 +149,47 @@ pub fn get_sort_value(
         ArrowDataType::Date32 => SortKey::Int(col.as_primitive::<Date32Type>().value(row) as i64),
         ArrowDataType::Date64 => SortKey::Int(col.as_primitive::<Date64Type>().value(row)),
         ArrowDataType::Timestamp(unit, _) => SortKey::Int(match unit {
-            arrow::datatypes::TimeUnit::Second => col.as_primitive::<TimestampSecondType>().value(row),
-            arrow::datatypes::TimeUnit::Millisecond => col.as_primitive::<TimestampMillisecondType>().value(row),
-            arrow::datatypes::TimeUnit::Microsecond => col.as_primitive::<TimestampMicrosecondType>().value(row),
-            arrow::datatypes::TimeUnit::Nanosecond => col.as_primitive::<TimestampNanosecondType>().value(row),
+            arrow::datatypes::TimeUnit::Second => {
+                col.as_primitive::<TimestampSecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Millisecond => {
+                col.as_primitive::<TimestampMillisecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Microsecond => {
+                col.as_primitive::<TimestampMicrosecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Nanosecond => {
+                col.as_primitive::<TimestampNanosecondType>().value(row)
+            }
         }),
         ArrowDataType::Duration(unit) => SortKey::Int(match unit {
-            arrow::datatypes::TimeUnit::Second => col.as_primitive::<DurationSecondType>().value(row),
-            arrow::datatypes::TimeUnit::Millisecond => col.as_primitive::<DurationMillisecondType>().value(row),
-            arrow::datatypes::TimeUnit::Microsecond => col.as_primitive::<DurationMicrosecondType>().value(row),
-            arrow::datatypes::TimeUnit::Nanosecond => col.as_primitive::<DurationNanosecondType>().value(row),
+            arrow::datatypes::TimeUnit::Second => {
+                col.as_primitive::<DurationSecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Millisecond => {
+                col.as_primitive::<DurationMillisecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Microsecond => {
+                col.as_primitive::<DurationMicrosecondType>().value(row)
+            }
+            arrow::datatypes::TimeUnit::Nanosecond => {
+                col.as_primitive::<DurationNanosecondType>().value(row)
+            }
         }),
 
         // Float types → SortKey::Float
         ArrowDataType::Float64 => SortKey::Float(col.as_primitive::<Float64Type>().value(row)),
-        ArrowDataType::Float32 => SortKey::Float(col.as_primitive::<Float32Type>().value(row) as f64),
+        ArrowDataType::Float32 => {
+            SortKey::Float(col.as_primitive::<Float32Type>().value(row) as f64)
+        }
 
         // String types → SortKey::Bytes
-        ArrowDataType::Utf8 => SortKey::Bytes(col.as_string::<i32>().value(row).as_bytes().to_vec()),
-        ArrowDataType::LargeUtf8 => SortKey::Bytes(col.as_string::<i64>().value(row).as_bytes().to_vec()),
+        ArrowDataType::Utf8 => {
+            SortKey::Bytes(col.as_string::<i32>().value(row).as_bytes().to_vec())
+        }
+        ArrowDataType::LargeUtf8 => {
+            SortKey::Bytes(col.as_string::<i64>().value(row).as_bytes().to_vec())
+        }
 
         other => {
             return Err(MergeError::Logic(format!(

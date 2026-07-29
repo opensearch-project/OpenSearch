@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = str_to_date("2024-01-01", "%Y-%m-%d") | sort id | head 3 | fields id, r

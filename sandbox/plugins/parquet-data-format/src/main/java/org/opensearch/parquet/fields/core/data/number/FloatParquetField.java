@@ -13,13 +13,12 @@ import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for single-precision floating-point values using {@link Float4Vector}.
  */
-public class FloatParquetField extends ParquetField {
+public class FloatParquetField extends NumericParquetField {
 
     /** Creates a new FloatParquetField. */
     public FloatParquetField() {}

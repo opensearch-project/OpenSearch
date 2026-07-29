@@ -47,8 +47,13 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
         "spawned_tasks_count",
         "total_local_queue_depth" };
 
-    /** JSON field names for TaskMonitorStats in documented order (3 fields). */
-    private static final String[] TASK_FIELD_NAMES = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
+    /** JSON field names for TaskMonitorStats in documented order (5 fields). */
+    private static final String[] TASK_FIELD_NAMES = {
+        "total_poll_duration_ms",
+        "total_scheduled_duration_ms",
+        "total_idle_duration_ms",
+        "instrumented_count",
+        "dropped_count" };
 
     // ---- Object generators ----
 
@@ -86,7 +91,7 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
     }
 
     private TaskMonitorStats randomTaskMonitorStats() {
-        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong());
+        return new TaskMonitorStats(nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong(), nonNegLong());
     }
 
     private Map<String, TaskMonitorStats> randomTaskMonitors() {
@@ -109,11 +114,7 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
     /** DataFusionStats with non-null NativeExecutorsStats (CPU present or absent). */
     private DataFusionStats randomDataFusionStats() {
         NativeExecutorsStats nes = randomBoolean() ? randomNativeExecutorsStatsCpuPresent() : randomNativeExecutorsStatsCpuAbsent();
-        return new DataFusionStats(
-            nes,
-            new PartitionGateStats("datanode_gate", 12, 0, 0, 0),
-            new PartitionGateStats("coordinator_gate", 12, 0, 0, 0)
-        );
+        return new DataFusionStats(nes, new PartitionGateStats("fragment_executor_gate", 12, 0, 0, 0, 0, 12, 0, 0), null, null);
     }
 
     // ---- Property 1: Flat JSON serialization preserves all metric values at top level ----
@@ -246,7 +247,12 @@ public class StatsEndpointRefactorPropertyTests extends OpenSearchTestCase {
     }
 
     private void verifyTaskMonitorFields(TaskMonitorStats tm, Map<String, Object> monitorNode, String opType) {
-        long[] expected = { tm.totalPollDurationMs, tm.totalScheduledDurationMs, tm.totalIdleDurationMs };
+        long[] expected = {
+            tm.totalPollDurationMs,
+            tm.totalScheduledDurationMs,
+            tm.totalIdleDurationMs,
+            tm.instrumentedCount,
+            tm.droppedCount };
         for (int i = 0; i < TASK_FIELD_NAMES.length; i++) {
             String fieldName = TASK_FIELD_NAMES[i];
             assertTrue(opType + " field '" + fieldName + "' must be present", monitorNode.containsKey(fieldName));

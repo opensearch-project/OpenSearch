@@ -7,10 +7,12 @@
  */
 
 /**
- * Node-local stats rollup for the analytics engine.
- * {@link org.opensearch.analytics.stats.AnalyticsStatsCollector} accumulates
- * lifecycle events from the {@link org.opensearch.analytics.backend.AnalyticsOperationListener}
- * firing sites; {@link org.opensearch.analytics.stats.RestAnalyticsStatsAction}
- * exposes a snapshot at {@code GET _plugins/_analytics/stats}.
+ * Cluster-wide stats rollup for the analytics engine.
+ * {@link org.opensearch.analytics.stats.AnalyticsStatsCollector} folds each
+ * completed {@link org.opensearch.analytics.exec.profile.QueryProfile} into
+ * cumulative counters and HdrHistogram-backed latency buckets.
+ * {@link org.opensearch.analytics.stats.RestAnalyticsStatsAction} exposes a
+ * fan-out snapshot at {@code GET _plugins/_analytics/stats} via
+ * {@link org.opensearch.analytics.stats.transport.AnalyticsStatsAction}.
  */
 package org.opensearch.analytics.stats;

@@ -92,12 +92,14 @@ public class AttachChildrenTests extends OpenSearchTestCase {
     }
 
     /**
-     * Early-termination contract: when a parent cancels its own child (e.g. coordinator-side
-     * LIMIT satisfied, stop the shard stream), the child transitions to CANCELLED. The
-     * cascade must NOT propagate that cancel back to the parent — the parent is the one
-     * who issued the cancel and must stay RUNNING.
+     * Cancelled-child contract: the cascade closes the parent's per-child input (so a parent reduce
+     * drain blocked on {@code streamNext} sees EOF and unwinds) AND propagates cancel to the parent
+     * so it reaches a terminal state. Without the propagation the parent strands in RUNNING, its
+     * pending count never drains, the root never mirrors to the query, and the coordinator task is
+     * never unregistered (the phantom-task leak). The parent must NOT be scheduled (nothing to run)
+     * and must NOT be failed (cancel is not a failure).
      */
-    public void testCancelledChildIsNotPropagatedToParent() {
+    public void testCancelledChildClosesInputAndPropagatesCancelToParent() {
         StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild cancelled = new FakeChild(5);  // no failure recorded
 
@@ -106,7 +108,10 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         parent.attachChildren(List.of(cancelled), scheduler);
         cancelled.fire(StageExecution.State.CANCELLED);
 
-        verify(parent, never()).cancel(any());
+        // EOF released to the reduce input (the leak fix).
+        verify(parent).closeChildInput(eq(5));
+        // Cancel IS propagated so the parent reaches terminal (phantom-task fix); not failed, not metadata-consumed.
+        verify(parent).cancel(any());
         verify(parent, never()).failWithCause(any());
         verify(parent, never()).consumeChildMetadata(any());
     }
@@ -132,6 +137,67 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         assertEquals("parent must reach FAILED from child failure", StageExecution.State.FAILED, parent.fakeState);
         assertNotNull("still-running sibling must have been cancelled", stillRunning.cancelReason);
         assertNull("already-terminal sibling must not be re-cancelled", alreadyDone.cancelReason);
+    }
+
+    // ---- Phantom-task probes: does a CANCELLED child strand the parent (never terminal)? ----
+    // A parent that never reaches terminal never fires mirrorRootStateToQuery → the coordinator
+    // query task never unregisters → phantom task (observed as a query/ppl task stuck for hours
+    // with zero CPU). These tests pin which child-state combinations strand the parent.
+
+    /** PROBE 1: one child CANCELLED, sibling still RUNNING. Does the parent ever reach terminal? */
+    public void testCancelledChildWithRunningSiblingDoesNotStrandParent() {
+        FakeChild cancelled = new FakeChild(1);
+        FakeChild stillRunning = new FakeChild(2); // stays RUNNING, never fires terminal
+        FakeParent parent = new FakeParent(99);
+
+        parent.attachChildren(List.of(cancelled, stillRunning), stage -> {});
+        cancelled.fire(StageExecution.State.CANCELLED);
+
+        assertTrue(
+            "parent must reach a terminal state after a child is cancelled; otherwise the coordinator "
+                + "query task never unregisters (phantom). parent state="
+                + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+    }
+
+    /** PROBE 2: ALL children CANCELLED (full bottom-up cancel of leaves). Parent terminal? */
+    public void testAllChildrenCancelledDrivesParentTerminal() {
+        FakeChild a = new FakeChild(1);
+        FakeChild b = new FakeChild(2);
+        FakeParent parent = new FakeParent(99);
+
+        parent.attachChildren(List.of(a, b), stage -> {});
+        a.fire(StageExecution.State.CANCELLED);
+        b.fire(StageExecution.State.CANCELLED);
+
+        assertTrue(
+            "parent must reach a terminal state when all children are cancelled. parent state=" + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+    }
+
+    /**
+     * PROBE 3: one CANCELLED + one SUCCEEDED. The cancelled child must still account for its pending
+     * slot so the count drains to 0; with a cancelled child present the parent reaches CANCELLED
+     * (terminal) rather than being scheduled — there is nothing left to run.
+     */
+    public void testCancelledPlusSucceededChildDrivesParentTerminalNotScheduled() {
+        FakeChild cancelled = new FakeChild(1);
+        FakeChild succeeded = new FakeChild(2);
+        FakeParent parent = new FakeParent(99);
+        AtomicReference<StageExecution> scheduled = new AtomicReference<>();
+
+        parent.attachChildren(List.of(cancelled, succeeded), scheduled::set);
+        cancelled.fire(StageExecution.State.CANCELLED);
+        succeeded.fire(StageExecution.State.SUCCEEDED);
+
+        assertTrue(
+            "parent must reach a terminal state (not strand) once all children are accounted for; " + "parent state=" + parent.fakeState,
+            parent.fakeState.isTerminal()
+        );
+        assertEquals("parent with a cancelled child must terminate as CANCELLED", StageExecution.State.CANCELLED, parent.fakeState);
+        assertNull("parent must NOT be scheduled when a child was cancelled", scheduled.get());
     }
 
     /**

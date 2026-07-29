@@ -29,9 +29,17 @@ public final class ReaderHandle extends NativeHandle {
      * @param path the directory path containing data files
      * @param segments the per-segment file sets to read
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
+     * @param sortFields index.sort.field values (or empty if no index sort). Parallel to {@code sortOrders}.
+     * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
      */
-    public ReaderHandle(String path, List<MonoFileWriterSet> segments, NativeStoreHandle dataformatAwareStoreHandle) {
-        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle));
+    public ReaderHandle(
+        String path,
+        List<MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders
+    ) {
+        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle, sortFields, sortOrders));
         this.ownsPointer = true;
     }
 
