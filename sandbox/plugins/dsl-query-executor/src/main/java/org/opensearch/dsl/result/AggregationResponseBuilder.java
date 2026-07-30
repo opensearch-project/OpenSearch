@@ -194,6 +194,11 @@ public final class AggregationResponseBuilder {
 
         Map<List<Object>, List<Object[]>> grouped = groupRowsByKeys(filteredRows, currentGroupColumns, colIndex);
 
+        Integer countIdx = colIndex.get(AggregationMetadataBuilder.IMPLICIT_COUNT_NAME);
+        if (countIdx == null) {
+            throw new ConversionException("Missing " + AggregationMetadataBuilder.IMPLICIT_COUNT_NAME + " column in aggregation result");
+        }
+
         List<BucketEntry> buckets = new ArrayList<>();
         List<AggregationBuilder> subAggs = new ArrayList<>(translator.getSubAggregations(agg));
 
@@ -203,12 +208,6 @@ public final class AggregationResponseBuilder {
                 childFilter.put(currentGroupColumns.get(i), entry.getKey().get(i));
             }
 
-            Integer countIdx = colIndex.get(AggregationMetadataBuilder.IMPLICIT_COUNT_NAME);
-            if (countIdx == null) {
-                throw new ConversionException(
-                    "Missing " + AggregationMetadataBuilder.IMPLICIT_COUNT_NAME + " column in aggregation result"
-                );
-            }
             Object[] firstRowInGroup = entry.getValue().get(0);
             long docCount = ((Number) firstRowInGroup[countIdx]).longValue();
 
