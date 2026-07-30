@@ -76,6 +76,29 @@ public final class DatafusionPartitionSender extends NativeHandle {
         }
     }
 
+    /**
+     * Non-blocking close attempt, for signalling end-of-input from a thread that must
+     * not park. Returns {@code true} if the sender was closed (or already closed);
+     * {@code false} if the write lock could not be acquired immediately — i.e. a feeder
+     * is currently parked inside {@link #send} holding the read lock, and blocking here
+     * would deadlock (see DatafusionReduceSinkTests
+     * #testCloseWhileFeederParkedOnFullChannelDoesNotDeadlock). Callers that get
+     * {@code false} must unblock the producer by other means (e.g. cancel, which drops
+     * the native receiver and pops the parked send with {@code ReceiverDropped}).
+     */
+    public boolean tryClose() {
+        if (!lifecycle.writeLock().tryLock()) {
+            return false;
+        }
+        try {
+            super.close();
+            logger.debug("[sender] closed ptr={} (tryClose)", ptr);
+            return true;
+        } finally {
+            lifecycle.writeLock().unlock();
+        }
+    }
+
     @Override
     protected void doClose() {
         NativeBridge.senderClose(ptr);

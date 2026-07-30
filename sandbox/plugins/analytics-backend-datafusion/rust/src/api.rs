@@ -1361,7 +1361,12 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
-    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
+    // Use the handle's OWN token, not a registry lookup by context_id. The
+    // registry entry can be removed by a sibling stream's Drop (same id) while
+    // this stream is mid-flight; a `None` token here silently degrades
+    // `cancellable_or` to a bare uncancellable await — the reduce sink's
+    // cancel then can't interrupt an in-flight drain (the ~5s LM stall).
+    let token = handle._query_tracking_context.cancellation_token();
 
     // Fetch the next batch (cancellation-aware)
     let result = cancellation::cancellable_or(token.as_ref(), None, async {
