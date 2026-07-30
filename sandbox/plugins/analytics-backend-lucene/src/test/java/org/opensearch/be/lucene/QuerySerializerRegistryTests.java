@@ -1187,10 +1187,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         List<FieldStorageInfo> fieldStorage = List.of();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
-        assertTrue(
-            "Exception message must contain 'fuzzy', got: " + exception.getMessage(),
-            exception.getMessage().contains("fuzzy")
-        );
+        assertTrue("Exception message must contain 'fuzzy', got: " + exception.getMessage(), exception.getMessage().contains("fuzzy"));
     }
 
     /**

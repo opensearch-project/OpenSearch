@@ -85,8 +85,8 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testRejectsNullValue() {
-        expectThrows(ConversionException.class, () -> {
-            // FuzzyQueryBuilder constructor rejects null; translator must catch and wrap
+        // FuzzyQueryBuilder constructor rejects null with IllegalArgumentException
+        expectThrows(IllegalArgumentException.class, () -> {
             FuzzyQueryBuilder fqb = new FuzzyQueryBuilder("name", (String) null);
             translator.convert(fqb, ctx);
         });
@@ -136,9 +136,7 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testEmitsNonDefaultParams() throws ConversionException {
-        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop")
-            .fuzziness(Fuzziness.ONE)
-            .transpositions(false);
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop").fuzziness(Fuzziness.ONE).transpositions(false);
         RexNode result = translator.convert(fqb, ctx);
         RexCall call = (RexCall) result;
         // field + query + fuzziness + transpositions = 4 operands
