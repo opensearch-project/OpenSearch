@@ -111,6 +111,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                     .numberOfShards(numberOfShards)
                     .numberOfReplicas(numberOfReplicas)
                     .state(indexState)
+                    .system(SYSTEM_INDEX_NAME.equals(indexName))
                     .build();
                 indicesMetadatas.put(indexName, indexMetadata);
 
@@ -204,6 +205,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
 
     public void testBuildTableWithSystemParam() {
         final RestIndicesAction action = newAction(systemIndices());
+        assertTrue(action.responseParams().contains("system"));
         final Table table = action.buildTable(
             new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true")).build(),
             indicesSettings,
@@ -215,13 +217,33 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         );
 
         assertTableHeaders(table);
-        List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(12).value, equalTo("desc"));
-
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(1));
         assertThat(rows.get(0).get(2).value, equalTo(SYSTEM_INDEX_NAME));
-        assertThat(rows.get(0).get(12).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
+        assertThat(rows.get(0).get(headerIndex(table, "system")).value, equalTo(true));
+        assertThat(rows.get(0).get(headerIndex(table, "system.description")).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
+    }
+
+    public void testBuildTableWithSystemFalseParam() {
+        final RestIndicesAction action = newAction(systemIndices());
+        final Table table = action.buildTable(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "false")).build(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
+        );
+
+        assertTableHeaders(table);
+        final int systemColumn = headerIndex(table, "system");
+        final int descriptionColumn = headerIndex(table, "system.description");
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size() - 1));
+        for (List<Table.Cell> row : table.getRows()) {
+            assertThat(row.get(systemColumn).value, equalTo(false));
+            assertNull(row.get(descriptionColumn).value);
+        }
     }
 
     private void assertTableHeaders(Table table) {
@@ -232,6 +254,8 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         assertThat(headers.get(3).value, equalTo("uuid"));
         assertThat(headers.get(4).value, equalTo("pri"));
         assertThat(headers.get(5).value, equalTo("rep"));
+        assertTrue(headerIndex(table, "system") > 5);
+        assertTrue(headerIndex(table, "system.description") > 5);
         boolean foundRaw = false;
         boolean foundString = false;
         for (Table.Cell cell : headers) {
@@ -271,6 +295,16 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 assertThat(row.get(5).value, nullValue());
             }
         }
+    }
+
+    private int headerIndex(Table table, String name) {
+        for (int i = 0; i < table.getHeaders().size(); i++) {
+            if (name.equals(table.getHeaders().get(i).value)) {
+                return i;
+            }
+        }
+        fail("missing table header [" + name + "]");
+        return -1;
     }
 
     public void testLastIndexRequestTimestampColumns() {
