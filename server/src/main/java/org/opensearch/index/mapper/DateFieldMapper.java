@@ -543,7 +543,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     // IndexOrDocValuesQuery reports cost=0 and wins the cost race — returning zero hits.
                     // Force the pure doc-values branch so range/term queries resolve correctly against
                     // the codec-served DV column.
-                    boolean effectiveSearchable = isSearchable() && !(context != null && context.isPluggableDataFormatEnabled());
+                    boolean effectiveSearchable = isSearchable() && !context.isPluggableDataFormatEnabled();
 
                     // Not searchable (either declared, or gated off by the pluggable-dataformat check). Must have doc values.
                     if (!effectiveSearchable) {
