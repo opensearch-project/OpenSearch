@@ -494,14 +494,19 @@ public class DiskThresholdMonitor {
     }
 
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
-        final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
-            Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
-            false
-        )
-            .map(Map.Entry::getKey)
-            .filter(index -> indicesToBlockRead.contains(index) == false)
-            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
-            .collect(Collectors.toSet());
+        final Set<String> indicesToReleaseReadBlock;
+        if (diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled()) {
+            indicesToReleaseReadBlock = StreamSupport.stream(
+                Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
+                false
+            )
+                .map(Map.Entry::getKey)
+                .filter(index -> indicesToBlockRead.contains(index) == false)
+                .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+                .collect(Collectors.toSet());
+        } else {
+            indicesToReleaseReadBlock = Set.of();
+        }
 
         if (indicesToReleaseReadBlock.isEmpty() == false) {
             updateIndicesReadBlock(indicesToReleaseReadBlock, listener, false);

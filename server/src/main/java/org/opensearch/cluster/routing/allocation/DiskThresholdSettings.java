@@ -114,6 +114,18 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /**
+     * Controls whether the disk threshold monitor automatically releases {@code index.blocks.read}
+     * blocks when the triggering condition (file cache search threshold on warm nodes) is no longer met.
+     * Defaults to {@code true}. Set to {@code false} to prevent automatic release of read blocks,
+     * which is useful when read blocks are manually managed by operators.
+     */
+    public static final Setting<Boolean> INDEX_READ_BLOCK_AUTO_RELEASE = Setting.boolSetting(
+        "cluster.blocks.read.auto_release",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -123,6 +135,7 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdHigh;
     private volatile boolean includeRelocations;
     private volatile boolean createIndexBlockAutoReleaseEnabled;
+    private volatile boolean indexReadBlockAutoReleaseEnabled;
     private volatile boolean enabled;
     private volatile boolean warmThresholdEnabled;
     private volatile TimeValue rerouteInterval;
@@ -153,6 +166,7 @@ public class DiskThresholdSettings {
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.warmThresholdEnabled = CLUSTER_ROUTING_ALLOCATION_WARM_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.createIndexBlockAutoReleaseEnabled = CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.get(settings);
+        this.indexReadBlockAutoReleaseEnabled = INDEX_READ_BLOCK_AUTO_RELEASE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
@@ -164,6 +178,7 @@ public class DiskThresholdSettings {
             this::setWarmThresholdEnabled
         );
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE, this::setCreateIndexBlockAutoReleaseEnabled);
+        clusterSettings.addSettingsUpdateConsumer(INDEX_READ_BLOCK_AUTO_RELEASE, this::setIndexReadBlockAutoReleaseEnabled);
     }
 
     /**
@@ -365,6 +380,10 @@ public class DiskThresholdSettings {
         this.createIndexBlockAutoReleaseEnabled = createIndexBlockAutoReleaseEnabled;
     }
 
+    private void setIndexReadBlockAutoReleaseEnabled(boolean indexReadBlockAutoReleaseEnabled) {
+        this.indexReadBlockAutoReleaseEnabled = indexReadBlockAutoReleaseEnabled;
+    }
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -421,6 +440,15 @@ public class DiskThresholdSettings {
 
     public boolean isCreateIndexBlockAutoReleaseEnabled() {
         return createIndexBlockAutoReleaseEnabled;
+    }
+
+    /**
+     * Returns whether automatic release of index read blocks is enabled.
+     * When disabled, read blocks set on indices will not be automatically removed
+     * by the disk threshold monitor.
+     */
+    public boolean isIndexReadBlockAutoReleaseEnabled() {
+        return indexReadBlockAutoReleaseEnabled;
     }
 
     String describeLowThreshold() {
