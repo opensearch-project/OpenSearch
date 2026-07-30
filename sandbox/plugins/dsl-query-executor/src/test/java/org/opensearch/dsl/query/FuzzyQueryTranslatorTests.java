@@ -140,6 +140,49 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
         RexNode result = translator.convert(fqb, ctx);
         RexCall call = (RexCall) result;
         // field + query + fuzziness + transpositions = 4 operands
-        assertTrue(call.getOperands().size() > 2);
+        assertEquals(4, call.getOperands().size());
+
+        // Operand 2: MAP('fuzziness', '1')
+        RexCall fuzzinessMap = (RexCall) call.getOperands().get(2);
+        assertEquals("fuzziness", ((RexLiteral) fuzzinessMap.getOperands().get(0)).getValueAs(String.class));
+        assertEquals("1", ((RexLiteral) fuzzinessMap.getOperands().get(1)).getValueAs(String.class));
+
+        // Operand 3: MAP('transpositions', 'false')
+        RexCall transpositionsMap = (RexCall) call.getOperands().get(3);
+        assertEquals("transpositions", ((RexLiteral) transpositionsMap.getOperands().get(0)).getValueAs(String.class));
+        assertEquals("false", ((RexLiteral) transpositionsMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
+    public void testAcceptsCustomAutoFuzziness() throws ConversionException {
+        // AUTO:4,7 is a valid custom auto form — should translate without error
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop").fuzziness(Fuzziness.build("AUTO:4,7"));
+        RexNode result = translator.convert(fqb, ctx);
+        RexCall call = (RexCall) result;
+        // Non-default fuzziness emits a param operand
+        assertEquals(3, call.getOperands().size());
+        RexCall fuzzinessMap = (RexCall) call.getOperands().get(2);
+        assertEquals("fuzziness", ((RexLiteral) fuzzinessMap.getOperands().get(0)).getValueAs(String.class));
+        assertEquals("AUTO:4,7", ((RexLiteral) fuzzinessMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
+    public void testAcceptsFuzzinessThree() throws ConversionException {
+        // "3" is accepted by Fuzziness.build() and clamped to edit distance 2 by asDistance()
+        // — legacy parity: server silently clamps rather than rejecting
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop").fuzziness(Fuzziness.build("3"));
+        RexNode result = translator.convert(fqb, ctx);
+        RexCall call = (RexCall) result;
+        // Non-default fuzziness emits a param operand
+        assertEquals(3, call.getOperands().size());
+        RexCall fuzzinessMap = (RexCall) call.getOperands().get(2);
+        assertEquals("fuzziness", ((RexLiteral) fuzzinessMap.getOperands().get(0)).getValueAs(String.class));
+        assertEquals("3", ((RexLiteral) fuzzinessMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
+    public void testRejectsNonNumericFuzziness() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.fuzzyQuery("name", "laptop").fuzziness(Fuzziness.build("abc")), ctx)
+        );
+        assertTrue(ex.getMessage().contains("fuzziness"));
     }
 }

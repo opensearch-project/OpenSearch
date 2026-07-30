@@ -67,7 +67,7 @@ public class FuzzyQueryTranslator implements QueryTranslator {
         }
         String value = valueObj.toString();
         if (value.isEmpty()) {
-            throw new ConversionException("fuzzy query value must not be empty");
+            throw new ConversionException("Fuzzy query value must not be empty");
         }
 
         // Resolve field and gate on type
@@ -82,18 +82,24 @@ public class FuzzyQueryTranslator implements QueryTranslator {
         // Validate numeric params fail-fast
         int prefixLength = fuzzyQuery.prefixLength();
         if (prefixLength < 0) {
-            throw new ConversionException("prefix_length must not be negative, got " + prefixLength);
+            throw new ConversionException("Fuzzy query prefix_length must not be negative, got " + prefixLength);
         }
         int maxExpansions = fuzzyQuery.maxExpansions();
         if (maxExpansions < 1) {
-            throw new ConversionException("max_expansions must be at least 1, got " + maxExpansions);
+            throw new ConversionException("Fuzzy query max_expansions must be at least 1, got " + maxExpansions);
         }
 
-        // Validate fuzziness fail-fast: valid values are 0, 1, 2, AUTO, AUTO:x,y
+        // Validate fuzziness fail-fast by delegating to Fuzziness.build() so we stay in sync
+        // with server semantics (Fuzziness.build at Fuzziness.java:131), then verify asDistance()
+        // succeeds since non-numeric values like "abc" pass build() but fail at query time
+        // (StringFieldType.fuzzyQuery at StringFieldType.java:103).
         Fuzziness fuzziness = fuzzyQuery.fuzziness();
         String fuzzinessStr = fuzziness.asString();
-        if (!isValidFuzziness(fuzzinessStr)) {
-            throw new ConversionException("Invalid fuzziness value '" + fuzzinessStr + "': valid values are [0, 1, 2, AUTO, AUTO:x,y]");
+        try {
+            Fuzziness validated = Fuzziness.build(fuzzinessStr);
+            validated.asDistance(value);
+        } catch (IllegalArgumentException e) {
+            throw new ConversionException("Invalid fuzziness value '" + fuzzinessStr + "': " + e.getMessage());
         }
 
         // Build the RexCall: FUZZY(MAP('field',$ref), MAP('query',literal), [MAP(param,value)]...)
@@ -143,26 +149,4 @@ public class FuzzyQueryTranslator implements QueryTranslator {
             );
     }
 
-    /**
-     * Validates that a fuzziness string is one of the accepted values: 0, 1, 2, AUTO, or AUTO:x,y.
-     */
-    private static boolean isValidFuzziness(String value) {
-        String upper = value.toUpperCase(java.util.Locale.ROOT);
-        if ("0".equals(upper) || "1".equals(upper) || "2".equals(upper) || "AUTO".equals(upper)) {
-            return true;
-        }
-        if (upper.startsWith("AUTO:")) {
-            String[] parts = upper.substring(5).split(",");
-            if (parts.length == 2) {
-                try {
-                    int low = Integer.parseInt(parts[0]);
-                    int high = Integer.parseInt(parts[1]);
-                    return low >= 0 && high >= 0 && low <= high;
-                } catch (NumberFormatException e) {
-                    return false;
-                }
-            }
-        }
-        return false;
-    }
 }
