@@ -28,6 +28,8 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
+import org.apache.calcite.rex.RexWindow;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunction;
@@ -70,6 +72,7 @@ import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.FunctionMappings;
+import io.substrait.isthmus.expression.RexExpressionConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -713,7 +716,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 AggregateCall call,
                 Function<RexNode, Expression> rexConverter
             ) {
-                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, call, rexConverter);
+                AggregateCall substraitCall = canonicalizeAggregate(call);
+                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, substraitCall, rexConverter);
                 if (bound.isEmpty()) {
                     return bound;
                 }
@@ -746,6 +750,26 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 if (rewritten == null) return bound;
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
+
+            private AggregateCall canonicalizeAggregate(AggregateCall call) {
+                if (call.getAggregation() == SqlStdOperatorTable.SUM || call.getAggregation().getKind() != SqlKind.SUM) {
+                    return call;
+                }
+                return AggregateCall.create(
+                    call.getParserPosition(),
+                    SqlStdOperatorTable.SUM,
+                    call.isDistinct(),
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.rexList,
+                    call.getArgList(),
+                    call.filterArg,
+                    call.distinctKeys,
+                    call.collation,
+                    call.getType(),
+                    call.getName()
+                );
+            }
         };
         // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
@@ -759,6 +783,37 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return super.getSigs().stream()
                     .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
                     .collect(ImmutableList.toImmutableList());
+            }
+
+            @Override
+            public Optional<Expression.WindowFunctionInvocation> convert(
+                RexOver call,
+                Function<RexNode, Expression> rexConverter,
+                RexExpressionConverter rexExpressionConverter
+            ) {
+                return super.convert(canonicalizeWindow(call), rexConverter, rexExpressionConverter);
+            }
+
+            private RexOver canonicalizeWindow(RexOver call) {
+                if (call.getAggOperator() == SqlStdOperatorTable.SUM || call.getAggOperator().getKind() != SqlKind.SUM) {
+                    return call;
+                }
+                RexWindow window = call.getWindow();
+                return (RexOver) new RexBuilder(typeFactory).makeOver(
+                    call.getType(),
+                    SqlStdOperatorTable.SUM,
+                    call.getOperands(),
+                    window.partitionKeys,
+                    window.orderKeys,
+                    window.getLowerBound(),
+                    window.getUpperBound(),
+                    window.getExclude(),
+                    window.isRows(),
+                    true,
+                    false,
+                    call.isDistinct(),
+                    call.ignoreNulls()
+                );
             }
         };
         ConverterProvider converterProvider = new ConverterProvider(

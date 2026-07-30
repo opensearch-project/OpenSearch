@@ -766,6 +766,90 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * A custom aggregate with SUM semantics is canonicalized to Calcite's standard SUM for
+     * Substrait binding. This covers SQL's CHECKED_LONG_SUM operator.
+     */
+    public void testCustomSumUsesNativeSumBinding() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        SqlAggFunction checkedLongSum = checkedLongSumOperator();
+        AggregateCall checkedSumCall = AggregateCall.create(
+            checkedLongSum,
+            false,
+            List.of(0),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_col"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(checkedSumCall));
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(agg));
+
+        assertUsesNativeSum(plan);
+    }
+
+    /** A custom SUM window call uses the same native SUM binding as an aggregate call. */
+    public void testCustomWindowSumUsesNativeSumBinding() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        RelDataType bigintType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RexNode checkedSumOver = rexBuilder.makeOver(
+            bigintType,
+            checkedLongSumOperator(),
+            List.of(rexBuilder.makeInputRef(scan, 0)),
+            List.of(),
+            com.google.common.collect.ImmutableList.of(),
+            org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_PRECEDING,
+            org.apache.calcite.rex.RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode project = org.apache.calcite.rel.logical.LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(scan, 0), checkedSumOver),
+            List.of("A", "running_sum"),
+            java.util.Set.of()
+        );
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(project));
+
+        assertUsesNativeSum(plan);
+    }
+
+    private SqlAggFunction checkedLongSumOperator() {
+        return new SqlAggFunction(
+            "CHECKED_LONG_SUM",
+            null,
+            SqlKind.SUM,
+            ReturnTypes.BIGINT_NULLABLE,
+            null,
+            OperandTypes.NUMERIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+    }
+
+    private void assertUsesNativeSum(Plan plan) {
+        boolean foundSum = false;
+        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
+            if (decl.hasExtensionFunction()) {
+                String name = decl.getExtensionFunction().getName();
+                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
+                assertNotEquals("custom operator name must not reach Substrait", "checked_long_sum", baseName);
+                if (baseName.equals("sum")) {
+                    foundSum = true;
+                }
+            }
+        }
+        assertTrue("custom SUM must use the native sum extension", foundSum);
+    }
+
+    /**
      * Substrait's stdlib only defines min/max for i8..fp64; opensearch_aggregate_functions.yaml
      * adds str and bool overloads so PPL `stats min/max` over varchar / boolean fields binds.
      */
