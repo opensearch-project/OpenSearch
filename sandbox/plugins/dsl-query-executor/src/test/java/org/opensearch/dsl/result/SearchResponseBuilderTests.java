@@ -300,6 +300,35 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         assertEquals(700.0, sumCat2.getValue(), 0.0);
     }
 
+    /** Terms {@code size} truncates to the top-N buckets and reports the rest as sum_other_doc_count. */
+    public void testTermsSizeTruncation() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(AggregationBuilders.terms("by_brand").field("brand").size(1));
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            assertEquals(List.of("brand", "_count"), plan.relNode().getRowType().getFieldNames());
+            results.add(new ExecutionResult(plan, List.of(new Object[] { "BrandA", 3L }, new Object[] { "BrandB", 2L })));
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        StringTerms byBrand = response.getAggregations().get("by_brand");
+        assertEquals(1, byBrand.getBuckets().size());
+        assertEquals("BrandA", byBrand.getBuckets().get(0).getKeyAsString());
+        assertEquals(3L, byBrand.getBuckets().get(0).getDocCount());
+        assertEquals(2L, byBrand.getSumOfOtherDocCounts());
+    }
+
     /** A result table missing a requested metric's column is a broken invariant — throw, don't render {@code "value": null}. */
     public void testMissingMetricColumnThrows() throws Exception {
         Map<String, String> mapping = new java.util.LinkedHashMap<>();
