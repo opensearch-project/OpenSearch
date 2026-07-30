@@ -83,8 +83,14 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
             final ConcurrentQueryProfileBreakdown concurrentParent = (ConcurrentQueryProfileBreakdown) parentBreakdown;
             final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = concurrentParent.getSliceCollectorsToLeaves();
             // update all the children with the parent collectorToLeaves association (and the doc-id
-            // ranges, so child nodes report the same per-partition doc_range as the parent)
-            updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves, concurrentParent.getSliceLeafDocRanges());
+            // ranges, so child nodes report the same per-partition doc_range as the parent; and the
+            // collector->thread map, so children can reconstruct the (thread, leaf) breakdown key)
+            updateCollectorToLeavesForChildBreakdowns(
+                root,
+                parentCollectorToLeaves,
+                concurrentParent.getSliceLeafDocRanges(),
+                concurrentParent.getSliceCollectorThreads()
+            );
         }
         // once the collector to leaves mapping is updated, get the result
         return super.getTree();
@@ -99,7 +105,8 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     private void updateCollectorToLeavesForChildBreakdowns(
         Integer parentToken,
         Map<Collector, List<LeafReaderContext>> collectorToLeaves,
-        Map<Collector, Map<LeafReaderContext, int[]>> sliceLeafDocRanges
+        Map<Collector, Map<LeafReaderContext, int[]>> sliceLeafDocRanges,
+        Map<Collector, Thread> sliceCollectorThreads
     ) {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
@@ -108,8 +115,9 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 if (currentChildBreakdown instanceof ConcurrentQueryProfileBreakdown) {
                     ((ConcurrentQueryProfileBreakdown) currentChildBreakdown).associateSliceLeafDocRanges(sliceLeafDocRanges);
+                    ((ConcurrentQueryProfileBreakdown) currentChildBreakdown).associateSliceCollectorThreads(sliceCollectorThreads);
                 }
-                updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves, sliceLeafDocRanges);
+                updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves, sliceLeafDocRanges, sliceCollectorThreads);
             }
         }
     }

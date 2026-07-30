@@ -20,6 +20,7 @@ import org.opensearch.search.profile.Timer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,23 +51,21 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     private long minSliceNodeTime = Long.MAX_VALUE;
     private long avgSliceNodeTime = 0L;
 
-    // keep track of all breakdown timings per (slice, segment). package-private for testing.
+    // keep track of all breakdown timings per (thread, segment). package-private for testing.
     // Under intra-segment search a single segment (LeafReaderContext) is split into partitions that
-    // run on different slices/threads. Keying only by the segment would make those partitions share
-    // one breakdown — and therefore one non-thread-safe Timer — so concurrent start()/stop() calls
-    // would race and corrupt the timing. Qualifying the key by the current slice (collector) gives
-    // each partition of a split segment its own breakdown/Timer. See #sliceLeafContextKey.
+    // run on different threads. Keying only by the segment would make those partitions share one
+    // breakdown — and therefore one non-thread-safe Timer — so concurrent start()/stop() calls would
+    // race and corrupt the timing. Qualifying the key by the searching thread gives each partition of
+    // a split segment its own breakdown/Timer. See #contextKey.
     private final Map<Object, AbstractProfileBreakdown> contexts = new ConcurrentHashMap<>();
-
-    // The slice (collector) currently being searched by the executing thread, set at the searchLeaf
-    // seam (see ContextIndexSearcher#searchLeaf) where the slice identity is in scope. Used to
-    // qualify per-leaf breakdown keys. Static so it is visible to every query node's breakdown in the
-    // tree: child query breakdowns never observe searchLeaf directly, but their context() runs on the
-    // same thread within the parent's searchLeaf, so they read the same value.
-    private static final ThreadLocal<Collector> currentSliceCollector = new ThreadLocal<>();
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
+
+    // The thread that searched each slice (collector), captured at associateCollectorToLeaves time
+    // (i.e. during that slice's searchLeaf, on the slice's thread). Lets the reduce reconstruct the
+    // (thread, leaf) breakdown key for each slice. One thread per slice, so this is 1:1.
+    private final Map<Collector, Thread> sliceCollectorThreads = new ConcurrentHashMap<>();
 
     // Additive per-slice breakdowns captured during the eager reduce. These are the raw per-slice
     // detail from which max_/min_/avg_ are derived; retained (instead of discarded) so consumers can
@@ -96,10 +95,15 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     @Override
     public AbstractProfileBreakdown context(Object context) {
-        // Qualify the per-leaf breakdown with the slice currently being searched, so that intra-segment
-        // partitions of the same segment (which run on different slices/threads) get separate
-        // breakdowns instead of racing on one shared, non-thread-safe Timer.
-        final Object key = contextKey(currentSliceCollector.get(), context);
+        // Qualify the per-leaf breakdown with the thread doing the search, so that intra-segment
+        // partitions of the same segment (which run on different threads) get separate breakdowns
+        // instead of racing on one shared, non-thread-safe Timer. The thread is the right
+        // discriminator here: it is available at scoring time for both parent and child query nodes
+        // (child breakdowns learn their collector only later, during tree assembly), and OpenSearch
+        // runs one thread per slice, so keying by thread separates exactly the concurrent partitions
+        // that would otherwise collide. The collector→thread mapping recorded in
+        // associateCollectorToLeaves lets the reduce reconstruct this key.
+        final Object key = contextKey(Thread.currentThread(), context);
         // See please https://bugs.openjdk.java.net/browse/JDK-8161372
         final AbstractProfileBreakdown profile = contexts.get(key);
 
@@ -111,32 +115,16 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     /**
-     * Builds the key under which a leaf's breakdown is stored. When a slice (collector) is in scope
-     * (the normal concurrent-search case), the key is qualified by it so that partitions of one
-     * segment searched by different slices do not collide. When no slice is in scope (e.g. the
-     * rewritten-query-per-leaf path, or unit tests exercising a single leaf), the leaf is used
-     * directly, preserving the original behavior.
+     * Builds the key under which a leaf's breakdown is stored: the searching thread paired with the
+     * segment (leaf). When no thread is known (e.g. a reduce lookup for a collector whose thread was
+     * never recorded), the leaf is used directly, preserving the original single-key behavior.
      */
-    static Object contextKey(Collector sliceCollector, Object leaf) {
-        return (sliceCollector == null) ? leaf : new SliceLeafKey(sliceCollector, leaf);
+    static Object contextKey(Thread thread, Object leaf) {
+        return (thread == null) ? leaf : new ThreadLeafKey(thread, leaf);
     }
 
-    /** Composite key pairing the searching slice (collector) with the segment (leaf) it searched. */
-    private record SliceLeafKey(Collector sliceCollector, Object leaf) {
-    }
-
-    /**
-     * Records the slice (collector) the current thread is about to search, so that leaf breakdowns
-     * created during this partition's search are keyed to it. Called at the searchLeaf seam, paired
-     * with {@link #clearCurrentSliceCollector()} in a finally block.
-     */
-    public static void setCurrentSliceCollector(Collector sliceCollector) {
-        currentSliceCollector.set(sliceCollector);
-    }
-
-    /** Clears the current thread's slice collector once its searchLeaf call completes. */
-    public static void clearCurrentSliceCollector() {
-        currentSliceCollector.remove();
+    /** Composite key pairing the searching thread with the segment (leaf) it searched. */
+    private record ThreadLeafKey(Thread thread, Object leaf) {
     }
 
     @Override
@@ -229,8 +217,14 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         // Rebuild the per-slice results from scratch; toBreakdownMap() (hence this method) may be
         // invoked more than once for the same breakdown, and we must not accumulate duplicates.
         sliceProfileResults.clear();
+        // Collected during the (non-deterministically ordered) iteration below, then sorted so that
+        // slice_id can be assigned in a stable order.
+        final List<CapturedSlice> capturedSlices = new ArrayList<>(sliceCollectorsToLeaves.size());
         for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorsToLeaves.entrySet()) {
             final Collector sliceCollector = slice.getKey();
+            // The thread that searched this slice (recorded in associateCollectorToLeaves); used to
+            // reconstruct the (thread, leaf) breakdown key that context() stored under.
+            final Thread sliceThread = sliceCollectorThreads.get(sliceCollector);
             // initialize each slice level breakdown
             final Map<String, Long> currentSliceBreakdown = sliceLevelBreakdowns.computeIfAbsent(sliceCollector, k -> new HashMap<>());
             // max slice end time across all timing types
@@ -251,8 +245,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 final String timingTypeSliceEndTimeKey = timingType + SLICE_END_TIME_SUFFIX;
 
                 for (LeafReaderContext sliceLeaf : slice.getValue()) {
-                    // Breakdowns are keyed by (slice, leaf); reconstruct the same key used at search time.
-                    final Object sliceLeafKey = contextKey(sliceCollector, sliceLeaf);
+                    // Breakdowns are keyed by (thread, leaf); reconstruct the same key using the thread
+                    // that searched this slice (recorded in associateCollectorToLeaves).
+                    final Object sliceLeafKey = contextKey(sliceThread, sliceLeaf);
                     if (!contexts.containsKey(sliceLeafKey)) {
                         // In case like early termination, the sliceCollectorToLeave association will be added for a
                         // leaf, but the leaf level breakdown will not be created in the contexts map.
@@ -326,7 +321,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
             for (String metric : nonTimingMetrics) {
                 for (LeafReaderContext sliceLeaf : slice.getValue()) {
-                    final Object sliceLeafKey = contextKey(sliceCollector, sliceLeaf);
+                    final Object sliceLeafKey = contextKey(sliceThread, sliceLeaf);
                     if (!contexts.containsKey(sliceLeafKey)) {
                         continue;
                     }
@@ -375,17 +370,49 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 final int[] docRange = leafRangesForSlice.getOrDefault(sliceLeaf, new int[] { 0, sliceLeaf.reader().maxDoc() });
                 slicePartitions.add(new SliceProfileResult.PartitionInfo(sliceLeaf.ord, docRange[0], docRange[1]));
             }
-            sliceProfileResults.add(
-                new SliceProfileResult(
-                    sliceProfileResults.size(),
-                    currentSliceNodeTime,
-                    slicePartitions,
-                    cleanSliceBreakdown(currentSliceBreakdown)
-                )
-            );
+            capturedSlices.add(new CapturedSlice(currentSliceNodeTime, slicePartitions, cleanSliceBreakdown(currentSliceBreakdown)));
         }
-        avgSliceNodeTime = totalSliceNodeTime / sliceCollectorsToLeaves.size();
+        // sliceCollectorsToLeaves is a ConcurrentHashMap, so the iteration order above is not
+        // deterministic. Sort the captured slices by their partitions (segment ordinal, then doc-id
+        // range) so that slice_id is a stable identifier for a given slice across invocations of this
+        // method (toBreakdownMap may call it more than once), rather than depending on map order.
+        capturedSlices.sort(CapturedSlice.BY_PARTITIONS);
+        for (int sliceId = 0; sliceId < capturedSlices.size(); sliceId++) {
+            final CapturedSlice captured = capturedSlices.get(sliceId);
+            sliceProfileResults.add(new SliceProfileResult(sliceId, captured.nodeTime, captured.partitions, captured.breakdown));
+        }
+        // Guard the average against an empty map. In the normal flow toBreakdownMap() returns early
+        // when sliceCollectorsToLeaves is empty, so this is defensive for direct callers/tests.
+        avgSliceNodeTime = sliceCollectorsToLeaves.isEmpty() ? 0L : totalSliceNodeTime / sliceCollectorsToLeaves.size();
         return sliceLevelBreakdowns;
+    }
+
+    /**
+     * A slice's captured profiling data, before a stable {@code slice_id} is assigned. Sorting these
+     * by their partitions makes the assigned id independent of {@link #sliceCollectorsToLeaves}
+     * iteration order.
+     */
+    private record CapturedSlice(long nodeTime, List<SliceProfileResult.PartitionInfo> partitions, Map<String, Long> breakdown) {
+        static final Comparator<CapturedSlice> BY_PARTITIONS = (a, b) -> {
+            final int n = Math.min(a.partitions.size(), b.partitions.size());
+            for (int i = 0; i < n; i++) {
+                final SliceProfileResult.PartitionInfo pa = a.partitions.get(i);
+                final SliceProfileResult.PartitionInfo pb = b.partitions.get(i);
+                int cmp = Integer.compare(pa.getSegmentOrd(), pb.getSegmentOrd());
+                if (cmp != 0) {
+                    return cmp;
+                }
+                cmp = Integer.compare(pa.getMinDocId(), pb.getMinDocId());
+                if (cmp != 0) {
+                    return cmp;
+                }
+                cmp = Integer.compare(pa.getMaxDocId(), pb.getMaxDocId());
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+            return Integer.compare(a.partitions.size(), b.partitions.size());
+        };
     }
 
     /**
@@ -562,6 +589,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {
         // Each slice (or collector) is executed by single thread. So the list for a key will always be updated by a single thread only
         sliceCollectorsToLeaves.computeIfAbsent(collector, k -> new ArrayList<>()).add(leaf);
+        // Record the thread searching this slice so the reduce can reconstruct the (thread, leaf)
+        // breakdown key. Called on the slice's own search thread, before that slice scores its leaves.
+        sliceCollectorThreads.putIfAbsent(collector, Thread.currentThread());
     }
 
     @Override
@@ -596,6 +626,21 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     /** Copies parent doc-range associations into this (child) breakdown. */
     void associateSliceLeafDocRanges(Map<Collector, Map<LeafReaderContext, int[]>> docRanges) {
         sliceLeafDocRanges.putAll(docRanges);
+    }
+
+    /**
+     * The collector→thread mapping recorded at associateCollectorToLeaves time. Exposed so the tree
+     * can propagate it to child breakdowns (whose weights are not exposed by Lucene and so never
+     * receive the searchLeaf association directly); without it a child's reduce cannot reconstruct the
+     * (thread, leaf) key its breakdowns were stored under. Mirrors {@link #getSliceCollectorsToLeaves()}.
+     */
+    Map<Collector, Thread> getSliceCollectorThreads() {
+        return Collections.unmodifiableMap(sliceCollectorThreads);
+    }
+
+    /** Copies parent collector→thread associations into this (child) breakdown. */
+    void associateSliceCollectorThreads(Map<Collector, Thread> collectorThreads) {
+        sliceCollectorThreads.putAll(collectorThreads);
     }
 
     // used by tests
