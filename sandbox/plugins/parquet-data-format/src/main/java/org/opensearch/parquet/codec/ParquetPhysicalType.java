@@ -44,8 +44,12 @@ public enum ParquetPhysicalType {
         return code;
     }
 
-    /** True for the fixed-width primitive types whose values are exchanged as raw {@code long} bits. */
-    public boolean isPrimitive() {
+    /**
+     * True for the fixed-width types whose values are exchanged as raw {@code long} bits (everything
+     * except {@code BYTE_ARRAY}, which is variable-width and exchanged as bytes + length). Named for
+     * width rather than "primitive" because Parquet's own taxonomy counts BYTE_ARRAY as a primitive.
+     */
+    public boolean isFixedWidth() {
         return this != BYTE_ARRAY;
     }
 }

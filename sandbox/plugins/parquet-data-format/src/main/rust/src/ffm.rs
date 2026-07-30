@@ -2047,6 +2047,9 @@ unsafe fn pack_presence_from_def_levels(
     num_rows: usize,
     out: *mut i64,
 ) {
+    // The optional-column branch reads def_levels[0..num_rows] unchecked; assert the precondition
+    // so a corrupt page index or decoder state fails loudly in tests rather than reading OOB.
+    debug_assert!(def_levels.len() >= num_rows || max_def_level == 0);
     let words = (num_rows + 63) / 64;
     if max_def_level == 0 {
         // Required column: every row is present → all-ones, mask tail.
@@ -2326,10 +2329,11 @@ pub unsafe extern "C" fn parquet_decode_page_at_row(
                 out_value_buf, out_value_buf_cap, out_value_actual_len,
                 out_byte_offsets, out_byte_offsets_cap, out_presence_bitset, out_presence_bits_cap,
             )?;
-            // The page was fully consumed even on RC_OVERFLOW, so the cursor position is
-            // next_position either way; the overflow retry of the same row then simply
-            // misses the cursor (position > first_global) and opens a fresh reader.
-            state.cursor = Some(CursorState { rg_idx, col_reader: ColumnReader::ByteArrayColumnReader(r), position: next_position });
+            // Install the cursor only on a successful decode, matching the primitive path. On
+            // RC_OVERFLOW the caller retries the same row, which reopens a fresh reader anyway.
+            if rc == RC_OK {
+                state.cursor = Some(CursorState { rg_idx, col_reader: ColumnReader::ByteArrayColumnReader(r), position: next_position });
+            }
             return Ok(rc);
         }
         ColumnReader::FixedLenByteArrayColumnReader(mut r) => {
@@ -2338,8 +2342,10 @@ pub unsafe extern "C" fn parquet_decode_page_at_row(
                 out_value_buf, out_value_buf_cap, out_value_actual_len,
                 out_byte_offsets, out_byte_offsets_cap, out_presence_bitset, out_presence_bits_cap,
             )?;
-            // See the ByteArray arm: page fully consumed even on RC_OVERFLOW.
-            state.cursor = Some(CursorState { rg_idx, col_reader: ColumnReader::FixedLenByteArrayColumnReader(r), position: next_position });
+            // See the ByteArray arm: install the cursor only on a successful decode.
+            if rc == RC_OK {
+                state.cursor = Some(CursorState { rg_idx, col_reader: ColumnReader::FixedLenByteArrayColumnReader(r), position: next_position });
+            }
             return Ok(rc);
         }
         ColumnReader::Int96ColumnReader(_) => {
@@ -2433,15 +2439,24 @@ unsafe fn write_bytes_page(
         return Ok(RC_OVERFLOW);
     }
 
-    let mut acc: i32 = 0;
+    // Offsets are exchanged as i32 (a page is small by design, ~20k rows). Accumulate in i64 and
+    // reject a page whose byte total would exceed i32::MAX rather than let the offset wrap, which
+    // would corrupt the offsets and drive an out-of-bounds write into out_value_buf.
+    let mut acc: i64 = 0;
     for (i, s) in slices.iter().enumerate() {
-        *out_byte_offsets.add(i) = acc;
+        if acc > i32::MAX as i64 {
+            return Err(format!("byte page offset {} exceeds i32::MAX", acc));
+        }
+        *out_byte_offsets.add(i) = acc as i32;
         if !s.is_empty() {
             std::ptr::copy_nonoverlapping(s.as_ptr(), out_value_buf.add(acc as usize), s.len());
         }
-        acc += s.len() as i32;
+        acc += s.len() as i64;
     }
-    *out_byte_offsets.add(slices.len()) = acc;
+    if acc > i32::MAX as i64 {
+        return Err(format!("byte page total {} exceeds i32::MAX", acc));
+    }
+    *out_byte_offsets.add(slices.len()) = acc as i32;
 
     write_presence_bitset(presence, out_presence_bitset, out_presence_bits_cap);
     Ok(RC_OK)

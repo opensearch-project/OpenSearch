@@ -39,13 +39,13 @@ public class ParquetPhysicalTypeTests extends OpenSearchTestCase {
         }
     }
 
-    public void testIsPrimitive() {
-        // Every fixed-width type is primitive (values exchanged as raw long bits); only BYTE_ARRAY is not.
-        assertTrue(ParquetPhysicalType.INT32.isPrimitive());
-        assertTrue(ParquetPhysicalType.INT64.isPrimitive());
-        assertTrue(ParquetPhysicalType.FLOAT.isPrimitive());
-        assertTrue(ParquetPhysicalType.DOUBLE.isPrimitive());
-        assertTrue(ParquetPhysicalType.BOOL.isPrimitive());
-        assertFalse(ParquetPhysicalType.BYTE_ARRAY.isPrimitive());
+    public void testIsFixedWidth() {
+        // Fixed-width types exchange values as raw long bits; only BYTE_ARRAY is variable-width.
+        assertTrue(ParquetPhysicalType.INT32.isFixedWidth());
+        assertTrue(ParquetPhysicalType.INT64.isFixedWidth());
+        assertTrue(ParquetPhysicalType.FLOAT.isFixedWidth());
+        assertTrue(ParquetPhysicalType.DOUBLE.isFixedWidth());
+        assertTrue(ParquetPhysicalType.BOOL.isFixedWidth());
+        assertFalse(ParquetPhysicalType.BYTE_ARRAY.isFixedWidth());
     }
 }

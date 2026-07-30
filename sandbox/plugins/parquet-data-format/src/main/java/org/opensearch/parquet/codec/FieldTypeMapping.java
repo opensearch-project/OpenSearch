@@ -25,7 +25,20 @@ import java.util.Map;
  */
 public final class FieldTypeMapping {
 
-    /** The resolved Lucene DV type + Parquet physical type for a mapping type. */
+    /**
+     * The resolved DocValues + physical type for one OpenSearch mapping type.
+     *
+     * @param singleValued Lucene DV type served when the field holds one value per document
+     *                     (e.g. {@code NUMERIC} for {@code long}, {@code SORTED} for {@code keyword})
+     * @param multiValued  Lucene DV type served when the field is an array
+     *                     ({@code SORTED_NUMERIC} for numerics, {@code SORTED_SET} for keyword/ip;
+     *                     {@code NONE} for types with no array form, e.g. {@code text})
+     * @param physical     the Parquet physical type the column is stored as, read back by the codec
+     *
+     * <p>{@code boolean} maps to a numeric DV type ({@code NUMERIC} / {@code SORTED_NUMERIC}) because
+     * Lucene has no boolean DV type; it is stored as {@code 0}/{@code 1}, matching how core
+     * OpenSearch indexes boolean doc values.
+     */
     public record Mapping(DocValuesType singleValued, DocValuesType multiValued, ParquetPhysicalType physical) {
     }
 

@@ -268,6 +268,18 @@ public final class NativeCall implements AutoCloseable {
         }
     }
 
+    // ---- Static invocation (no Arena) ----
+    //
+    // The instance invoke / invokeIO above run inside a NativeCall so short-lived arguments
+    // (marshalled strings, out-pointers) can be allocated in the instance's Arena and freed on
+    // close. The two static variants below are for callers that already own every argument in
+    // their own memory and so need no Arena — chiefly the column-reader read path, where
+    // ParquetColumnReader keeps its buffers in a pooled Arena reused across many reads. Using the
+    // instance form there would allocate and immediately close a throwaway Arena on every read.
+    // Being static, these allocate nothing; they only run the handle and check the status. They are
+    // also stateless (they touch only their parameters and locals), so concurrent calls from
+    // different query threads share no mutable state.
+
     /**
      * Invokes a {@code long}-returning native call and checks its status: returns the value
      * when {@code >= 0} (positive status codes are passed through), throws {@link IOException}
