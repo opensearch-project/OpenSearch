@@ -1,0 +1,19 @@
+{
+  "query": {
+    "dis_max": {
+      "queries": [
+        {
+          "term": {
+            "name": "laptop"
+          }
+        },
+        {
+          "term": {
+            "brand": "brandX"
+          }
+        }
+      ],
+      "tie_breaker": 0.3
+    }
+  }
+}

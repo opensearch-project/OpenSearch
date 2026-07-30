@@ -1,0 +1,11 @@
+{
+  "query": {
+    "combined_fields": {
+      "query": "gaming laptop",
+      "fields": [
+        "title",
+        "body"
+      ]
+    }
+  }
+}

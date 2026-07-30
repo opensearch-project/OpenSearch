@@ -1,0 +1,12 @@
+{
+  "query": {
+    "span_first": {
+      "match": {
+        "span_term": {
+          "body": "quick"
+        }
+      },
+      "end": 3
+    }
+  }
+}

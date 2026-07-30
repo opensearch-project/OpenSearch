@@ -1,0 +1,10 @@
+{
+  "hits": {
+    "total": 3,
+    "sources": [
+      { "id": "t2", "title": "smart phone camera", "body": "gaming laptop deal today", "body_tv": "gaming laptop deal today", "category": "marvel hero", "skill": 1 },
+      { "id": "theone", "title": "fast gaming laptop", "body": "the quick brown fox jumps", "body_tv": "the quick brown fox jumps", "category": "marvel hero", "skill": 15 },
+      { "id": "t4", "title": "ultrawide gaming monitor", "body": "fox and dog play", "body_tv": "fox and dog play", "category": "scientist genius", "skill": 9 }
+    ]
+  }
+}

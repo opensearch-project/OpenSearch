@@ -1,0 +1,8 @@
+{"index": {"_id": "1"}}
+{"name": "laptop", "brand": "brandX", "tags": ["laptop", "phone"], "price": 1200, "rating": 4.5, "stock": 10}
+{"index": {"_id": "2"}}
+{"name": "phone", "brand": "brandY", "tags": ["electronics", "mobile"], "price": 800, "rating": 4.0, "stock": 25}
+{"index": {"_id": "3"}}
+{"name": "tablet", "brand": "brandX", "tags": ["electronics", "mobile"], "price": 600, "rating": 3.5, "stock": 0}
+{"index": {"_id": "4"}}
+{"name": "monitor", "brand": "brandZ", "tags": ["electronics", "display"], "price": 300, "rating": 4.2, "stock": 5}

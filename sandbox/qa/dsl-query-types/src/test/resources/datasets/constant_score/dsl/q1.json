@@ -1,0 +1,12 @@
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "name": "laptop"
+        }
+      },
+      "boost": 1.2
+    }
+  }
+}

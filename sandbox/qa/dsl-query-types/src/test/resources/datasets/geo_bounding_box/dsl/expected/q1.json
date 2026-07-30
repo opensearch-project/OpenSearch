@@ -1,0 +1,9 @@
+{
+  "hits": {
+    "total": 2,
+    "sources": [
+      { "name": "alpha", "location": { "lat": 40.7, "lon": -74.0 }, "area": { "type": "point", "coordinates": [-74.0, 40.7] } },
+      { "name": "beta", "location": { "lat": 41.5, "lon": -73.5 }, "area": { "type": "point", "coordinates": [-73.5, 41.5] } }
+    ]
+  }
+}

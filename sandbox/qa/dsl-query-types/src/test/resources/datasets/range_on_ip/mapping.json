@@ -1,0 +1,35 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "num_integer": {
+        "type": "integer"
+      },
+      "num_long": {
+        "type": "long"
+      },
+      "num_double": {
+        "type": "double"
+      },
+      "price": {
+        "type": "double"
+      },
+      "status": {
+        "type": "integer"
+      },
+      "online": {
+        "type": "boolean"
+      },
+      "ts": {
+        "type": "date",
+        "format": "epoch_millis||strict_date_optional_time"
+      },
+      "ip": {
+        "type": "ip"
+      }
+    }
+  }
+}

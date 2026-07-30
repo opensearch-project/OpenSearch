@@ -1,0 +1,7 @@
+{
+  "query": {
+    "query_string": {
+      "query": "body:gaming AND title:laptop"
+    }
+  }
+}

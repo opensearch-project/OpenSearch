@@ -1,0 +1,4 @@
+{"index": {}}
+{"field1": "value1", "user": "u1", "nested1": [{"n_field1": "n_value1_1", "n_field2": "a", "n_value": 1}, {"n_field1": "n_value1_2", "n_field2": "b", "n_value": 2}]}
+{"index": {}}
+{"field1": "value2", "user": "u2", "nested1": [{"n_field1": "foo bar", "n_field2": "c", "n_value": 3}]}

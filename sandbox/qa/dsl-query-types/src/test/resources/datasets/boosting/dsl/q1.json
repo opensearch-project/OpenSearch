@@ -1,0 +1,17 @@
+{
+  "query": {
+    "boosting": {
+      "positive": {
+        "term": {
+          "name": "laptop"
+        }
+      },
+      "negative": {
+        "term": {
+          "brand": "brandY"
+        }
+      },
+      "negative_boost": 0.5
+    }
+  }
+}

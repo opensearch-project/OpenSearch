@@ -1,0 +1,22 @@
+{
+  "query": {
+    "geo_polygon": {
+      "location": {
+        "points": [
+          {
+            "lat": 40,
+            "lon": -75
+          },
+          {
+            "lat": 42,
+            "lon": -75
+          },
+          {
+            "lat": 42,
+            "lon": -72
+          }
+        ]
+      }
+    }
+  }
+}

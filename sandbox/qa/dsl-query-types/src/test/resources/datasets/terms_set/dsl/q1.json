@@ -1,0 +1,15 @@
+{
+  "query": {
+    "terms_set": {
+      "tags": {
+        "terms": [
+          "electronics",
+          "mobile"
+        ],
+        "minimum_should_match_script": {
+          "source": "1"
+        }
+      }
+    }
+  }
+}

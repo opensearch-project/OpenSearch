@@ -1,0 +1,9 @@
+{
+  "query": {
+    "script": {
+      "script": {
+        "source": "doc['price'].value > 500"
+      }
+    }
+  }
+}

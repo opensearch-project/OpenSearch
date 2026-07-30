@@ -1,0 +1,11 @@
+{
+  "query": {
+    "multi_match": {
+      "query": "gaming",
+      "fields": [
+        "title",
+        "body"
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "query": {
+    "intervals": {
+      "body": {
+        "match": {
+          "query": "quick brown",
+          "max_gaps": 0,
+          "ordered": true
+        }
+      }
+    }
+  }
+}

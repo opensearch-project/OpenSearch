@@ -1,0 +1,10 @@
+{
+  "query": {
+    "fuzzy": {
+      "name": {
+        "value": "laptip",
+        "fuzziness": "AUTO"
+      }
+    }
+  }
+}

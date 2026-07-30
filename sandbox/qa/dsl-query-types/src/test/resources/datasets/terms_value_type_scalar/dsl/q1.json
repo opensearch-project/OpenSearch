@@ -1,0 +1,10 @@
+{
+  "query": {
+    "terms": {
+      "name": [
+        "laptop"
+      ],
+      "value_type": "bitmap"
+    }
+  }
+}

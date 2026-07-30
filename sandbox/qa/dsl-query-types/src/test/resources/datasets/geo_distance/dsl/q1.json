@@ -1,0 +1,11 @@
+{
+  "query": {
+    "geo_distance": {
+      "distance": "200km",
+      "location": {
+        "lat": 40,
+        "lon": -73
+      }
+    }
+  }
+}

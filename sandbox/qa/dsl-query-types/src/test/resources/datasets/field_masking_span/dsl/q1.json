@@ -1,0 +1,25 @@
+{
+  "query": {
+    "span_near": {
+      "clauses": [
+        {
+          "field_masking_span": {
+            "query": {
+              "span_term": {
+                "body.sub": "quick"
+              }
+            },
+            "field": "body"
+          }
+        },
+        {
+          "span_term": {
+            "body": "fox"
+          }
+        }
+      ],
+      "slop": 2,
+      "in_order": true
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "query": {
+    "nested": {
+      "path": "nested1",
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "term": {
+                "nested1.n_field2": "a"
+              }
+            }
+          ]
+        }
+      },
+      "score_mode": "avg"
+    }
+  }
+}

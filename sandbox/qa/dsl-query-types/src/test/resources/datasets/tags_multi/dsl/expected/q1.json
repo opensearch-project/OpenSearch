@@ -1,0 +1,8 @@
+{
+  "hits": {
+    "total": 1,
+    "sources": [
+      { "name": "laptop", "tags": ["laptop", "phone"] }
+    ]
+  }
+}

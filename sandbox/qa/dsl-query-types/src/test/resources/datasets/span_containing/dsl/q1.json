@@ -1,0 +1,29 @@
+{
+  "query": {
+    "span_containing": {
+      "little": {
+        "span_term": {
+          "body": "brown"
+        }
+      },
+      "big": {
+        "span_near": {
+          "clauses": [
+            {
+              "span_term": {
+                "body": "quick"
+              }
+            },
+            {
+              "span_term": {
+                "body": "fox"
+              }
+            }
+          ],
+          "slop": 5,
+          "in_order": true
+        }
+      }
+    }
+  }
+}

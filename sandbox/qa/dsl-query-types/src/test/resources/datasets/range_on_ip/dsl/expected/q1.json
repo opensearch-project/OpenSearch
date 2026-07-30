@@ -1,0 +1,9 @@
+{
+  "hits": {
+    "total": 2,
+    "sources": [
+      { "num_integer": 100, "num_long": 1000, "num_double": 1.5, "price": 100, "status": 1, "online": true, "ts": 1700000000000, "ip": "192.168.0.1" },
+      { "num_integer": 200, "num_long": 2000, "num_double": 2.5, "price": 500, "status": 2, "online": false, "ts": 1710000000000, "ip": "192.168.0.5" }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "query": {
+    "function_score": {
+      "query": {
+        "match_all": {}
+      },
+      "field_value_factor": {
+        "field": "rating"
+      }
+    }
+  }
+}

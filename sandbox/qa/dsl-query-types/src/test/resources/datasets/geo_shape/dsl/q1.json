@@ -1,0 +1,22 @@
+{
+  "query": {
+    "geo_shape": {
+      "area": {
+        "shape": {
+          "type": "envelope",
+          "coordinates": [
+            [
+              -75,
+              42
+            ],
+            [
+              -72,
+              40
+            ]
+          ]
+        },
+        "relation": "intersects"
+      }
+    }
+  }
+}

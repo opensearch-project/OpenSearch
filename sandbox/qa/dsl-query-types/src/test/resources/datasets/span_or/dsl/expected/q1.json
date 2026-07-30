@@ -1,0 +1,9 @@
+{
+  "hits": {
+    "total": 2,
+    "sources": [
+      { "id": "t3", "title": "lightweight tablet", "body": "the lazy dog sleeps", "body_tv": "the lazy dog sleeps", "category": "marvel hero", "skill": 5 },
+      { "id": "theone", "title": "fast gaming laptop", "body": "the quick brown fox jumps", "body_tv": "the quick brown fox jumps", "category": "marvel hero", "skill": 15 }
+    ]
+  }
+}

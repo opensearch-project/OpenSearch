@@ -1,0 +1,13 @@
+{
+  "query": {
+    "span_multi": {
+      "match": {
+        "prefix": {
+          "body": {
+            "value": "qui"
+          }
+        }
+      }
+    }
+  }
+}

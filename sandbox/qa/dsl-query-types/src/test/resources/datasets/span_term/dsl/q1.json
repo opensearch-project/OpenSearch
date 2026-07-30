@@ -1,0 +1,7 @@
+{
+  "query": {
+    "span_term": {
+      "body": "quick"
+    }
+  }
+}

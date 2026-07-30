@@ -1,0 +1,11 @@
+{
+  "query": {
+    "terms": {
+      "name": {
+        "index": "terms_lookup",
+        "id": "1",
+        "path": "tags"
+      }
+    }
+  }
+}

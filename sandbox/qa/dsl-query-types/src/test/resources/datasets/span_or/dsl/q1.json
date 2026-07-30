@@ -1,0 +1,18 @@
+{
+  "query": {
+    "span_or": {
+      "clauses": [
+        {
+          "span_term": {
+            "body": "quick"
+          }
+        },
+        {
+          "span_term": {
+            "body": "lazy"
+          }
+        }
+      ]
+    }
+  }
+}

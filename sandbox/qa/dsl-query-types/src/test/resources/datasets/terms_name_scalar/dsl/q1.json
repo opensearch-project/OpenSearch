@@ -1,0 +1,10 @@
+{
+  "query": {
+    "terms": {
+      "name": [
+        "laptop"
+      ],
+      "_name": "my_query"
+    }
+  }
+}

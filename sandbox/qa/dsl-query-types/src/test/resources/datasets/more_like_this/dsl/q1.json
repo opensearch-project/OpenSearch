@@ -1,0 +1,12 @@
+{
+  "query": {
+    "more_like_this": {
+      "fields": [
+        "body"
+      ],
+      "like": "gaming laptop",
+      "min_term_freq": 1,
+      "min_doc_freq": 1
+    }
+  }
+}

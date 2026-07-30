@@ -1,0 +1,9 @@
+{
+  "query": {
+    "distance_feature": {
+      "field": "ts",
+      "pivot": "7d",
+      "origin": "2024-06-01T00:00:00Z"
+    }
+  }
+}

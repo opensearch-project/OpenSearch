@@ -1,0 +1,10 @@
+{
+  "hits": {
+    "total": 3,
+    "sources": [
+      { "name": "laptop", "brand": "brandX", "tags": "laptop", "price": 1200, "rating": 4.5, "stock": 10 },
+      { "name": "phone", "brand": "brandY", "tags": "electronics", "price": 800, "rating": 4.0, "stock": 25 },
+      { "name": "tablet", "brand": "brandX", "tags": "electronics", "price": 600, "rating": 3.5, "stock": 0 }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "query": {
+    "terms": {
+      "name": [
+        "laptop"
+      ],
+      "boost": 2.0
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "hits": {
+    "total": 3,
+    "sources": [
+      { "name": "laptop", "tags": ["phone"] },
+      { "name": "phone", "tags": ["mobile"] },
+      { "name": "tablet", "tags": ["mobile"] }
+    ]
+  }
+}

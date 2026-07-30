@@ -1,0 +1,30 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "field1": {
+        "type": "text"
+      },
+      "user": {
+        "type": "keyword"
+      },
+      "nested1": {
+        "type": "nested",
+        "properties": {
+          "n_field1": {
+            "type": "text"
+          },
+          "n_field2": {
+            "type": "keyword"
+          },
+          "n_value": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

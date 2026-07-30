@@ -1,0 +1,12 @@
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match_all": {}
+      },
+      "script": {
+        "source": "doc['rating'].value"
+      }
+    }
+  }
+}

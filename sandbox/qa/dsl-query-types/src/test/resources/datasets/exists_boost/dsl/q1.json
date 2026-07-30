@@ -1,0 +1,8 @@
+{
+  "query": {
+    "exists": {
+      "field": "name",
+      "boost": 2.0
+    }
+  }
+}

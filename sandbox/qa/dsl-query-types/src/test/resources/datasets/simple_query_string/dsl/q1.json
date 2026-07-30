@@ -1,0 +1,10 @@
+{
+  "query": {
+    "simple_query_string": {
+      "query": "gaming +laptop",
+      "fields": [
+        "body"
+      ]
+    }
+  }
+}

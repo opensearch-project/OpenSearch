@@ -1,0 +1,10 @@
+{
+  "query": {
+    "common": {
+      "body": {
+        "query": "gaming laptop",
+        "cutoff_frequency": 0.001
+      }
+    }
+  }
+}

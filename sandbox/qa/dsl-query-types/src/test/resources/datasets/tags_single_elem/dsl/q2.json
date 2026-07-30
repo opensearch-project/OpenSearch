@@ -1,0 +1,10 @@
+{
+  "query": {
+    "terms": {
+      "tags": [
+        "phone",
+        "mobile"
+      ]
+    }
+  }
+}
