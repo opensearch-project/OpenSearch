@@ -83,6 +83,7 @@ import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.query.ConcurrentQueryProfileBreakdown;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
@@ -348,82 +349,95 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
 
-        final LeafCollector leafCollector;
+        // Record the slice (collector) this thread is about to search so the query profiler can key
+        // leaf breakdowns per (slice, segment). Without this, an intra-segment split segment searched
+        // by two slices/threads would share one non-thread-safe Timer and produce corrupted timings.
+        final boolean profiling = weight instanceof ProfileWeight;
+        if (profiling) {
+            ConcurrentQueryProfileBreakdown.setCurrentSliceCollector(collector);
+        }
         try {
-            cancellable.checkCancelled();
-            if (weight instanceof ProfileWeight profileWeight) {
-                // For a whole-segment partition Lucene passes maxDocId == NO_MORE_DOCS (Integer.MAX_VALUE);
-                // resolve it to the segment's actual maxDoc so the profiled doc_range reflects the real
-                // segment size rather than the sentinel.
-                int resolvedMaxDocId = (maxDocId == DocIdSetIterator.NO_MORE_DOCS) ? ctx.reader().maxDoc() : maxDocId;
-                profileWeight.associateCollectorToLeaves(ctx, collector, minDocId, resolvedMaxDocId);
+            final LeafCollector leafCollector;
+            try {
+                cancellable.checkCancelled();
+                if (weight instanceof ProfileWeight profileWeight) {
+                    // For a whole-segment partition Lucene passes maxDocId == NO_MORE_DOCS (Integer.MAX_VALUE);
+                    // resolve it to the segment's actual maxDoc so the profiled doc_range reflects the real
+                    // segment size rather than the sentinel.
+                    int resolvedMaxDocId = (maxDocId == DocIdSetIterator.NO_MORE_DOCS) ? ctx.reader().maxDoc() : maxDocId;
+                    profileWeight.associateCollectorToLeaves(ctx, collector, minDocId, resolvedMaxDocId);
+                }
+                weight = wrapWeight(weight);
+                // See please https://github.com/apache/lucene/pull/964
+                collector.setWeight(weight);
+                leafCollector = collector.getLeafCollector(ctx);
+            } catch (CollectionTerminatedException e) {
+                // there is no doc of interest in this reader context
+                // continue with the following leaf
+                return;
+            } catch (QueryPhase.TimeExceededException e) {
+                searchContext.setSearchTimedOut(true);
+                return;
             }
-            weight = wrapWeight(weight);
-            // See please https://github.com/apache/lucene/pull/964
-            collector.setWeight(weight);
-            leafCollector = collector.getLeafCollector(ctx);
-        } catch (CollectionTerminatedException e) {
-            // there is no doc of interest in this reader context
-            // continue with the following leaf
-            return;
-        } catch (QueryPhase.TimeExceededException e) {
-            searchContext.setSearchTimedOut(true);
-            return;
-        }
-        // catch early terminated exception and rethrow?
-        Bits liveDocs = ctx.reader().getLiveDocs();
-        BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
-        if (liveDocsBitSet == null) {
-            BulkScorer bulkScorer = weight.bulkScorer(ctx);
-            if (bulkScorer != null) {
-                try {
-                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
-                } catch (QueryPhase.TimeExceededException e) {
-                    searchContext.setSearchTimedOut(true);
-                    return;
+            // catch early terminated exception and rethrow?
+            Bits liveDocs = ctx.reader().getLiveDocs();
+            BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
+            if (liveDocsBitSet == null) {
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                if (bulkScorer != null) {
+                    try {
+                        bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    } catch (QueryPhase.TimeExceededException e) {
+                        searchContext.setSearchTimedOut(true);
+                        return;
+                    }
+                }
+            } else {
+                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                Scorer scorer = weight.scorer(ctx);
+                if (scorer != null) {
+                    try {
+                        intersectScorerAndBitSet(
+                            scorer,
+                            liveDocsBitSet,
+                            leafCollector,
+                            minDocId,
+                            maxDocId,
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
+                        );
+                    } catch (CollectionTerminatedException e) {
+                        // collection was terminated prematurely
+                        // continue with the following leaf
+                    } catch (QueryPhase.TimeExceededException e) {
+                        searchContext.setSearchTimedOut(true);
+                        return;
+                    }
                 }
             }
-        } else {
-            // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-            Scorer scorer = weight.scorer(ctx);
-            if (scorer != null) {
-                try {
-                    intersectScorerAndBitSet(
-                        scorer,
-                        liveDocsBitSet,
-                        leafCollector,
-                        minDocId,
-                        maxDocId,
-                        this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
-                    );
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
-                } catch (QueryPhase.TimeExceededException e) {
-                    searchContext.setSearchTimedOut(true);
-                    return;
+
+            if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
+                logger.debug(
+                    "Stream intermediate aggregation for segment [{}], shard [{}]",
+                    ctx.ord,
+                    searchContext.shardTarget().getShardId().id()
+                );
+                List<InternalAggregation> internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
+                if (!internalAggregation.isEmpty()) {
+                    sendBatch(internalAggregation);
                 }
             }
-        }
 
-        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
-            logger.debug(
-                "Stream intermediate aggregation for segment [{}], shard [{}]",
-                ctx.ord,
-                searchContext.shardTarget().getShardId().id()
-            );
-            List<InternalAggregation> internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
-            if (!internalAggregation.isEmpty()) {
-                sendBatch(internalAggregation);
+            // Note: this is called if collection ran successfully, including the above special cases of
+            // CollectionTerminatedException and TimeExceededException, but no other exception.
+            leafCollector.finish();
+        } finally {
+            if (profiling) {
+                ConcurrentQueryProfileBreakdown.clearCurrentSliceCollector();
             }
         }
-
-        // Note: this is called if collection ran successfully, including the above special cases of
-        // CollectionTerminatedException and TimeExceededException, but no other exception.
-        leafCollector.finish();
     }
 
     void sendBatch(List<InternalAggregation> batch) {
