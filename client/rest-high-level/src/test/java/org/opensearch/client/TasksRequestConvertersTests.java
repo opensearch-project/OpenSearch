@@ -32,10 +32,14 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.client.tasks.CancelTasksRequest;
+import org.opensearch.client.tasks.DeleteTaskRequest;
+import org.opensearch.client.tasks.GetTaskRequest;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -130,5 +134,42 @@ public class TasksRequestConvertersTests extends OpenSearchTestCase {
             );
             assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
         }
+    }
+
+    public void testGetTask() {
+        String nodeId = randomAlphaOfLength(5);
+        long taskId = randomNonNegativeLong();
+        GetTaskRequest request = new GetTaskRequest(nodeId, taskId);
+        Map<String, String> expectedParams = new HashMap<>();
+
+        boolean waitForCompletion = randomBoolean();
+        request.setWaitForCompletion(waitForCompletion);
+        expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
+
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            request.setTimeout(TimeValue.parseTimeValue(timeout, "timeout"));
+            expectedParams.put("timeout", timeout);
+        }
+
+        Request httpRequest = TasksRequestConverters.getTask(request);
+        assertThat(httpRequest, notNullValue());
+        assertThat(httpRequest.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(httpRequest.getEntity(), nullValue());
+        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/" + nodeId + ":" + taskId));
+        assertThat(httpRequest.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testDeleteTask() {
+        String nodeId = randomAlphaOfLength(5);
+        long taskId = randomNonNegativeLong();
+        DeleteTaskRequest request = new DeleteTaskRequest(nodeId, taskId);
+
+        Request httpRequest = TasksRequestConverters.deleteTask(request);
+        assertThat(httpRequest, notNullValue());
+        assertThat(httpRequest.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(httpRequest.getEntity(), nullValue());
+        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/" + nodeId + ":" + taskId));
+        assertThat(httpRequest.getParameters().isEmpty(), equalTo(true));
     }
 }
