@@ -72,7 +72,9 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        String hParam = request.param("h");
+        // Non-consuming read: buildDisplayHeaders later calls request.param("h") to mark it
+        // consumed. Accessing the raw map here avoids reordering param-consumption semantics.
+        String hParam = request.params().get("h");
         // Grouping/aggregation is inferred from h=: if any h= token is an aggregation function
         // (e.g. sum(docs)), summarize the table; bare tokens are treated as GROUP BY keys. Plain
         // h= listings (no functions) are returned unchanged by TableSummarizer.summarize.
