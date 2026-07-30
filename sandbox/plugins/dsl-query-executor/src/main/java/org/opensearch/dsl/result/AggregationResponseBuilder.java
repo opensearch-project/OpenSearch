@@ -120,7 +120,7 @@ public final class AggregationResponseBuilder {
         AggregationBuilder agg,
         List<String> accumulatedGroupFields,
         Map<String, Object> parentKeyFilter
-    ) {
+    ) throws ConversionException {
 
         ExecutionResult result = granularityMap.get(granularityKey(accumulatedGroupFields));
 
@@ -138,19 +138,19 @@ public final class AggregationResponseBuilder {
         Integer colIdx = colIndex.get(agg.getName());
 
         if (colIdx == null) {
-            return buildEmptyMetric(translator, agg);
+            throw new ConversionException("Metric column '" + agg.getName() + "' not found in aggregation result columns");
         }
 
         Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
         Object value = (matchingRow != null) ? matchingRow[colIdx] : null;
-        return translator.toInternalAggregation(agg.getName(), value);
+        return translator.toInternalAggregation(agg.getName(), value, AggregationTranslator.userMetadata(agg));
     }
 
     /**
      * Builds an empty metric aggregation with no computed value.
      */
     private static InternalAggregation buildEmptyMetric(MetricTranslator<AggregationBuilder> translator, AggregationBuilder agg) {
-        return translator.toInternalAggregation(agg.getName(), null);
+        return translator.toInternalAggregation(agg.getName(), null, AggregationTranslator.userMetadata(agg));
     }
 
     /**
@@ -248,6 +248,8 @@ public final class AggregationResponseBuilder {
         return null;
     }
 
+    // TODO: Avoid re-scanning the full row list on every recursion (here and in findMatchingRow).
+    // Index each granularity's rows by parent bucket key once, then look buckets up directly.
     /**
      * Filters rows to only those matching all filter criteria.
      * Ensures nested aggregations only process rows belonging to their parent bucket.
