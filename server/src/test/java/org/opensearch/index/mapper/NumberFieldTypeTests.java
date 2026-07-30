@@ -104,6 +104,8 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -1153,8 +1155,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
      * plumbing — the mapper code only cares about the boolean returned here.
      */
     private static QueryShardContext mockPluggableDataFormatContext() {
-        QueryShardContext ctx = org.mockito.Mockito.mock(QueryShardContext.class);
-        org.mockito.Mockito.when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
+        QueryShardContext ctx = mock(QueryShardContext.class);
+        when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
         return ctx;
     }
 }

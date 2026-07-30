@@ -92,6 +92,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -693,9 +696,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * plumbing — the mapper code only cares about the boolean returned here.
      */
     private static QueryShardContext mockPluggableDataFormatContext() {
-        QueryShardContext ctx = org.mockito.Mockito.mock(QueryShardContext.class);
-        org.mockito.Mockito.when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
-        org.mockito.Mockito.when(ctx.indexSortedOnField(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        QueryShardContext ctx = mock(QueryShardContext.class);
+        when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
+        when(ctx.indexSortedOnField(anyString())).thenReturn(false);
         return ctx;
     }
 }
