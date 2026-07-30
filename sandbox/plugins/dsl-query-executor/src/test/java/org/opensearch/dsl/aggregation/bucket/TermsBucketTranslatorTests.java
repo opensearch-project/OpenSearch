@@ -20,6 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
 
@@ -142,5 +143,16 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         InternalAggregation agg = translator.toBucketAggregation(brandAgg, List.of());
         assertTrue(agg instanceof StringTerms);
         assertTrue(((StringTerms) agg).getBuckets().isEmpty());
+    }
+
+    /** User-supplied meta must be echoed back on the response aggregation, like classic search. */
+    public void testMetadataEchoedInBucketAggregation() {
+        Map<String, Object> meta = Map.of("source", "dashboard");
+        TermsAggregationBuilder aggWithMeta = new TermsAggregationBuilder("by_brand").field("brand");
+        aggWithMeta.setMetadata(meta);
+
+        assertEquals(meta, translator.toBucketAggregation(aggWithMeta, List.of()).getMetadata());
+        // No meta on the request → none in the response
+        assertNull(translator.toBucketAggregation(brandAgg, List.of()).getMetadata());
     }
 }

@@ -93,7 +93,7 @@ public class AggregationResponseBuilderTests extends OpenSearchTestCase {
     private <T extends AggregationBuilder> MetricTranslator<T> createMetricTranslator(Class<T> aggClass) {
         MetricTranslator<T> translator = mock(MetricTranslator.class);
         when(translator.getAggregationType()).thenReturn(aggClass);
-        when(translator.toInternalAggregation(any(), any())).thenAnswer(inv -> {
+        when(translator.toInternalAggregation(any(), any(), any())).thenAnswer(inv -> {
             InternalAggregation agg = mock(InternalAggregation.class);
             when(agg.getName()).thenReturn(inv.getArgument(0));
             return agg;

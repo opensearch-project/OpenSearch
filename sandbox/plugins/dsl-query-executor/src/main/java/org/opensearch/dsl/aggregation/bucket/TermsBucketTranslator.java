@@ -9,6 +9,7 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.result.BucketEntry;
@@ -83,7 +84,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             agg.getName(),
             order,
             order,
-            null,
+            AggregationTranslator.userMetadata(agg),
             DocValueFormat.RAW,
             agg.shardSize(),
             false,

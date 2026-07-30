@@ -30,6 +30,8 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
  * executes them via the analytics engine, and builds a SearchResponse.
@@ -78,7 +80,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-            final long startTime = System.currentTimeMillis();
+            final long startNanos = System.nanoTime();
             final QueryPlans plans;
             final SearchSourceConverter converter;
             try {
@@ -93,7 +95,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             planExecutor.execute(plans, ActionListener.wrap(results -> {
                 final SearchResponse response;
                 try {
-                    long tookInMillis = System.currentTimeMillis() - startTime;
+                    long tookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
                     response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), tookInMillis);
                 } catch (Exception buildEx) {
                     logger.error("DSL response building failed", buildEx);

@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.golden.CalciteTestInfra;
@@ -297,6 +298,91 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         StringTerms byBrandCat2 = catFirst.getBuckets().get(1).getAggregations().get("by_brand");
         InternalSum sumCat2 = byBrandCat2.getBuckets().get(0).getAggregations().get("sum_price");
         assertEquals(700.0, sumCat2.getValue(), 0.0);
+    }
+
+    /** A result table missing a requested metric's column is a broken invariant — throw, don't render {@code "value": null}. */
+    public void testMissingMetricColumnThrows() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        // Results computed for a metric named "other"
+        SearchSourceBuilder executedSource = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.avg("other").field("price"));
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(executedSource, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            int columnCount = plan.relNode().getRowType().getFieldCount();
+            results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[columnCount])));
+        }
+
+        // Response requested for "avg_price" — same granularity, but no such column in the result
+        SearchRequest request = new SearchRequest("products");
+        request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.avg("avg_price").field("price")));
+
+        expectThrows(
+            ConversionException.class,
+            () -> SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L)
+        );
+    }
+
+    /**
+     * User-supplied {@code meta} on an aggregation request must be echoed back verbatim on the
+     * corresponding response aggregation — classic search parity — for both bucket and metric
+     * aggregations, through the full plan/response round trip.
+     */
+    public void testUserMetaEchoedInAggregations() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        Map<String, Object> termsMeta = Map.of("source", "dashboard");
+        Map<String, Object> avgMeta = Map.of("owner", "pricing-team");
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                AggregationBuilders.terms("by_brand")
+                    .field("brand")
+                    .setMetadata(termsMeta)
+                    .subAggregation(AggregationBuilders.avg("avg_price").field("price").setMetadata(avgMeta))
+            );
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            Object[] row = new Object[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                if ("brand".equals(fields.get(i))) {
+                    row[i] = "BrandA";
+                } else if ("avg_price".equals(fields.get(i))) {
+                    row[i] = 850.0;
+                } else if ("_count".equals(fields.get(i))) {
+                    row[i] = 3L;
+                } else {
+                    fail("Unexpected column: " + fields.get(i));
+                }
+            }
+            results.add(new ExecutionResult(plan, List.<Object[]>of(row)));
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        StringTerms byBrand = response.getAggregations().get("by_brand");
+        assertNotNull(byBrand);
+        assertEquals(termsMeta, byBrand.getMetadata());
+
+        InternalAvg avg = byBrand.getBuckets().get(0).getAggregations().get("avg_price");
+        assertNotNull(avg);
+        assertEquals(avgMeta, avg.getMetadata());
+        assertEquals(850.0, avg.getValue(), 0.0);
     }
 
     // ---- Golden file driven SearchResponse generation tests ----
