@@ -151,6 +151,73 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression test for the late-materialization ~5s stall: {@code close()} arriving while
+     * {@code reduce()} is mid-drain (state=REDUCING) must (a) return promptly and (b) NOT lose
+     * rows the native plan has yet to emit.
+     *
+     * <p>The SUM plan is pipeline-breaking: the aggregate emits nothing until its input reaches
+     * end-of-input. Closing the sink from outside while the drain is parked used to fire
+     * {@code cancel_query} and wait on {@code reduceDone} for a hard-coded 5s — but the input
+     * senders were only closed AFTER that wait, so the aggregate could not emit, the drain could
+     * not finish, and every such close burned the full timeout (observed as a constant ~5s on
+     * every LM query, one WARN per query). Worse, once cancellation actually worked, the cancel
+     * aborted the aggregate BEFORE EOF and the result was 0 rows.
+     *
+     * <p>The fix closes the input senders first (tryClose → EOF → aggregate emits → drain ends
+     * naturally). This test feeds rows, calls {@code close()} WITHOUT signalling per-child EOF
+     * (simulating the Stitcher's early close), and asserts the SUM still arrives and close()
+     * returns in far less than the old 5s timeout.
+     */
+    public void testCloseWhileReducingSignalsEofAndPreservesRows() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+
+            CapturingSink downstream = new CapturingSink();
+            // Non-zero taskId so the cancel fallback path is wired if the test regresses.
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-close-eof",
+                0,
+                4242L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
+
+            sink.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
+            sink.feed(makeBatch(alloc, inputSchema, new long[] { 4L, 5L, 6L }));
+            // Give the drain time to actually park in stream_next waiting for more input,
+            // so close() observes state=REDUCING (the stalling branch).
+            Thread.sleep(200);
+
+            // Close WITHOUT sinkForChild(0).close() — this is the Stitcher-style early close.
+            long closeStartNanos = System.nanoTime();
+            sink.close();
+            long closeMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - closeStartNanos);
+
+            drainDone.actionGet(10, TimeUnit.SECONDS);
+
+            assertEquals("EOF-on-close must let the aggregate emit: SUM(1..6)", 21L, downstream.total);
+            assertTrue("downstream should have received the aggregate row", downstream.totalRows >= 1);
+            // The old behavior burned the full 5s await; EOF-first should finish in millis.
+            // Generous bound to stay unflaky on slow CI hosts while still catching a 5s burn.
+            assertTrue("close() should not burn the teardown timeout, took " + closeMillis + "ms", closeMillis < 4000);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
      * Coordinator reduce running {@code SELECT x FROM "input-0" LIMIT 3} produces exactly the
      * limited output and tears down cleanly. Feeds far more rows than the limit through a real
      * native reduce; the {@code LimitExec} emits 3 rows and the drain ends.
