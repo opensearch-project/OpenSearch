@@ -10,8 +10,10 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.Text;
@@ -49,6 +51,76 @@ public final class ArrowValues {
     private static final Pattern ISO_TIMESTAMP_T = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?)$");
 
     private ArrowValues() {}
+
+    private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC);
+
+    /** Converts row {@code rowId} of a {@link VectorSchemaRoot} into a JSON-friendly field map. */
+    public static Map<String, Object> toSourceMap(VectorSchemaRoot root, int rowId) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Field field : root.getSchema().getFields()) {
+            Object converted = toSourceValue(root.getVector(field.getName()), rowId);
+            if (converted != null) {
+                out.put(field.getName(), converted);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Reads an Arrow cell as a JSON-friendly scalar: numerics coerced to
+     * {@code long}/{@code double}, timestamps rendered as ISO-8601 UTC strings. Binary and
+     * complex (list/struct/decimal) types are not yet supported and return {@code null}.
+     */
+    public static Object toSourceValue(FieldVector vec, int idx) {
+        if (vec == null || vec.isNull(idx)) return null;
+        ArrowType type = vec.getField().getType();
+        ArrowType.ArrowTypeID id = type.getTypeID();
+        switch (id) {
+            case Binary:
+            case LargeBinary:
+            case FixedSizeBinary:
+            case BinaryView:
+                return null;
+            default:
+                break;
+        }
+        Object raw = vec.getObject(idx);
+        switch (id) {
+            case Utf8:
+            case LargeUtf8:
+            case Utf8View, Date:
+                return raw == null ? null : raw.toString();
+            case Int:
+                return raw instanceof Number ? ((Number) raw).longValue() : raw;
+            case FloatingPoint:
+                return raw instanceof Number ? ((Number) raw).doubleValue() : raw;
+            case Bool:
+                return raw;
+            case Timestamp:
+                if (raw instanceof Number) {
+                    ArrowType.Timestamp ts = (ArrowType.Timestamp) type;
+                    return ISO_FORMATTER.format(toInstant(((Number) raw).longValue(), ts.getUnit()));
+                }
+                return raw == null ? null : raw.toString();
+            default:
+                // TODO type coverage (list, struct, decimal)
+                return null;
+        }
+    }
+
+    private static Instant toInstant(long v, TimeUnit unit) {
+        switch (unit) {
+            case SECOND:
+                return Instant.ofEpochSecond(v);
+            case MILLISECOND:
+                return Instant.ofEpochMilli(v);
+            case MICROSECOND:
+                return Instant.ofEpochSecond(v / 1_000_000L, (v % 1_000_000L) * 1_000L);
+            case NANOSECOND:
+            default:
+                return Instant.ofEpochSecond(v / 1_000_000_000L, v % 1_000_000_000L);
+        }
+    }
 
     public static Object toJavaValue(FieldVector vector, int index) {
         if (vector.isNull(index)) return null;

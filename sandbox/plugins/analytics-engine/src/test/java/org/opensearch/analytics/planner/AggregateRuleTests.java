@@ -103,8 +103,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             }
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(noAggFunctions));
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(makeAggregate(sumCall()), context));
-        assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
+        UnsupportedFunctionException exception = expectThrows(
+            UnsupportedFunctionException.class,
+            () -> runPlanner(makeAggregate(sumCall()), context)
+        );
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testAggregateViableBackendsIntersection() {
@@ -270,11 +273,11 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             // No acceptedDelegations() override → delegation is refused.
         };
         PlannerContext context = buildContext("parquet", 1, intFields(), List.of(dfNoSum, luceneWithSum));
-        IllegalStateException exception = expectThrows(
-            IllegalStateException.class,
+        UnsupportedFunctionException exception = expectThrows(
+            UnsupportedFunctionException.class,
             () -> runPlanner(makeMultiCallAggregate(sumCall(), stddevCall()), context)
         );
-        assertTrue(exception.getMessage().contains("No backend supports aggregate function"));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Helpers ----
@@ -389,6 +392,29 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             rebuilt.getAggregation()
         );
         assertFalse("isDistinct must be cleared on the rewritten call", rebuilt.isDistinct());
+    }
+
+    /**
+     * COUNT(DISTINCT smallint_col) inserts a widening CAST(col AS INTEGER) below the aggregate
+     * so DataFusion uses HLL (Binary state) instead of bitmap (List state).
+     */
+    public void testCountDistinctOnSmallintWidensToInteger() {
+        RelNode scan = stubScan(
+            mockTable("test_index", new String[] { "status", "size" }, new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.SMALLINT })
+        );
+        AggregateCall countDistinct = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        RelNode result = runPlanner(makeAggregate(scan, countDistinct), defaultContext(1));
+        String plan = RelOptUtil.toString(result);
+        logger.info("Full plan with SMALLINT dc:\n{}", plan);
+        assertTrue("Plan must contain CAST to widen SMALLINT to INTEGER", plan.contains("CAST") && plan.contains("INTEGER"));
     }
 
     /**

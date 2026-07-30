@@ -60,6 +60,7 @@ import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
+import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
@@ -80,6 +81,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
@@ -187,6 +189,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -578,6 +582,10 @@ public class Node implements Closeable {
 
             final Settings settings = pluginsService.updatedSettings();
 
+            if (BootstrapSettings.SERIAL_FILTER_SETTING.get(settings)) {
+                BootstrapSettings.initializeSerialFilter();
+            }
+
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
 
@@ -950,6 +958,16 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // build ingestion payload decoder registry
+            final IngestionPayloadDecoderRegistry.Builder registryBuilder = IngestionPayloadDecoderRegistry.builder()
+                .register(XContentIngestionPayloadDecoder.NAME, XContentIngestionPayloadDecoder.Factory.INSTANCE);
+            pluginsService.filterPlugins(IngestionConsumerPlugin.class)
+                .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
+            final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
+            // If node construction fails before IndicesService takes ownership of the registry
+            // (see IndicesService#doClose), close it here so factories don't leak.
+            resourcesToClose.add(payloadDecoderRegistry);
+
             // Initialize tiered storage prefetch settings
             final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
             final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
@@ -1054,7 +1072,8 @@ public class Node implements Closeable {
             final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
                 settings,
                 clusterService.getClusterSettings(),
-                threadPool
+                threadPool,
+                clusterService
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
@@ -1097,6 +1116,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                payloadDecoderRegistry,
                 ingestServiceReference::get,
                 recoverySettings,
                 cacheService,
@@ -1175,6 +1195,7 @@ public class Node implements Closeable {
                 clusterService,
                 metadataCreateIndexService
             );
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
@@ -1348,6 +1369,20 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            // Discover the native-allocator stats supplier from any plugin that publishes a
+            // NativeAllocatorStatsRegistry component (today: ArrowBasePlugin). Lookup mirrors
+            // the SearchRequestOperationsListener instanceof filter on pluginComponents elsewhere
+            // in this file. Server has no compile-time dependency on arrow-base.
+            // Discovered here (ahead of AdmissionControlService) so it can be forwarded to the
+            // native-memory admission controller for indexing-pool based rejection.
+            final Optional<NativeAllocatorStatsRegistry> nativeAllocatorStatsRegistry = pluginComponents.stream()
+                .filter(c -> c instanceof NativeAllocatorStatsRegistry)
+                .map(c -> (NativeAllocatorStatsRegistry) c)
+                .findFirst();
+            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = nativeAllocatorStatsRegistry.map(
+                NativeAllocatorStatsRegistry::supplier
+            ).orElse(null);
+
             final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
                 monitorService.fsService(),
                 threadPool,
@@ -1360,11 +1395,19 @@ public class Node implements Closeable {
                 threadPool
             );
 
+            // Inject the node-level native memory pressure signal (same signal admission control uses)
+            // into the allocator so it can make over-commit admission decisions when a native pool is
+            // full. Reuses the registry discovered above. No-op when no such plugin is loaded.
+            nativeAllocatorStatsRegistry.ifPresent(
+                reg -> reg.setNativeMemoryPressureSupplier(nodeResourceUsageTracker::getNativeMemoryUtilizationPercent)
+            );
+
             final AdmissionControlService admissionControlService = new AdmissionControlService(
                 settings,
                 clusterService,
                 threadPool,
-                resourceUsageCollectorService
+                resourceUsageCollectorService,
+                nativeAllocatorStatsSupplier
             );
 
             AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
@@ -1639,16 +1682,6 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
-            // Discover the native-allocator stats supplier from any plugin that publishes a
-            // NativeAllocatorStatsRegistry component (today: ArrowBasePlugin). Lookup mirrors
-            // the SearchRequestOperationsListener instanceof filter on pluginComponents elsewhere
-            // in this file. Server has no compile-time dependency on arrow-base.
-            final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier = pluginComponents.stream()
-                .filter(c -> c instanceof NativeAllocatorStatsRegistry)
-                .map(c -> ((NativeAllocatorStatsRegistry) c).supplier())
-                .findFirst()
-                .orElse(null);
-
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1778,6 +1811,7 @@ public class Node implements Closeable {
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
                 b.bind(ViewService.class).toInstance(viewService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);

@@ -79,6 +79,16 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
+    public void sendResponseBatch(TransportResponse response, boolean sync) {
+        channel.sendResponseBatch(response, sync);
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return channel.isCancelled();
+    }
+
+    @Override
     public void completeStream() {
         try {
             onTaskFinished.close();

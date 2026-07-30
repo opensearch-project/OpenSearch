@@ -35,6 +35,8 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CommitFileManager;
+import org.opensearch.index.engine.exec.DocumentLookupSupport;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
@@ -45,6 +47,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -65,6 +68,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -89,6 +93,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -120,6 +125,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
     private final CatalogSnapshotStatsCache statsCache;
+    private final DocumentLookupSupport documentLookup;
     private volatile long lastWriteNanos = System.nanoTime();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -136,6 +142,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
+        DocumentMetadataResolver resolver = engineConfig.getDocumentMetadataResolver() != null
+            ? engineConfig.getDocumentMetadataResolver()
+            : DocumentMetadataResolver.NOOP;
+        this.documentLookup = new DocumentLookupSupport(shardId, engineConfig.getDocumentLookupProvider(), resolver);
 
         store.incRef();
         Map<DataFormat, EngineReaderManager<?>> readerManagersRef = null;
@@ -394,6 +404,23 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         } catch (Exception e) {
             snapshotRef.close();
             throw e;
+        }
+    }
+
+    /**
+     * Resolves {@code get} against the replicated segment snapshot via the installed
+     * {@link DocumentLookupProvider}, with read-time version-conflict checks. No live version map,
+     * so reads go straight to the snapshot.
+     */
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            try (GatedCloseable<Reader> readerRef = acquireReader()) {
+                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
+                return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
+            }
         }
     }
 

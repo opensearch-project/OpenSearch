@@ -19,10 +19,17 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
+import org.opensearch.index.mapper.extrasource.FloatArrayValue;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.protobufs.BinaryFieldValue;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.DeleteOperation;
+import org.opensearch.protobufs.FloatBinaryLE;
+import org.opensearch.protobufs.FloatList;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.OpType;
 import org.opensearch.protobufs.OperationContainer;
@@ -30,6 +37,8 @@ import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -49,6 +58,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -91,6 +101,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -126,6 +137,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             opType,
             "default-index",
             "default-id",
@@ -198,6 +210,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -317,6 +330,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -344,6 +358,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -376,6 +391,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             OpType.OP_TYPE_INDEX,
             "default-index",
             "default-id",
@@ -409,6 +425,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -458,6 +475,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -490,6 +508,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -520,6 +539,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -554,6 +574,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -583,6 +604,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -736,6 +758,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(smileDocument),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             null,
@@ -764,6 +787,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(cborDocument),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             null,
@@ -792,6 +816,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(smileDocument),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -820,6 +845,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(cborDocument),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -872,6 +898,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(emptyDocument),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             null,
@@ -898,6 +925,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(jsonDocument),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             null,
@@ -926,6 +954,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             writeOperation,
             UnsafeByteOperations.unsafeWrap(yamlDocument),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             null,
@@ -954,6 +983,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(jsonDocument),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -982,6 +1012,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             UnsafeByteOperations.unsafeWrap(yamlDocument),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -1072,6 +1103,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -1273,6 +1305,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             createOp,
             byteString,
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -1303,6 +1336,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             createOp,
             byteString,
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -1330,6 +1364,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             createOp,
             byteString,
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -1365,6 +1400,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOp,
             docBytes,
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -1404,6 +1440,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOp,
             UnsafeByteOperations.unsafeWrap(docBytes),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -1447,6 +1484,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOp,
             ByteString.copyFrom(docBytes),
+            ExtraFieldValues.EMPTY,
             bulkRequestBody,
             "default-index",
             "default-id",
@@ -1487,6 +1525,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOp,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             null,
             "default-index",
             "default-id",
@@ -1517,6 +1556,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
             createOp,
             UnsafeByteOperations.unsafeWrap(document),
+            ExtraFieldValues.EMPTY,
             "default-index",
             "default-id",
             "default-routing",
@@ -1532,4 +1572,267 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Source should not be null", indexRequest.source());
         assertEquals("Source content should match UTF-8", jsonWithUnicode, indexRequest.source().utf8ToString());
     }
+
+    public void testGetDocWriteRequestsWithExtraFieldValuesOnIndex() {
+        byte[] rawBytes = new byte[] { 0, 1, 2, 127, -128, -1 };
+        BulkRequestBody indexBody = indexBodyBuilder().putExtraFieldValues("raw_bytes", binaryBytesValue(rawBytes))
+            .putExtraFieldValues("vector_values", binaryFloatValues(1.5f, 2.5f))
+            .putExtraFieldValues("vector_packed", binaryPackedFloatValue(packFloatLE(3.5f, 4.5f), 2))
+            .build();
+
+        IndexRequest indexRequest = parseSingleIndexRequest(indexBody);
+
+        assertBytesValue(indexRequest.extraFieldValues().get("raw_bytes"), rawBytes);
+        assertFloatArrayValue(indexRequest.extraFieldValues().get("vector_values"), false, 1.5f, 2.5f);
+        assertFloatArrayValue(indexRequest.extraFieldValues().get("vector_packed"), true, 3.5f, 4.5f);
+    }
+
+    public void testGetDocWriteRequestsWithExtraFieldValuesOnCreate() {
+        BulkRequestBody createBody = createBodyBuilder().putExtraFieldValues("vector", binaryPackedFloatValue(packFloatLE(5.5f, 6.5f)))
+            .build();
+
+        IndexRequest createRequest = parseSingleIndexRequest(createBody);
+
+        assertEquals(DocWriteRequest.OpType.CREATE, createRequest.opType());
+        assertFloatArrayValue(createRequest.extraFieldValues().get("vector"), true, 5.5f, 6.5f);
+    }
+
+    public void testGetDocWriteRequestsWithExtraFieldValuesOnUpdateDocAndUpsert() {
+        org.opensearch.protobufs.UpdateAction updateAction = org.opensearch.protobufs.UpdateAction.newBuilder()
+            .setDoc(ByteString.copyFromUtf8("{\"field\":\"updated\"}"))
+            .setUpsert(ByteString.copyFromUtf8("{\"field\":\"created\"}"))
+            .build();
+
+        BulkRequestBody updateBody = updateBodyBuilder(updateAction).putExtraFieldValues("vector", binaryFloatValues(3.5f, 4.5f)).build();
+
+        UpdateRequest updateRequest = parseSingleUpdateRequest(updateBody);
+
+        assertNotNull(updateRequest.doc());
+        assertNotNull(updateRequest.upsertRequest());
+        assertFloatArrayValue(updateRequest.doc().extraFieldValues().get("vector"), false, 3.5f, 4.5f);
+        assertFloatArrayValue(updateRequest.upsertRequest().extraFieldValues().get("vector"), false, 3.5f, 4.5f);
+    }
+
+    public void testGetDocWriteRequestsWithUpdateDocOnlyExtraFieldValues() {
+        BulkRequestBody updateBody = updateBodyBuilder(
+            org.opensearch.protobufs.UpdateAction.newBuilder().setDoc(ByteString.copyFromUtf8("{\"field\":\"updated\"}")).build()
+        ).putExtraFieldValues("vector", binaryFloatValues(7.5f, 8.5f)).build();
+
+        UpdateRequest updateRequest = parseSingleUpdateRequest(updateBody);
+
+        assertNotNull(updateRequest.doc());
+        assertNull(updateRequest.upsertRequest());
+        assertFloatArrayValue(updateRequest.doc().extraFieldValues().get("vector"), false, 7.5f, 8.5f);
+    }
+
+    public void testGetDocWriteRequestsWithUpdateDocAsUpsertExtraFieldValues() {
+        org.opensearch.protobufs.UpdateAction updateAction = org.opensearch.protobufs.UpdateAction.newBuilder()
+            .setDoc(ByteString.copyFromUtf8("{\"field\":\"updated\"}"))
+            .setDocAsUpsert(true)
+            .build();
+
+        BulkRequestBody updateBody = updateBodyBuilder(updateAction).putExtraFieldValues("vector", binaryFloatValues(9.5f, 10.5f)).build();
+
+        UpdateRequest updateRequest = parseSingleUpdateRequest(updateBody);
+
+        assertTrue(updateRequest.docAsUpsert());
+        assertNotNull(updateRequest.doc());
+        assertNull(updateRequest.upsertRequest());
+        assertFloatArrayValue(updateRequest.doc().extraFieldValues().get("vector"), false, 9.5f, 10.5f);
+    }
+
+    public void testGetDocWriteRequestsWithEmptyBytesExtraFieldValue() {
+        IndexRequest indexRequest = parseSingleIndexRequest(indexBodyWithExtraField("raw_bytes", binaryBytesValue()));
+
+        assertBytesValue(indexRequest.extraFieldValues().get("raw_bytes"));
+    }
+
+    public void testGetDocWriteRequestsWithEmptyFloatValuesExtraFieldValue() {
+        IndexRequest indexRequest = parseSingleIndexRequest(indexBodyWithExtraField("vector", binaryFloatValues()));
+
+        assertFloatArrayValue(indexRequest.extraFieldValues().get("vector"), false);
+    }
+
+    public void testGetDocWriteRequestsWithEmptyPackedFloatExtraFieldValue() {
+        IndexRequest indexRequest = parseSingleIndexRequest(indexBodyWithExtraField("vector", binaryPackedFloatValue(new byte[0])));
+
+        assertFloatArrayValue(indexRequest.extraFieldValues().get("vector"), true);
+    }
+
+    public void testGetDocWriteRequestsRejectsPackedFloatBytesNotMultipleOfFour() {
+        assertRejectsIndexExtraFieldValue(binaryPackedFloatValue(new byte[] { 1, 2, 3 }));
+    }
+
+    public void testGetDocWriteRequestsRejectsInvalidExtraFieldValueWithFieldPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseSingleDocWriteRequest(indexBodyWithExtraField("bad_vector", binaryPackedFloatValue(new byte[] { 1, 2, 3 })))
+        );
+
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid extra_field_values entry [bad_vector]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("packed_le byte length"));
+        assertNotNull(e.getCause());
+    }
+
+    public void testGetDocWriteRequestsRejectsPackedFloatDimensionMismatch() {
+        assertRejectsIndexExtraFieldValue(binaryPackedFloatValue(packFloatLE(1.5f, 2.5f), 3));
+    }
+
+    public void testGetDocWriteRequestsRejectsNegativePackedFloatDimension() {
+        assertRejectsIndexExtraFieldValue(binaryPackedFloatValue(packFloatLE(1.5f), -1));
+    }
+
+    public void testGetDocWriteRequestsRejectsEmptyBinaryFieldValue() {
+        assertRejectsIndexExtraFieldValue(BinaryFieldValue.newBuilder().build());
+    }
+
+    public void testGetDocWriteRequestsRejectsEmptyFloatArrayValue() {
+        BinaryFieldValue emptyFloatArray = BinaryFieldValue.newBuilder()
+            .setFloatArrayValue(org.opensearch.protobufs.FloatArrayValue.newBuilder().build())
+            .build();
+
+        assertRejectsIndexExtraFieldValue(emptyFloatArray);
+    }
+
+    public void testGetDocWriteRequestsRejectsExtraFieldValuesOnDelete() {
+        BulkRequestBody deleteBody = deleteBodyBuilder().putExtraFieldValues("raw_bytes", binaryBytesValue((byte) 1)).build();
+
+        expectThrows(IllegalArgumentException.class, () -> parseSingleDocWriteRequest(deleteBody));
+    }
+
+    public void testGetDocWriteRequestsRejectsUpdateExtraFieldValuesWithoutDocOrUpsert() {
+        BulkRequestBody updateBody = updateBodyBuilder(org.opensearch.protobufs.UpdateAction.newBuilder().setDetectNoop(false).build())
+            .putExtraFieldValues("vector", binaryFloatValues(1.5f))
+            .build();
+
+        expectThrows(IllegalArgumentException.class, () -> parseSingleDocWriteRequest(updateBody));
+    }
+
+    private void assertRejectsIndexExtraFieldValue(BinaryFieldValue value) {
+        expectThrows(IllegalArgumentException.class, () -> parseSingleDocWriteRequest(indexBodyWithExtraField("field", value)));
+    }
+
+    private IndexRequest parseSingleIndexRequest(BulkRequestBody body) {
+        DocWriteRequest<?> request = parseSingleDocWriteRequest(body);
+        assertTrue(request instanceof IndexRequest);
+        return (IndexRequest) request;
+    }
+
+    private UpdateRequest parseSingleUpdateRequest(BulkRequestBody body) {
+        DocWriteRequest<?> request = parseSingleDocWriteRequest(body);
+        assertTrue(request instanceof UpdateRequest);
+        return (UpdateRequest) request;
+    }
+
+    private DocWriteRequest<?> parseSingleDocWriteRequest(BulkRequestBody body) {
+        DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
+            BulkRequest.newBuilder().addBulkRequestBody(body).build(),
+            "default-index",
+            null,
+            null,
+            null,
+            false
+        );
+        assertEquals(1, requests.length);
+        return requests[0];
+    }
+
+    private static BulkRequestBody indexBodyWithExtraField(String field, BinaryFieldValue value) {
+        return indexBodyBuilder().putExtraFieldValues(field, value).build();
+    }
+
+    private static BulkRequestBody.Builder indexBodyBuilder() {
+        return BulkRequestBody.newBuilder()
+            .setOperationContainer(
+                OperationContainer.newBuilder().setIndex(IndexOperation.newBuilder().setXIndex("test-index").build()).build()
+            )
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"));
+    }
+
+    private static BulkRequestBody.Builder createBodyBuilder() {
+        return BulkRequestBody.newBuilder()
+            .setOperationContainer(
+                OperationContainer.newBuilder()
+                    .setCreate(WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build())
+                    .build()
+            )
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value\"}"));
+    }
+
+    private static BulkRequestBody.Builder updateBodyBuilder(org.opensearch.protobufs.UpdateAction updateAction) {
+        return BulkRequestBody.newBuilder()
+            .setOperationContainer(
+                OperationContainer.newBuilder()
+                    .setUpdate(UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build())
+                    .build()
+            )
+            .setUpdateAction(updateAction);
+    }
+
+    private static BulkRequestBody.Builder deleteBodyBuilder() {
+        return BulkRequestBody.newBuilder()
+            .setOperationContainer(
+                OperationContainer.newBuilder()
+                    .setDelete(DeleteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build())
+                    .build()
+            );
+    }
+
+    private static BinaryFieldValue binaryBytesValue(byte... values) {
+        return BinaryFieldValue.newBuilder()
+            .setBytesValue(org.opensearch.protobufs.BytesValue.newBuilder().setBytes(ByteString.copyFrom(values)).build())
+            .build();
+    }
+
+    private static BinaryFieldValue binaryFloatValues(float... values) {
+        FloatList.Builder floatList = FloatList.newBuilder();
+        for (float value : values) {
+            floatList.addValues(value);
+        }
+        return BinaryFieldValue.newBuilder()
+            .setFloatArrayValue(org.opensearch.protobufs.FloatArrayValue.newBuilder().setValues(floatList.build()).build())
+            .build();
+    }
+
+    private static BinaryFieldValue binaryPackedFloatValue(byte[] bytes) {
+        return BinaryFieldValue.newBuilder()
+            .setFloatArrayValue(
+                org.opensearch.protobufs.FloatArrayValue.newBuilder()
+                    .setBinaryLe(FloatBinaryLE.newBuilder().setBytesLe(ByteString.copyFrom(bytes)).build())
+                    .build()
+            )
+            .build();
+    }
+
+    private static BinaryFieldValue binaryPackedFloatValue(byte[] bytes, int dimension) {
+        return BinaryFieldValue.newBuilder()
+            .setFloatArrayValue(
+                org.opensearch.protobufs.FloatArrayValue.newBuilder()
+                    .setBinaryLe(FloatBinaryLE.newBuilder().setBytesLe(ByteString.copyFrom(bytes)).setDimension(dimension).build())
+                    .build()
+            )
+            .build();
+    }
+
+    private static void assertBytesValue(ExtraFieldValue value, byte... expected) {
+        assertTrue(value instanceof BytesValue);
+        assertArrayEquals(expected, BytesReference.toBytes(((BytesValue) value).bytes()));
+    }
+
+    private static void assertFloatArrayValue(ExtraFieldValue value, boolean expectedPackedLE, float... expected) {
+        assertTrue(value instanceof FloatArrayValue);
+        FloatArrayValue floatArrayValue = (FloatArrayValue) value;
+        assertEquals(expectedPackedLE, floatArrayValue.isPackedLE());
+        assertEquals(expected.length, floatArrayValue.dimension());
+        assertArrayEquals(expected, floatArrayValue.asFloatArray(), 0.0f);
+    }
+
+    private static byte[] packFloatLE(float... values) {
+        ByteBuffer buffer = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float value : values) {
+            buffer.putFloat(value);
+        }
+        return buffer.array();
+    }
+
 }

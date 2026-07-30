@@ -24,6 +24,7 @@ public enum ClusterManagerTask {
     DELETE_DANGLING_INDEX("delete-dangling-index", 50),
     CREATE_DATA_STREAM("create-data-stream", 50),
     REMOVE_DATA_STREAM("remove-data-stream", 50),
+    MODIFY_DATA_STREAM("modify-data-stream", 50),
     CREATE_INDEX_TEMPLATE("create-index-template", 50),
     REMOVE_INDEX_TEMPLATE("remove-index-template", 50),
     CREATE_COMPONENT_TEMPLATE("create-component-template", 50),

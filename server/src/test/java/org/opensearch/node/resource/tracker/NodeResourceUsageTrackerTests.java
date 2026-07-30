@@ -176,12 +176,12 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
         long ram = 8L * 1024 * 1024 * 1024;
         assertEquals("heap >= ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(ram, ram));
         assertEquals("heap > ram → unconfigured", "0b", ResourceTrackerSettings.deriveNativeMemoryLimitDefault(ram, ram + 1));
-        // Happy path: 64 GB / 16 GB heap → 79% of (RAM - heap) = 79% of 48 GB.
+        // Happy path: 64 GB / 16 GB heap → 80% of (RAM - heap) = 79% of 48 GB.
         long sixtyFourGB = 64L * 1024 * 1024 * 1024;
         long sixteenGB = 16L * 1024 * 1024 * 1024;
-        long expected = (sixtyFourGB - sixteenGB) * 79 / 100;
+        long expected = (sixtyFourGB - sixteenGB) * 80 / 100;
         assertEquals(
-            "happy path → 79% of (ram - heap)",
+            "happy path → 80% of (ram - heap)",
             expected + "b",
             ResourceTrackerSettings.deriveNativeMemoryLimitDefault(sixtyFourGB, sixteenGB)
         );

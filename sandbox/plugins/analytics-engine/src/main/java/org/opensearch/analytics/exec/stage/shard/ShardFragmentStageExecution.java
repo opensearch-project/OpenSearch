@@ -99,6 +99,9 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         if (nextCopy == null) {
             return Optional.empty();
         }
+        // Update the resolved target so downstream stages (LM fetch) route to the node
+        // that will run the retry, not the original primary that failed.
+        config.updateResolvedTarget(getStageId(), shardTarget.ordinal(), nextCopy);
         return Optional.of(new ShardStageTask(shardTask.id(), nextCopy));
     }
 

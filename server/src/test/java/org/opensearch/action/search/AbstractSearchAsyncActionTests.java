@@ -753,7 +753,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(1, testListener.getPhaseCurrent(expandPhase.getSearchPhaseNameOptional().get()));
 
         action.executeNextPhase(expandPhase, fetchPhase);
-        action.onPhaseDone(); /* finish phase since we don't have reponse being sent */
+        action.onPhaseDone(); /* finish phase since we don't have response being sent */
 
         assertThat(testListener.getPhaseMetric(expandPhase.getSearchPhaseNameOptional().get()), greaterThanOrEqualTo(delay));
         assertEquals(1, testListener.getPhaseTotal(expandPhase.getSearchPhaseNameOptional().get()));

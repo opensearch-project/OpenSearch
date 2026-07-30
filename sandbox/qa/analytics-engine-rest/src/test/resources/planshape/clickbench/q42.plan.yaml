@@ -1,0 +1,105 @@
+# URLHash equality in deep multi-predicate conjunction.
+# Tests hash-value long equality with (WindowClientWidth, WindowClientHeight) grouping.
+query: q42
+ppl_file: q42.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$2], WindowClientWidth=[$0], WindowClientHeight=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], PageViews=[SUM($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[45], viableBackends=[[datafusion]])
+                  OpenSearchAggregate(group=[{0, 1}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+                    OpenSearchProject(WindowClientWidth=[$100], WindowClientHeight=[$99], viableBackends=[[datafusion]])
+                      OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($87, 2868770270353813622)))], viableBackends=[[datafusion]])
+                        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[45], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0, 1}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(WindowClientWidth=[$100], WindowClientHeight=[$99], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($87, 2868770270353813622)))], viableBackends=[[datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$2], WindowClientWidth=[$0], WindowClientHeight=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], PageViews=[SUM($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight, count(Int64(1))[count]@2 as PageViews]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], fetch=45
+          SortExec: TopK(fetch=45), expr=[count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                  FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND IsRefresh@3 = 0 AND DontCountHits@1 = 0 AND URLHash@4 = 2868770270353813622, projection=[WindowClientWidth@6, WindowClientHeight@5]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, URLHash, WindowClientHeight, WindowClientWidth], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND URLHash@26 = 2868770270353813622, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11 AND URLHash_null_count@15 != row_count@3 AND URLHash_min@13 <= 2868770270353813622 AND 2868770270353813622 <= URLHash_max@14, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), URLHash in (2868770270353813622)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight, count(Int64(1))[count]@2 as PageViews]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], fetch=45
+          SortExec: TopK(fetch=45), expr=[count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                  FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND IsRefresh@3 = 0 AND DontCountHits@1 = 0 AND URLHash@4 = 2868770270353813622, projection=[WindowClientWidth@6, WindowClientHeight@5]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, URLHash, WindowClientHeight, WindowClientWidth], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND URLHash@26 = 2868770270353813622, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11 AND URLHash_null_count@15 != row_count@3 AND URLHash_min@13 <= 2868770270353813622 AND 2868770270353813622 <= URLHash_max@14, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), URLHash in (2868770270353813622)]
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.PageViews)@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [sum(input-0.PageViews)@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[sum(input-0.PageViews)@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[sum(input-0.PageViews)@2 as sum(input-0.PageViews), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+                AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[sum(input-0.PageViews)]
+                  RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[sum(input-0.PageViews)]
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        StreamingTableExec: partition_sizes=1, projection=[WindowClientWidth, WindowClientHeight, PageViews]
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$2], WindowClientWidth=[$0], WindowClientHeight=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(WindowClientWidth=[$100], WindowClientHeight=[$99], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($87, 2868770270353813622)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(PageViews=[$2], WindowClientWidth=[$0], WindowClientHeight=[$1], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(WindowClientWidth=[$100], WindowClientHeight=[$99], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], =($87, 2868770270353813622)))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+                AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                      FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND IsRefresh@3 = 0 AND DontCountHits@1 = 0 AND URLHash@4 = 2868770270353813622, projection=[WindowClientWidth@6, WindowClientHeight@5]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, URLHash, WindowClientHeight, WindowClientWidth], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND URLHash@26 = 2868770270353813622, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11 AND URLHash_null_count@15 != row_count@3 AND URLHash_min@13 <= 2868770270353813622 AND 2868770270353813622 <= URLHash_max@14, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), URLHash in (2868770270353813622)]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
+        GlobalLimitExec: skip=5, fetch=10
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
+            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+                AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                  RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
+                      FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND IsRefresh@3 = 0 AND DontCountHits@1 = 0 AND URLHash@4 = 2868770270353813622, projection=[WindowClientWidth@6, WindowClientHeight@5]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, URLHash, WindowClientHeight, WindowClientWidth], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND IsRefresh@74 = 0 AND DontCountHits@43 = 0 AND URLHash@26 = 2868770270353813622, pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND IsRefresh_null_count@9 != row_count@3 AND IsRefresh_min@7 <= 0 AND 0 <= IsRefresh_max@8 AND DontCountHits_null_count@12 != row_count@3 AND DontCountHits_min@10 <= 0 AND 0 <= DontCountHits_max@11 AND URLHash_null_count@15 != row_count@3 AND URLHash_min@13 <= 2868770270353813622 AND 2868770270353813622 <= URLHash_max@14, required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), URLHash in (2868770270353813622)]

@@ -108,7 +108,7 @@ doesn't formally bound this.
 
 A byte-aware bounded queue at the eventloop entry — that parks (or rejects)
 the producer when the sum of queued batch sizes crosses a per-channel cap —
-would close the gap. Open design questions:
+would close the gap for the async path. Open design questions:
 
 - **Cap dimension**: byte-aware (sum of retained sizes) vs depth-aware (count).
   Bytes is correct for OOM protection.
@@ -119,6 +119,21 @@ would close the gap. Open design questions:
   budget tied to `flight pool max`.
 
 Tracked separately; not addressed in this change.
+
+### Synchronous send (bounded, opt-in)
+
+A caller that needs a hard bound *today* can send synchronously:
+`channel.sendResponseBatch(response, /* sync */ true)`. The batch is still
+serialized and written on the channel's send executor (the same executor the
+async path uses), but the calling thread **blocks until the batch has been
+pushed to gRPC's per-stream outbound buffer**, so it cannot queue the next batch
+ahead of this one — outstanding batches are bounded to one, with no eventloop
+queue to grow. When that outbound buffer is full, the `isReady()` back-pressure
+gate (above) throttles the producer.
+
+A caller that opts in **must drive a single stream from a single thread** and must
+not call from the send-executor thread itself. The default
+`sendResponseBatch(response)` is unchanged — async, via the eventloop.
 
 ### ⚠️ Virtual threads for park-bound producers
 

@@ -195,7 +195,7 @@ public class DataFormatAwareRestoreShallowSnapshotV2IT extends AbstractSnapshotI
     protected void indexDocuments(Client client, String indexName, int fromId, int toId) {
         for (int i = fromId; i < toId; i++) {
             String id = Integer.toString(i);
-            client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            client.prepareIndex(indexName).setSource("text", "sometext").get();
         }
     }
 
@@ -1933,6 +1933,113 @@ public class DataFormatAwareRestoreShallowSnapshotV2IT extends AbstractSnapshotI
         assertEquals(RestStatus.OK, restoreResponse.status());
         ensureGreen(indexName);
         assertDocCountInIndex(client, indexName, numDocs);
+    }
+
+    /**
+     * End-to-end V2 snapshot lifecycle for a hot DFA index, validating that indexing + refresh +
+     * catalog/segments invariants hold across two restore cycles:
+     * <ol>
+     *   <li>Create hot DFA index, ingest, snapshot {@code snap1}, delete, restore from {@code snap1}.</li>
+     *   <li>After restore: validate engine, catalog, doc count, then ingest more, refresh, validate.</li>
+     *   <li>Snapshot the now-larger index as {@code snap2}, delete, restore from {@code snap2}.</li>
+     *   <li>After second restore: validate everything again, ingest more, refresh, validate.</li>
+     * </ol>
+     */
+    public void testV2HotDFASnapshotRestoreLifecycle() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
+
+        final String indexName = "hot-v2-lifecycle";
+        final String repoName = "test-snapshot-repo";
+        final String snap1 = "snap1-initial";
+        final String snap2 = "snap2-after-more-docs";
+
+        final int initialDocs = 30;
+        final int phase2Docs = 20;
+        final int phase3Docs = 15;
+        final int totalAtSnap2 = initialDocs + phase2Docs;
+        final int finalTotal = totalAtSnap2 + phase3Docs;
+
+        Path repoPath = randomRepoPath().toAbsolutePath();
+        createRepository(repoName, "fs", getRepositorySettings(repoPath, true));
+
+        // ── Phase 1: create hot DFA index, ingest, snapshot ────────────────
+        Client client = client();
+        createIndex(indexName, getIndexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocuments(client, indexName, 0, initialDocs);
+        refresh(indexName);
+        flush(indexName);
+        assertDocCountInIndex(client, indexName, initialDocs);
+
+        IndexShard shardPreSnap1 = getShardZero(indexName);
+        assertAllFormatDirsHaveFiles(shardPreSnap1);
+        DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shardPreSnap1);
+
+        SnapshotInfo s1 = createSnapshot(repoName, snap1, new ArrayList<>());
+        assertThat(s1.state(), equalTo(SnapshotState.SUCCESS));
+        assertEquals(1, s1.successfulShards());
+
+        // ── Restore from snap1, validate, ingest more, validate, snap2 ─────
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).get());
+        assertFalse(indexExists(indexName));
+
+        RestoreSnapshotResponse r1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snap1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(RestStatus.OK, r1.status());
+        ensureGreen(indexName);
+
+        // Post-restore #1 validations
+        IndexShard shardR1 = getShardZero(indexName);
+        assertAllFormatDirsHaveFiles(shardR1);
+        DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shardR1);
+        assertDocCountInIndex(client, indexName, initialDocs);
+
+        // Ingest more on the restored index — proves indexing works post-restore
+        indexDocuments(client, indexName, initialDocs, totalAtSnap2);
+        refresh(indexName);
+        flush(indexName);
+        assertDocCountInIndex(client, indexName, totalAtSnap2);
+
+        IndexShard shardAfterPhase2 = getShardZero(indexName);
+        assertAllFormatDirsHaveFiles(shardAfterPhase2);
+        DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shardAfterPhase2);
+
+        SnapshotInfo s2 = createSnapshot(repoName, snap2, new ArrayList<>());
+        assertThat(s2.state(), equalTo(SnapshotState.SUCCESS));
+        assertEquals(1, s2.successfulShards());
+
+        // ── Delete and restore from snap2 (the LATER snapshot, larger doc set) ─
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).get());
+        assertFalse(indexExists(indexName));
+
+        RestoreSnapshotResponse r2 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snap2)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(RestStatus.OK, r2.status());
+        ensureGreen(indexName);
+
+        // Post-restore #2 validations — must reflect snap2 (totalAtSnap2 docs)
+        IndexShard shardR2 = getShardZero(indexName);
+        assertAllFormatDirsHaveFiles(shardR2);
+        DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shardR2);
+        assertDocCountInIndex(client, indexName, totalAtSnap2);
+
+        // Ingest yet more, refresh, validate — proves indexing still works after second restore
+        indexDocuments(client, indexName, totalAtSnap2, finalTotal);
+        refresh(indexName);
+        assertDocCountInIndex(client, indexName, finalTotal);
+
+        IndexShard shardFinal = getShardZero(indexName);
+        assertAllFormatDirsHaveFiles(shardFinal);
+        DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shardFinal);
     }
 
 }

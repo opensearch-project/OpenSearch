@@ -280,7 +280,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
@@ -324,7 +324,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
         ensureGreen(name);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(name).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(name).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(name).get();
         client().admin().indices().prepareFlush(name).get();
@@ -1070,7 +1070,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         assertTrue("index creation must be acknowledged", response.isAcknowledged());
         ensureGreen(name);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(name).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(name).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(name).get();
     }
