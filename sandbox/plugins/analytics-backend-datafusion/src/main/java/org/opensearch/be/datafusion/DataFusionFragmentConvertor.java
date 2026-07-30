@@ -434,6 +434,25 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /**
+     * Analytics-engine binding for SQL's reflective {@code CHECKED_LONG_SUM}. The runtime
+     * implementation delegates to DataFusion's native SUM but keeps this distinct function name
+     * so plans containing both SUM and CHECKED_LONG_SUM do not produce duplicate Arrow field names.
+     */
+    static final SqlAggFunction LOCAL_CHECKED_LONG_SUM_OP = new SqlAggFunction(
+        "checked_long_sum",
+        null,
+        SqlKind.SUM,
+        ReturnTypes.BIGINT_NULLABLE,
+        null,
+        OperandTypes.NUMERIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -444,14 +463,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
-        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct"),
+        FunctionMappings.s(LOCAL_CHECKED_LONG_SUM_OP, "checked_long_sum")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
-        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct"),
+        FunctionMappings.s(LOCAL_CHECKED_LONG_SUM_OP, "checked_long_sum")
     );
 
     /**
@@ -716,7 +737,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 AggregateCall call,
                 Function<RexNode, Expression> rexConverter
             ) {
-                AggregateCall substraitCall = canonicalizeAggregate(call);
+                AggregateCall substraitCall = bindCheckedLongSum(call);
                 Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, substraitCall, rexConverter);
                 if (bound.isEmpty()) {
                     return bound;
@@ -751,13 +772,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
 
-            private AggregateCall canonicalizeAggregate(AggregateCall call) {
+            private AggregateCall bindCheckedLongSum(AggregateCall call) {
                 if (call.getAggregation() == SqlStdOperatorTable.SUM || call.getAggregation().getKind() != SqlKind.SUM) {
                     return call;
                 }
                 return AggregateCall.create(
                     call.getParserPosition(),
-                    SqlStdOperatorTable.SUM,
+                    LOCAL_CHECKED_LONG_SUM_OP,
                     call.isDistinct(),
                     call.isApproximate(),
                     call.ignoreNulls(),
@@ -791,17 +812,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 Function<RexNode, Expression> rexConverter,
                 RexExpressionConverter rexExpressionConverter
             ) {
-                return super.convert(canonicalizeWindow(call), rexConverter, rexExpressionConverter);
+                return super.convert(bindCheckedLongSum(call), rexConverter, rexExpressionConverter);
             }
 
-            private RexOver canonicalizeWindow(RexOver call) {
+            private RexOver bindCheckedLongSum(RexOver call) {
                 if (call.getAggOperator() == SqlStdOperatorTable.SUM || call.getAggOperator().getKind() != SqlKind.SUM) {
                     return call;
                 }
                 RexWindow window = call.getWindow();
                 return (RexOver) new RexBuilder(typeFactory).makeOver(
                     call.getType(),
-                    SqlStdOperatorTable.SUM,
+                    LOCAL_CHECKED_LONG_SUM_OP,
                     call.getOperands(),
                     window.partitionKeys,
                     window.orderKeys,

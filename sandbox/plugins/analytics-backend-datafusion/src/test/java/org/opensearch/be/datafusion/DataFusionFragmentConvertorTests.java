@@ -766,10 +766,10 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
-     * A custom aggregate with SUM semantics is canonicalized to Calcite's standard SUM for
-     * Substrait binding. This covers SQL's CHECKED_LONG_SUM operator.
+     * A custom aggregate with SUM semantics binds to the distinctly named analytics adapter. The
+     * adapter delegates execution to native DataFusion SUM.
      */
-    public void testCustomSumUsesNativeSumBinding() throws Exception {
+    public void testCustomSumUsesCheckedLongSumBinding() throws Exception {
         RelNode scan = buildTableScan("test_index", "A");
         SqlAggFunction checkedLongSum = checkedLongSumOperator();
         AggregateCall checkedSumCall = AggregateCall.create(
@@ -784,11 +784,11 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         Plan plan = decodeSubstrait(newConvertor().convertFragment(agg));
 
-        assertUsesNativeSum(plan);
+        assertUsesCheckedLongSum(plan);
     }
 
-    /** A custom SUM window call uses the same native SUM binding as an aggregate call. */
-    public void testCustomWindowSumUsesNativeSumBinding() throws Exception {
+    /** A custom SUM window call uses the same checked-long-sum adapter as an aggregate call. */
+    public void testCustomWindowSumUsesCheckedLongSumBinding() throws Exception {
         RelNode scan = buildTableScan("test_index", "A");
         RelDataType bigintType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
         RexNode checkedSumOver = rexBuilder.makeOver(
@@ -815,7 +815,23 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
         Plan plan = decodeSubstrait(newConvertor().convertFragment(project));
 
-        assertUsesNativeSum(plan);
+        assertUsesCheckedLongSum(plan);
+    }
+
+    /** Native and checked SUM keep distinct extension names when they target the same field. */
+    public void testNativeAndCheckedSumUseDistinctBindings() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A");
+        RelDataType integerType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelDataType bigintType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        AggregateCall nativeSum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, integerType, "native_sum");
+        AggregateCall checkedSum = AggregateCall.create(checkedLongSumOperator(), false, List.of(0), -1, bigintType, "checked_sum");
+        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(nativeSum, checkedSum));
+
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(agg));
+        java.util.Set<String> functionNames = extensionFunctionNames(plan);
+
+        assertTrue("native SUM binding is required", functionNames.contains("sum"));
+        assertTrue("checked SUM binding is required", functionNames.contains("checked_long_sum"));
     }
 
     private SqlAggFunction checkedLongSumOperator() {
@@ -834,19 +850,17 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         };
     }
 
-    private void assertUsesNativeSum(Plan plan) {
-        boolean foundSum = false;
-        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
-            if (decl.hasExtensionFunction()) {
-                String name = decl.getExtensionFunction().getName();
-                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
-                assertNotEquals("custom operator name must not reach Substrait", "checked_long_sum", baseName);
-                if (baseName.equals("sum")) {
-                    foundSum = true;
-                }
-            }
-        }
-        assertTrue("custom SUM must use the native sum extension", foundSum);
+    private void assertUsesCheckedLongSum(Plan plan) {
+        assertTrue("custom SUM must use the checked_long_sum adapter", extensionFunctionNames(plan).contains("checked_long_sum"));
+    }
+
+    private java.util.Set<String> extensionFunctionNames(Plan plan) {
+        return plan.getExtensionsList()
+            .stream()
+            .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+            .map(decl -> decl.getExtensionFunction().getName())
+            .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
+            .collect(java.util.stream.Collectors.toSet());
     }
 
     /**

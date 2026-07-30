@@ -13,12 +13,14 @@
 use datafusion::execution::context::SessionContext;
 
 pub mod approx_distinct_safe;
+pub mod checked_long_sum;
 pub mod internal_pattern;
 pub mod list_merge;
 pub mod os_count_distinct;
 pub mod take;
 
 pub fn register_all(ctx: &SessionContext) {
+    checked_long_sum::register_all(ctx);
     take::register_all(ctx);
     list_merge::register_all(ctx);
     internal_pattern::register_all(ctx);
