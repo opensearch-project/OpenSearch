@@ -114,6 +114,21 @@ public final class TableSummarizer {
         }
 
         Map<String, List<Table.Cell>> colMap = table.getAsMap();
+
+        // Validate that every referenced column exists in the table. Silently producing empty or
+        // misaligned output on a typo would be surprising — reject the request up-front with a
+        // clear error naming the offending token.
+        for (int i = 0; i < groupByFields.length; i++) {
+            if (colMap.containsKey(resolvedGroupBy[i]) == false) {
+                throw new IllegalArgumentException("Unknown column in h= (group-by): '" + groupByFields[i] + "'");
+            }
+        }
+        for (AggColumn agg : aggColumns) {
+            if (colMap.containsKey(agg.field) == false) {
+                throw new IllegalArgumentException("Unknown column in h= aggregation " + agg.func + "(...): '" + agg.field + "'");
+            }
+        }
+
         int rowCount = table.getRows().size();
 
         // Single-pass online aggregation. For each row we resolve its group key and update the
@@ -174,7 +189,8 @@ public final class TableSummarizer {
      * metadata. Values containing the attribute delimiters ({@code ;} or {@code :}) are skipped to
      * avoid producing a string that cannot be parsed back correctly.
      */
-    private static String copyHeaderAttrString(Table.Cell origHeader, String fallbackDesc) {
+    // Package-private for direct unit testing (delimiter-in-value handling).
+    static String copyHeaderAttrString(Table.Cell origHeader, String fallbackDesc) {
         if (origHeader == null || origHeader.attr == null || origHeader.attr.isEmpty()) {
             return "desc:" + fallbackDesc;
         }
@@ -183,7 +199,13 @@ public final class TableSummarizer {
         for (Map.Entry<String, String> e : origHeader.attr.entrySet()) {
             String v = e.getValue();
             if (v == null) continue;
-            if (v.indexOf(';') >= 0 || v.indexOf(':') >= 0) continue; // skip un-encodable values
+            // Attribute strings are parsed on ';' and ':', so delimiter chars inside a value would
+            // otherwise mangle the parse. Replace them with spaces so the attribute survives the
+            // round-trip (the desc text is slightly reformatted; alias/text-align are unaffected
+            // because those values never contain these characters in practice).
+            if (v.indexOf(';') >= 0 || v.indexOf(':') >= 0) {
+                v = v.replace(';', ' ').replace(':', ' ');
+            }
             if (sb.length() > 0) sb.append(';');
             sb.append(e.getKey()).append(':').append(v);
             if ("desc".equals(e.getKey())) hasDesc = true;
@@ -236,13 +258,15 @@ public final class TableSummarizer {
 
     /**
      * Per-(group, column) running aggregator. Maintains the sum, min, max, count of contributing
-     * (non-null and numerically-parseable) values, and a {@code countAll} including null/unparseable
-     * rows for the {@code count} function. The first non-null value seen is captured as a
-     * {@code sampleValue} so the aggregated output can be wrapped back into its source type
-     * (ByteSizeValue, TimeValue, etc.).
+     * (non-null and numerically-parseable) values, and separate row-counters for {@code count()}
+     * semantics: {@code countNonNull} for {@code count(field)} (matches SQL {@code COUNT(field)}),
+     * and {@code countAll} which counts every row seen regardless of value nullness. The first
+     * non-null value seen is captured as a {@code sampleValue} so the aggregated output can be
+     * wrapped back into its source type (ByteSizeValue, TimeValue, etc.).
      */
     static final class Aggregator {
         long countAll = 0;
+        long countNonNull = 0;
         long countContributing = 0;
         Double sum = null;
         Double min = null;
@@ -252,6 +276,7 @@ public final class TableSummarizer {
         void add(Object value) {
             countAll++;
             if (value != null) {
+                countNonNull++;
                 if (sampleValue == null) sampleValue = value;
                 Double num = parseAsDouble(value);
                 if (num != null) {
@@ -267,7 +292,9 @@ public final class TableSummarizer {
         Object getValue(String function) {
             switch (function) {
                 case "count":
-                    return countAll;
+                    // SQL semantics: COUNT(field) excludes null values. Use countAll if the caller
+                    // wants row count regardless of null (not currently exposed through h=).
+                    return countNonNull;
                 case "sum":
                     return sum == null ? null : formatValue(sum, sampleValue);
                 case "min":

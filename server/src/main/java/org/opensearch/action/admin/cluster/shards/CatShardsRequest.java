@@ -49,7 +49,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
             }
             requestLimitCheckSupported = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
             indicesStatsRequired = in.readBoolean();
         }
     }
@@ -70,7 +70,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
             }
             out.writeBoolean(requestLimitCheckSupported);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
             out.writeBoolean(indicesStatsRequired);
         }
     }

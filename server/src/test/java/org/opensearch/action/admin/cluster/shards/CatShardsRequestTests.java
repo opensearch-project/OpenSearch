@@ -109,4 +109,51 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
             }
         }
     }
+
+    // --- Mixed-version wire-compatibility coverage for the indicesStatsRequired field (V_3_8_0 gate) ---
+
+    /**
+     * At a version on/after the gate (both nodes on a version that knows the field), the flag must
+     * round-trip exactly in both states. Models same-version feature-to-feature transport.
+     */
+    public void testIndicesStatsRequiredRoundTripsOnCurrentVersion() throws Exception {
+        for (boolean flag : new boolean[] { true, false }) {
+            CatShardsRequest request = new CatShardsRequest();
+            request.setIndicesStatsRequired(flag);
+            assertTrue(Version.CURRENT.onOrAfter(Version.V_3_8_0));
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(Version.CURRENT);
+                request.writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setVersion(Version.CURRENT);
+                    CatShardsRequest deserialized = new CatShardsRequest(in);
+                    assertEquals(flag, deserialized.isIndicesStatsRequired());
+                }
+            }
+        }
+    }
+
+    /**
+     * When the negotiated peer version is BEFORE the gate (a true old node that predates the
+     * feature), the field is NOT written and NOT read, so the stream stays aligned and the reader
+     * falls back to the safe default (true = fetch stats, i.e. legacy behavior). This is the mixed
+     * cluster safety guarantee: an old peer never desynchronizes the stream, and the optimization
+     * simply does not engage.
+     */
+    public void testIndicesStatsRequiredDefaultsTrueWhenPeerBeforeGate() throws Exception {
+        Version oldVersion = VersionUtils.getPreviousVersion(Version.V_3_8_0);
+        assertTrue(oldVersion.before(Version.V_3_8_0));
+        CatShardsRequest request = new CatShardsRequest();
+        request.setIndicesStatsRequired(false); // even if the coordinator wanted to skip stats...
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(oldVersion);
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(oldVersion);
+                CatShardsRequest deserialized = new CatShardsRequest(in);
+                // ...an old peer reads the safe default and fetches stats as before (no skip).
+                assertTrue(deserialized.isIndicesStatsRequired());
+            }
+        }
+    }
 }

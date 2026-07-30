@@ -17,6 +17,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TableSummarizerTests extends OpenSearchTestCase {
@@ -425,8 +426,8 @@ public class TableSummarizerTests extends OpenSearchTestCase {
         Table result = TableSummarizer.summarize(t, "g,avg(v),count(v)");
         // avg = (10 + 20) / 2 = 15 (NOT 30/3 = 10)
         assertThat(((Number) result.getAsMap().get("avg(v)").get(0).value).longValue(), equalTo(15L));
-        // count counts ALL rows in the group, including the null row.
-        assertThat(result.getAsMap().get("count(v)").get(0).value, equalTo(3L));
+        // count(field) matches SQL COUNT(field): non-null rows only. Row with null value is excluded.
+        assertThat(result.getAsMap().get("count(v)").get(0).value, equalTo(2L));
     }
 
     public void testAvgIsNullWhenAllValuesAreNull() {
@@ -449,8 +450,8 @@ public class TableSummarizerTests extends OpenSearchTestCase {
         assertNull(result.getAsMap().get("avg(v)").get(0).value);
         // sum is null when no values contributed (we don't synthesize 0).
         assertNull(result.getAsMap().get("sum(v)").get(0).value);
-        // count counts all rows regardless.
-        assertThat(result.getAsMap().get("count(v)").get(0).value, equalTo(2L));
+        // count(field) excludes nulls; when every row is null, count is zero.
+        assertThat(result.getAsMap().get("count(v)").get(0).value, equalTo(0L));
     }
 
     // ---------- GroupKey correctness ----------
@@ -481,5 +482,108 @@ public class TableSummarizerTests extends OpenSearchTestCase {
         Table result = TableSummarizer.summarize(t, "a,b,sum(v)");
         // Two distinct groups (rather than one collapsed group).
         assertThat(result.getRows().size(), equalTo(2));
+    }
+
+    // ---------- unknown-column validation ----------
+
+    public void testUnknownGroupByColumnThrows() {
+        Table t = buildNumericTable();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TableSummarizer.summarize(t, "not_a_column,sum(docs)")
+        );
+        assertEquals("Unknown column in h= (group-by): 'not_a_column'", e.getMessage());
+    }
+
+    public void testUnknownAggregationColumnThrows() {
+        Table t = buildNumericTable();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TableSummarizer.summarize(t, "index,sum(not_a_column)")
+        );
+        assertEquals("Unknown column in h= aggregation sum(...): 'not_a_column'", e.getMessage());
+    }
+
+    public void testAliasedGroupByStillResolves() {
+        // buildNumericTable's "index" column has no alias, so use the shard-cat pattern via the
+        // aliasMap indirectly: register a synthetic alias by building a table that declares one.
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "alias:i,idx;desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        t.startRow();
+        t.addCell("a");
+        t.addCell(10L);
+        t.endRow();
+        t.startRow();
+        t.addCell("a");
+        t.addCell(20L);
+        t.endRow();
+
+        // Alias "i" resolves to "index" — validation must accept aliased references.
+        Table result = TableSummarizer.summarize(t, "i,sum(docs)");
+        assertThat(result.getRows().size(), equalTo(1));
+        assertThat(result.getAsMap().get("sum(docs)").get(0).value, equalTo(30L));
+    }
+
+    public void testAliasedAggregationFieldStillResolves() {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "alias:d,dc;text-align:right;desc:doc count");
+        t.endHeaders();
+        t.startRow();
+        t.addCell("a");
+        t.addCell(10L);
+        t.endRow();
+        t.startRow();
+        t.addCell("a");
+        t.addCell(20L);
+        t.endRow();
+
+        // Alias "dc" inside sum(...) resolves to "docs".
+        Table result = TableSummarizer.summarize(t, "index,sum(dc)");
+        assertThat(result.getRows().size(), equalTo(1));
+        assertThat(result.getAsMap().get("sum(dc)").get(0).value, equalTo(30L));
+    }
+
+    // ---------- header attribute sanitization ----------
+
+    public void testHeaderAttrDelimitersAreSanitizedNotDropped() {
+        // If a header's desc contains a colon or semicolon, previously copyHeaderAttrString would
+        // silently drop the whole attribute. It now sanitizes the value (replacing ; and : with
+        // spaces) so the attribute survives the round-trip.
+        //
+        // We call copyHeaderAttrString directly with a manually-constructed attr map because the
+        // Table.addCell attribute parser cannot itself parse a raw string with ':' inside a value
+        // — that's exactly the scenario the sanitizer defends against for programmatically-built
+        // headers.
+        Table.Cell origHeader = new Table.Cell("index");
+        origHeader.attr.put("alias", "i");
+        origHeader.attr.put("desc", "contains: colon and; semicolon");
+
+        String out = TableSummarizer.copyHeaderAttrString(origHeader, "fallback");
+
+        // The 'desc' attribute must survive (not be silently dropped) and be delimiter-free.
+        assertThat(out, containsString("desc:contains  colon and  semicolon"));
+        // The alias attribute (which never had delimiters) is preserved as-is.
+        assertThat(out, containsString("alias:i"));
+        // No stray raw delimiters remain inside values (the outer ';'/':' separators are fine).
+        // Split on ';' and inspect each entry for balanced key:value shape.
+        for (String entry : out.split(";")) {
+            int firstColon = entry.indexOf(':');
+            assertTrue("each attr entry should have a key:value shape: " + entry, firstColon > 0);
+            String value = entry.substring(firstColon + 1);
+            assertFalse("value must not contain raw ';': " + value, value.contains(";"));
+            assertFalse("value must not contain raw ':': " + value, value.contains(":"));
+        }
+    }
+
+    public void testHeaderAttrEmptyFallsBackToDefaultDesc() {
+        // Sanity check: an empty attr map yields the fallback desc, and no other attributes.
+        Table.Cell origHeader = new Table.Cell("index");
+        String out = TableSummarizer.copyHeaderAttrString(origHeader, "fallback");
+        assertEquals("desc:fallback", out);
     }
 }
