@@ -794,15 +794,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     /**
-     * Builds a Substrait {@link VirtualTableScan} for an inline-literal {@link org.apache.calcite.rel.core.Values}
-     * leaf, mapping every CHAR/VARCHAR column to a length-independent {@code Str} in BOTH the base
-     * schema and every row literal. isthmus's own {@code visit(Values)} derives a
-     * {@code fixed_char(n)} literal from each string value while typing the schema column from the
-     * RelDataType, so a multi-row literal table (e.g. {@code makeresults data=}) trips
-     * {@link VirtualTableScan}'s row-conforms-to-schema check (FixedChar(3) vs FixedChar(5), or
-     * FixedChar vs Str). Normalising char types to {@code Str} here at the RelNode-to-POJO layer, in
-     * front of that check, makes the VirtualTable self-consistent. Numeric and boolean columns are
-     * left to isthmus's own literal/type converters since they are already length-independent.
+     * Builds the Substrait {@link VirtualTableScan} for an inline {@link org.apache.calcite.rel.core.Values}
+     * leaf, normalising every CHAR/VARCHAR column to a length-independent {@code Str} in both the base
+     * schema and the row literals.
      */
     private static Rel virtualTableWithStrLiterals(
         org.apache.calcite.rel.core.Values values,
