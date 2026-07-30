@@ -55,10 +55,9 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
     }
 
     /**
-     * Builds a {@link StringTerms} (keys rendered via {@code toString}; per-key-type
-     * Long/Double variants are follow-up work). Shard accounting fields are zero — the
-     * analytics path computes exact groups with no per-shard truncation. Bucket order is
-     * already established by the plan's post-aggregate sort.
+     * Builds a {@link StringTerms}. Buckets are sorted by the requested order, filtered by
+     * {@code min_doc_count}, and truncated to {@code size}; truncated bucket counts are
+     * reported as {@code sum_other_doc_count}.
      */
     @Override
     public InternalAggregation toBucketAggregation(TermsAggregationBuilder agg, Iterable<BucketEntry> buckets) {
@@ -70,9 +69,25 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
                 // missing field entirely (no bucket) unless "missing" is configured.
                 continue;
             }
+            if (entry.docCount() < agg.minDocCount()) {
+                continue;
+            }
             BytesRef term = new BytesRef(key.toString());
             termBuckets.add(new StringTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
+
+        // Sort per this aggregation's own order: sibling aggregations sharing a granularity
+        // share one plan-level sort, which cannot satisfy two different requested orders.
+        termBuckets.sort(getBucketOrder(agg).comparator());
+
+        long otherDocCount = 0;
+        if (termBuckets.size() > agg.size()) {
+            for (int i = agg.size(); i < termBuckets.size(); i++) {
+                otherDocCount += termBuckets.get(i).getDocCount();
+            }
+            termBuckets = new ArrayList<>(termBuckets.subList(0, agg.size()));
+        }
+
         BucketOrder order = agg.order();
         TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(
             agg.minDocCount(),
@@ -88,7 +103,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             DocValueFormat.RAW,
             agg.shardSize(),
             false,
-            0,
+            otherDocCount,
             termBuckets,
             0,
             thresholds
