@@ -36,6 +36,9 @@ import org.apache.calcite.util.Optionality;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
+import org.apache.calcite.rel.logical.LogicalValues;
+import org.apache.calcite.rex.RexLiteral;
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
@@ -849,4 +852,65 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
+
+    // -- VirtualTable (inline Values) CHAR/VARCHAR -> Str normalization (PR #22554) --
+
+    /**
+     * A Values with a character column whose rows differ in length must convert to a VirtualTable
+     * whose schema column AND every row cell are Str, not fixed_char. Before the fix this tripped
+     * VirtualTableScan's row-conforms-to-schema check (FixedChar(5) vs FixedChar(3)) and
+     * convertFragment threw IllegalStateException.
+     */
+    public void testVirtualTable_MultiLengthCharColumn_NormalizedToStr() throws Exception {
+        LogicalValues values = charValues("Alice", "Bob");
+        ReadRel read = rootRel(decodeSubstrait(newConvertor().convertFragment(values))).getRead();
+        assertTrue("must be a VirtualTable", read.hasVirtualTable());
+        assertTrue("char schema column must be Str, not fixed_char", read.getBaseSchema().getStruct().getTypes(0).hasString());
+        assertEquals("two rows", 2, read.getVirtualTable().getExpressionsCount());
+        for (int r = 0; r < 2; r++) {
+            Expression cell = read.getVirtualTable().getExpressions(r).getFields(0);
+            assertTrue("row " + r + " cell must be a string literal", cell.getLiteral().hasString());
+        }
+    }
+
+    /** A mixed character + integer Values: char column -> Str; the integer column is left to isthmus and stays i32. */
+    public void testVirtualTable_MixedCharAndInt_IntStaysNumeric() throws Exception {
+        RelDataType charType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), true);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", charType).add("age", intType).build();
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(charLiteral("Alice"), (RexLiteral) rexBuilder.makeLiteral(30, intType, false)),
+            ImmutableList.of(charLiteral("Bob"), (RexLiteral) rexBuilder.makeLiteral(25, intType, false)));
+        LogicalValues values = (LogicalValues) LogicalValues.create(cluster, rowType, tuples);
+        ReadRel read = rootRel(decodeSubstrait(newConvertor().convertFragment(values))).getRead();
+        assertTrue("char column -> Str", read.getBaseSchema().getStruct().getTypes(0).hasString());
+        assertTrue("int column stays numeric (i32)", read.getBaseSchema().getStruct().getTypes(1).hasI32());
+        Expression.Nested.Struct row0 = read.getVirtualTable().getExpressions(0);
+        assertTrue("char cell -> string literal", row0.getFields(0).getLiteral().hasString());
+        assertEquals("int cell stays i32", 30, row0.getFields(1).getLiteral().getI32());
+    }
+
+    /** A zero-row Values takes the guarded branch (super.visit) and still lowers to a ReadRel. */
+    public void testVirtualTable_EmptyValues_DelegatesToSuper() throws Exception {
+        RelDataType charType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), true);
+        RelDataType rowType = typeFactory.builder().add("name", charType).build();
+        LogicalValues empty = (LogicalValues) LogicalValues.createEmpty(cluster, rowType);
+        assertTrue("empty Values still lowers to a ReadRel", rootRel(decodeSubstrait(newConvertor().convertFragment(empty))).hasRead());
+    }
+
+    /** Builds a single-column CHAR Values, one row per value (each CHAR of the value's own length). */
+    private LogicalValues charValues(String... values) {
+        RelDataType colType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), true);
+        RelDataType rowType = typeFactory.builder().add("name", colType).build();
+        java.util.List<ImmutableList<RexLiteral>> tuples = new java.util.ArrayList<>();
+        for (String v : values) {
+            tuples.add(ImmutableList.of(charLiteral(v)));
+        }
+        return (LogicalValues) LogicalValues.create(cluster, rowType, ImmutableList.copyOf(tuples));
+    }
+
+    /** A CHAR literal of the value's own length (e.g. 'Alice' -> CHAR(5), 'Bob' -> CHAR(3)). */
+    private RexLiteral charLiteral(String v) {
+        return (RexLiteral) rexBuilder.makeLiteral(v, typeFactory.createSqlType(SqlTypeName.CHAR, v.length()), false);
+    }
 }
