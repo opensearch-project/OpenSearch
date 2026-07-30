@@ -1,0 +1,1 @@
+source=test_data | eval ifnull_val = ifnull(status, "default") | fields status, ifnull_val | head 3

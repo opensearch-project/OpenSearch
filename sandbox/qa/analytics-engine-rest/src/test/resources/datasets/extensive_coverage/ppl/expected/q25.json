@@ -1,0 +1,25 @@
+{
+  "schema": [
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "curr",
+      "type": "timestamp"
+    },
+    {
+      "name": "curr_date",
+      "type": "date"
+    }
+  ],
+  "datarows": [
+    [
+      "2026-01-15 10:30:00",
+      "%%DATETIME%%",
+      "%%DATE%%"
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

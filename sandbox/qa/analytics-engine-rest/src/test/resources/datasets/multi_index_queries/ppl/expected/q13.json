@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "success_count",
+      "type": "bigint"
+    },
+    {
+      "name": "error_count",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      61,
+      139
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

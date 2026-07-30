@@ -73,39 +73,39 @@ public class PlanForker {
             return results;
         }
 
-        // Multi-input: take the first alternative from each child. With a single backend
-        // (pure DataFusion), each child has exactly one alternative anyway. For correctness
-        // we require all children to agree on the chosen backend — a multi-input operator
-        // cannot straddle backends within a single stage.
-        // TODO: when multi-backend pipelines are added, fan out the Cartesian product of
-        // child alternatives and prune by backend agreement.
-        List<RelNode> resolvedChildren = new ArrayList<>(childAlternativeSets.size());
-        String agreedBackend = null;
-        for (List<Resolved> childAlts : childAlternativeSets) {
-            if (childAlts.isEmpty()) {
-                throw new IllegalStateException(
-                    "Multi-input child of [" + node.getClass().getSimpleName() + "] produced no plan alternatives"
-                );
-            }
-            Resolved childAlt = childAlts.getFirst();
-            resolvedChildren.add(childAlt.node);
-            if (agreedBackend == null) {
-                agreedBackend = childAlt.chosenBackend;
-            } else if (childAlt.chosenBackend != null
-                && !childAlt.chosenBackend.isEmpty()
-                && !childAlt.chosenBackend.equals(agreedBackend)) {
-                    throw new IllegalStateException(
-                        "Multi-input operator ["
-                            + node.getClass().getSimpleName()
-                            + "] requires all children to share a backend; got ["
-                            + agreedBackend
-                            + "] vs ["
-                            + childAlt.chosenBackend
-                            + "]"
-                    );
+        // Multi-input within one exchange-free stage: arms run on the same backend, so emit one
+        // alternative per backend EVERY child offers (picking each child's alt on it), not each
+        // child's first alt — which could be a backend the parent can't run (e.g. lucene under a
+        // DataFusion-only Union), leaving zero alternatives. Cross-backend arms are split by an
+        // exchange upstream; TODO: fan out the Cartesian product when multi-backend pipelines land.
+        List<String> parentBackends = node instanceof OpenSearchRelNode osNode
+            ? osNode.getViableBackends()
+            : childAlternativeSets.getFirst().stream().map(Resolved::chosenBackend).distinct().toList();
+        List<Resolved> results = new ArrayList<>();
+        for (String backend : parentBackends) {
+            List<RelNode> picked = new ArrayList<>(childAlternativeSets.size());
+            for (List<Resolved> childAlts : childAlternativeSets) {
+                Resolved on = altOnBackend(childAlts, backend);
+                if (on != null) {
+                    picked.add(on.node);
                 }
+            }
+            if (picked.size() == childAlternativeSets.size()) {
+                results.addAll(resolveOperator(node, picked, backend));
+            }
         }
-        return resolveOperator(node, resolvedChildren, agreedBackend);
+        return results;
+    }
+
+    /** A child alternative runnable on {@code backend} — its own, or a backend-agnostic
+     *  (blank-backend) one (e.g. an infrastructure pass-through node); null if neither exists. */
+    private static Resolved altOnBackend(List<Resolved> alts, String backend) {
+        for (Resolved a : alts) {
+            if (backend.equals(a.chosenBackend) || a.chosenBackend == null || a.chosenBackend.isEmpty()) {
+                return a;
+            }
+        }
+        return null;
     }
 
     private static List<Resolved> resolveOperator(RelNode node, List<RelNode> children, String childBackend) {

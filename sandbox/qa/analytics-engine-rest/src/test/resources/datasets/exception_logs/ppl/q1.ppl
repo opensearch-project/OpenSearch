@@ -1,0 +1,1 @@
+source=exception_logs | where application_id='107148' and level not in ('INFO', 'DEBUG') | stats count() by level, service_name

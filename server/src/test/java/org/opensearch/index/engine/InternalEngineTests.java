@@ -9475,4 +9475,43 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testNRTSegmentInfosCarriesLastCommittedUserData() throws Exception {
+        // Index a doc and flush to establish committed userData (sets translog_uuid, local_checkpoint, history_uuid, etc.)
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.flush(false, true);
+
+        final Map<String, String> committedUserData;
+        try (GatedCloseable<IndexCommit> commit = engine.acquireLastIndexCommit(false)) {
+            committedUserData = commit.get().getUserData();
+        }
+        assertNotNull(committedUserData.get(Translog.TRANSLOG_UUID_KEY));
+        assertNotNull(committedUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
+        // Index more docs + refresh BUT DO NOT FLUSH — NRT state now diverges from last commit.
+        engine.index(indexForDoc(createParsedDoc("2", null)));
+        engine.index(indexForDoc(createParsedDoc("3", null)));
+        engine.refresh("test");
+
+        // The NRT SegmentInfos should still carry the LAST COMMITTED userData (translog anchor preserved).
+        try (GatedCloseable<SegmentInfos> nrtSnapshot = engine.getSegmentInfosSnapshot()) {
+            Map<String, String> nrtUserData = nrtSnapshot.get().getUserData();
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed translog UUID",
+                committedUserData.get(Translog.TRANSLOG_UUID_KEY),
+                nrtUserData.get(Translog.TRANSLOG_UUID_KEY)
+            );
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed local checkpoint",
+                committedUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY),
+                nrtUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+            );
+            assertEquals(
+                "NRT SegmentInfos should carry the last-committed history UUID",
+                committedUserData.get(Engine.HISTORY_UUID_KEY),
+                nrtUserData.get(Engine.HISTORY_UUID_KEY)
+            );
+            assertEquals("NRT SegmentInfos userData should match committed userData in full", committedUserData, nrtUserData);
+        }
+    }
+
 }

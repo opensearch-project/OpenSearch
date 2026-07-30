@@ -21,7 +21,7 @@ import java.util.Map;
  *
  * <p>Mirrors {@code CalciteFieldsCommandIT} from the {@code opensearch-project/sql}
  * repository so the analytics-engine path can be verified inside core without cross-plugin
- * dependencies. Each test sends a PPL query through {@code POST /_analytics/ppl}, which
+ * dependencies. Each test sends a PPL query through {@code POST /_plugins/_ppl}, which
  * runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor} → Substrait
  * → DataFusion pipeline as the SQL plugin's force-routed analytics path.
  *
@@ -36,7 +36,8 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -77,8 +78,8 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | fields *0 | head 1"
         );
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) response.get("columns");
-        assertNotNull("Response missing 'columns'", columns);
+        List<String> columns = extractColumnNames(response);
+        assertNotNull("Response missing 'schema'", columns);
         java.util.Set<String> actual = new java.util.HashSet<>(columns);
         java.util.Set<String> expected = new java.util.HashSet<>(
             Arrays.asList("num0", "str0", "int0", "bool0", "date0", "time0", "datetime0")
@@ -93,8 +94,8 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | fields - num0, num1, num2, num3, num4 | head 1"
         );
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) response.get("columns");
-        assertNotNull("Response missing 'columns'", columns);
+        List<String> columns = extractColumnNames(response);
+        assertNotNull("Response missing 'schema'", columns);
         for (String name : columns) {
             assertFalse("Excluded column should not appear: " + name, name.startsWith("num"));
         }
@@ -111,7 +112,7 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
     private final void assertRowsEqual(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -136,7 +137,7 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
     private void assertColumns(String ppl, String... expectedColumns) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) response.get("columns");
+        List<String> columns = extractColumnNames(response);
         assertNotNull("Response missing 'columns' for query: " + ppl, columns);
         assertEquals(
             "Column count for query: " + ppl,
@@ -152,11 +153,4 @@ public class FieldsCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 }

@@ -57,6 +57,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -271,6 +273,9 @@ public abstract class AbstractDataFormatAwareEngineTestCase extends OpenSearchTe
         when(ms.fieldType("_version")).thenReturn(versionFieldType);
         when(ms.fieldType("_seq_no")).thenReturn(seqNoFieldType);
         when(ms.getIndexSettings()).thenReturn(indexSettings);
+        org.opensearch.index.mapper.DocumentMapper documentMapper = mock(org.opensearch.index.mapper.DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(ms.documentMapper()).thenReturn(documentMapper);
         return ms;
     }
 
@@ -358,7 +363,8 @@ public abstract class AbstractDataFormatAwareEngineTestCase extends OpenSearchTe
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int numDocs = randomIntBetween(3, 10);
             for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertNull("expected no failure but got: " + result.getFailure(), result.getFailure());
             }
             engine.flush(false, true);
 
@@ -473,6 +479,7 @@ public abstract class AbstractDataFormatAwareEngineTestCase extends OpenSearchTe
             engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
             int totalDocs = randomIntBetween(20, 50);
             AtomicInteger failures = new AtomicInteger(0);
+            List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
 
             // Index concurrently
             int numThreads = randomIntBetween(2, 4);
@@ -484,18 +491,25 @@ public abstract class AbstractDataFormatAwareEngineTestCase extends OpenSearchTe
                     try {
                         barrier.await();
                         int idx;
+                        Exception failure;
                         while ((idx = docCounter.getAndIncrement()) < totalDocs) {
-                            engine.index(indexOp(createParsedDocWithInput(Integer.toString(idx), null)));
+                            if ((failure = engine.index(indexOp(createParsedDocWithInput(Integer.toString(idx), null)))
+                                .getFailure()) != null) {
+                                throw failure;
+                            }
                         }
                     } catch (Exception e) {
                         failures.incrementAndGet();
+                        exceptions.add(e);
                     }
                 });
                 threads[t].start();
             }
             for (Thread t : threads)
                 t.join();
-            assertThat(failures.get(), equalTo(0));
+            if (failures.get() > 0) {
+                fail("concurrent indexing failed with " + failures.get() + " exceptions" + exceptions);
+            }
 
             // Refresh and flush
             engine.refresh("after-indexing");

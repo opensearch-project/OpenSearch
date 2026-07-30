@@ -95,6 +95,8 @@ public class MathProjectCapabilitiesTests extends OpenSearchTestCase {
         assertNotNull("SCALAR_MAX must have an adapter registered", adapters.get(ScalarFunction.SCALAR_MAX));
         assertNotNull("SCALAR_MIN must have an adapter registered", adapters.get(ScalarFunction.SCALAR_MIN));
         assertNotNull("SIGN must have an adapter registered", adapters.get(ScalarFunction.SIGN));
+        assertNotNull("RADIANS must have an adapter registered", adapters.get(ScalarFunction.RADIANS));
+        assertNotNull("DEGREES must have an adapter registered", adapters.get(ScalarFunction.DEGREES));
     }
 
     /** MINUS must be project-capable because Expm1Adapter rewrites {@code expm1(x)} to {@code MINUS(EXP(x), 1)}. */

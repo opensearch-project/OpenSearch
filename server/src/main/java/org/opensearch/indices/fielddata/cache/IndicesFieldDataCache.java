@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.ToIntFunction;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -99,7 +100,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final ThreadPool threadPool;
     private Set<Index> indicesToClear;
     private Map<Index, Set<String>> fieldsToClear;
-    private Set<CacheKey> cacheKeysToClear;
 
     /**
      * Deprecated ctor. Use the ctor with the clusterService argument.
@@ -135,7 +135,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
         this.indicesToClear = ConcurrentCollections.newConcurrentSet();
         this.fieldsToClear = new ConcurrentHashMap<>();
-        this.cacheKeysToClear = ConcurrentCollections.newConcurrentSet();
     }
 
     @Override
@@ -144,7 +143,23 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, this, index, fieldName, indicesFieldDataCacheListener, listener);
+        return buildIndexFieldDataCache(listener, index, fieldName, shardId -> Key.NO_SHARD_IDENTITY);
+    }
+
+    /**
+     * Build a cache that captures shard identity at load time. {@code shardIdentityResolver}
+     * returns the current shard's {@code System.identityHashCode} (or 0 if none) for a given
+     * {@link ShardId}. The captured value is stored on the {@link Key} and compared with the
+     * current shard's identity at removal time to skip stale per-shard decrements after shard
+     * reallocation (#20363).
+     */
+    public IndexFieldDataCache buildIndexFieldDataCache(
+        IndexFieldDataCache.Listener listener,
+        Index index,
+        String fieldName,
+        ToIntFunction<ShardId> shardIdentityResolver
+    ) {
+        return new IndexFieldCache(logger, this, index, fieldName, shardIdentityResolver, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -154,19 +169,33 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     @Override
     public void onRemoval(RemovalNotification<Key, Accountable> notification) {
         Key key = notification.getKey();
-        assert key != null && key.listeners != null;
+        assert key != null;
         IndexFieldCache indexCache = key.indexCache;
         final Accountable value = notification.getValue();
-        for (IndexFieldDataCache.Listener listener : key.listeners) {
+        final boolean wasEvicted = notification.getRemovalReason() == RemovalReason.EVICTED;
+        final long sizeInBytes = value.ramBytesUsed();
+
+        // Node-level listener (e.g. circuit breaker) must always fire — its accounting is
+        // node-wide, independent of which shard the entry belonged to.
+        try {
+            indexCache.nodeListener.onRemoval(key.shardId, indexCache.fieldName, wasEvicted, sizeInBytes);
+        } catch (Exception e) {
+            logger.error("Failed to call node-level listener on field data cache unloading", e);
+        }
+
+        // Per-shard listeners are skipped if the shard that originally cached this entry has been
+        // replaced (e.g. after reallocation). Without this check, the replacement shard would be
+        // decremented for memory it never accounted for, pushing stats negative (#20363).
+        final int currentShardIdentity = key.shardId == null
+            ? Key.NO_SHARD_IDENTITY
+            : indexCache.shardIdentityResolver.applyAsInt(key.shardId);
+        if (key.shardIdentity != Key.NO_SHARD_IDENTITY && key.shardIdentity != currentShardIdentity) {
+            return;
+        }
+        for (IndexFieldDataCache.Listener listener : indexCache.perShardListeners) {
             try {
-                listener.onRemoval(
-                    key.shardId,
-                    indexCache.fieldName,
-                    notification.getRemovalReason() == RemovalReason.EVICTED,
-                    value.ramBytesUsed()
-                );
+                listener.onRemoval(key.shardId, indexCache.fieldName, wasEvicted, sizeInBytes);
             } catch (Exception e) {
-                // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
             }
         }
@@ -192,18 +221,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     // The synchronized block is to avoid having multiple simultaneous cache iterators removing keys.
     public void clear() {
-        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty() && cacheKeysToClear.isEmpty())) {
-            // Copy marked indices/fields/keys before iteration, and only remove keys matching the copies
+        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty())) {
+            // Copy marked indices/fields before iteration, and only remove keys matching the copies
             // in case new entries are marked for cleanup mid-iteration
             Set<Index> indicesToClearCopy = Set.copyOf(indicesToClear);
-            Set<CacheKey> cacheKeysToClearCopy = Set.copyOf(cacheKeysToClear);
             Map<Index, Set<String>> fieldsToClearCopy = new HashMap<>();
             for (Map.Entry<Index, Set<String>> entry : fieldsToClear.entrySet()) {
                 fieldsToClearCopy.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
             // remove this way instead of clearing all, in case a new entry has been marked since copying
             indicesToClear.removeAll(indicesToClearCopy);
-            cacheKeysToClear.removeAll(cacheKeysToClearCopy);
             for (Map.Entry<Index, Set<String>> entry : fieldsToClearCopy.entrySet()) {
                 Set<String> fieldsForIndex = fieldsToClear.get(entry.getKey());
                 if (fieldsForIndex != null) {
@@ -220,10 +247,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                     }
                     Set<String> fieldsOfIndexToClear = fieldsToClearCopy.get(key.indexCache.index);
                     if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
-                        removeKey(iterator);
-                        continue;
-                    }
-                    if (cacheKeysToClearCopy.contains(key.readerKey)) {
                         removeKey(iterator);
                     }
                 }
@@ -263,14 +286,36 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         final Index index;
         final String fieldName;
         final IndicesFieldDataCache nodeLevelCache;
-        private final Listener[] listeners;
+        final ToIntFunction<ShardId> shardIdentityResolver;
+        /**
+         * Listener registered at node level (e.g. the field-data circuit breaker). Always fires
+         * on removal regardless of shard identity, since its accounting tracks node-wide bytes
+         * independent of which shard they were charged to.
+         */
+        final Listener nodeListener;
+        /**
+         * Per-shard listeners (e.g. {@link org.opensearch.index.fielddata.ShardFieldData}). Skipped
+         * at removal time when the entry's captured shard identity no longer matches the current
+         * shard's identity, to avoid stale decrements after shard reallocation.
+         */
+        private final Listener[] perShardListeners;
 
-        IndexFieldCache(Logger logger, final IndicesFieldDataCache nodeLevelCache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(
+            Logger logger,
+            final IndicesFieldDataCache nodeLevelCache,
+            Index index,
+            String fieldName,
+            ToIntFunction<ShardId> shardIdentityResolver,
+            Listener nodeListener,
+            Listener... perShardListeners
+        ) {
             this.logger = logger;
-            this.listeners = listeners;
+            this.nodeListener = nodeListener;
+            this.perShardListeners = perShardListeners;
             this.index = index;
             this.fieldName = fieldName;
             this.nodeLevelCache = nodeLevelCache;
+            this.shardIdentityResolver = shardIdentityResolver;
         }
 
         @Override
@@ -282,20 +327,15 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
             }
-            final Key key = new Key(this, cacheHelper.getKey(), shardId);
+            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
+            final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
             final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
-                Collections.addAll(k.listeners, this.listeners);
+                k.listeners.add(nodeListener);
+                Collections.addAll(k.listeners, perShardListeners);
                 final LeafFieldData fieldData = indexFieldData.loadDirect(context);
-                for (Listener listener : k.listeners) {
-                    try {
-                        listener.onCache(shardId, fieldName, fieldData);
-                    } catch (Exception e) {
-                        // load anyway since listeners should not throw exceptions
-                        logger.error("Failed to call listener on atomic field data loading", e);
-                    }
-                }
+                notifyOnCache(shardId, fieldData);
                 return fieldData;
             });
             return (FD) accountable;
@@ -312,28 +352,43 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
             }
-            final Key key = new Key(this, cacheHelper.getKey(), shardId);
+            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
+            final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
             final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
-                Collections.addAll(k.listeners, this.listeners);
+                k.listeners.add(nodeListener);
+                Collections.addAll(k.listeners, perShardListeners);
                 final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
-                for (Listener listener : k.listeners) {
-                    try {
-                        listener.onCache(shardId, fieldName, ifd);
-                    } catch (Exception e) {
-                        // load anyway since listeners should not throw exceptions
-                        logger.error("Failed to call listener on global ordinals loading", e);
-                    }
-                }
+                notifyOnCache(shardId, ifd);
                 return ifd;
             });
             return (IFD) accountable;
         }
 
+        private void notifyOnCache(ShardId shardId, Accountable accountable) {
+            try {
+                nodeListener.onCache(shardId, fieldName, accountable);
+            } catch (Exception e) {
+                logger.error("Failed to call node-level listener on field data loading", e);
+            }
+            for (Listener listener : perShardListeners) {
+                try {
+                    listener.onCache(shardId, fieldName, accountable);
+                } catch (Exception e) {
+                    logger.error("Failed to call listener on field data loading", e);
+                }
+            }
+        }
+
         @Override
         public void onClose(CacheKey key) throws IOException {
-            nodeLevelCache.cacheKeysToClear.add(key);
+            // Invalidate the exact key synchronously rather than deferring to the periodic
+            // cache-scan cleanup: a reader closes only once, and the scan can miss entries under
+            // concurrent cache mutation, permanently retaining stale fielddata. Exact-key
+            // invalidation is O(1) so there is no need to batch it.
+            // Don't call cache.refresh() here as it would have bad performance implications.
+            nodeLevelCache.getCache().invalidate(new Key(this, key, null));
         }
 
         @Override
@@ -370,16 +425,37 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      */
     @PublicApi(since = "1.0.0")
     public static class Key {
+        /**
+         * Sentinel meaning "no shard identity captured" — either tracking is disabled, the entry
+         * predates identity capture, or the shard was unresolvable at load time. The staleness
+         * check in {@link IndicesFieldDataCache#onRemoval(RemovalNotification)} treats this value
+         * as "always allow per-shard listeners through". Chosen as -1 because
+         * {@link System#identityHashCode(Object)} can return any int including 0, so 0 is not
+         * safe to use as a sentinel.
+         */
+        public static final int NO_SHARD_IDENTITY = -1;
+
         public final IndexFieldCache indexCache;
         public final IndexReader.CacheKey readerKey;
         public final ShardId shardId;
+        /**
+         * Identity of the IndexShard that inserted this entry, or {@link #NO_SHARD_IDENTITY} if
+         * tracking is disabled. Used at removal time to skip stale decrements after shard
+         * reallocation (#20363). Not part of equals/hashCode.
+         */
+        public final int shardIdentity;
 
         public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>();
 
         Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId) {
+            this(indexCache, readerKey, shardId, NO_SHARD_IDENTITY);
+        }
+
+        Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId, int shardIdentity) {
             this.indexCache = indexCache;
             this.readerKey = readerKey;
             this.shardId = shardId;
+            this.shardIdentity = shardIdentity;
         }
 
         @Override

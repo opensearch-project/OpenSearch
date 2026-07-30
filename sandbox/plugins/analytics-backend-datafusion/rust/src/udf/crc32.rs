@@ -8,7 +8,6 @@
 
 //! crc32(input): CRC-32 (IEEE 802.3 polynomial) of the UTF-8 byte stream of `input`.
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -17,7 +16,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 
 pub fn register_all(ctx: &SessionContext) {
@@ -65,10 +65,6 @@ impl Hash for Crc32Udf {
 }
 
 impl ScalarUDFImpl for Crc32Udf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "crc32"
     }
@@ -183,11 +179,7 @@ mod tests {
     fn array_input_preserves_null_mask() {
         let u = udf();
         let return_field = Arc::new(Field::new(u.name(), DataType::Int64, true));
-        let values: ArrayRef = Arc::new(StringArray::from(vec![
-            Some("a"),
-            None,
-            Some(""),
-        ]));
+        let values: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), None, Some("")]));
         let args = ScalarFunctionArgs {
             args: vec![ColumnarValue::Array(values)],
             arg_fields: vec![Arc::new(Field::new("v", DataType::Utf8, true))],

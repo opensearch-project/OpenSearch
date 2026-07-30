@@ -60,6 +60,7 @@ import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -448,6 +449,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return resolution.type();
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.POINT_RANGE;
         }
 
         public DateFormatter dateTimeFormatter() {

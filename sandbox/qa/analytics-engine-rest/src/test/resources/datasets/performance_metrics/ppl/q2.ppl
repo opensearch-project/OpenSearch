@@ -1,0 +1,1 @@
+source=performance_metrics | stats avg(memory_usage) as avg_memory, max(memory_usage) as max_memory, min(memory_usage) as min_memory by host

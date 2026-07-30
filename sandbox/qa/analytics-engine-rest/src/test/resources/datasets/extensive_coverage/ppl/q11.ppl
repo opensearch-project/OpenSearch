@@ -1,0 +1,1 @@
+source=test_data | eval rounded = round(value), floored = floor(value), powered = pow(2, 3) | fields value, rounded, floored, powered | head 3

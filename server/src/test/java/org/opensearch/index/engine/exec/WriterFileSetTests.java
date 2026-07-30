@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -26,7 +27,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         WriterFileSet copy = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new WriterFileSet(in, directory)
+            in -> new WriterFileSet(in, directory, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(original, copy);
     }
@@ -34,12 +35,12 @@ public class WriterFileSetTests extends OpenSearchTestCase {
     public void testDirectoryNotSerialized() throws Exception {
         String originalDirectory = "/tmp/original";
         String differentDirectory = "/tmp/different";
-        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10);
+        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10, 0L);
 
         WriterFileSet deserialized = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new WriterFileSet(in, differentDirectory)
+            in -> new WriterFileSet(in, differentDirectory, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
 
         assertEquals(differentDirectory, deserialized.directory());
@@ -47,6 +48,21 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         assertEquals(original.writerGeneration(), deserialized.writerGeneration());
         assertEquals(original.files(), deserialized.files());
         assertEquals(original.numRows(), deserialized.numRows());
+    }
+
+    public void testStreamRoundTripPreservesFormatVersion() throws Exception {
+        WriterFileSet original = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 10, 9_010_000L);
+        WriterFileSet copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new WriterFileSet(in, "/tmp/dir", DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
+        );
+        assertEquals(9_010_000L, copy.formatVersion());
+    }
+
+    public void testDefaultFormatVersionIsZero() {
+        WriterFileSet wfs = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 0, 0L);
+        assertEquals(0L, wfs.formatVersion());
     }
 
     // --- helpers ---
@@ -58,6 +74,6 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom("cfs", "si", "dat", "parquet"));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000), 0L);
     }
 }

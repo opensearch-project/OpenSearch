@@ -1,0 +1,1 @@
+source=exception_logs | stats count() as total, sum(case(level='ERROR', 1 else 0)) as errors by application_id | eval error_rate = round(errors * 100.0 / total, 2) | fields application_id, total, errors, error_rate | sort - error_rate

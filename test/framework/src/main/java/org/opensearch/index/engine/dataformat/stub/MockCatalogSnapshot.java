@@ -87,18 +87,37 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public int getFormatVersionForFile(String file) {
-        return 0;
+    public long getFormatVersionForFile(String file) {
+        return 0L;
     }
 
     @Override
-    public byte[] serialize() throws IOException {
-        return new byte[0];
+    public long getMinSegmentFormatVersion() {
+        return 0L;
+    }
+
+    @Override
+    public long getCommitDataFormatVersion() {
+        return 0L;
+    }
+
+    @Override
+    public long getNumDocs() {
+        return 0L;
+    }
+
+    @Override
+    public String getLastCommitFileName() {
+        return null;
     }
 
     @Override
     public Collection<String> getFiles(boolean includeSegmentsFile) {
         return List.of();
+    }
+
+    public java.util.Set<String> getSegmentNames() {
+        return java.util.Set.of();
     }
 
     @Override

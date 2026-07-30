@@ -1,0 +1,1 @@
+source = big5 | where query_string(['message'], 'monkey jackal bear') and `@timestamp` >= '2023-01-01 00:00:00' and `@timestamp` < '2023-01-03 00:00:00' | sort + `@timestamp` | head 10

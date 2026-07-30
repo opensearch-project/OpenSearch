@@ -567,7 +567,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-    private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
+    protected final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     protected final ClusterService clusterService;
 
@@ -1640,7 +1640,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         String threadPoolName,
         RemoteStorePathStrategy pathStrategy,
-        boolean forceClean
+        boolean forceClean,
+        IndexMetadata indexMetadata
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1651,7 +1652,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexUUID,
                         shardId,
                         pathStrategy,
-                        forceClean
+                        forceClean,
+                        indexMetadata
                     ),
                     indexUUID,
                     shardId
@@ -1708,7 +1710,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
-                false
+                false,
+                null  // V1 shallow-copy is a Lucene-only mode — DFA indices use V2 snapshots only. If a DFA index were ever associated with
+                      // a V1 snapshot, per-format files (e.g., parquet/) would leak on cleanup; tracked as a known limitation.
             );
         }
     }
@@ -2389,7 +2393,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
                                 remoteStorePathStrategy,
-                                forceClean
+                                forceClean,
+                                prevIndexMetadata    // ← carries DFA flag through factory → DataFormatAwareRemoteDirectory
                             );
                             remoteTranslogCleanupAsync(
                                 remoteTranslogRepository,

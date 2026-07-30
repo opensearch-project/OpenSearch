@@ -1,1 +1,1 @@
-source = clickbench | stats count() as c, sum(IsRefresh), avg(ResolutionWidth) by WatchID, ClientIP | sort - c | head 10
+source = clickbench | stats count() as c, sum(IsRefresh), avg(ResolutionWidth) by WatchID, ClientIP | sort - c, WatchID, ClientIP | head 10

@@ -1,0 +1,1 @@
+source=test_data | eval curr = now(), curr_date = curdate() | fields timestamp, curr, curr_date | head 1

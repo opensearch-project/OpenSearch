@@ -1,0 +1,1 @@
+source=%INDEX% | sort id | streamstats sum(amount) as run | sort id | fields id, run

@@ -1,0 +1,1 @@
+source=test_data | eval extended = json_extend(json_data, '$.category', category) | fields json_data, extended | head 3

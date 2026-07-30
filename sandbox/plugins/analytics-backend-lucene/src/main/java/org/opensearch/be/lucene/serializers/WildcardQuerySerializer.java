@@ -27,7 +27,53 @@ public class WildcardQuerySerializer extends AbstractRelevanceSerializer {
 
     @Override
     protected QueryBuilder createQueryBuilder(ConversionUtils.RelevanceOperands operands) {
-        return new WildcardQueryBuilder(operands.fieldName(), operands.query());
+        String convertedPattern = convertSqlWildcardToLucene(operands.query());
+        return new WildcardQueryBuilder(operands.fieldName(), convertedPattern);
+    }
+
+    /**
+     * Converts SQL wildcard characters (% and _) to Lucene wildcard characters (* and ?).
+     * Escaped wildcards (\% and \_) are treated as literal characters.
+     * A backslash escaping another backslash (\\) produces a literal backslash.
+     */
+    private static String convertSqlWildcardToLucene(String text) {
+        final char ESCAPE = '\\';
+        StringBuilder result = new StringBuilder(text.length());
+        boolean escaped = false;
+
+        for (char c : text.toCharArray()) {
+            if (escaped) {
+                switch (c) {
+                    case '%':
+                        result.append('%');
+                        break;
+                    case '_':
+                        result.append('_');
+                        break;
+                    case ESCAPE:
+                        result.append(ESCAPE);
+                        break;
+                    default:
+                        result.append(ESCAPE);
+                        result.append(c);
+                        break;
+                }
+                escaped = false;
+            } else if (c == ESCAPE) {
+                escaped = true;
+            } else if (c == '%') {
+                result.append('*');
+            } else if (c == '_') {
+                result.append('?');
+            } else {
+                result.append(c);
+            }
+        }
+        // Trailing backslash with nothing to escape — preserve it
+        if (escaped) {
+            result.append(ESCAPE);
+        }
+        return result.toString();
     }
 
     @Override

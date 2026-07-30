@@ -98,7 +98,7 @@ public class FilterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(plan, singleShardContext());
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200))], viableBackends=[[mock-parquet]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -116,14 +116,11 @@ public class FilterPlanShapeTests extends PlanShapeTestBase {
         // Filter on $1 — the SUM(size) result column, which the rule cannot push below the agg.
         RelNode plan = makeFilter(aggregate, makeEquals(1, SqlTypeName.INTEGER, 1000));
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=1, backends=[mock-parquet], =($1, 1000))], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=1, backends=[mock-parquet], =($1, 1000))], viableBackends=[[mock-parquet]])
+              OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     /**

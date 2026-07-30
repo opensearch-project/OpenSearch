@@ -1,0 +1,1 @@
+source=security_logs | where severity in ("ERROR", "CRITICAL") | where match(message, 'HEALTHCHECK') = false | stats count() as error_count by event_type, severity | sort - error_count | head 20

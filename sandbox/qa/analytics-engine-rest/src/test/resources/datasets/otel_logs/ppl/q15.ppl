@@ -1,0 +1,1 @@
+source=otel_logs | stats count() as c, avg(severityNumber) as avg_sev, max(severityNumber) as max_sev, min(severityNumber) as min_sev by serviceName | sort - c

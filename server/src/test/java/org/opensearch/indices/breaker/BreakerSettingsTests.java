@@ -34,6 +34,7 @@ package org.opensearch.indices.breaker;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -65,5 +66,29 @@ public class BreakerSettingsTests extends OpenSearchTestCase {
         assertThat(breakerBar.getLimit(), equalTo(150L));
         assertThat(breakerBar.getOverhead(), equalTo(2.5));
         assertThat(breakerBar.getType(), equalTo(CircuitBreaker.Type.MEMORY));
+    }
+
+    public void testStatsSupplierNullByDefault() {
+        BreakerSettings settings = new BreakerSettings("test", 1024L, 1.0, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT);
+        assertNull(settings.getStatsSupplier());
+    }
+
+    public void testStatsSupplierReturnedWhenProvided() {
+        CircuitBreakerStats expectedStats = new CircuitBreakerStats("native_test", 4096L, 2048L, 1.0, 5L);
+        BreakerSettings settings = new BreakerSettings(
+            "native_test",
+            4096L,
+            1.0,
+            CircuitBreaker.Type.MEMORY,
+            CircuitBreaker.Durability.TRANSIENT,
+            () -> expectedStats
+        );
+
+        assertNotNull(settings.getStatsSupplier());
+        CircuitBreakerStats stats = settings.getStatsSupplier().get();
+        assertThat(stats.getName(), equalTo("native_test"));
+        assertThat(stats.getLimit(), equalTo(4096L));
+        assertThat(stats.getEstimated(), equalTo(2048L));
+        assertThat(stats.getTrippedCount(), equalTo(5L));
     }
 }

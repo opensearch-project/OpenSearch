@@ -42,12 +42,13 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsAllFourSettings() {
         CompositeDataFormatPlugin plugin = new CompositeDataFormatPlugin();
         List<Setting<?>> settings = plugin.getSettings();
-        assertEquals(5, settings.size());
+        assertEquals(6, settings.size());
         assertTrue(settings.contains(CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT));
         assertTrue(settings.contains(CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS));
         assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_PRIMARY_DATA_FORMAT));
         assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_SECONDARY_DATA_FORMATS));
         assertTrue(settings.contains(CompositeDataFormatPlugin.CLUSTER_RESTRICT_COMPOSITE_DATAFORMAT_SETTING));
+        assertTrue(settings.contains(CompositeDataFormatPlugin.MERGE_ON_REFRESH_MAX_SIZE));
     }
 
     // ---- Setting defaults and value parsing ----

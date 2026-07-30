@@ -34,10 +34,13 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final Logger LOGGER = LogManager.getLogger(RuleProfilingListenerTests.class);
 
     private static final List<String> EXPECTED_PHASES = List.of(
+        "subquery-remove",
+        "literal-agg-extract",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",
         "marking",
+        "agg-literal-arg-split",
         "cbo"
     );
 
@@ -84,13 +87,15 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT CounterID, SUM(ParamPrice) AS total FROM hits WHERE AdvEngineID = 5 GROUP BY CounterID",
             Map.ofEntries(
+                Map.entry("ExtractLiteralAggRule", 0L),
                 Map.entry("ReduceExpressionsRule(Filter)", 0L),
                 Map.entry("ReduceExpressionsRule(Project)", 0L),
                 Map.entry("OpenSearchFilterRule", 1L),
                 Map.entry("OpenSearchProjectRule", 1L),
                 Map.entry("OpenSearchTableScanRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
-                Map.entry("OpenSearchAggregateSplitRule", 4L),
+                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 3L),
                 Map.entry("ExpandConversionRule", 5L)
             )
@@ -103,6 +108,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
             Map.of(
+                "ExtractLiteralAggRule",
+                0L,
                 "ReduceExpressionsRule(Project)",
                 0L,
                 "OpenSearchTableScanRule",
@@ -117,6 +124,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchJoinSplitRule",
                 1L,
+                "OpenSearchAggLiteralArgProjectSplitRule",
+                0L,
                 "ExpandConversionRule",
                 2L
             )

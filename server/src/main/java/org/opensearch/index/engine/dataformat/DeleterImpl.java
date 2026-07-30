@@ -9,9 +9,12 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.apache.lucene.index.Term;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 
 import java.io.IOException;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Lucene-based implementation of {@link Deleter} that delegates document deletion
@@ -25,12 +28,20 @@ public class DeleterImpl<T extends Writer<?>> implements Deleter {
 
     private final Writer<?> writer;
     private final long deleterGeneration;
-    private final ReentrantLock lock;
+    private final ReentrantReadWriteLock deleterLock;
+    private final ReleasableLock deleterReadLock;
+    private final ReleasableLock deleterWriteLock;
+    private final Queue<String> bufferedDeletes = new ConcurrentLinkedQueue<>();
+    private volatile boolean active = true;
 
     public DeleterImpl(T writer) {
         this.writer = writer;
         this.deleterGeneration = writer.generation();
-        this.lock = new ReentrantLock();
+
+        // TODO: Check if lock here is redundant??
+        this.deleterLock = new ReentrantReadWriteLock();
+        this.deleterReadLock = new ReleasableLock(deleterLock.readLock());
+        this.deleterWriteLock = new ReleasableLock(deleterLock.writeLock());
     }
 
     @Override
@@ -40,26 +51,48 @@ public class DeleterImpl<T extends Writer<?>> implements Deleter {
 
     @Override
     public DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException {
-        return writer.deleteDocument(deleteInput);
+        try (ReleasableLock ignore = deleterReadLock.acquire()) {
+            if (active == false) {
+                return null;
+            }
+
+            return writer.deleteDocument(deleteInput);
+        }
+    }
+
+    @Override
+    public boolean recordBufferedDeletes(String id) {
+        try (ReleasableLock ignore = deleterReadLock.acquire()) {
+            if (active == false) {
+                throw new IllegalStateException("Cannot record a delete on a closed deleter.");
+            }
+
+            bufferedDeletes.add(id);
+            return true;
+        }
     }
 
     @Override
     public void close() throws IOException {
-
+        deactivate();
     }
 
     @Override
-    public void lock() {
-        lock.lock();
+    public Queue<String> deactivate() {
+        try (ReleasableLock ignore = deleterWriteLock.acquire()) {
+            if (active == false) {
+                return new ConcurrentLinkedQueue<>();
+            }
+
+            active = false;
+            Queue<String> snapshot = new ConcurrentLinkedQueue<>(bufferedDeletes);
+            bufferedDeletes.clear();
+            return snapshot;
+        }
     }
 
     @Override
-    public boolean tryLock() {
-        return lock.tryLock();
-    }
-
-    @Override
-    public void unlock() {
-        lock.unlock();
+    public boolean isActive() {
+        return active;
     }
 }

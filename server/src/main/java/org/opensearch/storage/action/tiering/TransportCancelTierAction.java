@@ -18,12 +18,14 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.storage.tiering.TieringService;
 import org.opensearch.storage.tiering.WarmToHotTieringService;
@@ -146,6 +148,21 @@ public class TransportCancelTierAction extends TransportClusterManagerNodeAction
             }
             if (warmToHotTieringService.isIndexBeingTiered(index)) {
                 return warmToHotTieringService;
+            }
+            // Fallback to the persisted tiering state. The in-memory tiering set is per-cluster-manager
+            // and starts empty on a newly elected cluster-manager; until it is rebuilt from cluster state,
+            // selecting the service from the persisted INDEX_TIERING_STATE lets cancel reach an index that
+            // is mid-migration. (The cluster state itself is durable and not lost across failover.)
+            final IndexMetadata indexMetadata = state.metadata().index(index);
+            if (indexMetadata != null) {
+                final String tieringState = indexMetadata.getSettings()
+                    .get(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name());
+                if (IndexModule.TieringState.HOT_TO_WARM.name().equals(tieringState)) {
+                    return hotToWarmTieringService;
+                }
+                if (IndexModule.TieringState.WARM_TO_HOT.name().equals(tieringState)) {
+                    return warmToHotTieringService;
+                }
             }
             return null;
         } catch (Exception e) {

@@ -54,6 +54,21 @@ pub const COLLECTOR_FUNCTION_NAME: &str = "delegated_predicate";
 /// DF's own pruning isn't selective enough for a row group).
 pub const DELEGATION_POSSIBLE_FUNCTION_NAME: &str = "delegation_possible";
 
+/// Walk the logical plan looking for `__row_id__` column in a projection.
+/// Its presence signals the executor to emit computed row IDs (query phase).
+pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Projection(proj) => proj.expr.iter().any(|e| match e {
+            Expr::Column(col) => col.name() == crate::ROW_ID_COLUMN_NAME,
+            _ => false,
+        }),
+        _ => plan
+            .inputs()
+            .iter()
+            .any(|child| plan_requests_row_ids(child)),
+    }
+}
+
 /// Classification of a query's filter expression — drives the evaluator choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterClass {
@@ -73,16 +88,21 @@ pub enum FilterClass {
 /// now that `Predicate` leaves carry `Arc<dyn PhysicalExpr>` directly.
 #[derive(Debug)]
 pub struct ExtractionResult {
-    pub tree: BoolNode,
+    pub tree: Arc<BoolNode>,
 }
 
-/// Extract the filter expression from a DataFusion logical plan.
-///
-/// Walks down through Projection/SubqueryAlias/etc. nodes to find the first
-/// `Filter` node. Returns `None` if there's no filter.
+/// Extract the scan-level filter from a logical plan, skipping HAVING/window
+/// filters that sit above Aggregate or Window nodes (those reference derived
+/// columns that `expr_to_bool_tree` cannot resolve against the base schema).
 pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
     match plan {
-        LogicalPlan::Filter(filter) => Some(filter.predicate.clone()),
+        LogicalPlan::Filter(filter) => {
+            if has_aggregate_or_window_below(&filter.input) {
+                extract_filter_expr(&filter.input)
+            } else {
+                Some(filter.predicate.clone())
+            }
+        }
         _ => {
             for child in plan.inputs() {
                 if let Some(expr) = extract_filter_expr(child) {
@@ -91,6 +111,20 @@ pub fn extract_filter_expr(plan: &LogicalPlan) -> Option<Expr> {
             }
             None
         }
+    }
+}
+
+fn has_aggregate_or_window_below(plan: &LogicalPlan) -> bool {
+    match plan {
+        LogicalPlan::Aggregate(_)
+        | LogicalPlan::Window(_)
+        | LogicalPlan::Join(_)
+        | LogicalPlan::Union(_) => true,
+        LogicalPlan::Projection(p) => has_aggregate_or_window_below(&p.input),
+        LogicalPlan::Sort(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::SubqueryAlias(s) => has_aggregate_or_window_below(&s.input),
+        LogicalPlan::Limit(l) => has_aggregate_or_window_below(&l.input),
+        _ => false,
     }
 }
 
@@ -118,7 +152,9 @@ pub fn expr_to_bool_tree(
     } else {
         tree
     };
-    Ok(ExtractionResult { tree })
+    Ok(ExtractionResult {
+        tree: Arc::new(tree),
+    })
 }
 
 fn convert_expr(
@@ -207,10 +243,18 @@ fn convert_delegation_possible_function(
     let unqualified = strip_column_qualifiers(&args[0]);
     let original_expr = state
         .create_physical_expr(unqualified, df_schema)
-        .map_err(|e| format!("create_physical_expr for {} arg 0: {}", DELEGATION_POSSIBLE_FUNCTION_NAME, e))?;
-    let return_type = original_expr
-        .data_type(schema)
-        .map_err(|e| format!("data_type for {} arg 0: {}", DELEGATION_POSSIBLE_FUNCTION_NAME, e))?;
+        .map_err(|e| {
+            format!(
+                "create_physical_expr for {} arg 0: {}",
+                DELEGATION_POSSIBLE_FUNCTION_NAME, e
+            )
+        })?;
+    let return_type = original_expr.data_type(schema).map_err(|e| {
+        format!(
+            "data_type for {} arg 0: {}",
+            DELEGATION_POSSIBLE_FUNCTION_NAME, e
+        )
+    })?;
     if return_type != DataType::Boolean {
         return Err(format!(
             "{} arg 0 must be boolean-valued, got {:?}",
@@ -290,7 +334,9 @@ fn is_and_only_collector_tree(tree: &BoolNode) -> bool {
     match tree {
         BoolNode::And(children) => children.iter().all(is_and_only_collector_tree),
         // Leaves are trivially fine (no Collector or DelegationPossible below them).
-        BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => true,
+        BoolNode::Collector { .. }
+        | BoolNode::Predicate(_)
+        | BoolNode::DelegationPossible { .. } => true,
         // OR/NOT containing any Collector OR any DelegationPossible → Tree path.
         // For DelegationPossible under OR/NOT specifically, Tree path currently
         // routes to the Phase 3/7 unimplemented stubs — failing loud is preferred
@@ -335,9 +381,7 @@ impl IndexFilterUdf {
     fn new() -> Self {
         Self {
             signature: Signature::one_of(
-                vec![
-                    TypeSignature::Exact(vec![DataType::Int32]),
-                ],
+                vec![TypeSignature::Exact(vec![DataType::Int32])],
                 Volatility::Immutable,
             ),
         }
@@ -359,9 +403,6 @@ impl PartialEq for IndexFilterUdf {
 impl Eq for IndexFilterUdf {}
 
 impl ScalarUDFImpl for IndexFilterUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         COLLECTOR_FUNCTION_NAME
     }
@@ -399,7 +440,10 @@ impl DelegationPossibleUdf {
         Self {
             // Args: (originalPredicate: Boolean, annotationId: Int32).
             signature: Signature::one_of(
-                vec![TypeSignature::Exact(vec![DataType::Boolean, DataType::Int32])],
+                vec![TypeSignature::Exact(vec![
+                    DataType::Boolean,
+                    DataType::Int32,
+                ])],
                 Volatility::Immutable,
             ),
         }
@@ -421,9 +465,6 @@ impl PartialEq for DelegationPossibleUdf {
 impl Eq for DelegationPossibleUdf {}
 
 impl ScalarUDFImpl for DelegationPossibleUdf {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         DELEGATION_POSSIBLE_FUNCTION_NAME
     }
@@ -435,13 +476,24 @@ impl ScalarUDFImpl for DelegationPossibleUdf {
     }
     fn invoke_with_args(
         &self,
-        _args: ScalarFunctionArgs,
+        args: ScalarFunctionArgs,
     ) -> datafusion::common::Result<ColumnarValue> {
-        Err(datafusion::common::DataFusionError::Internal(format!(
-            "{} UDF body invoked — expr_to_bool_tree did not unwrap the marker; \
-                 treat as a serious correctness bug",
-            DELEGATION_POSSIBLE_FUNCTION_NAME
-        )))
+        // Pass-through: evaluate the original predicate (first arg) directly.
+        // Expected on the prepare_partial_plan path where FilterExec retains the
+        // delegation_possible wrapper. On the indexed path, expr_to_bool_tree should
+        // unwrap the marker before execution — log a warning if we reach here
+        // unexpectedly so correctness issues surface in logs without crashing.
+        log::warn!(
+            "delegation_possible UDF evaluated at runtime — expected only on \
+             prepare_partial_plan path; if this appears on a data-node indexed query, \
+             expr_to_bool_tree may have missed the marker"
+        );
+        args.args.into_iter().next().ok_or_else(|| {
+            datafusion::common::DataFusionError::Internal(format!(
+                "{} UDF invoked with no arguments",
+                DELEGATION_POSSIBLE_FUNCTION_NAME
+            ))
+        })
     }
 }
 
@@ -479,7 +531,7 @@ mod tests {
     fn simple_predicate() {
         let expr = col("price").gt(lit(100i32));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+        assert!(matches!(*r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
@@ -491,35 +543,35 @@ mod tests {
             Box::new(col("price")),
         ));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+        assert!(matches!(*r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
     fn and_of_predicates() {
         let expr = col("price").gt(lit(100i32)).and(col("qty").lt(lit(50i32)));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::And(_)));
+        assert!(matches!(*r.tree, BoolNode::And(_)));
     }
 
     #[test]
     fn not_predicate() {
         let expr = Expr::Not(Box::new(col("active").eq(lit(true))));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Not(_)));
+        assert!(matches!(*r.tree, BoolNode::Not(_)));
     }
 
     #[test]
     fn in_list_expression_is_accepted() {
         let expr = col("price").in_list(vec![lit(5i32), lit(10i32), lit(15i32)], false);
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+        assert!(matches!(*r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
     fn is_null_expression_is_accepted() {
         let expr = Expr::IsNull(Box::new(col("price")));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+        assert!(matches!(*r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
@@ -529,9 +581,9 @@ mod tests {
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
         // BETWEEN may desugar into And internally or stay as-is; either
         // shape is accepted so long as the result is boolean-valued.
-        match r.tree {
+        match *r.tree {
             BoolNode::Predicate(_) | BoolNode::And(_) => {}
-            other => panic!("expected Predicate or And, got {:?}", other),
+            ref other => panic!("expected Predicate or And, got {:?}", other),
         }
     }
 
@@ -540,7 +592,7 @@ mod tests {
         // (price + 10) > 100 — our old converter would reject this.
         let expr = (col("price") + lit(10i32)).gt(lit(100i32));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::Predicate(_)));
+        assert!(matches!(*r.tree, BoolNode::Predicate(_)));
     }
 
     #[test]
@@ -561,7 +613,7 @@ mod tests {
             vec![lit(ScalarValue::Int32(Some(42)))],
         ));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        match r.tree {
+        match *r.tree {
             BoolNode::Collector { annotation_id } => {
                 assert_eq!(annotation_id, 42);
             }
@@ -585,15 +637,13 @@ mod tests {
             Box::new(or_branch),
         ));
         let r = expr_to_bool_tree(&expr, &test_schema(), &test_state()).unwrap();
-        assert!(matches!(r.tree, BoolNode::And(_)));
+        assert!(matches!(*r.tree, BoolNode::And(_)));
     }
 
     // ── classify_filter ──────────────────────────────────────────────
 
     fn collector(id: i32) -> BoolNode {
-        BoolNode::Collector {
-            annotation_id: id,
-        }
+        BoolNode::Collector { annotation_id: id }
     }
     fn dummy_predicate() -> BoolNode {
         // A stand-in Predicate leaf — classify only cares about shape,

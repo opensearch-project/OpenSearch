@@ -1,0 +1,1 @@
+source=rex_command | rex field=raw_log "(?<latency>\d+)ms ip=" | rex field=message "latency=(?<msglatency>\d+)" | fields latency, msglatency | where latency is not null or msglatency is not null | head 10

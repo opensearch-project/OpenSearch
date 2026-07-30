@@ -15,6 +15,7 @@ public class NativeAllocatorPoolConfigTests extends OpenSearchTestCase {
     public void testPoolConstants() {
         assertEquals("flight", NativeAllocatorPoolConfig.POOL_FLIGHT);
         assertEquals("ingest", NativeAllocatorPoolConfig.POOL_INGEST);
+        assertEquals("query", NativeAllocatorPoolConfig.POOL_QUERY);
     }
 
     public void testSettingKeys() {
@@ -22,9 +23,7 @@ public class NativeAllocatorPoolConfigTests extends OpenSearchTestCase {
         assertEquals("native.allocator.pool.flight.max", NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX);
         assertEquals("native.allocator.pool.ingest.min", NativeAllocatorPoolConfig.SETTING_INGEST_MIN);
         assertEquals("native.allocator.pool.ingest.max", NativeAllocatorPoolConfig.SETTING_INGEST_MAX);
-    }
-
-    public void testRootSettingKey() {
-        assertEquals("native.allocator.root.limit", NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT);
+        assertEquals("native.allocator.pool.query.min", NativeAllocatorPoolConfig.SETTING_QUERY_MIN);
+        assertEquals("native.allocator.pool.query.max", NativeAllocatorPoolConfig.SETTING_QUERY_MAX);
     }
 }

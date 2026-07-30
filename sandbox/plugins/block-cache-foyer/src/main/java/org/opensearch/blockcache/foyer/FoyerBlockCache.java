@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheStats;
+import org.opensearch.plugins.BlockCacheTieredStats;
 import org.opensearch.plugins.NativeStoreHandle;
 
 import java.util.Objects;
@@ -33,22 +34,52 @@ public final class FoyerBlockCache implements BlockCache {
     /** The configured disk capacity in bytes */
     private final long diskBytes;
 
+    /** Data cache capacity in tiered mode. 0 in single-cache mode. */
+    private final long dataDiskBytes;
+
+    /** Metadata cache capacity in tiered mode. 0 in single-cache mode. */
+    private final long metadataDiskBytes;
+
+    /** Whether this instance is a tiered cache (data + metadata on separate SSDs). */
+    private final boolean tiered;
+
     /** Guards against double-close per the {@link AutoCloseable} contract. */
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Create the native Foyer cache and acquire its handle.
      *
-     * @param diskBytes       maximum disk capacity in bytes; must be {@code > 0}
-     * @param diskDir         directory where Foyer stores cache data; must not be null or blank
-     * @param blockSizeBytes  Foyer disk block size in bytes; must be {@code > 0}
-     * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param diskBytes              maximum disk capacity in bytes; must be {@code > 0}
+     * @param diskDir                directory where Foyer stores cache data; must not be null or blank
+     * @param blockSizeBytes         Foyer disk block size in bytes; must be {@code > 0}
+     * @param ioEngine               I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs      background key_index sweep interval in seconds;
+     *                               {@code 0} = disabled (no background sweep task is spawned).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param sweepThresholdRatio    minimum {@code used_bytes / disk_bytes} ratio to run the sweep;
+     *                               {@code 0.0} = disabled (always sweep).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
+     * @param persistIntervalSecs    how often (seconds) the independent persist task flushes the
+     *                               key_index to disk; {@code 0} = disabled (only {@code Drop} persists).
+     *                               Maps to {@code block_cache.foyer.key_index_persist_interval_seconds}.
      * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
+     *                                  {@code sweepIntervalSecs < 0}, {@code persistIntervalSecs < 0},
+     *                                  {@code sweepThresholdRatio} outside {@code [0.0, 1.0]},
      *                                  or {@code diskDir} is blank
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
+    public FoyerBlockCache(
+        long diskBytes,
+        String diskDir,
+        long blockSizeBytes,
+        long bufferPoolSizeBytes,
+        long submitQueueSizeThresholdBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio,
+        long persistIntervalSecs
+    ) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -59,25 +90,113 @@ public final class FoyerBlockCache implements BlockCache {
         if (blockSizeBytes <= 0) {
             throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
         }
+        if (bufferPoolSizeBytes <= 0) {
+            throw new IllegalArgumentException("bufferPoolSizeBytes must be > 0, got: " + bufferPoolSizeBytes);
+        }
+        if (submitQueueSizeThresholdBytes <= 0) {
+            throw new IllegalArgumentException("submitQueueSizeThresholdBytes must be > 0, got: " + submitQueueSizeThresholdBytes);
+        }
         Objects.requireNonNull(ioEngine, "ioEngine must not be null");
+        if (sweepIntervalSecs < 0) {
+            throw new IllegalArgumentException("sweepIntervalSecs must be >= 0, got: " + sweepIntervalSecs);
+        }
+        if (sweepThresholdRatio < 0.0 || sweepThresholdRatio > 1.0) {
+            throw new IllegalArgumentException("sweepThresholdRatio must be in [0.0, 1.0], got: " + sweepThresholdRatio);
+        }
+        if (persistIntervalSecs < 0) {
+            throw new IllegalArgumentException("persistIntervalSecs must be >= 0, got: " + persistIntervalSecs);
+        }
         this.diskBytes = diskBytes;
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine);
+        this.dataDiskBytes = 0L;
+        this.metadataDiskBytes = 0L;
+        this.tiered = false;
+        this.cachePtr = FoyerBridge.createCache(
+            diskBytes,
+            diskDir,
+            blockSizeBytes,
+            bufferPoolSizeBytes,
+            submitQueueSizeThresholdBytes,
+            ioEngine,
+            sweepIntervalSecs,
+            sweepThresholdRatio,
+            persistIntervalSecs
+        );
+    }
+
+    /**
+     * Create a tiered Foyer cache with separate data and metadata SSDs.
+     *
+     * @param dataDiskBytes             data cache disk capacity
+     * @param dataDiskDir               directory for data cache
+     * @param dataBlockSizeBytes        data cache block size
+     * @param dataBufferPoolSizeBytes   data cache buffer pool
+     * @param dataSubmitQueueSizeBytes  data cache submit queue threshold
+     * @param metaDiskBytes             metadata cache disk capacity
+     * @param metaDiskDir               directory for metadata cache
+     * @param metaBlockSizeBytes        metadata cache block size
+     * @param metaBufferPoolSizeBytes   metadata cache buffer pool
+     * @param metaSubmitQueueSizeBytes  metadata cache submit queue threshold
+     * @param ioEngine                  I/O engine for both caches
+     * @param sweepIntervalSecs         sweep interval; 0 = disabled
+     * @param sweepThresholdRatio       sweep threshold; 0.0 = always
+     * @param persistIntervalSecs       persist interval; 0 = disabled
+     */
+    public FoyerBlockCache(
+        long dataDiskBytes,
+        String dataDiskDir,
+        long dataBlockSizeBytes,
+        long dataBufferPoolSizeBytes,
+        long dataSubmitQueueSizeBytes,
+        long metaDiskBytes,
+        String metaDiskDir,
+        long metaBlockSizeBytes,
+        long metaBufferPoolSizeBytes,
+        long metaSubmitQueueSizeBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio,
+        long persistIntervalSecs
+    ) {
+        if (dataDiskBytes <= 0) {
+            throw new IllegalArgumentException("dataDiskBytes must be > 0, got: " + dataDiskBytes);
+        }
+        if (metaDiskBytes <= 0) {
+            throw new IllegalArgumentException("metaDiskBytes must be > 0, got: " + metaDiskBytes);
+        }
+        Objects.requireNonNull(dataDiskDir, "dataDiskDir must not be null");
+        Objects.requireNonNull(metaDiskDir, "metaDiskDir must not be null");
+        Objects.requireNonNull(ioEngine, "ioEngine must not be null");
+        this.diskBytes = dataDiskBytes + metaDiskBytes;
+        this.dataDiskBytes = dataDiskBytes;
+        this.metadataDiskBytes = metaDiskBytes;
+        this.tiered = true;
+        this.cachePtr = FoyerBridge.createTieredCache(
+            dataDiskBytes,
+            dataDiskDir,
+            dataBlockSizeBytes,
+            dataBufferPoolSizeBytes,
+            dataSubmitQueueSizeBytes,
+            metaDiskBytes,
+            metaDiskDir,
+            metaBlockSizeBytes,
+            metaBufferPoolSizeBytes,
+            metaSubmitQueueSizeBytes,
+            ioEngine,
+            sweepIntervalSecs,
+            sweepThresholdRatio,
+            persistIntervalSecs
+        );
     }
 
     @Override
     public String cacheName() {
-        return BlockCacheConstants.DISK_CACHE;
+        return BlockCacheConstants.FOYER;
     }
 
     /**
      * Snapshots cache statistics via FFM call to the native Foyer runtime.
-     * Returns the cross-tier rollup {@link BlockCacheStats} (section 0 of the
-     * native stats buffer) for core consumption.
-     *
-     * <p>Delegates to {@link #foyerStats()} and returns the overall section
-     * directly — no projection step needed. Core code uses this method;
-     * Foyer-aware code that needs the disk-tier breakdown (section 1) should
-     * call {@link #foyerStats()} directly.
+     * Returns the cross-tier rollup {@link BlockCacheStats} for core consumption.
+     * In tiered mode, this is the merged (data + metadata) view.
      */
     @Override
     public BlockCacheStats stats() {
@@ -85,23 +204,59 @@ public final class FoyerBlockCache implements BlockCache {
     }
 
     /**
-     * Snapshots the full two-section Foyer stats from the native runtime:
-     * <ul>
-     *   <li>section 0 — cross-tier overall rollup</li>
-     *   <li>section 1 — disk-tier (block-level) only</li>
-     * </ul>
+     * Snapshots the full Foyer stats from the native runtime.
      *
-     * <p>Returns richer counters than {@link #stats()}: per-tier hit/miss/eviction
-     * byte counts, configured capacity, and the disk-tier breakdown. Intended for
-     * Foyer-internal logging, node-stats contributions, and any caller that
-     * explicitly narrows the {@link org.opensearch.plugins.BlockCache} reference
-     * to {@code FoyerBlockCache}.
+     * <p>In single-cache mode: section 0 = overall, section 1 = block-level (identical).
+     * In tiered mode: section 0 = data cache, section 1 = metadata cache,
+     * {@code overallStats()} returns merged counters.
      *
-     * @return two-section snapshot; never {@code null}
+     * @return stats snapshot; never {@code null}
      */
     public FoyerAggregatedStats foyerStats() {
         long[] raw = FoyerBridge.snapshotStats(cachePtr);
+        if (tiered) {
+            return FoyerAggregatedStats.snapshotTiered(raw, dataDiskBytes, metadataDiskBytes);
+        }
         return FoyerAggregatedStats.snapshot(raw, diskBytes);
+    }
+
+    /** Whether this is a tiered cache (data + metadata on separate SSDs). */
+    public boolean isTiered() {
+        return tiered;
+    }
+
+    @Override
+    public BlockCacheTieredStats tieredStats() {
+        if (tiered == false) {
+            return null;
+        }
+        FoyerAggregatedStats s = foyerStats();
+        BlockCacheStats data = s.dataCacheStats();
+        BlockCacheStats meta = s.metadataCacheStats();
+        return new BlockCacheTieredStats(
+            data.hits(),
+            data.misses(),
+            data.hitBytes(),
+            data.missBytes(),
+            data.evictions(),
+            data.evictionBytes(),
+            data.removed(),
+            data.removedBytes(),
+            data.diskBytesUsed(),
+            data.totalBytes(),
+            data.activeInBytes(),
+            meta.hits(),
+            meta.misses(),
+            meta.hitBytes(),
+            meta.missBytes(),
+            meta.evictions(),
+            meta.evictionBytes(),
+            meta.removed(),
+            meta.removedBytes(),
+            meta.diskBytesUsed(),
+            meta.totalBytes(),
+            meta.activeInBytes()
+        );
     }
 
     /**
@@ -128,6 +283,32 @@ public final class FoyerBlockCache implements BlockCache {
     public void evictPrefix(String prefix) {
         if (closed.get() == false) {
             FoyerBridge.evictPrefix(cachePtr, prefix);
+        }
+    }
+
+    @Override
+    public boolean clear() {
+        if (closed.get() == false && cachePtr > 0) {
+            return FoyerBridge.clearCache(cachePtr);
+        }
+        return false;
+    }
+
+    public void updateSweepThreshold(double newRatio) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepThreshold(cachePtr, newRatio);
+        }
+    }
+
+    public void updateSweepInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updateSweepInterval(cachePtr, newSecs);
+        }
+    }
+
+    public void updatePersistInterval(long newSecs) {
+        if (closed.get() == false) {
+            FoyerBridge.updatePersistInterval(cachePtr, newSecs);
         }
     }
 

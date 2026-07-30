@@ -1,0 +1,1 @@
+source=otel_logs | rare 3 serviceName

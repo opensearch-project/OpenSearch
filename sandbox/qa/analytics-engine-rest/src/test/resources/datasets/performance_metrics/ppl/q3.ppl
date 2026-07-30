@@ -1,0 +1,1 @@
+source=performance_metrics | stats avg(cpu_usage) as avg_cpu, avg(memory_usage) as avg_memory by host | eval total_load = avg_cpu + avg_memory | sort - total_load

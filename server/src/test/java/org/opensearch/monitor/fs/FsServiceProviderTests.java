@@ -12,7 +12,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -33,7 +33,7 @@ public class FsServiceProviderTests extends OpenSearchTestCase {
         Settings settings = Settings.EMPTY;  // no warm role
         ClusterSettings clusterSettings = new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS);
         IndicesService indicesService = mock(IndicesService.class);
-        NodeCacheOrchestrator orchestrator = null;  // absent on non-warm nodes
+        NodeCacheService orchestrator = null;  // absent on non-warm nodes
 
         try (var nodeEnv = newNodeEnvironment(settings)) {
             FsServiceProvider provider = new FsServiceProvider(settings, nodeEnv, orchestrator, clusterSettings, indicesService);
@@ -59,7 +59,7 @@ public class FsServiceProviderTests extends OpenSearchTestCase {
         when(fileCache.capacity()).thenReturn(1024L * 1024 * 1024);
         when(fileCache.usage()).thenReturn(0L);
 
-        NodeCacheOrchestrator orchestrator = mock(NodeCacheOrchestrator.class);
+        NodeCacheService orchestrator = mock(NodeCacheService.class);
         when(orchestrator.fileCache()).thenReturn(fileCache);
         when(orchestrator.blockCacheCapacityBytes()).thenReturn(0L);
         when(orchestrator.virtualBlockCacheBytes()).thenReturn(0L);
@@ -90,7 +90,7 @@ public class FsServiceProviderTests extends OpenSearchTestCase {
         when(fileCache.capacity()).thenReturn(100L * 1024 * 1024);
         when(fileCache.usage()).thenReturn(0L);
 
-        NodeCacheOrchestrator orchestrator = mock(NodeCacheOrchestrator.class);
+        NodeCacheService orchestrator = mock(NodeCacheService.class);
         when(orchestrator.fileCache()).thenReturn(fileCache);
 
         try (var nodeEnv = newNodeEnvironment(settings)) {

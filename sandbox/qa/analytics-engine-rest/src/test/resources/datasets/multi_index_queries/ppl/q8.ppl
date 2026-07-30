@@ -1,0 +1,1 @@
+source=api_metrics | stats count() as hit_count by endpoint | sort hit_count | head 10

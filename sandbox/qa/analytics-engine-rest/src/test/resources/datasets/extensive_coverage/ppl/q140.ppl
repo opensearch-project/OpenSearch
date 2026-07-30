@@ -1,0 +1,1 @@
+source=test_data | eval sec = second_of_minute(timestamp) | fields timestamp, sec | head 3

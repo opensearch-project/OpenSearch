@@ -1,0 +1,1 @@
+source=security_logs | where action in ("blocked", "denied", "rejected") | stats count() as blocked_count, dc(user) as unique_users by source_ip, action | where blocked_count > 5 | sort - blocked_count

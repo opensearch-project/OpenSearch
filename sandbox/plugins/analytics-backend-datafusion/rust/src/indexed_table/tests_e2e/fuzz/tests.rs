@@ -156,7 +156,12 @@ async fn fuzz_single_row_group() {
 /// regardless of seed.
 #[tokio::test(flavor = "multi_thread")]
 async fn fuzz_parallel_collectors() {
-    run_fuzz("fuzz_parallel_collectors", 50, FixtureConfig::parallel_collectors).await;
+    run_fuzz(
+        "fuzz_parallel_collectors",
+        50,
+        FixtureConfig::parallel_collectors,
+    )
+    .await;
 }
 
 /// AND(Predicate, Collector) focused: shallow depth-2 trees with 4
@@ -280,4 +285,13 @@ async fn fuzz_delegation_sloppy() {
         2,
     )
     .await;
+}
+
+/// Shuffled column order: parquet file columns are in reversed order
+/// compared to the table schema. Exercises the stream.rs
+/// reprojection-by-name fix that fires when schemas have the same
+/// columns but in different order.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_shuffled_columns() {
+    run_fuzz("fuzz_shuffled_columns", 50, FixtureConfig::shuffled_columns).await;
 }

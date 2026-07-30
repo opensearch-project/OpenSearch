@@ -1,0 +1,361 @@
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 437, "success_count": 41, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 345, "success_count": 45, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 370, "success_count": 88, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 153, "success_count": 55, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 396, "success_count": 100, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 425, "success_count": 59, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 98, "success_count": 71, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 285, "success_count": 7, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 467, "success_count": 9, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 226, "success_count": 94, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 221, "success_count": 4, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 451, "success_count": 34, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 212, "success_count": 97, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 44, "success_count": 6, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 22, "success_count": 43, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 23, "success_count": 9, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 119, "success_count": 28, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 113, "success_count": 15, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 295, "success_count": 61, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 447, "success_count": 25, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 71, "success_count": 59, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 446, "success_count": 29, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 359, "success_count": 57, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 239, "success_count": 6, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 309, "success_count": 63, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 438, "success_count": 46, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 332, "success_count": 47, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 113, "success_count": 68, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 193, "success_count": 37, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 242, "success_count": 1, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 449, "success_count": 1, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 149, "success_count": 79, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 100, "success_count": 72, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 254, "success_count": 49, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 143, "success_count": 98, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 202, "success_count": 74, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 60, "success_count": 26, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 418, "success_count": 78, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 303, "success_count": 88, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 407, "success_count": 35, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 392, "success_count": 11, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 144, "success_count": 40, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 248, "success_count": 92, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 338, "success_count": 48, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 363, "success_count": 43, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 183, "success_count": 26, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 439, "success_count": 70, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 142, "success_count": 83, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 184, "success_count": 47, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 356, "success_count": 93, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 262, "success_count": 61, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 324, "success_count": 86, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 419, "success_count": 53, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 240, "success_count": 97, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 60, "success_count": 53, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 204, "success_count": 74, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 115, "success_count": 32, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 362, "success_count": 43, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 319, "success_count": 26, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 74, "success_count": 86, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 344, "success_count": 71, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 453, "success_count": 65, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 349, "success_count": 96, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 284, "success_count": 40, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 282, "success_count": 57, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 455, "success_count": 52, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 493, "success_count": 67, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 264, "success_count": 78, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 384, "success_count": 38, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 205, "success_count": 60, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 451, "success_count": 55, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 72, "success_count": 97, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 17, "success_count": 97, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 491, "success_count": 5, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 453, "success_count": 82, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 13, "success_count": 70, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 214, "success_count": 55, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 166, "success_count": 92, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 56, "success_count": 42, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 170, "success_count": 85, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 22, "success_count": 50, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 261, "success_count": 100, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 67, "success_count": 87, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 200, "success_count": 30, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 481, "success_count": 21, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 374, "success_count": 65, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 389, "success_count": 65, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 218, "success_count": 43, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 222, "success_count": 93, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 279, "success_count": 32, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 321, "success_count": 27, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 76, "success_count": 94, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 23, "success_count": 61, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "processor_fail", "filter_in_count": 18, "success_count": 75, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 11, "success_count": 54, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 385, "success_count": 73, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 333, "success_count": 62, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 451, "success_count": 88, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 429, "success_count": 80, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 50, "success_count": 41, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "eventProcessor_success", "filter_in_count": 168, "success_count": 72, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 113, "success_count": 30, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 191, "success_count": 39, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 413, "success_count": 33, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 29, "success_count": 1, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 461, "success_count": 44, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_success", "filter_in_count": 250, "success_count": 95, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 79, "success_count": 64, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 65, "success_count": 48, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "ERROR", "processor_type": "processor_fail", "filter_in_count": 166, "success_count": 55, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 274, "success_count": 43, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 266, "success_count": 91, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 247, "success_count": 10, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "default", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 171, "success_count": 80, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 385, "success_count": 21, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "ERROR", "processor_type": "processor_success", "filter_in_count": 118, "success_count": 36, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "default", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 440, "success_count": 69, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "cluster_name": "prod-cluster-1", "namespace": "staging", "log_level": "WARN", "processor_type": "processor_fail", "filter_in_count": 119, "success_count": 47, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "staging", "log_level": "WARN", "processor_type": "eventProcessor_success", "filter_in_count": 463, "success_count": 16, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "eventProcessor_success", "filter_in_count": 20, "success_count": 40, "event_type": "realtime"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 575, "success_count": 167, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 844, "success_count": 185, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 140, "success_count": 92, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 180, "success_count": 128, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 644, "success_count": 136, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 369, "success_count": 157, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 555, "success_count": 52, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 152, "success_count": 106, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 983, "success_count": 55, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 108, "success_count": 64, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 427, "success_count": 91, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 534, "success_count": 72, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 212, "success_count": 104, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 213, "success_count": 51, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 316, "success_count": 91, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 891, "success_count": 162, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 622, "success_count": 143, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 174, "success_count": 53, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 608, "success_count": 54, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 926, "success_count": 154, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 940, "success_count": 104, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 454, "success_count": 145, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 605, "success_count": 167, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 532, "success_count": 161, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 368, "success_count": 187, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 196, "success_count": 140, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 250, "success_count": 134, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 467, "success_count": 87, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 859, "success_count": 137, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-1", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 972, "success_count": 77, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 729, "success_count": 69, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 152, "success_count": 173, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 237, "success_count": 106, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 499, "success_count": 110, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 463, "success_count": 89, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 654, "success_count": 197, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 258, "success_count": 188, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 853, "success_count": 157, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 317, "success_count": 166, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 708, "success_count": 131, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 726, "success_count": 198, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 177, "success_count": 91, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 648, "success_count": 148, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 474, "success_count": 197, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 367, "success_count": 72, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 631, "success_count": 168, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 917, "success_count": 146, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 445, "success_count": 131, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 642, "success_count": 71, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 993, "success_count": 87, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 559, "success_count": 86, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 434, "success_count": 130, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 501, "success_count": 98, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 690, "success_count": 144, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 269, "success_count": 127, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 166, "success_count": 52, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 585, "success_count": 105, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 540, "success_count": 95, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 840, "success_count": 122, "event_type": "batch"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "cluster_name": "prod-cluster-2", "namespace": "production", "log_level": "INFO", "processor_type": "processor_success", "filter_in_count": 668, "success_count": 197, "event_type": "batch"}
+

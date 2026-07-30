@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "user_agent=\"(?<agent>.+?)\"" | fields agent, service | where agent is not null

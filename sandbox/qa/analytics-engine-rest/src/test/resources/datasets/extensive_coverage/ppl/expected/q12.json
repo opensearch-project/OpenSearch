@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "year_val",
+      "type": "int"
+    },
+    {
+      "name": "month_val",
+      "type": "int"
+    },
+    {
+      "name": "day_val",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "2026-01-15 10:30:00",
+      2026,
+      1,
+      15
+    ],
+    [
+      "2026-02-20 14:45:00",
+      2026,
+      2,
+      20
+    ],
+    [
+      "2026-03-10 08:15:00",
+      2026,
+      3,
+      10
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "total_logs",
+      "type": "bigint"
+    },
+    {
+      "name": "exceptions",
+      "type": "bigint"
+    },
+    {
+      "name": "with_stacktrace",
+      "type": "bigint"
+    },
+    {
+      "name": "exception_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "db-service",
+      37,
+      37,
+      37,
+      100.0
+    ],
+    [
+      "api-service",
+      33,
+      33,
+      33,
+      100.0
+    ],
+    [
+      "web-service",
+      30,
+      30,
+      30,
+      100.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

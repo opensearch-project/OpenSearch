@@ -369,10 +369,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "[.test] warning",
+                    "[.test] info",
                     "org.opensearch.plugins.PluginsService",
-                    Level.WARN,
-                    "Missing plugin [dne], dependency of [foo]"
+                    Level.INFO,
+                    "Missing optional plugin [dne], dependency of [foo]. Some features of this plugin may not function without the dependencies being installed."
                 )
             );
             Path pluginDir = createTempDir();

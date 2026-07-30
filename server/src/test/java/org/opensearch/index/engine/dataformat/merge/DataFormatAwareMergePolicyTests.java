@@ -51,7 +51,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
     public void testFindMergeCandidatesCapturesMergeContext() throws IOException {
         Path tempDir = createTempDir();
         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, 0L);
         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
 
@@ -78,8 +78,8 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
     public void testFindMergeCandidatesMergeContextReflectsAddedAndRemovedSegments() throws IOException {
         Path tempDir = createTempDir();
         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20);
+        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20, 0L);
         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs1).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
         Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, wfs1).build();
@@ -129,7 +129,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
     public void testFindForceMergeCandidatesCapturesMergeContext() throws IOException {
         Path tempDir = createTempDir();
         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, 0L);
         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
 
@@ -173,10 +173,10 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
     public void testMergeContextTracksMultipleAddRemoveCycles() throws IOException {
         Path tempDir = createTempDir();
         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
-        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10)).build();
-        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20)).build();
-        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 3L, Set.of(), 30)).build();
-        Segment seg4 = Segment.builder(4L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 4L, Set.of(), 40)).build();
+        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, 0L)).build();
+        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20, 0L)).build();
+        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 3L, Set.of(), 30, 0L)).build();
+        Segment seg4 = Segment.builder(4L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 4L, Set.of(), 40, 0L)).build();
         List<Segment> allSegments = List.of(seg1, seg2, seg3, seg4);
 
         MergePolicy lucenePolicy = mock(MergePolicy.class);
@@ -256,8 +256,8 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         Path tempDir = createTempDir();
         MockDataFormat fmt1 = new MockDataFormat("lucene", 100L, Set.of());
         MockDataFormat fmt2 = new MockDataFormat("columnar", 50L, Set.of());
-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 20);
+        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 20, 0L);
         Segment seg = Segment.builder(1L).addSearchableFiles(fmt1, wfs1).addSearchableFiles(fmt2, wfs2).build();
 
         policy.findMergeCandidates(List.of(seg));
@@ -291,7 +291,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         for (int i = 0; i < 15; i++) {
             Path file = tempDir.resolve("seg" + i + ".dat");
             Files.write(file, new byte[100]);
-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("seg" + i + ".dat"), 10);
+            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("seg" + i + ".dat"), 10, 0L);
             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
         }
 
@@ -314,7 +314,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         for (int i = 0; i < 5; i++) {
             Path file = tempDir.resolve("fseg" + i + ".dat");
             Files.write(file, new byte[100]);
-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("fseg" + i + ".dat"), 10);
+            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("fseg" + i + ".dat"), 10, 0L);
             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
         }
 
@@ -338,7 +338,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         int numSegments = 50;
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < numSegments; i++) {
-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of(), 10);
+            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of(), 10, 0L);
             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
         }
 
@@ -390,7 +390,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
         for (int i = 0; i < 15; i++) {
             Path file = tempDir.resolve("cseg" + i + ".dat");
             Files.write(file, new byte[100]);
-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("cseg" + i + ".dat"), 10);
+            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("cseg" + i + ".dat"), 10, 0L);
             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
         }
 

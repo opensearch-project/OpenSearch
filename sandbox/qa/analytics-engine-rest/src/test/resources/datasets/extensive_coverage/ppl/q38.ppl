@@ -1,0 +1,1 @@
+source=test_data | eval pow_val = pow(2, 3), sqrt_val = sqrt(value) | fields value, pow_val, sqrt_val | head 3

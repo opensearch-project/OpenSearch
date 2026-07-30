@@ -15,7 +15,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -57,7 +56,9 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public Map<String, String> getLastCommittedData() {
@@ -67,11 +68,6 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         @Override
         public CommitStats getCommitStats() {
             return null;
-        }
-
-        @Override
-        public SafeCommitInfo getSafeCommitInfo() {
-            return SafeCommitInfo.EMPTY;
         }
 
         @Override
@@ -85,6 +81,11 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("test stub does not serialize commits");
         }
 
         @Override

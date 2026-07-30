@@ -9,7 +9,8 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
@@ -30,6 +31,8 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -48,6 +51,16 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public EngineConfig config() {
         return engine.config();
+    }
+
+    /**
+     * Replica detection delegates to the wrapped {@link Engine}: true only when it's an
+     * {@link org.opensearch.index.engine.NRTReplicationEngine}. For non-replica engines
+     * (e.g., {@link org.opensearch.index.engine.InternalEngine}) this returns false.
+     */
+    @Override
+    public boolean isReplicaIndexer() {
+        return engine instanceof NRTReplicationEngine;
     }
 
     @Override
@@ -76,7 +89,7 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
         return engine.getIndexBufferRAMBytesUsed();
     }
 
@@ -242,6 +255,16 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
+        return engine.acquireSafeCatalogSnapshot();
+    }
+
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        return engine.acquireLastCommittedSnapshot(flushFirst);
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return engine.getPersistedLocalCheckpoint();
     }
@@ -282,6 +305,11 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public List<Segment> segments(boolean verbose) {
+        return engine.segments(verbose);
+    }
+
+    @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
         return engine.completionStats(fieldNamePatterns);
     }
@@ -294,6 +322,16 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public MergeStats getMergeStats() {
         return engine.getMergeStats();
+    }
+
+    @Override
+    public boolean hasPendingMerges() {
+        return engine.hasPendingMerges();
+    }
+
+    @Override
+    public int getActiveMergeCount() {
+        return engine.getActiveMergeCount();
     }
 
     @Override
@@ -372,21 +410,53 @@ public class EngineBackedIndexer implements Indexer {
         return Indexer.super.currentOngoingRefreshCheckpoint();
     }
 
+    /** Engine-backed indexer uses only JVM heap for indexing buffers, no native memory. */
     @Override
     public long getNativeBytesUsed() {
-        return Indexer.super.getNativeBytesUsed();
+        return 0;
     }
 
     /**
-     * Returns a snapshot of the catalog of segments in this engine. This snapshot is
-     * guaranteed to be consistent and can be used for recovery purposes.
+     * Applies received segment state to the replica engine. This indexer only wraps Lucene-backed
+     * shards, so any other engine/snapshot combination is a wiring bug.
+     */
+    @Override
+    public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (engine instanceof NRTReplicationEngine nrtEngine && catalogSnapshot instanceof SegmentInfosCatalogSnapshot siSnapshot) {
+            nrtEngine.updateSegments(siSnapshot.getSegmentInfos());
+        } else {
+            throw new IllegalStateException(
+                "EngineBackedIndexer.finalizeReplication expected NRTReplicationEngine + SegmentInfosCatalogSnapshot, got engine="
+                    + engine.getClass().getName()
+                    + ", snapshot="
+                    + catalogSnapshot.getClass().getName()
+            );
+        }
+    }
+
+    /**
+     * Returns a snapshot of the catalog of segments in this engine. Delegates to
+     * {@link Engine#acquireSnapshot()} so subclasses (e.g. the read-only wrapper used during
+     * engine reset) can route to a different snapshot source without going through the
+     * {@link Engine#getSegmentInfosSnapshot()} bridge — which is required when the underlying
+     * source is a non-Lucene indexer (e.g. {@link DataFormatAwareEngine}).
      */
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
-        GatedCloseable<SegmentInfos> segmentInfosRef = engine.getSegmentInfosSnapshot();
-        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
-        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+        return engine.acquireSnapshot();
+    }
+
+    @Override
+    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot sicSnapshot) {
+            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+            sicSnapshot.getSegmentInfos().write(new ByteBuffersIndexOutput(out, "Snapshot of SegmentInfos", "SegmentInfos"));
+            return out.toArrayCopy();
+        }
+        throw new IllegalStateException(
+            "EngineBackedIndexer expects SegmentInfosCatalogSnapshot but got: " + catalogSnapshot.getClass().getName()
+        );
     }
 
     @Override
@@ -398,5 +468,12 @@ public class EngineBackedIndexer implements Indexer {
 
     public Engine getEngine() {
         return engine;
+    }
+
+    /** Engine-backed get-by-id: delegates to {@link Engine#get(Engine.Get, BiFunction)} with {@code searcherFactory}. */
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        return engine.get(get, searcherFactory);
     }
 }

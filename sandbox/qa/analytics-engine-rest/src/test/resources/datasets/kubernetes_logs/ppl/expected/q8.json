@@ -1,0 +1,120 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    },
+    {
+      "name": "kubernetes.pod_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      2,
+      "fdas-prod",
+      "pod-0"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-1"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-10"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-11"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-12"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-13"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-14"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-15"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-16"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-17"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-18"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-19"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-2"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-3"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-4"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-5"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-6"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-7"
+    ],
+    [
+      1,
+      "fdas-prod",
+      "pod-8"
+    ],
+    [
+      2,
+      "fdas-prod",
+      "pod-9"
+    ]
+  ],
+  "total": 20,
+  "size": 20
+}

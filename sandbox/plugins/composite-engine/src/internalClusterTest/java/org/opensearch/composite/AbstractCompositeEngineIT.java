@@ -8,15 +8,22 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
@@ -29,11 +36,15 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.Netty4ModulePlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * Base class for composite engine integration tests.
@@ -42,11 +53,35 @@ import java.util.function.Function;
  * parquet primary + lucene secondary data formats. Subclasses inherit plugin
  * wiring, index creation helpers, and utility methods to access engine internals.
  */
+@ThreadLeakFilters(filters = AbstractCompositeEngineIT.ParquetNativeThreadFilter.class)
 public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase {
+
+    /**
+     * Suppresses generic "Thread-N" worker threads spawned by parquet's native (Rust) merge path.
+     * These JNI threads have empty Java stack traces; the JVM's randomized testing framework
+     * cannot identify their origin so they appear as leaks at suite teardown.
+     */
+    public static class ParquetNativeThreadFilter implements ThreadFilter {
+        private static final Pattern GENERIC_THREAD_NAME = Pattern.compile("^Thread-\\d+$");
+
+        @Override
+        public boolean reject(Thread t) {
+            return GENERIC_THREAD_NAME.matcher(t.getName()).matches();
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class,
+            // Netty4ModulePlugin provides the real HTTP server transport. Subclasses that override
+            // addMockHttpTransport() to return false rely on this plugin for the REST endpoints.
+            Netty4ModulePlugin.class
+        );
     }
 
     @Override
@@ -54,6 +89,11 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
+            // Use Netty4 as the HTTP transport so getRestClient() ITs can hit /_plugins/* endpoints.
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4ModulePlugin.NETTY_HTTP_TRANSPORT_NAME)
+            // Pin processors to a fixed value. InternalTestCluster otherwise randomizes node.processors per-test
+            // which conflicts with Netty's process-wide NettyRuntime.availableProcessors static across test methods.
+            .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 1)
             .build();
     }
 
@@ -75,27 +115,28 @@ public abstract class AbstractCompositeEngineIT extends OpenSearchIntegTestCase 
             settingsBuilder.putList("index.composite.secondary_data_formats");
         }
 
+        String keywordMapping = "type=keyword";
+        if (false == withLuceneSecondary) {
+            keywordMapping += ",index=false";
+        }
+
         client().admin()
             .indices()
             .prepareCreate(indexName)
             .setSettings(settingsBuilder)
-            .setMapping("name", "type=keyword", "value", "type=integer")
+            .setMapping("name", keywordMapping, "value", "type=integer")
             .get();
         ensureGreen(indexName);
     }
 
-    protected void indexDocs(String indexName, int count, int startId) {
+    protected List<String> indexDocs(String indexName, int count, int startId) {
+        List<String> ids = new ArrayList<>();
         for (int i = startId; i < startId + count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex()
-                    .setIndex(indexName)
-                    .setId(String.valueOf(i))
-                    .setSource("name", "doc_" + i, "value", i)
-                    .get()
-                    .status()
-            );
+            IndexResponse indexResponse = client().prepareIndex().setIndex(indexName).setSource("name", "doc_" + i, "value", i).get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+            ids.add(indexResponse.getId());
         }
+        return ids;
     }
 
     protected void refreshIndex(String indexName) {

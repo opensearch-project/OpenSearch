@@ -630,4 +630,26 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         // Ensure cache fully cleared before other tests in the suite begin
         fdCacheSpy.close();
     }
+
+    public void testSetShardIdentityResolverRejectsNull() {
+        ThreadPool threadPool = new TestThreadPool("test_set_resolver_null");
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
+            IndexFieldDataService ifds = new IndexFieldDataService(
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                cache,
+                null,
+                null,
+                threadPool
+            );
+            expectThrows(IllegalArgumentException.class, () -> ifds.setShardIdentityResolver(null));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
 }

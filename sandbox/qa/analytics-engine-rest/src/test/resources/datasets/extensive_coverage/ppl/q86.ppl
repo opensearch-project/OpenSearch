@@ -1,0 +1,1 @@
+source=test_data | parse text "(?<word1>\w+) (?<word2>\w+)" | fields text, word1, word2 | head 3

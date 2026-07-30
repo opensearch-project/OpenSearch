@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      8,
+      "/api/payments"
+    ],
+    [
+      8,
+      "/api/products"
+    ],
+    [
+      7,
+      "/SCS/Retail/v1/orders"
+    ],
+    [
+      5,
+      "/api/orders"
+    ],
+    [
+      5,
+      "/api/users"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "^time=(?<ts>\S+) level=(?<lvl>\w+)" | fields ts, lvl | where ts is not null | head 5

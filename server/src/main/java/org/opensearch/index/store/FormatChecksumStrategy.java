@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
@@ -64,8 +65,37 @@ public interface FormatChecksumStrategy {
     default void registerChecksum(String fileName, long checksum, long writerGeneration) {}
 
     /**
+     * {@link FileMetadata}-aware overload. The caller supplies a {@link FileMetadata}
+     * and the strategy converts to its internal storage key. Production code should
+     * prefer this overload so key-derivation logic stays inside the strategy.
+     *
+     * <p>Default implementation delegates to the String-based
+     * {@link #registerChecksum(String, long, long)} using {@link FileMetadata#serialize(String, String)}.
+     */
+    default void registerChecksum(FileMetadata fileMetadata, long checksum, long writerGeneration) {
+        if (fileMetadata != null) {
+            registerChecksum(fileMetadata.serialize(), checksum, writerGeneration);
+        }
+    }
+
+    /**
      * Clears all cached checksums. Called during cleanup/close.
      */
     default void clearChecksums() {}
+
+    /**
+     * Creates a {@link VerifyingIndexOutput} that computes and verifies checksums
+     * using this format's algorithm during the write pass (streaming).
+     *
+     * <p>Override this to provide format-specific verification (e.g., CRC32C for Parquet).
+     * The default uses CRC32 via {@link Store.DataFormatVerifyingIndexOutput}.
+     *
+     * @param metadata the expected file metadata (length, checksum)
+     * @param output the underlying index output to wrap
+     * @return a verifying output that checks integrity on {@code verify()}
+     */
+    default VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
+        return new Store.DataFormatVerifyingIndexOutput(metadata, output);
+    }
 
 }

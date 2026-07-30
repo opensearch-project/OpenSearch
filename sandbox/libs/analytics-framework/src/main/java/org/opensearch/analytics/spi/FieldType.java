@@ -56,6 +56,8 @@ public enum FieldType {
     OBJECT("object"),
     FLAT_OBJECT("flat_object"),
     COMPLETION("completion"),
+
+    // ── Composite ────────────────────────────────────────────────────
     /**
      * Array-typed expression result. Used for the return-type slot of array-producing scalar
      * functions (PPL {@code array(…)}, {@code array_slice}, {@code array_distinct}). Has no
@@ -67,15 +69,16 @@ public enum FieldType {
     ARRAY("array"),
 
     /**
-     * Map-typed expression result. First in-tree producer is PPL `spath`'s auto-extract mode
-     * (`JSON_EXTRACT_ALL` returns {@code MAP<VARCHAR, VARCHAR>}). Mapping string is {@code
-     * "map"} as a placeholder — no OpenSearch storage format declares this mapping today, so
-     * {@link #fromMappingType} never resolves to it through the mapping path; columns reach
-     * MAP only through {@link #fromSqlTypeName}. Capability registrations for filter / project
-     * operators on MAP columns are intentionally minimal: callers (e.g. PPL `where doc.user.name`)
-     * always wrap the MAP column in an ITEM lookup whose result type is the map's value type,
-     * so the EQUALS / sort / aggregate operators see the value-level type by the time the
-     * runtime executes them.
+     * Map-typed expression result. In-tree producers include PPL {@code spath}'s auto-extract
+     * mode ({@code JSON_EXTRACT_ALL} returns {@code MAP<VARCHAR, VARCHAR>}) and PPL
+     * {@code parse} (named regex groups returned as {@code MAP<VARCHAR, VARCHAR>}). Mapping
+     * string is {@code "map"} as a placeholder — no OpenSearch storage format declares this
+     * mapping today, so {@link #fromMappingType} never resolves to it through the mapping
+     * path; columns reach MAP only through {@link #fromSqlTypeName}. Capability registrations
+     * for filter / project operators on MAP columns are intentionally minimal: callers (e.g.
+     * PPL {@code where doc.user.name}) always wrap the MAP column in an ITEM lookup whose
+     * result type is the map's value type, so the EQUALS / sort / aggregate operators see
+     * the value-level type by the time the runtime executes them.
      */
     MAP("map");
 

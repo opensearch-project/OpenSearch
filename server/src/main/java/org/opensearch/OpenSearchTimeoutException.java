@@ -33,6 +33,7 @@
 package org.opensearch;
 
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -56,5 +57,10 @@ public class OpenSearchTimeoutException extends OpenSearchException {
 
     public OpenSearchTimeoutException(String message, Throwable cause, Object... args) {
         super(message, cause, args);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.GATEWAY_TIMEOUT;
     }
 }

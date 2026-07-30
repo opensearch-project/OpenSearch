@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -52,7 +53,13 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class);
+        return Arrays.asList(
+            ArrowBasePlugin.class,
+            ParquetDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            LucenePlugin.class,
+            DataFusionPlugin.class
+        );
     }
 
     @Override
@@ -74,19 +81,16 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
                     .put("index.pluggable.dataformat.enabled", true)
                     .put("index.pluggable.dataformat", "composite")
                     .put("index.composite.primary_data_format", "parquet")
-                    .putList("index.composite.secondary_data_formats")
+                    .putList("index.composite.secondary_data_formats", "lucene")
             )
-            .setMapping("field", "type=keyword")
+            .setMapping("field", "type=integer")
             .get();
         ensureGreen(INDEX_NAME);
     }
 
     private void indexDocs(int count, int startId) {
         for (int i = startId; i < startId + count; i++) {
-            assertEquals(
-                RestStatus.CREATED,
-                client().prepareIndex().setIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("field", "value_" + i).get().status()
-            );
+            assertEquals(RestStatus.CREATED, client().prepareIndex().setIndex(INDEX_NAME).setSource("field", i).get().status());
         }
     }
 

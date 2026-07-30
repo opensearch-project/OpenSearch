@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "duration=(?<dur>\d+)?" | fields message, dur | head 10

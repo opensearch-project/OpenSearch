@@ -7,18 +7,14 @@
  */
 
 /*
- * SPI interfaces for plugin stats collection.
- * Contains only PluginStats (marker interface) and BackendStatsProvider.
- * Consumed by sandbox plugins that report backend statistics.
+ * SPI interfaces for plugin-level statistics.
+ * Provides DataFormatShardStats and DataFormatShardStatsTracker contracts
+ * that data format plugins (Lucene, Parquet, etc.) implement.
  */
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
 dependencies {
-    api project(':libs:opensearch-core')
-    api project(':libs:opensearch-common')
-}
-
-testingConventions.enabled = false
-
-tasks.named('forbiddenApisMain').configure {
-    replaceSignatureFiles 'jdk-signatures'
+    compileOnly project(':server')
+    testImplementation project(':test:framework')
 }

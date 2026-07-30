@@ -1,0 +1,90 @@
+# EXTRACT expression pushed into DataSourceExec projection (computed at parquet scan level).
+# Project node annotated datafusion-only (lucene cannot evaluate temporal extraction).
+query: q19
+ppl_file: q19.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1, 2}], count()=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$3], sort1=[$0], sort2=[$1], sort3=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+                  OpenSearchAggregate(group=[{0, 1, 2}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+                    OpenSearchProject(UserID=[$97], m=[ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], EXTRACT('minute':VARCHAR, $16))], SearchPhrase=[$74], viableBackends=[[datafusion]])
+                      OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$3], sort1=[$0], sort2=[$1], sort3=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0, 1, 2}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(UserID=[$97], m=[ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], EXTRACT('minute':VARCHAR, $16))], SearchPhrase=[$74], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1, 2}], count()=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as m, SearchPhrase@2 as SearchPhrase, count(Int64(1))[count]@3 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=1
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
+    shard_physical_nseg: |
+      ProjectionExec: expr=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as m, SearchPhrase@2 as SearchPhrase, count(Int64(1))[count]@3 as count()]
+        SortPreservingMergeExec: [count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@3 DESC NULLS LAST, UserID@0 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 ASC, SearchPhrase@2 ASC], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+              RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=2
+                AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
+    coord_physical: |
+      ProjectionExec: expr=[sum(input-0.count())@0 as count(), UserID@1 as UserID, m@2 as m, SearchPhrase@3 as SearchPhrase]
+        SortPreservingMergeExec: [sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC, m@2 ASC, SearchPhrase@3 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[sum(input-0.count())@0 DESC NULLS LAST, UserID@1 ASC, m@2 ASC, SearchPhrase@3 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[sum(input-0.count())@3 as sum(input-0.count()), UserID@0 as UserID, m@1 as m, SearchPhrase@2 as SearchPhrase]
+              AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, m@1 as m, SearchPhrase@2 as SearchPhrase], aggr=[sum(input-0.count())]
+                RepartitionExec: partitioning=Hash([UserID@0, m@1, SearchPhrase@2], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[UserID@0 as UserID, m@1 as m, SearchPhrase@2 as SearchPhrase], aggr=[sum(input-0.count())]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      StreamingTableExec: partition_sizes=1, projection=[UserID, m, SearchPhrase, count()]
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1, 2}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(UserID=[$97], m=[ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], EXTRACT('minute':VARCHAR, $16))], SearchPhrase=[$74], viableBackends=[[datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0, 1, 2}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(UserID=[$97], m=[ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], EXTRACT('minute':VARCHAR, $16))], SearchPhrase=[$74], viableBackends=[[datafusion]])
+                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as count(), UserID@1 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 as m, SearchPhrase@3 as SearchPhrase]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, UserID@1 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 ASC, SearchPhrase@3 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, UserID@1 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 ASC, SearchPhrase@3 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@3 as count(Int64(1)), UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase]
+              AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=1
+                  AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet
+    shard_physical_nseg: |
+      ProjectionExec: expr=[count(Int64(1))@0 as count(), UserID@1 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 as m, SearchPhrase@3 as SearchPhrase]
+        SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, UserID@1 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 ASC, SearchPhrase@3 ASC], fetch=10
+          SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST, UserID@1 ASC, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@2 ASC, SearchPhrase@3 ASC], preserve_partitioning=[true]
+            ProjectionExec: expr=[count(Int64(1))@3 as count(Int64(1)), UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase]
+              AggregateExec: mode=FinalPartitioned, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                RepartitionExec: partitioning=Hash([UserID@0, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1, SearchPhrase@2], 4), input_partitions=2
+                  AggregateExec: mode=Partial, gby=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase@2 as SearchPhrase], aggr=[count(Int64(1))]
+                    DataSourceExec: file_groups={<scrubbed>}, projection=[UserID, opensearch_extract(minute, CAST(EventTime@18 AS Timestamp(µs))) as opensearch_extract(Utf8("minute"),<scrubbed>.EventTime), SearchPhrase], file_type=parquet

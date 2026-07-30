@@ -37,7 +37,7 @@ public final class PassThroughStageExecution extends AbstractStageExecution impl
             throw new IllegalArgumentException("PassThroughStageExecution requires a RowProducingSink");
         }
         this.ownedSink = (RowProducingSink) sink;
-        this.runner = new LocalTaskRunner(config.localTaskExecutor());
+        this.runner = new LocalTaskRunner(config.schedulerExecutor());
     }
 
     @Override

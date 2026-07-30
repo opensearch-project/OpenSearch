@@ -1,0 +1,1 @@
+source=test_data | eval new_period = period_add(202601, 3) | fields id, new_period | head 1

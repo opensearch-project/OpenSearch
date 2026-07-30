@@ -1,0 +1,15 @@
+{
+  "schema": [
+    {
+      "name": "median_value",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      225.75
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

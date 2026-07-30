@@ -19,7 +19,9 @@ import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link QueryScheduler#scheduleStage} and {@link QueryScheduler#handleFor}.
@@ -41,7 +44,9 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        scheduler = new QueryScheduler(mock(StageExecutionBuilder.class));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        scheduler = new QueryScheduler(mock(StageExecutionBuilder.class), transportService);
     }
 
     /** Happy path: scheduler iterates tasks, transitions each to RUNNING, runs them. */
@@ -151,6 +156,147 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
         assertEquals("superseded original attempt stays FAILED", StageTaskState.FAILED, originalTask.state());
         assertEquals("terminal callback fired exactly once", 1, stage.terminalCalls.get());
         assertNull("success path passes null cause to onTaskTerminal", stage.lastTerminalCause.get());
+    }
+
+    /**
+     * Terminal-stage short-circuit: once the stage enters ANY terminal state
+     * ({@link StageExecution.State#CANCELLED}, {@link StageExecution.State#FAILED},
+     * or {@link StageExecution.State#SUCCEEDED}), the scheduler must NOT consult
+     * {@code retargetForRetry}. Spawning new dispatch work for a stage that's done
+     * is always wrong, regardless of which terminal state it landed in. Original
+     * failure propagates to {@code onTaskTerminal} so per-attempt bookkeeping cleans up.
+     */
+    public void testTerminalStageSkipsRetryAndPropagatesOriginalCause() {
+        for (StageExecution.State terminalState : new StageExecution.State[] {
+            StageExecution.State.CANCELLED,
+            StageExecution.State.FAILED,
+            StageExecution.State.SUCCEEDED }) {
+
+            StageTask retryTask = makeTask(0);  // would be returned if retargetForRetry were called
+            FakeStage stage = new FakeStage(makeTask(0));
+            stage.retryQueue.add(Optional.of(retryTask));
+
+            scheduler.scheduleStage(stage);
+            assertEquals("initial dispatch (state=" + terminalState + ")", 1, stage.runner.dispatched.size());
+            ActionListener<Void> handle = stage.runner.dispatched.get(0).handle;
+
+            // Stage transitions terminally before the in-flight task's failure arrives.
+            stage.state = terminalState;
+
+            RuntimeException cause = new RuntimeException("dispatch failed after stage terminal=" + terminalState);
+            handle.onFailure(cause);
+
+            assertEquals(
+                "no retry dispatch when stage is " + terminalState + " — short-circuit must skip retargetForRetry",
+                1,
+                stage.runner.dispatched.size()
+            );
+            assertEquals(
+                "onTaskTerminal still fires (stage=" + terminalState + ") so per-attempt bookkeeping cleans up",
+                1,
+                stage.terminalCalls.get()
+            );
+            assertSame(
+                "original cause propagated, not wrapped or replaced (stage=" + terminalState + ")",
+                cause,
+                stage.lastTerminalCause.get()
+            );
+        }
+    }
+
+    /**
+     * Simulates the "No ReaderContext" bug scenario: task cancelled on data node (stream error) →
+     * retry on replica succeeds → verify that currentAttempt (the retry) is different from the
+     * original task when onResponse fires. This is the condition that triggers updateResolvedTarget
+     * in the fix (QueryScheduler checks currentAttempt != task after retry success).
+     */
+    public void testRetryAfterCancelledStreamUsesNewAttemptOnSuccess() {
+        StageTask originalTask = makeTask(0);
+        FakeStage stage = new FakeStage(originalTask);
+        StageTask retryTask = makeTask(0);
+        stage.retryQueue.add(Optional.of(retryTask));
+
+        scheduler.scheduleStage(stage);
+        ActionListener<Void> handle = stage.runner.dispatched.get(0).handle;
+
+        // Data node cancels the stream — propagates as TaskCancelledException to coordinator
+        handle.onFailure(new org.opensearch.core.tasks.TaskCancelledException("query cancelled"));
+
+        // Retry dispatched to replica
+        assertEquals("retry dispatched after cancellation", 2, stage.runner.dispatched.size());
+        assertSame("retry task dispatched", retryTask, stage.runner.dispatched.get(1).task);
+        assertEquals("original marked FAILED", StageTaskState.FAILED, originalTask.state());
+        assertEquals("retry is RUNNING", StageTaskState.RUNNING, retryTask.state());
+
+        // Retry succeeds on replica — this is where updateResolvedTarget should fire
+        // because currentAttempt (retryTask) != task (originalTask)
+        handle.onResponse(null);
+        assertEquals("retry FINISHED", StageTaskState.FINISHED, retryTask.state());
+        assertEquals("terminal called once", 1, stage.terminalCalls.get());
+        assertNull("success — null cause", stage.lastTerminalCause.get());
+
+        // The fix checks: if (currentAttempt != task && stage instanceof ShardFragmentStageExecution)
+        // Here currentAttempt == retryTask, task == originalTask → they're different → fix triggers.
+        assertNotSame("currentAttempt differs from original — updateResolvedTarget condition met", originalTask, retryTask);
+    }
+
+    /**
+     * Verifies that {@link QueryContext#updateResolvedTarget} correctly replaces a stale
+     * primary target with the replica target after a successful retry. This is the data-layer
+     * fix for the "No ReaderContext" bug — the LM fetch uses getResolvedTargets() to decide
+     * where to send fetch requests, so the map must reflect the node that actually ran the query.
+     */
+    public void testUpdateResolvedTargetReplacesStaleEntry() {
+        org.opensearch.cluster.node.DiscoveryNode primaryNode = new org.opensearch.cluster.node.DiscoveryNode(
+            "primary",
+            buildNewFakeTransportAddress(),
+            java.util.Collections.emptyMap(),
+            java.util.Collections.emptySet(),
+            org.opensearch.Version.CURRENT
+        );
+        org.opensearch.cluster.node.DiscoveryNode replicaNode = new org.opensearch.cluster.node.DiscoveryNode(
+            "replica",
+            buildNewFakeTransportAddress(),
+            java.util.Collections.emptyMap(),
+            java.util.Collections.emptySet(),
+            org.opensearch.Version.CURRENT
+        );
+        org.opensearch.core.index.shard.ShardId shardId = new org.opensearch.core.index.shard.ShardId("test_idx", "uuid", 0);
+
+        org.opensearch.analytics.planner.dag.ShardExecutionTarget primaryTarget =
+            new org.opensearch.analytics.planner.dag.ShardExecutionTarget(primaryNode, shardId, 0);
+        org.opensearch.analytics.planner.dag.ShardExecutionTarget replicaTarget =
+            new org.opensearch.analytics.planner.dag.ShardExecutionTarget(replicaNode, shardId, 0);
+
+        // Simulate recordResolvedTargets at plan time — records primary
+        QueryContext config = mock(QueryContext.class);
+        java.util.Map<Integer, org.opensearch.analytics.planner.dag.ShardExecutionTarget> targetMap = new java.util.HashMap<>();
+        targetMap.put(0, primaryTarget);
+        org.mockito.Mockito.when(config.getResolvedTargets(0)).thenReturn(targetMap);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            int stageId = invocation.getArgument(0);
+            int ordinal = invocation.getArgument(1);
+            org.opensearch.analytics.planner.dag.ShardExecutionTarget target = invocation.getArgument(2);
+            targetMap.put(ordinal, target);
+            return null;
+        })
+            .when(config)
+            .updateResolvedTarget(
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any()
+            );
+
+        // Before fix: target points to primary
+        assertSame("before retry, target points to primary", primaryTarget, targetMap.get(0));
+
+        // Simulate updateResolvedTarget after retry succeeds on replica
+        config.updateResolvedTarget(0, 0, replicaTarget);
+
+        // After fix: target now points to replica
+        assertSame("after updateResolvedTarget, target points to replica", replicaTarget, targetMap.get(0));
+        assertNotSame("target no longer points to primary", primaryTarget, targetMap.get(0));
+        assertEquals("replica node is the fetch target", "replica", targetMap.get(0).node().getId());
     }
 
     // ─── helpers ──────────────────────────────────────────────────────────

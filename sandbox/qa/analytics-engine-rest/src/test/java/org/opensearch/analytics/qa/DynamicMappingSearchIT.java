@@ -113,6 +113,65 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
         assertValue("where match(" + FIELD_NAME + ", 'mia') | stats sum(" + FIELD_PRIORITY + ") as total", "total", 1.0);
     }
 
+    /**
+     * Cross-shard schema drift: a sparse dynamically-mapped field that exists in only one doc
+     * (hence in only one shard's parquet segments) must not break a filtered query that
+     * materializes rows. The coordinator's substrait base_schema names the field (it's in the
+     * merged index mapping), so the indexed-executor scan path must widen each shard's schema to
+     * base_schema and null-fill the absent column — otherwise shards lacking it fail with
+     * "No field named ...". Regression test for the indexed-path widening fix.
+     */
+    public void testCrossShardDriftFilteredQuery() throws Exception {
+        String index = "cross_shard_drift_e2e";
+        createTwoShardIndex(index, "{\"proto\": { \"type\": \"keyword\" }, \"common\": { \"type\": \"integer\" }}");
+
+        // 10 docs across 2 shards (natural _id hashing); exactly one carries the sparse field, so
+        // it lands in only one shard's parquet. The dynamic field enters the merged index mapping.
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 1; i <= 10; i++) {
+            bulk.append("{\"index\": {}}\n");
+            if (i == 5) {
+                bulk.append("{\"proto\": \"TCP\", \"common\": ").append(i).append(", \"sparse_field\": 999}\n");
+            } else {
+                bulk.append("{\"proto\": \"TCP\", \"common\": ").append(i).append("}\n");
+            }
+        }
+        bulkIndexInto(index, bulk.toString());
+
+        // Sanity: the sparse field is dynamically mapped and present on exactly one doc.
+        assertCountIn(index, "where isnotnull(sparse_field) | stats count() as cnt", 1);
+
+        // The drift trigger: a filtered query that materializes rows (indexed-executor path).
+        // Before the fix this failed on the shard lacking sparse_field with "No field named".
+        Map<String, Object> result = executePpl("source = " + index + " | where proto = 'TCP' | fields common | sort common");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("drift query returned no datarows", rows);
+        assertEquals("filtered query over a drifted multi-shard index should return all matching rows", 10, rows.size());
+
+        // The drifted column reads back as its real value where present, NULL where absent.
+        assertValueIn(index, "where common = 5 | fields sparse_field", "sparse_field", 999.0);
+        assertCountIn(index, "where isnull(sparse_field) | stats count() as cnt", 9);
+    }
+
+    /**
+     * Filtered query against an index whose shards are all empty (zero docs / zero parquet files).
+     * The empty-shard guard derives the scan schema from the plan rather than from segments, so a
+     * row-materializing filtered query must return zero rows cleanly rather than erroring.
+     */
+    public void testFilteredQueryOnEmptyShards() throws Exception {
+        String index = "empty_shard_filter_e2e";
+        createTwoShardIndex(index, "{\"proto\": { \"type\": \"keyword\" }, \"common\": { \"type\": \"integer\" }}");
+
+        Map<String, Object> result = executePpl("source = " + index + " | where proto = 'TCP' | fields common | head 2");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("empty-shard query returned no datarows", rows);
+        assertEquals("filtered query on an empty index should return zero rows", 0, rows.size());
+
+        assertCountIn(index, "stats count() as cnt", 0);
+    }
+
     // ── Document builders ───────────────────────────────────────────────────
 
     /** Phase 1 doc: name + age only */
@@ -177,6 +236,68 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
         client().performRequest(health);
     }
 
+    /** Creates a 2-shard composite/parquet index (lucene secondary) with the given mapping properties. */
+    private void createTwoShardIndex(String index, String propertiesJson) throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 2,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+            + "},"
+            + "\"mappings\": { \"properties\": " + propertiesJson + " }"
+            + "}";
+        Request req = new Request("PUT", "/" + index);
+        req.setJsonEntity(body);
+        assertEquals(true, assertOkAndParse(client().performRequest(req), "Create index " + index).get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + index);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+    }
+
+    /** Bulk-index NDJSON into the named index with refresh. */
+    private void bulkIndexInto(String index, String ndjson) throws Exception {
+        Request req = new Request("POST", "/" + index + "/_bulk");
+        req.setJsonEntity(ndjson);
+        req.addParameter("refresh", "true");
+        req.setOptions(req.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
+        Map<String, Object> response = assertOkAndParse(client().performRequest(req), "Bulk index " + index);
+        assertEquals("Bulk indexing should have no errors", false, response.get("errors"));
+    }
+
+    /** count-query assertion against an arbitrary index. */
+    private void assertCountIn(String index, String pplSuffix, int expected) throws IOException {
+        String ppl = "source = " + index + " | " + pplSuffix;
+        Map<String, Object> result = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("Response missing 'datarows' for: " + ppl, rows);
+        assertEquals("Expected 1 row for count query: " + ppl, 1, rows.size());
+        assertEquals("Count mismatch for: " + ppl, expected, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /** single-value assertion against an arbitrary index. */
+    private void assertValueIn(String index, String pplSuffix, String column, double expected) throws IOException {
+        String ppl = "source = " + index + " | " + pplSuffix;
+        Map<String, Object> result = executePpl(ppl);
+        List<String> columns = extractColumnNames(result);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertNotNull("Response missing 'datarows' for: " + ppl, rows);
+        assertEquals(1, rows.size());
+        int idx = columns.indexOf(column);
+        assertTrue("Column '" + column + "' not found in: " + columns, idx >= 0);
+        assertEquals("Value mismatch for: " + ppl, expected, ((Number) rows.get(0).get(idx)).doubleValue(), 0.01);
+    }
+
     private void bulkIndex(String ndjson) throws Exception {
         Request req = new Request("POST", "/" + INDEX + "/_bulk");
         req.setJsonEntity(ndjson);
@@ -190,18 +311,12 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws IOException {
-        Request req = new Request("POST", "/_analytics/ppl");
-        req.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(req);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private void assertCount(String pplSuffix, int expected) throws IOException {
         String ppl = "source = " + INDEX + " | " + pplSuffix;
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("Response missing 'rows' for: " + ppl, rows);
         assertEquals("Expected 1 row for count query: " + ppl, 1, rows.size());
         long actual = ((Number) rows.get(0).get(0)).longValue();
@@ -210,11 +325,11 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
 
     private void assertValue(String pplSuffix, String column, double expected) throws IOException {
         String ppl = "source = " + INDEX + " | " + pplSuffix;
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<String> columns = (List<String>) result.get("columns");
+        List<String> columns = extractColumnNames(result);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
         assertNotNull("Response missing 'rows' for: " + ppl, rows);
         assertEquals(1, rows.size());
         int idx = columns.indexOf(column);

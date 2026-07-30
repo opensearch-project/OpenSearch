@@ -211,6 +211,7 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
     /**
      * Returns information about the safe commit, for making decisions about recoveries.
      */
+    @Override
     public SafeCommitInfo getSafeCommitInfo() {
         return safeCommitInfo;
     }

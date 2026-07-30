@@ -1,0 +1,1 @@
+source=test_data | eval keys = json_keys(json_data) | fields json_data, keys | head 3

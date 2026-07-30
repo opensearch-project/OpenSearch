@@ -1,0 +1,1 @@
+source=test_data | eval sub_time = subtime(timestamp, time('01:30:00')) | fields timestamp, sub_time | head 3

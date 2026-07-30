@@ -353,9 +353,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this.humanReadable;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Structure (object, array, field, null values...)
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder startObject() throws IOException {
         generatorInstance().writeStartObject();
@@ -402,9 +402,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Boolean
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Boolean value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.booleanValue());
@@ -441,9 +441,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Byte
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Byte value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.byteValue());
@@ -462,9 +462,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Double
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Double value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.doubleValue());
@@ -501,9 +501,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Float
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Float value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.floatValue());
@@ -540,9 +540,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Integer
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Integer value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.intValue());
@@ -579,9 +579,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Long
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Long value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.longValue());
@@ -618,9 +618,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Short
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Short value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.shortValue());
@@ -655,9 +655,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // BigInteger
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, BigInteger value) throws IOException {
         if (value == null) {
@@ -692,9 +692,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // BigDecimal
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, BigDecimal value) throws IOException {
         if (value == null) {
@@ -729,9 +729,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // String
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, String value) throws IOException {
         if (value == null) {
@@ -766,9 +766,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Binary
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, byte[] value) throws IOException {
         if (value == null) {
@@ -809,9 +809,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Date
-    //////////////////////////////////
+    // ------------------------------
 
     /**
      * Write a time-based field and value, if the passed timeValue is null a
@@ -859,9 +859,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // LatLon
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder latlon(String name, double lat, double lon) throws IOException {
         return field(name).latlon(lat, lon);
@@ -871,9 +871,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return startObject().field("lat", lat).field("lon", lon).endObject();
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Path
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder value(Path value) throws IOException {
         if (value == null) {
@@ -882,13 +882,13 @@ public final class XContentBuilder implements Closeable, Flushable {
         return value(value.toString());
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Objects
     //
     // These methods are used when the type of value is unknown. It tries to fallback
     // on typed methods and use Object.toString() as a last resort. Always prefer using
     // typed methods over this.
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
@@ -939,9 +939,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // ToXContent
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, ToXContent value) throws IOException {
         return field(name).value(value);
@@ -963,9 +963,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Maps & Iterable
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
         return field(name).map(values);
@@ -1033,13 +1033,13 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Human readable fields
     //
     // These are fields that have a "raw" value and a "human readable" value,
     // such as time values or byte sizes. The human readable variant is only
     // used if the humanReadable flag has been set
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
         assert rawFieldName.equals(readableFieldName) == false : "expected raw and readable field names to differ, but they were both: "
@@ -1057,9 +1057,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Misc.
-    //////////////////////////////////
+    // ------------------------------
 
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
         assert rawFieldName.equals(readableFieldName) == false : "expected raw and readable field names to differ, but they were both: "
@@ -1071,9 +1071,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------------------
     // Raw fields
-    //////////////////////////////////
+    // ------------------------------
 
     /**
      * Writes a raw field with the value taken from the bytes in the stream

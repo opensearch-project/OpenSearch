@@ -54,7 +54,7 @@ public class FormatBlobRouterTests extends OpenSearchTestCase {
 
     public void testNonLuceneFormatCreatesSubPathContainer() {
         BlobContainer parquetContainer = mock(BlobContainer.class);
-        BlobPath parquetPath = basePath.add("parquet");
+        BlobPath parquetPath = basePath.parent().add("parquet");
         when(blobStore.blobContainer(parquetPath)).thenReturn(parquetContainer);
 
         FormatBlobRouter router = new FormatBlobRouter(blobStore, basePath);
@@ -66,7 +66,7 @@ public class FormatBlobRouterTests extends OpenSearchTestCase {
 
     public void testSameFormatReturnsSameContainer() {
         BlobContainer parquetContainer = mock(BlobContainer.class);
-        when(blobStore.blobContainer(basePath.add("parquet"))).thenReturn(parquetContainer);
+        when(blobStore.blobContainer(basePath.parent().add("parquet"))).thenReturn(parquetContainer);
 
         FormatBlobRouter router = new FormatBlobRouter(blobStore, basePath);
         BlobContainer first = router.containerFor("parquet");
@@ -74,7 +74,7 @@ public class FormatBlobRouterTests extends OpenSearchTestCase {
 
         assertSame(first, second);
         // blobContainer called once for basePath (constructor) + once for parquet (first access)
-        verify(blobStore, times(1)).blobContainer(basePath.add("parquet"));
+        verify(blobStore, times(1)).blobContainer(basePath.parent().add("parquet"));
     }
 
     public void testBaseContainerAccessor() {
@@ -103,13 +103,13 @@ public class FormatBlobRouterTests extends OpenSearchTestCase {
 
     public void testRegisterFormatPreCreatesContainer() {
         BlobContainer parquetContainer = mock(BlobContainer.class);
-        when(blobStore.blobContainer(basePath.add("parquet"))).thenReturn(parquetContainer);
+        when(blobStore.blobContainer(basePath.parent().add("parquet"))).thenReturn(parquetContainer);
 
         FormatBlobRouter router = new FormatBlobRouter(blobStore, basePath);
         router.registerFormat("parquet");
 
         assertTrue(router.registeredFormats().contains("parquet"));
-        verify(blobStore).blobContainer(basePath.add("parquet"));
+        verify(blobStore).blobContainer(basePath.parent().add("parquet"));
     }
 
     public void testRegisterFormatIgnoresBasePathFormats() {
@@ -124,13 +124,13 @@ public class FormatBlobRouterTests extends OpenSearchTestCase {
 
     public void testFormatNameIsLowercasedForPath() {
         BlobContainer container = mock(BlobContainer.class);
-        when(blobStore.blobContainer(basePath.add("parquet"))).thenReturn(container);
+        when(blobStore.blobContainer(basePath.parent().add("parquet"))).thenReturn(container);
 
         FormatBlobRouter router = new FormatBlobRouter(blobStore, basePath);
         router.containerFor("Parquet");
 
         // Should create path with lowercase "parquet"
-        verify(blobStore).blobContainer(basePath.add("parquet"));
+        verify(blobStore).blobContainer(basePath.parent().add("parquet"));
     }
 
     // ═══════════════════════════════════════════════════════════════

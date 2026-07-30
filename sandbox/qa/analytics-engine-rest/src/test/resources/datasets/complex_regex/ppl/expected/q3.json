@@ -1,0 +1,105 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    },
+    {
+      "name": "status_code",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      14,
+      "/api/payments",
+      "200"
+    ],
+    [
+      11,
+      "/api/products",
+      "200"
+    ],
+    [
+      10,
+      "/api/users",
+      "200"
+    ],
+    [
+      9,
+      "/api/orders",
+      "200"
+    ],
+    [
+      7,
+      "/api/orders",
+      "201"
+    ],
+    [
+      7,
+      "/api/products",
+      "201"
+    ],
+    [
+      6,
+      "/api/payments",
+      "400"
+    ],
+    [
+      6,
+      "/api/payments",
+      "502"
+    ],
+    [
+      5,
+      "/api/orders",
+      "500"
+    ],
+    [
+      5,
+      "/api/orders",
+      "502"
+    ],
+    [
+      5,
+      "/api/payments",
+      "201"
+    ],
+    [
+      5,
+      "/api/payments",
+      "500"
+    ],
+    [
+      5,
+      "/api/products",
+      "401"
+    ],
+    [
+      5,
+      "/api/products",
+      "503"
+    ],
+    [
+      3,
+      "/api/products",
+      "502"
+    ],
+    [
+      3,
+      "/api/users",
+      "201"
+    ],
+    [
+      3,
+      "/api/users",
+      "500"
+    ]
+  ],
+  "total": 17,
+  "size": 17
+}

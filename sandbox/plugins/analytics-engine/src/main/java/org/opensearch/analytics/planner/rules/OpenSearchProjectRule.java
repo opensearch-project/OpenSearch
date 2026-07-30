@@ -20,6 +20,7 @@ import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.UnsupportedFunctionException;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -84,18 +85,18 @@ public class OpenSearchProjectRule extends RelOptRule {
             ? computeProjectViableBackends(annotatedExprs, childViableBackends)
             : childViableBackends;
 
-        // Window functions (RexOver): PPL `eventstats` / `appendcol` emit window calls inline
-        // on the projection; PPL `dedup` lowers to ROW_NUMBER OVER (PARTITION BY ...). Narrow
-        // viable backends to those whose WindowCapability declares every required function.
-        // PARTITION BY is rejected for aggregate-as-window functions (no shuffle exchange
-        // available yet) but allowed for ROW_NUMBER since its partition is local.
+        // Narrow viable backends to those whose WindowCapability declares every RexOver function used.
         Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
         if (!requiredWindowFns.isEmpty()) {
             viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
         }
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
+            List<String> funcNames = annotatedExprs.stream()
+                .filter(e -> e instanceof RexCall)
+                .map(e -> ((RexCall) e).getOperator().getName())
+                .toList();
+            throw new UnsupportedFunctionException(funcNames.toString(), "in combination in this query");
         }
 
         call.transformTo(
@@ -135,7 +136,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             if (isOpaqueOperation(funcName)) {
                 List<String> exprViable = resolveOpaqueViableBackends(funcName, childViableBackends);
                 if (exprViable.isEmpty()) {
-                    throw new IllegalStateException("No backend can evaluate [" + funcName + "] and no delegation path exists");
+                    throw new UnsupportedFunctionException(funcName, null);
                 }
                 return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable, context.nextAnnotationId());
             }
@@ -146,7 +147,7 @@ public class OpenSearchProjectRule extends RelOptRule {
         if (scalarViable.isEmpty()) {
             ScalarFunction resolved = ScalarFunction.fromSqlOperatorWithFallback(rexCall.getOperator());
             String label = resolved != null ? resolved.name() : rexCall.getOperator().getName();
-            throw new IllegalStateException("No backend supports scalar function [" + label + "] among " + childViableBackends);
+            throw new UnsupportedFunctionException(label, "as a scalar function");
         }
 
         // Recurse into operands
@@ -284,28 +285,18 @@ public class OpenSearchProjectRule extends RelOptRule {
         return context.getCapabilityRegistry().isOpaqueOperation(funcName);
     }
 
-    /** Walks project expressions and collects the {@link WindowFunction}s used by any {@link RexOver}.
-     *  PARTITION BY is rejected for aggregate-as-window functions (SUM/AVG/COUNT/MIN/MAX) since
-     *  shuffle exchange isn't wired yet — those run frame-only across all rows on a single fragment.
-     *  ROW_NUMBER is the exception: PPL {@code dedup} lowers to ROW_NUMBER OVER (PARTITION BY ...)
-     *  whose semantics are local to each partition; isthmus + DataFusion's substrait consumer
-     *  emit a Window rel that executes the partition without requiring shuffle (the partition
-     *  is the row-group boundary, not a data-redistribution operator). Unrecognized window
-     *  SqlKinds (LAG, LEAD, NTILE, etc.) also fail here. */
+    /** Collects {@link WindowFunction}s used by any {@link RexOver} in {@code exprs}.
+     *  Unrecognized window SqlKinds (LAG, LEAD, NTILE, etc.) fail here. The SINGLETON cost gate
+     *  on RexOver-bearing projects guarantees PARTITION BY / ORDER BY see fully-gathered input. */
     private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
         Set<WindowFunction> fns = new LinkedHashSet<>();
         for (RexNode expr : exprs) {
             expr.accept(new org.apache.calcite.rex.RexShuttle() {
                 @Override
                 public RexNode visitOver(RexOver over) {
-                    WindowFunction fn = WindowFunction.fromSqlKind(over.getAggOperator().getKind());
+                    WindowFunction fn = WindowFunction.resolveFunction(over.getAggOperator());
                     if (fn == null) {
-                        throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
-                    }
-                    if (fn != WindowFunction.ROW_NUMBER && !over.getWindow().partitionKeys.isEmpty()) {
-                        throw new IllegalStateException(
-                            "Window OVER (PARTITION BY ...) is not supported for [" + fn + "] — no shuffle exchange available yet"
-                        );
+                        throw new UnsupportedFunctionException(over.getAggOperator().getName(), "as a window function");
                     }
                     fns.add(fn);
                     return super.visitOver(over);
@@ -330,7 +321,7 @@ public class OpenSearchProjectRule extends RelOptRule {
             if (covers) out.add(backend);
         }
         if (out.isEmpty()) {
-            throw new IllegalStateException("No backend supports window functions " + required + " among " + candidates);
+            throw new UnsupportedFunctionException(required.toString(), "as window functions");
         }
         return out;
     }

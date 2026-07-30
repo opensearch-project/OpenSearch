@@ -31,6 +31,9 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -42,6 +45,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.wlm.WorkloadGroupSearchSettings;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.LongAdder;
@@ -56,6 +61,8 @@ import java.util.function.IntConsumer;
  * @opensearch.internal
  */
 public class MultiBucketConsumerService {
+    private static final Logger logger = LogManager.getLogger(MultiBucketConsumerService.class);
+
     public static final int DEFAULT_MAX_BUCKETS = 65535;
     public static final Setting<Integer> MAX_BUCKET_SETTING = Setting.intSetting(
         "search.max_buckets",
@@ -66,17 +73,53 @@ public class MultiBucketConsumerService {
     );
 
     private final CircuitBreaker breaker;
+    private final WorkloadGroupService workloadGroupService;
 
     private volatile int maxBucket;
 
-    public MultiBucketConsumerService(ClusterService clusterService, Settings settings, CircuitBreaker breaker) {
+    public MultiBucketConsumerService(
+        ClusterService clusterService,
+        Settings settings,
+        CircuitBreaker breaker,
+        WorkloadGroupService workloadGroupService
+    ) {
         this.breaker = breaker;
+        this.workloadGroupService = workloadGroupService;
         this.maxBucket = MAX_BUCKET_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
     }
 
     private void setMaxBucket(int maxBucket) {
         this.maxBucket = maxBucket;
+    }
+
+    /**
+     * Resolves the effective max-buckets limit for the current request by consulting the
+     * workload group (if any) attached to the calling thread context. If the request has no
+     * workload group, the group is unknown, or the group does not define
+     * {@code search.max_buckets}, the cluster-level default is returned.
+     * <p>
+     * The WLM-set value, when present, always wins — {@code override_request_values} is not
+     * relevant because {@code search.max_buckets} is not a per-request parameter.
+     */
+    int resolveMaxBuckets() {
+        try {
+            if (workloadGroupService == null) {
+                return maxBucket;
+            }
+            WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
+            if (workloadGroup == null) {
+                return maxBucket;
+            }
+            Settings wlmSettings = workloadGroup.getSettings();
+            if (wlmSettings == null || wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_MAX_BUCKETS.getKey()) == false) {
+                return maxBucket;
+            }
+            return WorkloadGroupSearchSettings.WLM_MAX_BUCKETS.get(wlmSettings);
+        } catch (Exception e) {
+            logger.warn("Failed to resolve workload group [search.max_buckets]; falling back to cluster default", e);
+            return maxBucket;
+        }
     }
 
     /**
@@ -216,6 +259,6 @@ public class MultiBucketConsumerService {
     }
 
     public MultiBucketConsumer create() {
-        return new MultiBucketConsumer(maxBucket, breaker);
+        return new MultiBucketConsumer(resolveMaxBuckets(), breaker);
     }
 }

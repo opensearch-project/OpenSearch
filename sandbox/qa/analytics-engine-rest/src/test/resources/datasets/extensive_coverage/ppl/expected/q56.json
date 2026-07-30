@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "array_len",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "tag1,tag2,tag3",
+      3
+    ],
+    [
+      "tag2,tag4",
+      2
+    ],
+    [
+      "tag1,tag3,tag5",
+      3
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

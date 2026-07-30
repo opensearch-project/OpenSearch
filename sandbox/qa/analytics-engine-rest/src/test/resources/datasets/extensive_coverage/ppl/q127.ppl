@@ -1,0 +1,1 @@
+source=test_data | eval hr = hour_of_day(timestamp) | fields timestamp, hr | head 3

@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 
 import java.io.IOException;
@@ -98,7 +99,12 @@ public class VSRPool implements AutoCloseable {
         if (current.getRowCount() > 0) {
             freezeVSR(current);
         }
-        ManagedVSR newVSR = createNewVSR();
+        // VSR rotation is a per-request operation: the active VSR filled up during ingest
+        // and we need a new one. If the INGEST pool is exhausted, surface the failure as
+        // OpenSearchRejectedExecutionException (HTTP 429) instead of Arrow's raw OOM.
+        // Startup-time VSR creation in initializeActiveVSR() is intentionally not wrapped:
+        // a failure there is a framework misconfiguration, not a backpressure signal.
+        ManagedVSR newVSR = AllocationRejection.wrap("vsr-rotation-" + poolId, this::createNewVSR);
         if (activeVSR.compareAndSet(current, newVSR) == false) {
             throw new IOException("Failed to set new active VSR during rotation");
         }

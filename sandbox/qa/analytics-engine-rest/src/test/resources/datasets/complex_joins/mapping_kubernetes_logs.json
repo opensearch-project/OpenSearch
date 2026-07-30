@@ -1,0 +1,36 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "kubernetes.pod_name": {
+        "type": "keyword"
+      },
+      "kubernetes.container_image": {
+        "type": "keyword"
+      },
+      "kubernetes.namespace": {
+        "type": "keyword"
+      },
+      "cluster.name": {
+        "type": "keyword"
+      },
+      "cluster.region": {
+        "type": "keyword"
+      },
+      "message": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}

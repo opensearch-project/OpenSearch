@@ -1,0 +1,1 @@
+source=sales_data | where sales_amount is not null | eventstats avg(sales_amount) as dept_avg by department | eval diff_from_avg = sales_amount - dept_avg | fields user, department, sales_amount, dept_avg, diff_from_avg | head 15

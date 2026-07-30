@@ -23,8 +23,14 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * REST handler for PPL queries: {@code POST /_analytics/ppl}.
  * Parses {@code {"query": "<ppl>"}} from the request body and
  * delegates to the transport action.
+ *
+ * <p>Also handles {@code POST /_analytics/ppl/_explain} which executes
+ * the query and returns profiling information (stage timings) alongside results.
  */
 public class RestPPLQueryAction extends BaseRestHandler {
+
+    private static final String QUERY_ENDPOINT = "/_analytics/ppl";
+    private static final String EXPLAIN_ENDPOINT = "/_analytics/ppl/_explain";
 
     @Override
     public String getName() {
@@ -33,34 +39,32 @@ public class RestPPLQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_analytics/ppl"));
+        return List.of(new Route(POST, QUERY_ENDPOINT), new Route(POST, EXPLAIN_ENDPOINT));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String queryText;
+        String queryText = null;
+        boolean profile = false;
         try (XContentParser parser = request.contentParser()) {
-            queryText = parseQueryText(parser);
-        }
-        PPLRequest pplRequest = new PPLRequest(queryText);
-        return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
-    }
-
-    private String parseQueryText(XContentParser parser) throws IOException {
-        String query = null;
-        parser.nextToken(); // START_OBJECT
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            String fieldName = parser.currentName();
             parser.nextToken();
-            if ("query".equals(fieldName)) {
-                query = parser.text();
-            } else {
-                parser.skipChildren();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String fieldName = parser.currentName();
+                parser.nextToken();
+                if ("query".equals(fieldName)) {
+                    queryText = parser.text();
+                } else if ("profile".equals(fieldName)) {
+                    profile = parser.booleanValue();
+                } else {
+                    parser.skipChildren();
+                }
             }
         }
-        if (query == null || query.isEmpty()) {
+        if (queryText == null || queryText.isEmpty()) {
             throw new IllegalArgumentException("Request body must contain a 'query' field");
         }
-        return query;
+        boolean enableProfile = profile || request.path().endsWith("/_explain");
+        PPLRequest pplRequest = new PPLRequest(queryText, enableProfile);
+        return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
     }
 }

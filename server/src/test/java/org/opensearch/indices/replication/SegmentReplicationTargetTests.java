@@ -34,6 +34,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -102,7 +103,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         spyIndexShard = spy(indexShard);
 
-        Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(SegmentInfos.class));
+        Mockito.doNothing().when(spyIndexShard).finalizeReplication(any(CatalogSnapshot.class));
         testSegmentInfos = spyIndexShard.store().readLastCommittedSegmentsInfo();
         buffer = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
@@ -154,7 +155,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             @Override
             public void onResponse(Void replicationResponse) {
                 try {
-                    verify(spyIndexShard, times(1)).finalizeReplication(any());
+                    verify(spyIndexShard, times(1)).finalizeReplication(any(CatalogSnapshot.class));
                     assertEquals(
                         1,
                         segrepTarget.state()
@@ -321,7 +322,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         );
         segrepTarget = new SegmentReplicationTarget(spyIndexShard, repCheckpoint, segrepSource, segRepListener);
 
-        doThrow(exception).when(spyIndexShard).finalizeReplication(any());
+        doThrow(exception).when(spyIndexShard).finalizeReplication(any(CatalogSnapshot.class));
 
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -368,7 +369,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         );
         segrepTarget = new SegmentReplicationTarget(spyIndexShard, repCheckpoint, segrepSource, segRepListener);
 
-        doThrow(exception).when(spyIndexShard).finalizeReplication(any());
+        doThrow(exception).when(spyIndexShard).finalizeReplication(any(CatalogSnapshot.class));
 
         segrepTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -671,7 +672,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             public void onResponse(Void replicationResponse) {
                 // Success - stale checkpoint was accepted during recovery
                 try {
-                    verify(spyIndexShard, times(1)).finalizeReplication(any());
+                    verify(spyIndexShard, times(1)).finalizeReplication(any(CatalogSnapshot.class));
                     segrepTarget.markAsDone();
                 } catch (IOException ex) {
                     Assert.fail("Unexpected IOException: " + ex.getMessage());

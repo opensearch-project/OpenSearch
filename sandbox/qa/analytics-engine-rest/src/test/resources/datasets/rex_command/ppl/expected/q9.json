@@ -1,0 +1,24 @@
+{
+  "schema": [
+    {
+      "name": "eventtype",
+      "type": "string"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "login",
+      "alice"
+    ],
+    [
+      "logout",
+      "bob"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

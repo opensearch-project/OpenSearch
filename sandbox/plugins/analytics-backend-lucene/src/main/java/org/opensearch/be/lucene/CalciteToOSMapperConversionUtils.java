@@ -8,6 +8,7 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.util.DateString;
 import org.apache.calcite.util.NlsString;
@@ -131,4 +132,19 @@ public final class CalciteToOSMapperConversionUtils {
         return value.doubleValue();
     }
 
+    /**
+     * Convert a Calcite Sarg endpoint into a Java type the OpenSearch Mapper accepts.
+     */
+    public static Object sargEndpointToOpenSearchValue(Comparable<?> endpoint, RelDataType type) {
+        if (endpoint == null) {
+            return null;
+        }
+        return switch (type.getSqlTypeName()) {
+            case BOOLEAN -> (endpoint instanceof Boolean b) ? b : Boolean.parseBoolean(endpoint.toString());
+            case TINYINT, SMALLINT, INTEGER, BIGINT, DECIMAL -> narrowBigDecimal((java.math.BigDecimal) endpoint);
+            case FLOAT, REAL, DOUBLE -> ((Number) endpoint).doubleValue();
+            case CHAR, VARCHAR -> (endpoint instanceof NlsString nls) ? nls.getValue() : endpoint.toString();
+            default -> endpoint.toString();
+        };
+    }
 }

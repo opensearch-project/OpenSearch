@@ -1,0 +1,1 @@
+source=test_data | eval new_time = addtime(timestamp, time('02:30:00')) | fields timestamp, new_time | head 3

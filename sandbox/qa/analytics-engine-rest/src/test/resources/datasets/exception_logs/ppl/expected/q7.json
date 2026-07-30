@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "exceptions_with_trace",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      33,
+      "api-service"
+    ],
+    [
+      37,
+      "db-service"
+    ],
+    [
+      30,
+      "web-service"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

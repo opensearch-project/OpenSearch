@@ -1,0 +1,1 @@
+source=security_logs | where result="Success" and auth_method="SSO" | stats count() as success_count by user, source_ip | where success_count > 10 | sort - success_count

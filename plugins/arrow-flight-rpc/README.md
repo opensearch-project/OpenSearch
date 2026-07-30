@@ -33,7 +33,7 @@ opensearch.experimental.feature.transport.stream.enabled: true
 -Dio.netty.noUnsafe=false
 -Dio.netty.tryUnsafe=true
 -Dio.netty.tryReflectionSetAccessible=true
---add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+--add-opens=java.base/java.nio=ALL-UNNAMED
 ```
 
 3. Install and run the plugin manually
@@ -46,6 +46,7 @@ For detailed usage and architecture information, see the [docs](docs/) folder:
 - [Server-side Streaming Guide](docs/server-side-streaming-guide.md) - How to implement server-side streaming
 - [Transport Client Streaming Flow](docs/transport-client-streaming-flow.md) - Client-side streaming implementation
 - [Flight Client Channel Flow](docs/flight-client-channel-flow.md) - Client channel flow details
+- [Producer Back-Pressure](docs/backpressure.md) - Producer-side back-pressure: settings, behaviour, sizing
 - [Metrics](docs/metrics.md) - Monitoring and performance metrics
 - [Error Handling](docs/error-handling.md) - Error handling patterns
 - [Security Integration](docs/security-integration.md) - Security plugin integration and TLS setup

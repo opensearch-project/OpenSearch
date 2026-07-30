@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "total_txns",
+      "type": "bigint"
+    },
+    {
+      "name": "dept_avg_sale",
+      "type": "float"
+    },
+    {
+      "name": "department",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      90,
+      1361.8125,
+      "sales"
+    ],
+    [
+      63,
+      3133.6147,
+      "engineering"
+    ],
+    [
+      27,
+      3675.1875,
+      "marketing"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

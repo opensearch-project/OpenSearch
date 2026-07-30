@@ -287,7 +287,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * <p>
      * This can be used to exclude high frequency terms from being
      * suggested. High frequency terms are usually spelled correctly on top
-     * of this this also improves the suggest performance.
+     * of this. This also improves the suggest performance.
      */
     public DirectCandidateGeneratorBuilder maxTermFreq(float maxTermFreq) {
         this.maxTermFreq = maxTermFreq;

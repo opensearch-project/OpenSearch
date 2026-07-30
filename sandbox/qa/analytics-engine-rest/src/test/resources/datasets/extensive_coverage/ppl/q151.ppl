@@ -1,0 +1,1 @@
+source=test_data | eval days = to_days(timestamp) | fields timestamp, days | head 3

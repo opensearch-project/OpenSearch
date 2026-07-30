@@ -7,11 +7,9 @@
  */
 
 /**
- * Plugin-side stats providers for the DataFusion native execution engine.
+ * Stats types for the DataFusion native execution engine.
  *
- * <p>Contains {@link org.opensearch.be.datafusion.stats.DataFusionBackendStatsProvider}
- * which implements the SPI {@code BackendStatsProvider} interface. The core stats types
- * ({@code DataFusionStats}, {@code NativeExecutorsStats}) live in the
- * {@code org.opensearch.plugin.stats} package.
+ * <p>Contains {@link org.opensearch.be.datafusion.stats.DataFusionStats}
+ * which holds runtime metrics and task monitor stats from the native layer.
  */
 package org.opensearch.be.datafusion.stats;

@@ -605,7 +605,7 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
         BlobStore blobStore = mock(BlobStore.class);
         when(blobStore.blobContainer(basePath)).thenReturn(baseBlobContainer);
 
-        BlobPath parquetPath = basePath.add("parquet");
+        BlobPath parquetPath = basePath.parent().add("parquet");
         BlobContainer parquetBlobContainer = mock(BlobContainer.class);
         when(parquetBlobContainer.path()).thenReturn(parquetPath);
         when(blobStore.blobContainer(parquetPath)).thenReturn(parquetBlobContainer);

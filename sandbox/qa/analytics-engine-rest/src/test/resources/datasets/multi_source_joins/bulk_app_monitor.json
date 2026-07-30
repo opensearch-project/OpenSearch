@@ -1,0 +1,261 @@
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000020", "log_level": "WARN", "monitor_type": "monitor", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000020", "log_level": "INFO", "monitor_type": "health", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000032", "log_level": "WARN", "monitor_type": "monitor", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000002", "log_level": "ERROR", "monitor_type": "performance", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000033", "log_level": "WARN", "monitor_type": "performance", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000020", "log_level": "ERROR", "monitor_type": "health", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000034", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000026", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000026", "log_level": "INFO", "monitor_type": "performance", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000029", "log_level": "WARN", "monitor_type": "performance", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000021", "log_level": "WARN", "monitor_type": "health", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000022", "log_level": "INFO", "monitor_type": "monitor", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000033", "log_level": "WARN", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000037", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000006", "log_level": "INFO", "monitor_type": "monitor", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000033", "log_level": "WARN", "monitor_type": "performance", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000036", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000012", "log_level": "ERROR", "monitor_type": "health", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000032", "log_level": "INFO", "monitor_type": "monitor", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000003", "log_level": "ERROR", "monitor_type": "health", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000030", "log_level": "INFO", "monitor_type": "performance", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000029", "log_level": "WARN", "monitor_type": "monitor", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000006", "log_level": "INFO", "monitor_type": "health", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000015", "log_level": "INFO", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000036", "log_level": "WARN", "monitor_type": "monitor", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000002", "log_level": "ERROR", "monitor_type": "health", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000002", "log_level": "WARN", "monitor_type": "health", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000016", "log_level": "WARN", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000002", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000003", "log_level": "WARN", "monitor_type": "health", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000011", "log_level": "INFO", "monitor_type": "monitor", "error_count": 9, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000035", "log_level": "WARN", "monitor_type": "performance", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000034", "log_level": "INFO", "monitor_type": "health", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000004", "log_level": "INFO", "monitor_type": "monitor", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000031", "log_level": "ERROR", "monitor_type": "performance", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000009", "log_level": "INFO", "monitor_type": "performance", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000036", "log_level": "ERROR", "monitor_type": "performance", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000039", "log_level": "ERROR", "monitor_type": "health", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000032", "log_level": "ERROR", "monitor_type": "performance", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000026", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000022", "log_level": "INFO", "monitor_type": "performance", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000018", "log_level": "WARN", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000027", "log_level": "INFO", "monitor_type": "health", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000025", "log_level": "INFO", "monitor_type": "health", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000019", "log_level": "WARN", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000039", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000017", "log_level": "WARN", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000005", "log_level": "WARN", "monitor_type": "health", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000008", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000036", "log_level": "INFO", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000014", "log_level": "INFO", "monitor_type": "health", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000035", "log_level": "INFO", "monitor_type": "performance", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000029", "log_level": "WARN", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000029", "log_level": "WARN", "monitor_type": "performance", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000027", "log_level": "WARN", "monitor_type": "performance", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000003", "log_level": "ERROR", "monitor_type": "health", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000036", "log_level": "ERROR", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000014", "log_level": "ERROR", "monitor_type": "performance", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000017", "log_level": "WARN", "monitor_type": "performance", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000029", "log_level": "ERROR", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000038", "log_level": "INFO", "monitor_type": "monitor", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000014", "log_level": "INFO", "monitor_type": "performance", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000037", "log_level": "INFO", "monitor_type": "performance", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000025", "log_level": "INFO", "monitor_type": "health", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000019", "log_level": "ERROR", "monitor_type": "health", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000002", "log_level": "ERROR", "monitor_type": "performance", "error_count": 9, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000022", "log_level": "WARN", "monitor_type": "monitor", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000014", "log_level": "WARN", "monitor_type": "monitor", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000034", "log_level": "INFO", "monitor_type": "monitor", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000025", "log_level": "WARN", "monitor_type": "health", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000034", "log_level": "INFO", "monitor_type": "health", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000036", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000019", "log_level": "INFO", "monitor_type": "health", "error_count": 3, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000021", "log_level": "ERROR", "monitor_type": "performance", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000008", "log_level": "ERROR", "monitor_type": "health", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000005", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000039", "log_level": "INFO", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000020", "log_level": "INFO", "monitor_type": "performance", "error_count": 8, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000022", "log_level": "WARN", "monitor_type": "health", "error_count": 9, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000030", "log_level": "ERROR", "monitor_type": "performance", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000031", "log_level": "INFO", "monitor_type": "monitor", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000002", "log_level": "WARN", "monitor_type": "monitor", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000011", "log_level": "INFO", "monitor_type": "health", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000016", "log_level": "ERROR", "monitor_type": "health", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000015", "log_level": "ERROR", "monitor_type": "performance", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000011", "log_level": "ERROR", "monitor_type": "performance", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000013", "log_level": "WARN", "monitor_type": "health", "error_count": 6, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000019", "log_level": "WARN", "monitor_type": "health", "error_count": 10, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000015", "log_level": "WARN", "monitor_type": "performance", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000025", "log_level": "INFO", "monitor_type": "health", "error_count": 7, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000015", "log_level": "WARN", "monitor_type": "monitor", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000019", "log_level": "WARN", "monitor_type": "performance", "error_count": 9, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000035", "log_level": "WARN", "monitor_type": "monitor", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000002", "log_level": "WARN", "monitor_type": "health", "error_count": 2, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000029", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127144", "log_tracking_id": "TRK000013", "log_level": "INFO", "monitor_type": "health", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:28:28.042810", "application_id": "ap127143", "log_tracking_id": "TRK000000", "log_level": "WARN", "monitor_type": "health", "error_count": 5, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000003", "log_level": "WARN", "monitor_type": "health", "error_count": 9, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000020", "log_level": "WARN", "monitor_type": "health", "error_count": 0, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:28:28.042810", "application_id": "ap127145", "log_tracking_id": "TRK000019", "log_level": "INFO", "monitor_type": "monitor", "error_count": 1, "description": "Application monitoring event"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK124077", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK198471", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK646670", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK663620", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK173180", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK476494", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK402889", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK602566", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK833015", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:40:52.705747", "application_id": "MON001", "log_tracking_id": "TRK889802", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK810752", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK708882", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK838666", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK554733", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK247609", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK970092", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK433282", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK181570", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 4, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK104830", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:40:52.705747", "application_id": "MON002", "log_tracking_id": "TRK291039", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK369578", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK981665", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 2, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK101182", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK532113", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK551011", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK597130", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 3, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK162744", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK562943", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 1, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK295896", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application error"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:40:52.705747", "application_id": "MON003", "log_tracking_id": "TRK660310", "log_level": "ERROR", "monitor_type": "monitor", "error_count": 5, "description": "Application error"}
+

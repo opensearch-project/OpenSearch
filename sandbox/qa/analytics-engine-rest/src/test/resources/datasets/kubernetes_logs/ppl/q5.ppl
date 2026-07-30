@@ -1,0 +1,1 @@
+source=kubernetes_logs | where message like '%Error%' or message like '%Warning%' | stats count() by `kubernetes.pod_name`

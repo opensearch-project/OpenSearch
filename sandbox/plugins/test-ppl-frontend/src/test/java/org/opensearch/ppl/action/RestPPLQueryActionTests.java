@@ -23,9 +23,11 @@ public class RestPPLQueryActionTests extends OpenSearchTestCase {
     }
 
     public void testRoutes() {
-        assertEquals(1, action.routes().size());
+        assertEquals(2, action.routes().size());
         assertEquals(RestRequest.Method.POST, action.routes().get(0).getMethod());
         assertEquals("/_analytics/ppl", action.routes().get(0).getPath());
+        assertEquals(RestRequest.Method.POST, action.routes().get(1).getMethod());
+        assertEquals("/_analytics/ppl/_explain", action.routes().get(1).getPath());
     }
 
     public void testPrepareRequestMissingQuery() {

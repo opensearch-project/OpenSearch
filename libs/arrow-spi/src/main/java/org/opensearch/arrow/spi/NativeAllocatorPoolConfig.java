@@ -30,9 +30,8 @@ public final class NativeAllocatorPoolConfig {
     public static final String POOL_FLIGHT = "flight";
     /** Pool name for ingest pipeline memory. */
     public static final String POOL_INGEST = "ingest";
-
-    /** Setting key for the root allocator limit. */
-    public static final String SETTING_ROOT_LIMIT = "native.allocator.root.limit";
+    /** Pool name for query-execution memory (analytics-engine fragments and per-query allocators). */
+    public static final String POOL_QUERY = "query";
 
     /** Setting key for the Flight pool minimum. */
     public static final String SETTING_FLIGHT_MIN = "native.allocator.pool.flight.min";
@@ -42,6 +41,10 @@ public final class NativeAllocatorPoolConfig {
     public static final String SETTING_INGEST_MIN = "native.allocator.pool.ingest.min";
     /** Setting key for the ingest pool maximum. */
     public static final String SETTING_INGEST_MAX = "native.allocator.pool.ingest.max";
+    /** Setting key for the query pool minimum. */
+    public static final String SETTING_QUERY_MIN = "native.allocator.pool.query.min";
+    /** Setting key for the query pool maximum. */
+    public static final String SETTING_QUERY_MAX = "native.allocator.pool.query.max";
 
     private NativeAllocatorPoolConfig() {}
 }

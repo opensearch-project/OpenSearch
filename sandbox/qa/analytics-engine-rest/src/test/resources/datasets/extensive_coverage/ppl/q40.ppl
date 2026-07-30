@@ -1,0 +1,1 @@
+source=test_data | eval sub = substring(text, 1, 5), pos = position("test" in text) | fields text, sub, pos | head 3

@@ -14,7 +14,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 
 /**
@@ -31,20 +31,20 @@ public class FsServiceProvider {
     private final Settings settings;
     private final NodeEnvironment nodeEnvironment;
     @Nullable
-    private final NodeCacheOrchestrator nodeCacheOrchestrator;
+    private final NodeCacheService nodeCacheService;
     private final FileCacheSettings fileCacheSettings;
     private final IndicesService indicesService;
 
     public FsServiceProvider(
         Settings settings,
         NodeEnvironment nodeEnvironment,
-        NodeCacheOrchestrator nodeCacheOrchestrator,
+        NodeCacheService nodeCacheService,
         ClusterSettings clusterSettings,
         IndicesService indicesService
     ) {
         this.settings = settings;
         this.nodeEnvironment = nodeEnvironment;
-        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
+        this.nodeCacheService = nodeCacheService;
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.indicesService = indicesService;
     }
@@ -56,8 +56,8 @@ public class FsServiceProvider {
      */
     public FsService createFsService() {
         if (DiscoveryNode.isWarmNode(settings)) {
-            return new WarmFsService(settings, nodeEnvironment, fileCacheSettings, indicesService, nodeCacheOrchestrator);
+            return new WarmFsService(settings, nodeEnvironment, fileCacheSettings, indicesService, nodeCacheService);
         }
-        return new FsService(settings, nodeEnvironment, nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null);
+        return new FsService(settings, nodeEnvironment, nodeCacheService != null ? nodeCacheService.fileCache() : null);
     }
 }

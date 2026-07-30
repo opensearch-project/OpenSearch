@@ -70,13 +70,18 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     T getDataFormat();
 
     /**
+     * Returns the amount of JVM heap memory used by this engine's indexing buffers.
+     *
+     * @return heap memory usage in bytes
+     */
+    long getHeapBytesUsed();
+
+    /**
      * Returns the amount of native (off-heap) memory used by this engine.
      *
      * @return native memory usage in bytes
      */
-    default long getNativeBytesUsed() {
-        return 0;
-    }
+    long getNativeBytesUsed();
 
     /**
      * Deletes the specified files grouped by directory.
@@ -121,5 +126,25 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
 
     default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
         return config.registry().getReaderManager(config);
+    }
+
+    /**
+     * Returns the tragic exception recorded by the underlying writer/store, if any.
+     * Composite engines multiplex this across delegates and surface the first non-null
+     * result so DFAE can fail the engine without consulting the committer.
+     *
+     * @return the tragic exception, or {@code null} if the engine has not turned tragic
+     */
+    default Exception getTragicException() {
+        return null;
+    }
+
+    /**
+     * Returns the maximum number of documents this engine can index per shard.
+     * Used by {@link org.opensearch.index.engine.DocumentCountTracker} to enforce
+     * the document count limit. Defaults to {@link Long#MAX_VALUE} (unlimited).
+     */
+    default long maxIndexableDocs() {
+        return Long.MAX_VALUE;
     }
 }

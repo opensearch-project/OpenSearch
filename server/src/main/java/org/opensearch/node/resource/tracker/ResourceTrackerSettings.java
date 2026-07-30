@@ -12,6 +12,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.monitor.os.OsProbe;
 
 /**
  * Settings related to resource usage trackers such as polling interval, window duration etc
@@ -76,7 +77,7 @@ public class ResourceTrackerSettings {
 
     public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_native_memory_usage.polling_interval",
-        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
+        TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope
     );
 
@@ -88,15 +89,69 @@ public class ResourceTrackerSettings {
     );
 
     /**
-     * Absolute native-memory budget for this node, in bytes. When the value is {@link ByteSizeValue#ZERO}
-     * (default) the tracker treats the budget as unconfigured and reports {@code 0%}.
+     * Absolute native-memory budget for this node, in bytes.
+     *
+     * <p><strong>Default: 79% of {@code RAM - JVM heap}.</strong> The JVM-aware
+     * {@link OsProbe#getTotalPhysicalMemorySize()} returns the cgroup-limited RAM in
+     * containers and total physical RAM on bare metal; subtracting {@link Runtime#maxMemory()}
+     * (the configured {@code -Xmx}) gives the off-heap budget the operator implicitly has
+     * available, and 79% of that is allocated to AC's tracker. The remaining ~21% is left
+     * unmanaged for Lucene mmap, Liquid cache, OS page cache, and other native consumers
+     * not bounded by the framework. Operators with predominantly analytics workloads can
+     * raise this toward 100% of off-heap; search-heavy workloads needing more page cache
+     * should lower it explicitly.
+     *
+     * <p>Falls back to {@link ByteSizeValue#ZERO} (unconfigured) when either probe is unreliable
+     * — RAM probe returns 0 in some restricted containers, or {@code maxMemory()} is somehow
+     * larger than RAM. With ZERO, the tracker reports {@code 0%} and admission control treats the
+     * budget as unset; downstream framework defaults (root limit, pool maxes, DataFusion pool)
+     * fall back to {@link Long#MAX_VALUE} unbounded mode, preserving pre-AC behaviour.
      */
     public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
         "node.native_memory.limit",
-        ByteSizeValue.ZERO,
+        s -> deriveNativeMemoryLimitDefault(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Computes the default for {@link #NODE_NATIVE_MEMORY_LIMIT_SETTING} as {@code RAM - JVM heap}.
+     * Returns the bytes-as-string representation expected by the {@link Setting} parser.
+     *
+     * <p>Returns {@code "0b"} (unset, AC unconfigured) when:
+     * <ul>
+     *   <li>{@link OsProbe#getTotalPhysicalMemorySize()} returns {@code 0} (e.g. restricted
+     *       containers where {@code /proc/meminfo} cgroup files are not readable)</li>
+     *   <li>{@code -Xmx} (heap) is somehow {@code >=} reported physical RAM (degenerate config
+     *       or container-aware probe disagreeing with the JVM heap)</li>
+     * </ul>
+     * Both fall-back paths preserve the pre-default opt-in semantics: AC stays unconfigured,
+     * downstream framework caps stay unbounded.
+     */
+    static String deriveNativeMemoryLimitDefault() {
+        long ram = OsProbe.getInstance().getTotalPhysicalMemorySize();
+        long heap = Runtime.getRuntime().maxMemory();
+        return deriveNativeMemoryLimitDefault(ram, heap);
+    }
+
+    /**
+     * Pure overload of {@link #deriveNativeMemoryLimitDefault()} with the OS- and
+     * JVM-derived inputs lifted to parameters so unit tests can exercise the fallback
+     * branches deterministically without mocking {@link OsProbe} or {@link Runtime}.
+     */
+    static String deriveNativeMemoryLimitDefault(long ram, long heap) {
+        if (ram <= 0 || heap <= 0 || heap >= ram) {
+            return "0b";
+        }
+        // 80% of off-heap (RAM - heap) leaves ~20% headroom for unmanaged native consumers:
+        // Lucene mmap, Liquid cache, OS page cache, sidecar processes. Raised from 79% to 80%
+        // to accommodate the DataFusion parquet cache budget (1% of off-heap carved from
+        // unmanaged headroom + 2% from the DataFusion operator pool). Matches the partitioning
+        // model in PR #21732. Operators with predominantly analytics workloads can raise this
+        // toward 100%; search-heavy workloads needing more page cache should lower it.
+        long offHeap = ram - heap;
+        return Long.toString(offHeap * 80 / 100) + "b";
+    }
 
     /**
      * Percentage of the native-memory limit that is reserved as buffer (not usable). The effective

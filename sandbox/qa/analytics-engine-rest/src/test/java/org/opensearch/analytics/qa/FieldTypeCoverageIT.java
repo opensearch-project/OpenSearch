@@ -82,6 +82,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         Map<String, Object> bulk = ingest("ft_half_float", "half_float", 47.6, 45.5, 52.1);
         assertBulkSucceeded(bulk, "ft_half_float");
         assertScanSucceeds("ft_half_float", 3);
+        assertHalfFloatProjectedValues("ft_half_float", new double[] { 45.5, 47.6, 52.1 });
     }
 
     public void testFloat() throws IOException {
@@ -166,7 +167,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         // BINARY(varchar) placeholder (BinaryFunctionAdapter rewrites it into a VARBINARY
         // literal that DataFusion compares natively). Filter coverage lives in testIpFilters
         // — binary columns share the same code path.
-        Map<String, Object> bulk = ingest("ft_binary", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
+        Map<String, Object> bulk = ingestWithMapping("ft_binary", "binary", ", \"store\": true", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
         assertBulkSucceeded(bulk, "ft_binary");
         assertScanSucceeds("ft_binary", 3);
     }
@@ -239,7 +240,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         );
         assertFilterRowCount("source=ft_ip_project | stats count(eval(val='192.168.1.1')) as cnt", 1);
 
-        Map<String, Object> binBulk = ingest("ft_binary_project", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
+        Map<String, Object> binBulk = ingestWithMapping("ft_binary_project", "binary", ", \"store\": true", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
         assertBulkSucceeded(binBulk, "ft_binary_project");
         assertFilterRowCount("source=ft_binary_project | eval is_alice=if(val='YWxpY2U=','y','n')", 3);
         assertFilterRowCount("source=ft_binary_project | stats count(eval(val='YWxpY2U=')) as c", 1);
@@ -304,7 +305,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     private void assertScanSucceeds(String index, int expected) throws IOException {
         Map<String, Object> resp = executePpl("source=" + index);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) resp.get("datarows");
         assertNotNull("source=" + index + " response missing rows", rows);
         assertEquals("source=" + index + " row count", expected, rows.size());
     }
@@ -317,9 +318,26 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     private void assertFilterRowCount(String ppl, int expected) throws IOException {
         Map<String, Object> resp = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) resp.get("datarows");
         assertNotNull("[" + ppl + "] response missing rows", rows);
         assertEquals("[" + ppl + "] row count", expected, rows.size());
+    }
+
+    /**
+     * Project a {@code half_float} column, sort numerically, and assert each value matches
+     * {@code expectedSorted} within fp16 precision (~3 decimal digits). {@code expectedSorted}
+     * must be in ascending order to match the {@code | sort val} we issue.
+     */
+    private void assertHalfFloatProjectedValues(String index, double[] expectedSorted) throws IOException {
+        final double tolerance = 0.05;
+        Map<String, Object> resp = executePpl("source=" + index + " | sort val | fields val");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) resp.get("datarows");
+        assertEquals(expectedSorted.length, rows.size());
+        for (int i = 0; i < expectedSorted.length; i++) {
+            double got = ((Number) rows.get(i).get(0)).doubleValue();
+            assertEquals("row " + i, expectedSorted[i], got, tolerance);
+        }
     }
 
     /**
@@ -329,7 +347,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
      * fail and prompt the test to be flipped to {@link #assertScanSucceeds}.
      */
     private void assertScanFails(String index) {
-        Request req = new Request("POST", "/_analytics/ppl");
+        Request req = new Request("POST", "/_plugins/_ppl");
         req.setJsonEntity("{\"query\": \"source=" + index + "\"}");
         try {
             Response resp = client().performRequest(req);
@@ -428,9 +446,4 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + index + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        return assertOkAndParse(client().performRequest(request), "PPL: " + ppl);
-    }
 }

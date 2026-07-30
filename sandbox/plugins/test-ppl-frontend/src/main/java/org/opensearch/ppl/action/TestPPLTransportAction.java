@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -24,7 +24,7 @@ import org.opensearch.transport.TransportService;
 /**
  * Transport action that coordinates PPL query execution.
  *
- * <p>Receives {@link EngineContext} and {@link QueryPlanExecutor} from the analytics-engine
+ * <p>Receives {@link EngineContextProvider} and {@link QueryPlanExecutor} from the analytics-engine
  * plugin via Guice injection (enabled by {@code extendedPlugins = ['analytics-engine']}).
  *
  * <p>Execution is forked to the {@link ThreadPool.Names#SEARCH} thread pool to avoid
@@ -41,12 +41,12 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
     public TestPPLTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EngineContext engineContext,
+        EngineContextProvider contextProvider,
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
         ThreadPool threadPool
     ) {
         super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
-        this.unifiedQueryService = new UnifiedQueryService(executor, engineContext);
+        this.unifiedQueryService = new UnifiedQueryService(executor, contextProvider);
         this.threadPool = threadPool;
     }
 
@@ -69,7 +69,9 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
         // TODO: update UnifiedQueryService to consume a listener that DefaultPlanExecutor does to avoid threadpool fork
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             try {
-                PPLResponse response = unifiedQueryService.execute(request.getPplText());
+                PPLResponse response = request.isExplain()
+                    ? unifiedQueryService.executeWithProfile(request.getPplText())
+                    : unifiedQueryService.execute(request.getPplText());
                 listener.onResponse(response);
             } catch (Exception e) {
                 logger.error("[UNIFIED_PPL] execution failed", e);

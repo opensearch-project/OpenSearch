@@ -9,7 +9,6 @@
 package org.opensearch.analytics.qa;
 
 import org.opensearch.client.Request;
-import org.opensearch.client.Response;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -74,7 +73,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -108,7 +107,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         indexDocs();
 
         String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats sum(value) as total";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -134,7 +133,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs tag='hello' value=5 + 10 docs tag='goodbye' value=3.
         // match(message,'hello') OR value > 4 → 10 hello docs ∪ 10 value=5 docs (same set) = 10.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or value > 4 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -155,7 +154,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // NOT(match(message,'hello')) → 10 goodbye docs.
         String ppl = "source = " + INDEX_NAME + " | where not match(message, 'hello') | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -178,7 +177,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
 
         // dc(value) over docs matching match(message,'hello') → all values are 5 → 1 distinct.
         String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats dc(value) as d";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -202,7 +201,7 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // 10 docs match all three: match(message,'hello') AND tag='hello' AND value=5.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as c";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -222,12 +221,244 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         // sum(value) over the 10 matching docs (value=5 each) → 50.
         String ppl = "source = " + INDEX_NAME
             + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats sum(value) as s";
-        Map<String, Object> result = executePPL(ppl);
+        Map<String, Object> result = executePplViaShim(ppl);
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertNotNull(rows);
         assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    // ---- Combining delegation tests ----
+
+    /**
+     * match(message,'hello') AND tag='hello' AND value=5
+     * correctness (match) + performance (tag=) + native (value=) under AND.
+     * Both delegations combined separately; result = 50.
+     */
+    public void testAndCorrectnessAndPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * tag='hello' AND value=5 (no correctness delegation, only performance + native under AND).
+     * Performance-delegated tag= combined; value= stays native. Result = 10.
+     */
+    public void testAndOnlyPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * match(message,'hello') OR tag='hello' AND value=5
+     * Precedence: match OR (tag= AND value=). Correctness under OR, perf under AND.
+     * Performance-delegated under OR stays native (not combined with correctness).
+     * Result: 10 (match 'hello') + 0 extra (tag='hello' AND value=5 is subset) = 10.
+     */
+    public void testOrCorrectnessWithPerfAndNative() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' and value = 5 | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * (match(message,'hello') AND tag='hello') OR (tag='goodbye' AND value=3)
+     * OR of two AND arms: left has correctness+perf, right has perf+native.
+     * Result: 10 (left arm) + 10 (right arm) = 20 (but overlap → 10 + 10 = 20 distinct docs).
+     */
+    public void testOrOfTwoAndArms() throws Exception {
+        createIndex();
+        indexDocs();
+        String ppl = "source = " + INDEX_NAME
+            + " | where (match(message, 'hello') and tag = 'hello') or (tag = 'goodbye' and value = 3) | stats count() as cnt";
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertEquals(20L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * OR(MATCH on text, EQUALS on keyword), oracle = 10. Both arms are Lucene-delegatable.
+     * Under {@code prefer=true} Lucene drives end-to-end (combiner skipped, no tree_shape).
+     * Under {@code prefer=false} the combiner runs: the dual-viable EQUALS can't stay
+     * performance-delegated under OR, and it has a correctness sibling (the MATCH), so both
+     * collapse into a single {@code delegated_predicate} — CONJUNCTIVE.
+     */
+    public void testOrCorrectnessAndPerf() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or tag = 'hello' | stats count() as cnt";
+        try {
+            // prefer=true: Lucene drives end-to-end, no delegation instruction (no tree_shape).
+            assertShardStage(ppl, 10L, /* prefer */ true, "lucene", null);
+            // prefer=false: combiner runs — the dual-viable EQUALS can't stay performance-delegated
+            // under OR, and it has a correctness sibling (the MATCH), so both collapse into a single
+            // delegated_predicate — CONJUNCTIVE.
+            assertShardStage(ppl, 10L, /* prefer */ false, "datafusion", "CONJUNCTIVE");
+        } finally {
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    /**
+     * OR(EQUALS on keyword, EQUALS on integer), oracle = 20. The keyword EQUALS is dual-viable and,
+     * under the OR, is reclassified to correctness and shipped to Lucene; the integer EQUALS isn't
+     * Lucene-filterable and stays native. The two interleave under the OR → INTERLEAVED.
+     */
+    public void testOrTwoPerf() throws Exception {
+        createIndex();
+        indexDocs();
+
+        String ppl = "source = " + INDEX_NAME + " | where tag = 'hello' or value = 3 | stats count() as cnt";
+        try {
+            // tag (keyword, dual) ships to Lucene under the OR; value (int, native) stays in
+            // DataFusion → the two interleave under the OR. Same shape both prefer modes.
+            assertShardStage(ppl, 20L, /* prefer */ true, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+            assertShardStage(ppl, 20L, /* prefer */ false, "datafusion", "INTERLEAVED_BOOLEAN_EXPRESSION");
+        } finally {
+            setPreferMetadataDriver(true);
+        }
+    }
+
+    /**
+     * Sets {@code prefer_metadata_driver}, then asserts the count oracle and the SHARD_FRAGMENT
+     * profile's {@code chosen_backend} / {@code tree_shape}. A {@code null} {@code treeShape} means
+     * the field must be absent (Lucene-as-driver, or no delegation instruction).
+     */
+    private void assertShardStage(String ppl, long oracle, boolean prefer, String chosenBackend, String treeShape)
+        throws Exception {
+        setPreferMetadataDriver(prefer);
+        String label = "prefer=" + prefer;
+        assertEquals(label + " — count", oracle, executeCount(ppl));
+        Map<String, Object> stage = shardFragmentStage(ppl);
+        assertEquals(label + " — chosen_backend", chosenBackend, stage.get("chosen_backend"));
+        assertEquals(label + " — tree_shape", treeShape, stage.get("tree_shape"));
+    }
+
+    private long executeCount(String ppl) throws Exception {
+        Map<String, Object> result = executePplViaShim(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        return ((Number) rows.get(0).get(0)).longValue();
+    }
+
+    private Map<String, Object> shardFragmentStage(String ppl) throws Exception {
+        Request request = new Request("POST", "/_analytics/ppl/_explain");
+        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Map<String, Object> explain = assertOkAndParse(client().performRequest(request), "EXPLAIN: " + ppl);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> profile = (Map<String, Object>) explain.get("profile");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+        for (Map<String, Object> stage : stages) {
+            if ("SHARD_FRAGMENT".equals(stage.get("execution_type"))) return stage;
+        }
+        throw new AssertionError("No SHARD_FRAGMENT stage in profile: " + stages);
+    }
+
+    private void setPreferMetadataDriver(boolean value) throws Exception {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"persistent\":{\"analytics.planner.prefer_metadata_driver\": " + value + "}}");
+        client().performRequest(req);
+    }
+
+    private static final String KEYWORD_SUBFIELD_INDEX = "text_equals_keyword_subfield_e2e";
+
+    /**
+     * EQUALS on a {@code text} field that has a {@code .keyword} multifield must match the exact,
+     * case-sensitive value by routing the delegated term query to {@code <field>.keyword} — a term
+     * query does not analyze its input, so a term against the analyzed text field would compare the
+     * raw value (e.g. {@code "Engineer"}) to the lowercased indexed tokens ({@code "engineer"}) and
+     * match nothing. Before the fix this returned 0 rows; after, it matches via the keyword subfield.
+     */
+    public void testTextEqualsRoutesToKeywordSubfield() throws Exception {
+        createKeywordSubfieldIndex();
+
+        // 7 docs occupation="Engineer", 3 docs occupation="Doctor" (mixed case on purpose).
+        String exact = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'Engineer' | stats count() as c";
+        List<List<Object>> exactRows = rowsOf(executePplViaShim(exact));
+        assertEquals("scalar agg returns 1 row", 1, exactRows.size());
+        assertEquals("EQUALS on text field matches the exact (case-sensitive) keyword value", 7L,
+            ((Number) exactRows.get(0).get(0)).longValue());
+
+        // The lowercased form must NOT match: routing to .keyword is exact/case-sensitive, so
+        // 'engineer' != 'Engineer'. (A term query on the analyzed text field would wrongly match
+        // here — this asserts we are on the keyword path, not the analyzed-text path.)
+        String wrongCase = "source = " + KEYWORD_SUBFIELD_INDEX + " | where occupation = 'engineer' | stats count() as c";
+        List<List<Object>> wrongCaseRows = rowsOf(executePplViaShim(wrongCase));
+        assertEquals("lowercase value must not match the exact keyword value", 0L,
+            ((Number) wrongCaseRows.get(0).get(0)).longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rowsOf(Map<String, Object> result) {
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        return rows;
+    }
+
+    private void createKeywordSubfieldIndex() throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + KEYWORD_SUBFIELD_INDEX));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"occupation\": { \"type\": \"text\", \"fields\": { \"keyword\": { \"type\": \"keyword\" } } },"
+            + "    \"value\": { \"type\": \"integer\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + KEYWORD_SUBFIELD_INDEX);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
+        assertEquals(true, response.get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + KEYWORD_SUBFIELD_INDEX);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Engineer\", \"value\": 5}\n");
+        }
+        for (int i = 0; i < 3; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"occupation\": \"Doctor\", \"value\": 3}\n");
+        }
+        Request bulkRequest = new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "true");
+        client().performRequest(bulkRequest);
+        client().performRequest(new Request("POST", "/" + KEYWORD_SUBFIELD_INDEX + "/_flush?force=true"));
     }
 
     private void createIndex() throws Exception {
@@ -284,10 +515,4 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
     }
 
-    private Map<String, Object> executePPL(String ppl) throws Exception {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + ppl + "\"}");
-        Response response = client().performRequest(request);
-        return entityAsMap(response);
-    }
 }

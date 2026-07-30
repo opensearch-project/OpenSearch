@@ -15,7 +15,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -34,14 +34,14 @@ import org.opensearch.transport.TransportService;
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
  * executes them via the analytics engine, and builds a SearchResponse.
  *
- * <p>Receives {@link QueryPlanExecutor} and {@link EngineContext} from the analytics engine
+ * <p>Receives {@link QueryPlanExecutor} and {@link EngineContextProvider} from the analytics engine
  * via Guice injection (enabled by {@code extendedPlugins = ['analytics-engine']}).
  */
 public class TransportDslExecuteAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDslExecuteAction.class);
 
-    private final EngineContext engineContext;
+    private final EngineContextProvider contextProvider;
     private final DslQueryPlanExecutor planExecutor;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -52,7 +52,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
      *
      * @param transportService transport service
      * @param actionFilters action filters
-     * @param engineContext analytics engine context providing schema and operator table
+     * @param contextProvider analytics engine context providing schema and operator table
      * @param executor analytics engine plan executor
      * @param clusterService cluster service for resolving index aliases
      * @param indexNameExpressionResolver resolves aliases and wildcards to concrete indices
@@ -61,14 +61,14 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     public TransportDslExecuteAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EngineContext engineContext,
+        EngineContextProvider contextProvider,
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ThreadPool threadPool
     ) {
         super(DslExecuteAction.NAME, transportService, actionFilters, SearchRequest::new);
-        this.engineContext = engineContext;
+        this.contextProvider = contextProvider;
         this.planExecutor = new DslQueryPlanExecutor(executor);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -83,7 +83,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             try {
                 String indexName = resolveToSingleIndex(request);
                 long convertStart = System.nanoTime();
-                SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
+                SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext().schema());
                 plans = converter.convert(request.source(), indexName);
                 convertTime = System.nanoTime() - convertStart;
             } catch (Exception e) {
@@ -109,7 +109,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     }
 
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
-    // EngineContext or Schema table lookup) for consistency, and return RelOptTable directly
+    // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
     // so this plugin doesn't need its own resolution logic.
     /**
      * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.

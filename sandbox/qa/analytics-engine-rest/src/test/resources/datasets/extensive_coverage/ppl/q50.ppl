@@ -1,0 +1,1 @@
+source=test_data | stats var_samp(value) as var_s, var_pop(value) as var_p by category

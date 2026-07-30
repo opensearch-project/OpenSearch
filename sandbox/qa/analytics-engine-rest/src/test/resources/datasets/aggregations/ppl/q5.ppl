@@ -1,0 +1,1 @@
+source=aggregation_tests | stats min(response_time) as min_time, min(score) as min_score by user | sort min_time

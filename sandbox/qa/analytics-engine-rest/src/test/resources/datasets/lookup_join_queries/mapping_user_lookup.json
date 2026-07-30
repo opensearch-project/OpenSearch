@@ -1,0 +1,1 @@
+{"mappings":{"properties":{"user":{"type":"keyword"},"full_name":{"type":"text"},"manager":{"type":"keyword"},"department":{"type":"keyword"}}}}

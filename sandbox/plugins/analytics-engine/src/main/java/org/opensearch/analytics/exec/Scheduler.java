@@ -34,6 +34,9 @@ public interface Scheduler {
      * for wrapping the listener with any caller-side cleanup hooks (task
      * unregister, etc.) — the scheduler's single-fire guarantee on the listener
      * makes {@link ActionListener#runAfter} the natural place to attach them.
+     *
+     * @return the {@link QueryExecution} driving this query, for post-execution inspection
+     *         (e.g. profiling). Callers that don't need it may ignore the return value.
      */
-    void execute(QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> listener);
+    QueryExecution execute(QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> listener);
 }

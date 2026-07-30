@@ -9,10 +9,13 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.DataFormatAwareNRTReplicationEngine;
+import org.opensearch.index.engine.DataFormatAwareReadOnlyEngine;
 import org.opensearch.index.engine.EngineConfig;
 
 /**
- * {@link IndexerFactory} that creates a {@link DataFormatAwareEngine},
+ * {@link IndexerFactory} that creates a {@link DataFormatAwareEngine} for primaries
+ * or a {@link DataFormatAwareNRTReplicationEngine} for read-only replicas,
  * used when the pluggable data format feature is enabled.
  *
  * @opensearch.internal
@@ -21,6 +24,11 @@ public class DataFormatAwareIndexerFactory implements IndexerFactory {
 
     @Override
     public Indexer createIndexer(EngineConfig config) {
+        if (config.isReadOnlyReplica()) {
+            return new DataFormatAwareNRTReplicationEngine(config);
+        } else if (config.getIndexSettings().isWarmIndex()) {
+            return new DataFormatAwareReadOnlyEngine(config);
+        }
         return new DataFormatAwareEngine(config);
     }
 }

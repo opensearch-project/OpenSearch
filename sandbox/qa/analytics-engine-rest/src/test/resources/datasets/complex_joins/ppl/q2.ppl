@@ -1,0 +1,1 @@
+source=security_logs | where severity="ERROR" | stats count() as error_count by user | inner join left=l right=r on l.user = r.user [ source=security_logs | where severity="CRITICAL" | stats count() as critical_count by user ] | eval severity_score = error_count * 2 + critical_count * 5 | where severity_score > 10 | sort - severity_score

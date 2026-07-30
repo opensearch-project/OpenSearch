@@ -475,7 +475,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers()).normalizer("lowercase")
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), false).normalizer("lowercase")
             .build(context)
             .fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));

@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "median_approx",
+      "type": "double"
+    },
+    {
+      "name": "p95",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      225.75,
+      400.25
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

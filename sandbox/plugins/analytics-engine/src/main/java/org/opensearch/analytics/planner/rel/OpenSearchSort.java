@@ -34,6 +34,7 @@ import java.util.List;
 public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
+    private final boolean perPartition;
 
     public OpenSearchSort(
         RelOptCluster cluster,
@@ -44,8 +45,27 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         RexNode fetch,
         List<String> viableBackends
     ) {
+        this(cluster, traitSet, input, collation, offset, fetch, viableBackends, false);
+    }
+
+    public OpenSearchSort(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelNode input,
+        RelCollation collation,
+        RexNode offset,
+        RexNode fetch,
+        List<String> viableBackends,
+        boolean perPartition
+    ) {
         super(cluster, traitSet, input, collation, offset, fetch);
         this.viableBackends = viableBackends;
+        this.perPartition = perPartition;
+    }
+
+    /** True when this Sort runs per-shard (shard-bucket oversampling). */
+    public boolean isPerPartition() {
+        return perPartition;
     }
 
     @Override
@@ -65,7 +85,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     @Override
     public Sort copy(RelTraitSet traitSet, RelNode input, RelCollation collation, RexNode offset, RexNode fetch) {
-        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, viableBackends);
+        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, viableBackends, perPartition);
     }
 
     /**
@@ -90,12 +110,12 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      * {@link org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule} alternative
      * (ER below the Sort, Sort sees a fully-gathered input).
      *
-     * <p>Pure LIMIT Sort (empty collation) — nothing to order, partition-local fetch is
-     * correct. Skip the gate.
+     * <p>A Sort with no collation AND no fetch/offset is a no-op — skip the gate.
+     * A pure LIMIT (fetch != null, no collation) still needs gathering so it applies globally.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (getCollation().getFieldCollations().isEmpty()) {
+        if (getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null) {
             return planner.getCostFactory().makeTinyCost();
         }
         for (RelNode input : getInputs()) {

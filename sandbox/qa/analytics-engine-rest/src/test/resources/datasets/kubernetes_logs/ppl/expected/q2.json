@@ -1,0 +1,120 @@
+{
+  "schema": [
+    {
+      "name": "pod_count",
+      "type": "bigint"
+    },
+    {
+      "name": "kubernetes.pod_name",
+      "type": "string"
+    },
+    {
+      "name": "kubernetes.container_image",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      "pod-0",
+      null
+    ],
+    [
+      5,
+      "pod-1",
+      null
+    ],
+    [
+      5,
+      "pod-10",
+      null
+    ],
+    [
+      5,
+      "pod-11",
+      null
+    ],
+    [
+      5,
+      "pod-12",
+      null
+    ],
+    [
+      5,
+      "pod-13",
+      null
+    ],
+    [
+      5,
+      "pod-14",
+      null
+    ],
+    [
+      5,
+      "pod-15",
+      null
+    ],
+    [
+      5,
+      "pod-16",
+      null
+    ],
+    [
+      5,
+      "pod-17",
+      null
+    ],
+    [
+      5,
+      "pod-18",
+      null
+    ],
+    [
+      5,
+      "pod-19",
+      null
+    ],
+    [
+      5,
+      "pod-2",
+      null
+    ],
+    [
+      5,
+      "pod-3",
+      null
+    ],
+    [
+      5,
+      "pod-4",
+      null
+    ],
+    [
+      5,
+      "pod-5",
+      null
+    ],
+    [
+      5,
+      "pod-6",
+      null
+    ],
+    [
+      5,
+      "pod-7",
+      null
+    ],
+    [
+      5,
+      "pod-8",
+      null
+    ],
+    [
+      5,
+      "pod-9",
+      null
+    ]
+  ],
+  "total": 20,
+  "size": 20
+}

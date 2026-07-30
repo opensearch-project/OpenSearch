@@ -1,0 +1,1 @@
+source=test_data | eval cosh_val = cosh(1) | fields id, cosh_val | head 1

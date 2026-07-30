@@ -13,6 +13,7 @@ description = 'Shared native bridge utilities for OpenSearch sandbox plugins'
 dependencies {
     api project(':libs:opensearch-core')
     api project(':libs:opensearch-common')
+    compileOnly project(':server')
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compileOnly "org.apache.arrow:arrow-c-data:${versions.arrow}"
 

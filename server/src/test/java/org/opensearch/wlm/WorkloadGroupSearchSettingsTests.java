@@ -33,6 +33,11 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
         assertEquals("search.batched_reduce_size", WorkloadGroupSearchSettings.WLM_BATCHED_REDUCE_SIZE.getKey());
     }
 
+    public void testWlmMaxBucketsSettingExists() {
+        assertNotNull(WorkloadGroupSearchSettings.WLM_MAX_BUCKETS);
+        assertEquals("search.max_buckets", WorkloadGroupSearchSettings.WLM_MAX_BUCKETS.getKey());
+    }
+
     public void testWlmOverrideRequestValuesSettingExists() {
         assertNotNull(WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES);
         assertEquals("override_request_values", WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey());
@@ -104,6 +109,32 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
         assertTrue(exception.getMessage().contains("search.batched_reduce_size"));
     }
 
+    public void testValidateMaxBuckets() {
+        Settings settings = Settings.builder().put("search.max_buckets", "0").build();
+        WorkloadGroupSearchSettings.validate(settings);
+
+        settings = Settings.builder().put("search.max_buckets", "65535").build();
+        WorkloadGroupSearchSettings.validate(settings);
+
+        settings = Settings.builder().put("search.max_buckets", "1000000").build();
+        WorkloadGroupSearchSettings.validate(settings);
+    }
+
+    public void testValidateMaxBucketsInvalid() {
+        Settings settings = Settings.builder().put("search.max_buckets", "-1").build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.validate(settings)
+        );
+        assertTrue(exception.getMessage().contains("Invalid value"));
+        assertTrue(exception.getMessage().contains("search.max_buckets"));
+
+        Settings settings2 = Settings.builder().put("search.max_buckets", "abc").build();
+        exception = expectThrows(IllegalArgumentException.class, () -> WorkloadGroupSearchSettings.validate(settings2));
+        assertTrue(exception.getMessage().contains("Invalid value"));
+        assertTrue(exception.getMessage().contains("search.max_buckets"));
+    }
+
     public void testValidateOverrideRequestValues() {
         Settings settings = Settings.builder().put("override_request_values", "true").build();
         WorkloadGroupSearchSettings.validate(settings);
@@ -118,6 +149,7 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
             .put("search.cancel_after_time_interval", "1m")
             .put("search.max_concurrent_shard_requests", "5")
             .put("search.batched_reduce_size", "256")
+            .put("search.max_buckets", "1000")
             .put("override_request_values", "true")
             .build();
         WorkloadGroupSearchSettings.validate(settings);

@@ -22,6 +22,8 @@ dependencies {
   // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
   // as api deps, so a compileOnly project dep pulls them onto the compile classpath
   // while keeping them out of the bundled plugin zip (arrow-base ships them at runtime).
+  // The framework also ships the SPI types this plugin calls into (NativeAllocatorPoolConfig).
+  compileOnly project(':libs:opensearch-arrow-spi')
   compileOnly project(':plugins:arrow-base')
 
   // Netty codec libs used directly by grpc-netty / flight-core.
@@ -82,7 +84,7 @@ test {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
 }
 
 internalClusterTest {
@@ -90,7 +92,7 @@ internalClusterTest {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
 }
 
 spotless {

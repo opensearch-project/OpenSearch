@@ -36,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheAction;
+import org.opensearch.action.admin.cluster.blockcache.TransportPruneBlockCacheAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -61,6 +63,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.TransportDeleteTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -155,6 +159,7 @@ import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.ModifyDataStreamsAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
@@ -368,6 +373,7 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateActio
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteTaskAction;
 import org.opensearch.rest.action.admin.cluster.RestGetDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
@@ -381,6 +387,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.admin.cluster.RestPruneBlockCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPruneCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
@@ -426,6 +433,7 @@ import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
+import org.opensearch.rest.action.admin.indices.RestModifyDataStreamsAction;
 import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
 import org.opensearch.rest.action.admin.indices.RestPauseIngestionAction;
 import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
@@ -502,11 +510,13 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.storage.action.tiering.CancelTieringAction;
 import org.opensearch.storage.action.tiering.HotToWarmTierAction;
+import org.opensearch.storage.action.tiering.PrepareTieringAction;
 import org.opensearch.storage.action.tiering.RestCancelTierAction;
 import org.opensearch.storage.action.tiering.RestHotToWarmTierAction;
 import org.opensearch.storage.action.tiering.RestWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.TransportCancelTierAction;
 import org.opensearch.storage.action.tiering.TransportHotToWarmTierAction;
+import org.opensearch.storage.action.tiering.TransportPrepareTieringAction;
 import org.opensearch.storage.action.tiering.TransportWarmToHotTierAction;
 import org.opensearch.storage.action.tiering.WarmToHotTierAction;
 import org.opensearch.storage.action.tiering.status.GetTieringStatusAction;
@@ -675,6 +685,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
+        actions.register(DeleteTaskAction.INSTANCE, TransportDeleteTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
@@ -689,6 +700,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PruneFileCacheAction.INSTANCE, TransportPruneFileCacheAction.class);
+        actions.register(PruneBlockCacheAction.INSTANCE, TransportPruneBlockCacheAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
@@ -799,6 +811,7 @@ public class ActionModule extends AbstractModule {
         // Data streams:
         actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
         actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+        actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsAction.TransportAction.class);
         actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
@@ -865,6 +878,7 @@ public class ActionModule extends AbstractModule {
             actions.register(CancelTieringAction.INSTANCE, TransportCancelTierAction.class);
             actions.register(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class);
             actions.register(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class);
+            actions.register(PrepareTieringAction.INSTANCE, TransportPrepareTieringAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -909,6 +923,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPendingClusterTasksAction());
         // FileCache API
         registerHandler.accept(new RestPruneCacheAction());
+        registerHandler.accept(new RestPruneBlockCacheAction());
         registerHandler.accept(new RestPutRepositoryAction());
         registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction());
@@ -1009,6 +1024,7 @@ public class ActionModule extends AbstractModule {
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
         registerHandler.accept(new RestGetTaskAction());
+        registerHandler.accept(new RestDeleteTaskAction());
         registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API
@@ -1025,6 +1041,7 @@ public class ActionModule extends AbstractModule {
         // Data Stream API
         registerHandler.accept(new RestCreateDataStreamAction());
         registerHandler.accept(new RestDeleteDataStreamAction());
+        registerHandler.accept(new RestModifyDataStreamsAction());
         registerHandler.accept(new RestGetDataStreamsAction());
         registerHandler.accept(new RestResolveIndexAction());
         registerHandler.accept(new RestDataStreamsStatsAction());

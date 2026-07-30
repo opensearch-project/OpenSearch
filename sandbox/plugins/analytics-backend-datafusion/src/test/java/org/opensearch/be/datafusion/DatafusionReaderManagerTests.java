@@ -71,7 +71,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         assertNotNull(manager);
         manager.close();
     }
@@ -83,7 +83,14 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, NativeStoreHandle.EMPTY);
+        DatafusionReaderManager manager = new DatafusionReaderManager(
+            TEST_FORMAT,
+            shardPath,
+            mockService,
+            NativeStoreHandle.EMPTY,
+            List.of(),
+            List.of()
+        );
         assertNotNull(manager);
         manager.close();
     }
@@ -95,7 +102,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         // Should not throw — no readers to close
         manager.close();
     }
@@ -107,7 +114,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         manager.onFilesDeleted(null);
         verifyNoInteractions(mockService);
         manager.close();
@@ -120,7 +127,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         manager.onFilesDeleted(List.of());
         verifyNoInteractions(mockService);
         manager.close();
@@ -133,7 +140,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         manager.onFilesAdded(null);
         verifyNoInteractions(mockService);
         manager.close();
@@ -146,7 +153,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         manager.onFilesAdded(List.of());
         verifyNoInteractions(mockService);
         manager.close();
@@ -159,7 +166,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         Collection<String> files = List.of("seg_0.parquet", "seg_1.parquet");
         manager.onFilesDeleted(files);
 
@@ -176,7 +183,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         Collection<String> files = List.of("seg_0.parquet");
         manager.onFilesAdded(files);
 
@@ -193,7 +200,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         manager.beforeRefresh();
         manager.close();
     }
@@ -205,7 +212,7 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
         // didRefresh=false means no new data — should be a no-op
         manager.afterRefresh(false, null);
         manager.close();
@@ -218,8 +225,8 @@ public class DatafusionReaderManagerTests extends OpenSearchTestCase {
         ShardPath shardPath = createTestShardPath();
         DataFusionService mockService = mock(DataFusionService.class);
 
-        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null);
-        expectThrows(IOException.class, () -> manager.getReader(null));
+        DatafusionReaderManager manager = new DatafusionReaderManager(TEST_FORMAT, shardPath, mockService, null, List.of(), List.of());
+        expectThrows(IllegalArgumentException.class, () -> manager.getReader(null));
         manager.close();
     }
 }

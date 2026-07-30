@@ -1,0 +1,84 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "severity",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "jdoe",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "asmith",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      "asmith",
+      "192.168.1.100",
+      "authentication_failure",
+      "ERROR"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

@@ -10,6 +10,7 @@ package org.opensearch.common.queue;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
@@ -195,5 +196,71 @@ public class LockablePoolTests extends OpenSearchTestCase {
         LockableEntry next = pool.getAndLock();
         assertSame(fresh, next);
         pool.releaseAndUnlock(next);
+    }
+
+    // --- Tests for evaluateAllAndLock ---
+
+    public void testEvaluateAllAndLockReturnsCloseableForMatchingItem() throws IOException {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        Closeable releasable = pool.evaluateAllAndLock(e -> e.id.equals(item.id));
+        assertNotNull(releasable);
+        assertTrue(item.isHeldByCurrentThread());
+        releasable.close();
+        assertFalse(item.isHeldByCurrentThread());
+    }
+
+    public void testEvaluateAllAndLockReturnsNullWhenNoMatch() {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        Closeable releasable = pool.evaluateAllAndLock(e -> false);
+        assertNull(releasable);
+        assertFalse(item.isHeldByCurrentThread());
+    }
+
+    public void testEvaluateAllAndLockReturnsNullOnEmptyPool() {
+        LockablePool<LockableEntry> pool = createPool();
+        Closeable releasable = pool.evaluateAllAndLock(e -> true);
+        assertNull(releasable);
+    }
+
+    public void testEvaluateAllAndLockThrowsWhenPoolClosed() throws IOException {
+        LockablePool<LockableEntry> pool = createPool();
+        pool.close();
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> pool.evaluateAllAndLock(e -> true));
+        assertEquals("LockablePool is already closed", ex.getMessage());
+    }
+
+    public void testEvaluateAllAndLockUnlocksItemRemovedAfterLock() throws IOException {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry item = pool.getAndLock();
+        pool.releaseAndUnlock(item);
+
+        // Checkout the item so it becomes unregistered, then evaluate
+        List<LockableEntry> checked = pool.checkoutAll();
+        assertEquals(1, checked.size());
+
+        // Pool is now empty — item unregistered
+        Closeable releasable = pool.evaluateAllAndLock(e -> true);
+        assertNull(releasable);
+    }
+
+    public void testEvaluateAllAndLockMatchesFirstCompatibleItem() throws IOException {
+        LockablePool<LockableEntry> pool = createPool();
+        LockableEntry first = pool.getAndLock();
+        pool.releaseAndUnlock(first);
+        LockableEntry second = pool.getAndLock(e -> !e.id.equals(first.id));
+        pool.releaseAndUnlock(second);
+
+        Closeable releasable = pool.evaluateAllAndLock(e -> e.id.equals(second.id));
+        assertNotNull(releasable);
+        assertTrue(second.isHeldByCurrentThread());
+        assertFalse(first.isHeldByCurrentThread());
+        releasable.close();
     }
 }

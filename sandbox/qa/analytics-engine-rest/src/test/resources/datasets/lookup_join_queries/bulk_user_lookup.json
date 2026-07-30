@@ -1,0 +1,14 @@
+{"index":{}}
+{"user":"alice","full_name":"Alice Johnson","manager":"bob","department":"sales"}
+{"index":{}}
+{"user":"bob","full_name":"Bob Smith","manager":"charlie","department":"sales"}
+{"index":{}}
+{"user":"charlie","full_name":"Charlie Brown","manager":"diana","department":"engineering"}
+{"index":{}}
+{"user":"diana","full_name":"Diana Prince","manager":"eve","department":"engineering"}
+{"index":{}}
+{"user":"eve","full_name":"Eve Adams","manager":"frank","department":"marketing"}
+{"index":{}}
+{"user":"frank","full_name":"Frank Miller","manager":"grace","department":"marketing"}
+{"index":{}}
+{"user":"grace","full_name":"Grace Lee","manager":"alice","department":"sales"}

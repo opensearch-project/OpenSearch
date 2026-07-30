@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "error_count",
+      "type": "bigint"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "severity",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      82,
+      "access_denied",
+      "ERROR"
+    ],
+    [
+      55,
+      "login_attempt",
+      "ERROR"
+    ],
+    [
+      51,
+      "authentication_failure",
+      "ERROR"
+    ],
+    [
+      35,
+      "privilege_escalation",
+      "CRITICAL"
+    ],
+    [
+      28,
+      "authentication_failure",
+      "CRITICAL"
+    ],
+    [
+      26,
+      "suspicious_activity",
+      "ERROR"
+    ],
+    [
+      13,
+      "access_denied",
+      "CRITICAL"
+    ],
+    [
+      12,
+      "suspicious_activity",
+      "CRITICAL"
+    ],
+    [
+      7,
+      "privilege_escalation",
+      "ERROR"
+    ],
+    [
+      4,
+      "login_attempt",
+      "CRITICAL"
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

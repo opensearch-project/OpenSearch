@@ -17,8 +17,6 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.concurrent.Executor;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -85,7 +83,7 @@ public class PassThroughStageExecutionTests extends OpenSearchTestCase {
 
     private static QueryContext mockContext() {
         QueryContext ctx = mock(QueryContext.class);
-        Executor inline = Runnable::run;
+        when(ctx.schedulerExecutor()).thenReturn(Runnable::run);
         when(ctx.localTaskExecutor()).thenReturn(java.util.concurrent.Executors.newThreadPerTaskExecutor(r -> {
             Thread t = new Thread(r);
             t.setDaemon(true);

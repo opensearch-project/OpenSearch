@@ -19,7 +19,6 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -38,7 +37,11 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     private final List<String> viableBackends;
 
     public OpenSearchFilter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input, RexNode condition, List<String> viableBackends) {
-        super(cluster, traitSet, input, condition);
+        // Filter.<init> asserts RexUtil.isFlat — deep-flatten any nested AND/OR before super().
+        // TODO: the condition is currently deep-flattened in multiple places (here, in
+        // stripAnnotations(), and in FragmentConversionDriver.strip()). Revisit whether this can
+        // be enforced centrally at a single chokepoint so multiple flatten call sites aren't needed.
+        super(cluster, traitSet, input, RelNodeUtils.deepFlatten(cluster.getRexBuilder(), condition));
         this.viableBackends = viableBackends;
     }
 
@@ -108,7 +111,8 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
         // AND child, and an OR must not contain an OR child. Adapter substitutions in
         // BackendPlanAdapter.adaptRex can introduce that nesting (e.g. SargAdapter expands
         // SEARCH into AND(>=, <=) under a parent AND). Flatten canonicalizes the tree.
-        RexNode flattened = RexUtil.flatten(getCluster().getRexBuilder(), resolved);
+        // TODO: see the constructor — revisit centralizing this flatten so multiple sites aren't needed.
+        RexNode flattened = RelNodeUtils.deepFlatten(getCluster().getRexBuilder(), resolved);
         return LogicalFilter.create(strippedChildren.getFirst(), flattened);
     }
 

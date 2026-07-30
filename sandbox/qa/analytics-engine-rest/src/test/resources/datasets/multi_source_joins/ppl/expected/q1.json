@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "total_calls",
+      "type": "bigint"
+    },
+    {
+      "name": "monitor_id",
+      "type": "string"
+    },
+    {
+      "name": "realm",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      13,
+      "MON001",
+      "/mybenefits",
+      "Monitor Tracking - MyBenefits Realm"
+    ],
+    [
+      13,
+      "MON003",
+      "/mybenefits",
+      "Monitor Tracking - MyBenefits Realm"
+    ],
+    [
+      8,
+      "MON002",
+      "/mybenefits",
+      "Monitor Tracking - MyBenefits Realm"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

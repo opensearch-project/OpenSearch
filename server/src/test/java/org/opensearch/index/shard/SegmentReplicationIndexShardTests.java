@@ -43,6 +43,7 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
@@ -388,7 +389,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
             // We use compareTo here instead of equals because we ignore segments gen with replicas performing their own commits.
             // However infos version we expect to be equal.
-            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+            assertEquals(0, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
 
             // index and copy segments to replica.
             int numDocs = randomIntBetween(10, 20);
@@ -410,7 +411,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
                 assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
             }
-            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+            assertEquals(0, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
         }
     }
 
@@ -517,7 +518,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 test.close();
                 n.callRealMethod();
                 return null;
-            }).when(spyShard).finalizeReplication(any());
+            }).when(spyShard).finalizeReplication(any(CatalogSnapshot.class));
             replicateSegments(primaryShard, List.of(spyShard));
             shards.assertAllEqual(numDocs);
         }
@@ -565,7 +566,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 engine.updateSegments(engine.getSegmentInfosSnapshot().get());
                 n.callRealMethod();
                 return null;
-            }).when(spyShard).finalizeReplication(any());
+            }).when(spyShard).finalizeReplication(any(CatalogSnapshot.class));
             replicateSegments(primaryShard, List.of(spyShard));
             shards.assertAllEqual(numDocs);
         }
@@ -889,7 +890,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             primary.refresh("Test");
 
-            doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
+            doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any(CatalogSnapshot.class));
 
             replicateSegments(primary, List.of(replicaSpy));
         }
@@ -1159,6 +1160,32 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard primaryShard = shards.getPrimary();
             assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint((SegmentInfos) null));
         }
+    }
+
+    public void testIsReplicationTargetTrueForNRTReplicationEngineReplica() throws IOException {
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        try {
+            assertTrue("NRT-backed replica must be a replication target", replica.isReplicationTarget());
+        } finally {
+            closeShards(replica);
+        }
+    }
+
+    public void testIsReplicationTargetFalseForInternalEnginePrimary() throws IOException {
+        // A primary shard uses InternalEngine → not a replication target.
+        final IndexShard primary = newStartedShard(true, settings);
+        try {
+            assertFalse("primary on InternalEngine must NOT be a replication target", primary.isReplicationTarget());
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    public void testIsReplicationTargetFalseAfterShardClosed() throws IOException {
+        final IndexShard replica = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        closeShards(replica);
+        // After close, getIndexer() throws AlreadyClosedException → method must return false, not throw.
+        assertFalse("closed shard must return false without throwing", replica.isReplicationTarget());
     }
 
     protected SnapshotShardsService getSnapshotShardsService(

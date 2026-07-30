@@ -1,0 +1,1 @@
+source=test_data | eval log_val = log(value), log10_val = log10(value) | fields value, log_val, log10_val | head 3

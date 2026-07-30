@@ -28,7 +28,7 @@ public final class BlockCacheConstants {
      * <p>Currently backed by the Foyer library, but the name is kept
      * implementation-agnostic so it remains stable if the backend changes.
      */
-    public static final String DISK_CACHE = "disk";
+    public static final String FOYER = "foyer";
 
     private BlockCacheConstants() {}
 }

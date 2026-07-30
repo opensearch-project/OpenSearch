@@ -42,5 +42,14 @@ public enum StageExecutionType {
      * literal-row sources ({@code LogicalValues}) and any future leaf operator
      * whose data lives on the coordinator rather than on a shard.
      */
-    LOCAL_COMPUTE
+    LOCAL_COMPUTE,
+    /**
+     * QTF (late-materialization) Scatter-Gather stage. Drains the upstream Sort+Limit
+     * output, fans out fetch-by-rowid requests to data nodes (one per UGSI), stitches
+     * fetched columns back by row position, and emits the wrapper's output schema
+     * upstream. No Substrait fragment — the stage execution drives fetch transport
+     * directly. Marked by an {@code OpenSearchLateMaterialization} node in the
+     * stage's fragment.
+     */
+    LATE_MATERIALIZATION
 }

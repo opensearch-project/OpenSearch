@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "bytes_sent=(?<sent>\d+) bytes_received=(?<received>\d+)" | eval total_bytes = sent + received | fields sent, received, total_bytes | where sent is not null

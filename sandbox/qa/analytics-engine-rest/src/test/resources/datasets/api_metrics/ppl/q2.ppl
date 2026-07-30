@@ -1,0 +1,1 @@
+source=api_metrics | where url like '%/SCS/Retail%' | stats count()

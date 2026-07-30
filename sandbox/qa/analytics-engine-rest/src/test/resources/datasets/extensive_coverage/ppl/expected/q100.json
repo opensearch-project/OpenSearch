@@ -1,0 +1,39 @@
+{
+  "schema": [
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "upper_tags",
+      "type": "array"
+    }
+  ],
+  "datarows": [
+    [
+      "tag1,tag2,tag3",
+      [
+        "TAG1",
+        "TAG2",
+        "TAG3"
+      ]
+    ],
+    [
+      "tag2,tag4",
+      [
+        "TAG2",
+        "TAG4"
+      ]
+    ],
+    [
+      "tag1,tag3,tag5",
+      [
+        "TAG1",
+        "TAG3",
+        "TAG5"
+      ]
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

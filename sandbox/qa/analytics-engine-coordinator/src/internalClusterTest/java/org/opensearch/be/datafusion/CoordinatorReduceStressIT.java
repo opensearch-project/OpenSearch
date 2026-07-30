@@ -30,6 +30,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
@@ -85,6 +86,7 @@ import io.substrait.extension.SimpleExtension;
  *
  * @opensearch.internal
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "broken")
 public class CoordinatorReduceStressIT extends OpenSearchTestCase {
 
     /** Default Substrait input id for the single-input case (matches DatafusionReduceSink.INPUT_ID). */

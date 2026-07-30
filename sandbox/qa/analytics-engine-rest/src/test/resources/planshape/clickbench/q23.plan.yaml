@@ -1,0 +1,94 @@
+# Triple filter (LIKE, NOT LIKE, !=) — all blocked from lucene.
+# Compound predicate on parquet DataSourceExec with grouped count+dc(HLL) and TopK.
+query: q23
+ppl_file: q23.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], dc(UserID)=[$2], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[SUM($1)], dc(UserID)=[APPROX_COUNT_DISTINCT($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
+                  OpenSearchAggregate(group=[{0}], c=[COUNT()], dc(UserID)=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
+                    OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
+                      OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($83, '%Google%', '\')), ANNOTATED_PREDICATE(id=1, backends=[datafusion], <>($74, '')), NOT(ANNOTATED_PREDICATE(id=2, backends=[datafusion], ILIKE($85, '%.google.%', '\'))))], viableBackends=[[datafusion]])
+                        OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$1], dir0=[DESC-nulls-last], fetch=[30], viableBackends=[[datafusion]])
+        OpenSearchAggregate(group=[{0}], c=[COUNT()], dc(UserID)=[APPROX_COUNT_DISTINCT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
+          OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($83, '%Google%', '\')), ANNOTATED_PREDICATE(id=1, backends=[datafusion], <>($74, '')), NOT(ANNOTATED_PREDICATE(id=2, backends=[datafusion], ILIKE($85, '%.google.%', '\'))))], viableBackends=[[datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], dc(UserID)=[$2], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[SUM($1)], dc(UserID)=[APPROX_COUNT_DISTINCT($2)], mode=[FINAL], viableBackends=[[datafusion]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical_1seg: |
+      ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, count(Int64(1))[count]@1 as c, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as dc(UserID)]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+              RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                  FilterExec: Title@1 ILIKE %Google% AND SearchPhrase@0 !=  AND URL@2 NOT ILIKE %.google.%, projection=[SearchPhrase@0, UserID@3]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, Title, URL, UserID], file_type=parquet, predicate=Title@101 ILIKE %Google% AND SearchPhrase@63 !=  AND URL@27 NOT ILIKE %.google.%, pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+    shard_physical_nseg: |
+      ProjectionExec: expr=[SearchPhrase@0 as SearchPhrase, count(Int64(1))[count]@1 as c, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as dc(UserID)]
+        SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@1 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+              RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                  FilterExec: Title@1 ILIKE %Google% AND SearchPhrase@0 !=  AND URL@2 NOT ILIKE %.google.%, projection=[SearchPhrase@0, UserID@3]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                      DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, Title, URL, UserID], file_type=parquet, predicate=Title@101 ILIKE %Google% AND SearchPhrase@63 !=  AND URL@27 NOT ILIKE %.google.%, pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+  prod1s:
+    post_cbo: |
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], dc(UserID)=[$2], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[COUNT()], dc(UserID)=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($83, '%Google%', '\')), ANNOTATED_PREDICATE(id=1, backends=[datafusion], <>($74, '')), NOT(ANNOTATED_PREDICATE(id=2, backends=[datafusion], ILIKE($85, '%.google.%', '\'))))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])
+        OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10], viableBackends=[[datafusion]])
+          OpenSearchProject(c=[$1], dc(UserID)=[$2], SearchPhrase=[$0], viableBackends=[[datafusion]])
+            OpenSearchAggregate(group=[{0}], c=[COUNT()], dc(UserID)=[APPROX_COUNT_DISTINCT($1)], mode=[SINGLE], viableBackends=[[datafusion]])
+              OpenSearchProject(SearchPhrase=[$74], UserID=[$97], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($83, '%Google%', '\')), ANNOTATED_PREDICATE(id=1, backends=[datafusion], <>($74, '')), NOT(ANNOTATED_PREDICATE(id=2, backends=[datafusion], ILIKE($85, '%.google.%', '\'))))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical_1seg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[count(Int64(1))@0 as c, approx_distinct(<scrubbed>.UserID)@1 as dc(UserID), SearchPhrase@2 as SearchPhrase]
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10
+            SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]
+                AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                      FilterExec: Title@1 ILIKE %Google% AND SearchPhrase@0 !=  AND URL@2 NOT ILIKE %.google.%, projection=[SearchPhrase@0, UserID@3]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, Title, URL, UserID], file_type=parquet, predicate=Title@101 ILIKE %Google% AND SearchPhrase@63 !=  AND URL@27 NOT ILIKE %.google.%, pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]
+    shard_physical_nseg: |
+      RelabelExec: schema=Schema { fields: [Field { name: "c", data_type: Int64 }, Field { name: "dc(UserID)", data_type: Int64, nullable: true }, Field { name: "SearchPhrase", data_type: Utf8View, nullable: true }], metadata: {} }
+        ProjectionExec: expr=[count(Int64(1))@0 as c, approx_distinct(<scrubbed>.UserID)@1 as dc(UserID), SearchPhrase@2 as SearchPhrase]
+          SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST], fetch=10
+            SortExec: TopK(fetch=10), expr=[count(Int64(1))@0 DESC NULLS LAST], preserve_partitioning=[true]
+              ProjectionExec: expr=[count(Int64(1))@1 as count(Int64(1)), approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), SearchPhrase@0 as SearchPhrase]
+                AggregateExec: mode=FinalPartitioned, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                  RepartitionExec: partitioning=Hash([SearchPhrase@0], 4), input_partitions=4
+                    AggregateExec: mode=Partial, gby=[SearchPhrase@0 as SearchPhrase], aggr=[count(Int64(1)), approx_distinct(<scrubbed>.UserID)]
+                      FilterExec: Title@1 ILIKE %Google% AND SearchPhrase@0 !=  AND URL@2 NOT ILIKE %.google.%, projection=[SearchPhrase@0, UserID@3]
+                        RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                          DataSourceExec: file_groups={<scrubbed>}, projection=[SearchPhrase, Title, URL, UserID], file_type=parquet, predicate=Title@101 ILIKE %Google% AND SearchPhrase@63 !=  AND URL@27 NOT ILIKE %.google.%, pruning_predicate=SearchPhrase_null_count@2 != row_count@3 AND (SearchPhrase_min@0 !=  OR  != SearchPhrase_max@1), required_guarantees=[SearchPhrase not in ()]

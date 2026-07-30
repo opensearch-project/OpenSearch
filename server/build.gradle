@@ -74,8 +74,10 @@ dependencies {
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
 
+
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
+  api project(":libs:opensearch-arrow-spi")
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
   api libs.bundles.lucene
@@ -189,7 +191,7 @@ def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
 if (japicmpCompareTarget == null) {
     // Fetch released versions from maven central, pick the latest on the same major line before current.
     def currentVersion = org.opensearch.gradle.Version.fromString(org.opensearch.gradle.VersionProperties.getOpenSearch())
-    japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+    japicmpCompareTarget = new URL('https://ci.opensearch.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
         new XmlParser().parse(s).versioning.versions.version
             .collect { it.text() }
             .findAll { it ==~ /\d+\.\d+\.\d+/ }

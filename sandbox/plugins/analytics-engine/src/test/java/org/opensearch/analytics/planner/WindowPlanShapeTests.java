@@ -21,6 +21,7 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.rex.RexWindowBounds;
@@ -75,6 +76,61 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 OpenSearchProject(status=[$0], size=[$1], cnt=[COUNT() OVER ()], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Two aggregates with a global window between them (PPL: {@code stats count() by k | eval
+     * w = sum(..) over () | stats ...}). The split rule must treat each aggregate independently:
+     * the LOWER aggregate scans partitioned shard data → splits PARTIAL/FINAL; the UPPER aggregate
+     * sits above the window's gather → stays SINGLE (childGatheredByWindow stops the walk before it
+     * would reach the lower split's exchange). Proves the window-skip is per-aggregate, not global.
+     */
+    public void testAggregateWindowAggregate_2shard_onlyLowerSplits() {
+        RelNode lowerAgg = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
+        RelNode windowed = projectWithSumOverEmpty(lowerAgg);
+        RelNode plan = makeAggregate(windowed, countStarCall(windowed));
+        RelNode result = runPlanner(plan, multiShardContext());
+        // Upper aggregate stays SINGLE (its input is gathered by the window); lower aggregate splits
+        // PARTIAL/FINAL over the partitioned scan. The window's SINGLETON demand is already met by the
+        // lower FINAL's coordinator output, so no extra exchange is inserted below the window.
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Window, then an intermediate {@code where}, then {@code stats} (PPL:
+     * {@code eventstats sum(x) as w | where w > 0 | stats count() by k}). The Filter between the
+     * window Project and the aggregate forces the {@code childGatheredByWindow} walk to take a
+     * {@code getInput(0)} hop — which in Volcano is a RelSubset, not a concrete rel. The walk must
+     * resolve the subset (getBestOrOriginal) to still find the window below the Filter; otherwise the
+     * aggregate would split PARTIAL/FINAL redundantly over already-gathered rows. Asserts the
+     * aggregate stays SINGLE.
+     */
+    public void testAggregateAfterWindowBehindFilter_2shard_staysSingle() {
+        RelNode windowed = projectWithSumOverEmpty();
+        // where s > 0 — s is the window output at column index 2.
+        RelNode filter = makeFilter(windowed, makeEquals(2, SqlTypeName.BIGINT, 0));
+        RelNode plan = makeAggregate(filter, countStarCall(filter));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[mock-parquet], =($2, 0))], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -298,9 +354,9 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchProject(status=[$0], total_size=[$1], grand_total=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -475,15 +531,12 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                   StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchProject(status=[$0], total_size=[$1], grand_total=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
-                  OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=1, backends=[mock-parquet], =($1, 100))], viableBackends=[[mock-parquet]])
-                    OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchProject(status=[$0], total_size=[$1], grand_total=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=1, backends=[mock-parquet], =($1, 100))], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     /**
@@ -521,9 +574,9 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchProject(status=[$0], total_size=[$1], grand_total=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                   OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=1, backends=[mock-parquet], =($1, 100))], viableBackends=[[mock-parquet]])
-                    OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                       OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                        OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                           OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -631,14 +684,11 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+              OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     /**
@@ -658,9 +708,13 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                 StubTableScan(table=[[test_index]])
             """, plan);
         RelNode result = runPlanner(plan, multiShardContext());
+        // The window's global frame (SUM OVER ()) forces a gather (ER) directly below the Project, so
+        // the aggregate's input is already on one node. The split rule detects the window-induced
+        // gather (childGatheredByWindow) and keeps the aggregate SINGLE — no redundant PARTIAL/FINAL
+        // pass over already-gathered rows.
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], total_size=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
@@ -670,9 +724,17 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
     }
 
     /**
-     * OVER (PARTITION BY ...) is rejected at marking time — no shuffle exchange yet.
+     * {@code SUM($1) OVER (PARTITION BY $0)} on a 2-shard scan. PARTITION BY is now accepted —
+     * the cost gate on {@link org.opensearch.analytics.planner.rel.OpenSearchProject} forces
+     * SINGLETON input on any RexOver-bearing project, so all rows in a partition arrive on the
+     * coordinator regardless of whether partition keys span shards. WindowAggExec on the
+     * coordinator then groups by the partition key and computes the window correctly.
+     *
+     * <p>The plan shape is identical to the empty-OVER case (gather then project) — partition
+     * keys are encoded inside the RexOver expression and don't affect the surrounding
+     * exchange shape.
      */
-    public void testRexOverPartitionBy_rejected() {
+    public void testRexOverPartitionBy_2shard() {
         RelOptTable table = mockTable("test_index", "status", "size");
         RelNode scan = stubScan(table);
         RexBuilder rb = scan.getCluster().getRexBuilder();
@@ -697,12 +759,220 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), over),
             List.of("status", "size", "s")
         );
-        try {
-            runPlanner(plan, multiShardContext());
-            fail("Expected planner to reject PARTITION BY");
-        } catch (RuntimeException expected) {
-            // OK — rule rejected the RexOver.
-        }
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER (PARTITION BY $0)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code ROW_NUMBER() OVER ()} on a 2-shard scan. PPL's {@code streamstats … by …} lowers
+     * to a {@code projectPlus} of {@code ROW_NUMBER() OVER (ROWS UNBOUNDED PRECEDING TO
+     * CURRENT ROW)} as a helper sequence column. ROW_NUMBER joined the WindowFunction enum in
+     * the same commit that relaxed PARTITION BY — pinning the cost-gate-then-WindowAggExec
+     * shape here keeps both changes regression-safe.
+     */
+    public void testRowNumberOverEmpty_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode rowNumber = makeOver(
+            rb,
+            scan,
+            (SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            SqlTypeName.BIGINT,
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), rowNumber),
+            List.of("status", "size", "rn")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], rn=[ROW_NUMBER() OVER ()], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code SUM($1) OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. ORDER BY is a
+     * separate axis from PARTITION BY in {@code RexOver} — the relaxation in
+     * {@code OpenSearchProjectRule.collectWindowFunctions} drops the partition-key check but
+     * leaves order-by passthrough; this case pins both axes simultaneously.
+     *
+     * <p>SQL semantics: with ORDER BY but no explicit frame, the implicit frame is RANGE
+     * UNBOUNDED PRECEDING TO CURRENT ROW (cumulative). DataFusion's WindowAggExec handles it
+     * the same way once SINGLETON-gathered.
+     */
+    public void testSumOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode over = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.SUM,
+            List.of(rb.makeInputRef(scan, 1)),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),     // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            false,                                          // rangeBased: range-by-default-when-ORDER-BY
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), over),
+            List.of("status", "size", "running_sum")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], running_sum=[SUM($1) OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code ROW_NUMBER() OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. This is the
+     * shape PPL's {@code streamstats … by str0 | sort key} produces: a per-partition row
+     * sequence pinned by an ORDER BY. The existing tests cover ROW_NUMBER OVER () alone and
+     * SUM OVER (PARTITION BY ORDER BY) alone — this one combines them and is the one that
+     * matters for streamstats … by … reachability.
+     */
+    public void testRowNumberOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode rowNumber = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            true,                                            // rowBased
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), rowNumber),
+            List.of("status", "size", "rn_per_status")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], rn_per_status=[ROW_NUMBER() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code RANK() OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. RANK joined the
+     * WindowFunction enum alongside DENSE_RANK; like ROW_NUMBER it needs no adapter and passes
+     * through to DataFusion's native {@code rank()}. Pinning the cost-gate → SINGLETON-gather
+     * shape here keeps the wiring regression-safe and confirms the backend stays viable.
+     */
+    public void testRankOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode rank = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.RANK,
+            List.of(),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), rank),
+            List.of("status", "size", "rank_per_status")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], rank_per_status=[RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * {@code DENSE_RANK() OVER (PARTITION BY $0 ORDER BY $1)} on a 2-shard scan. The companion to
+     * {@link #testRankOverPartitionByOrderBy_2shard} — confirms DENSE_RANK is independently
+     * recognized by {@code WindowFunction.resolveFunction} and advertised by the DataFusion backend.
+     */
+    public void testDenseRankOverPartitionByOrderBy_2shard() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode denseRank = rb.makeOver(
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            (SqlAggFunction) SqlStdOperatorTable.DENSE_RANK,
+            List.of(),
+            ImmutableList.of(rb.makeInputRef(scan, 0)),      // PARTITION BY status
+            ImmutableList.of(new RexFieldCollation(rb.makeInputRef(scan, 1), Set.of())),  // ORDER BY size
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), denseRank),
+            List.of("status", "size", "dense_rank_per_status")
+        );
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], dense_rank_per_status=[DENSE_RANK() OVER (PARTITION BY $0 ORDER BY $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
     }
 
     // ── Builders ──────────────────────────────────────────────────────────

@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "rounded",
+      "type": "double"
+    },
+    {
+      "name": "floored",
+      "type": "double"
+    },
+    {
+      "name": "powered",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      100.5,
+      101.0,
+      100.0,
+      8.0
+    ],
+    [
+      200.75,
+      201.0,
+      200.0,
+      8.0
+    ],
+    [
+      150.25,
+      150.0,
+      150.0,
+      8.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

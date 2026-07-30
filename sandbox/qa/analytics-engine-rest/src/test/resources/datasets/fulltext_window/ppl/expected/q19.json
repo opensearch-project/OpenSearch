@@ -1,0 +1,78 @@
+{
+  "schema": [
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "latency",
+      "type": "int"
+    },
+    {
+      "name": "avglatency",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "auth",
+      "LDAP server timeout during authentication",
+      7000,
+      3062.5
+    ],
+    [
+      "auth",
+      "Connection timeout while connecting to database",
+      5000,
+      3062.5
+    ],
+    [
+      "order",
+      "Order validation timeout exceeded",
+      11000,
+      7740.0
+    ],
+    [
+      "order",
+      "Warehouse system connection timeout",
+      10500,
+      7740.0
+    ],
+    [
+      "order",
+      "Shipping service connection timeout",
+      9000,
+      7740.0
+    ],
+    [
+      "order",
+      "Database connection pool exhausted",
+      8000,
+      7740.0
+    ],
+    [
+      "payment",
+      "Payment processor API timeout",
+      12000,
+      8250.0
+    ],
+    [
+      "payment",
+      "Payment gateway timeout error",
+      10000,
+      8250.0
+    ],
+    [
+      "payment",
+      "Fraud detection service timeout",
+      8500,
+      8250.0
+    ]
+  ],
+  "total": 9,
+  "size": 9
+}

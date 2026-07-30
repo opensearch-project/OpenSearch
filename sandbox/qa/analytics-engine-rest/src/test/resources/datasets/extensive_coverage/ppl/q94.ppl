@@ -1,0 +1,1 @@
+source=test_data | stats take(text, 3) as sample_texts

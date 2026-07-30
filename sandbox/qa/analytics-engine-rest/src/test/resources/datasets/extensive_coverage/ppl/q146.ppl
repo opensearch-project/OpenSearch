@@ -1,0 +1,1 @@
+source=test_data | eval time_fmt = time_format(timestamp, '%H:%i:%s') | fields timestamp, time_fmt | head 3
