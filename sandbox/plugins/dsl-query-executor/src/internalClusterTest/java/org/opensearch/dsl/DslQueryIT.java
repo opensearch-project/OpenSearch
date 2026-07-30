@@ -103,6 +103,16 @@ public class DslQueryIT extends DslIntegTestBase {
         expectThrows(Exception.class, () -> search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name").boost(2.0f))));
     }
 
+    public void testFuzzyQueryOnKeywordField() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.fuzzyQuery("name", "laptop"))));
+    }
+
+    public void testFuzzyQueryOnTextField() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.fuzzyQuery("brand", "brandX"))));
+    }
+
     // TODO: Enable once BooleanQueryTranslatorExists is supported
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21442")
     public void testExistsQueryWithBool() {
