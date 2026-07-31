@@ -1119,6 +1119,141 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testServerInjectedPreferenceDoesNotLeakAcrossIndices() throws Exception {
+        final int numIndices = 4;
+        final int numShards = 3;
+        final int numReplicas = 2;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        // The first index is a remote snapshot index, for which the server injects the _primary preference
+        final String remoteSnapshotIndex = indexNames[0];
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+            threadPool = new TestThreadPool("testServerInjectedPreferenceDoesNotLeakAcrossIndices");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            IndexMetadata remoteSnapshotIndexMetadata = IndexMetadata.builder(remoteSnapshotIndex)
+                .settings(
+                    Settings.builder()
+                        .put(state.metadata().index(remoteSnapshotIndex).getSettings())
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                        .build()
+                )
+                .build();
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata())
+                .put(remoteSnapshotIndexMetadata, false)
+                .generateClusterUuidIfNeeded();
+            state = ClusterState.builder(state).metadata(metadataBuilder.build()).build();
+
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null);
+            assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+            for (ShardIterator shardIterator : groupIterator) {
+                if (remoteSnapshotIndex.equals(shardIterator.shardId().getIndexName())) {
+                    // Server-injected _primary preference applies to the remote snapshot index
+                    assertThat("Only the primary should be returned for the remote snapshot index", shardIterator.size(), equalTo(1));
+                    assertTrue("Returned shard should be the primary", shardIterator.nextOrNull().primary());
+                } else {
+                    // The injected preference must not leak into the other indices of the same request:
+                    // they should route across all active shard copies
+                    assertThat("All shard copies should be returned for a regular index", shardIterator.size(), equalTo(1 + numReplicas));
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testStrictWeightedRoutingExemptsOnlyServerInjectedPreferences() {
+        OperationRouting opRouting = new OperationRouting(
+            Settings.builder().put(OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        WeightedRouting weightedRouting = new WeightedRouting("zone", Map.of("a", 1.0, "b", 1.0, "c", 0.0));
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
+
+        // A caller-supplied restricted preference must be rejected under strict weighted routing
+        expectThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> opRouting.checkPreferenceBasedRoutingAllowed(Preference.PREFER_NODES, weightedRoutingMetadata, false)
+        );
+
+        // The same preference must be allowed when it was injected by the server itself
+        opRouting.checkPreferenceBasedRoutingAllowed(Preference.PREFER_NODES, weightedRoutingMetadata, true);
+    }
+
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
+    @SuppressForbidden(reason = "feature flag overrides")
+    public void testWarmIndexSearchNotBlockedByStrictWeightedRouting() throws Exception {
+        final int numShards = 2;
+        final int numReplicas = 2;
+        final String[] indexNames = { "test0", "test1" };
+        // The first index is a writable warm index, for which the server injects the _primary_first preference
+        final String warmIndex = indexNames[0];
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            ClusterState state = clusterStateForWeightedRouting(indexNames, numShards, numReplicas);
+
+            Settings setting = Settings.builder()
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .put(OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.getKey(), true)
+                .build();
+
+            threadPool = new TestThreadPool("testWarmIndexSearchNotBlockedByStrictWeightedRouting");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            OperationRouting opRouting = new OperationRouting(
+                setting,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            IndexMetadata warmIndexMetadata = IndexMetadata.builder(warmIndex)
+                .settings(
+                    Settings.builder()
+                        .put(state.metadata().index(warmIndex).getSettings())
+                        .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+                        .build()
+                )
+                .build();
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata())
+                .put(warmIndexMetadata, false)
+                .generateClusterUuidIfNeeded();
+            state = ClusterState.builder(state).metadata(metadataBuilder.build()).build();
+
+            // Weighted shard routing is active with a zero-weight zone (e.g. Multi-AZ with Standby)
+            Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+            state = setWeightedRoutingWeights(state, weights);
+            ClusterServiceUtils.setState(clusterService, ClusterState.builder(state));
+
+            // A search with no caller-supplied preference must not be rejected by the strict weighted
+            // routing preference check, even though the server injects _primary_first for the warm index
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null);
+            assertThat("One group per index shard", groupIterator.size(), equalTo(indexNames.length * numShards));
+
+            for (ShardIterator shardIterator : groupIterator) {
+                if (warmIndex.equals(shardIterator.shardId().getIndexName())) {
+                    assertTrue("Primary should be returned first for the warm index", shardIterator.nextOrNull().primary());
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
     public void testSearchReplicaDefaultRouting() throws Exception {
         final int numShards = 1;
         final int numReplicas = 2;
