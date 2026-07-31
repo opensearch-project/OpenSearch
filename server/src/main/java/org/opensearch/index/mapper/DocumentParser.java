@@ -1264,8 +1264,8 @@ final class DocumentParser {
         final String resolvedFieldName = resolvedPaths[resolvedPaths.length - 1];
 
         // Step 1: Check plugin-registered dynamic templates first — explicit user intent beats
-        // auto-inference. A user who writes match_mapping_type: "knn_vector" with dimension: 64
-        // has declared their intent; we must not reject it because it falls below the inferencer
+        // auto-inference. A user who writes a plugin-typed match_mapping_type with explicit params
+        // has declared their intent; we must not reject it because it falls below an inferencer
         // threshold. Template matching is already scoped by the user's match/path_match patterns
         // on the DynamicTemplate, so it only fires for fields the user intended.
         //
@@ -2121,13 +2121,13 @@ final class DocumentParser {
      *
      * <p>If a matching template is found, calls {@link DynamicTemplateTypeHandler#adjustMappingConfig}
      * with a factory that produces a fresh parser over the buffered field bytes, so the handler can
-     * inject any required parameters (e.g. dimension) before the {@link Mapper.TypeParser} builds the
+     * inject any required parameters before the {@link Mapper.TypeParser} builds the
      * mapper. This runs before TypeParser so that parameters that can only be inferred from the data
      * are present when the mapper is constructed. Handlers whose config is already complete never call
      * {@code get()}, so no parsing happens for fully-specified templates.
      *
      * @param name          the simple field name being parsed (last path component)
-     * @param entry         the plugin type string (e.g. {@code "knn_vector"}) and its handler
+     * @param entry         the plugin type string and its handler
      * @param fieldValueParser produces a fresh parser over the buffered field bytes
      * @return a {@link Mapper.Builder} ready to build the mapper, or {@code null} if no template matched
      */
@@ -2154,7 +2154,7 @@ final class DocumentParser {
         }
         Map<String, Object> mappingConfig = dynamicTemplate.mappingForName(name, pluginType);
         // The handler completes the config (injects its own type when omitted, and any data-derived
-        // params such as dimension) before the TypeParser builds the mapper.
+        // params) before the TypeParser builds the mapper.
         handler.adjustMappingConfig(mappingConfig, fieldValueParser);
         return typeParser.parse(name, mappingConfig, parserContext);
     }

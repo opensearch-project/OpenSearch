@@ -731,10 +731,10 @@ public class RootObjectMapper extends ObjectMapper {
 
     /**
      * Validates a dynamic template whose {@code match_mapping_type} is a plugin-registered type
-     * (e.g. {@code knn_vector}) at index-creation time.
+     * at index-creation time.
      *
-     * <p>Plugin templates are allowed to be intentionally incomplete: a parameter such as a vector's
-     * {@code dimension} may be derived from the first indexed document rather than declared in the
+     * <p>Plugin templates are allowed to be intentionally incomplete: a parameter may be derived from
+     * the first indexed document rather than declared in the
      * template. Such templates cannot be validated up front, so we only validate eagerly when the
      * plugin reports — via {@link DynamicTemplateTypeHandler#isConfigComplete} — that the config is
      * fully specified. In that case we hand the config to the plugin's {@link Mapper.TypeParser}, and

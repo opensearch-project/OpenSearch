@@ -17,15 +17,13 @@ import java.util.Map;
 /**
  * Handler for plugin-registered dynamic template types.
  * Called when a dynamic template matches on a plugin-registered type string
- * (e.g. "knn_vector") to allow the plugin to adjust the mapping configuration
- * before the mapper is built.
+ * to allow the plugin to adjust the mapping configuration before the mapper is built.
  *
  * <p>Rather than deserializing the field value for the handler, core hands it a
  * {@link FieldValueParserSupplier} that produces a fresh {@link XContentParser} over the buffered
  * bytes. A handler whose template config is already complete never calls {@code get()},
  * so no parsing happens for fully-specified templates. A handler that needs a
- * data-derived parameter (e.g. a vector's dimension) creates a parser and reads what it
- * needs.
+ * data-derived parameter creates a parser and reads what it needs.
  *
  * @opensearch.experimental
  */
