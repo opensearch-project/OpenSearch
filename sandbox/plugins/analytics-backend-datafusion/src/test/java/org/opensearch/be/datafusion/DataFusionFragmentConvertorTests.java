@@ -834,9 +834,20 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("checked SUM binding is required", functionNames.contains("checked_long_sum"));
     }
 
+    public void testOnlyCheckedLongSumIsRebound() {
+        assertTrue(DataFusionFragmentConvertor.isUnboundCheckedLongSum(checkedLongSumOperator()));
+        assertFalse(DataFusionFragmentConvertor.isUnboundCheckedLongSum(SqlStdOperatorTable.SUM));
+        assertFalse(DataFusionFragmentConvertor.isUnboundCheckedLongSum(DataFusionFragmentConvertor.LOCAL_CHECKED_LONG_SUM_OP));
+        assertFalse(DataFusionFragmentConvertor.isUnboundCheckedLongSum(sumKindOperator("OTHER_SUM")));
+    }
+
     private SqlAggFunction checkedLongSumOperator() {
+        return sumKindOperator("CHECKED_LONG_SUM");
+    }
+
+    private SqlAggFunction sumKindOperator(String name) {
         return new SqlAggFunction(
-            "CHECKED_LONG_SUM",
+            name,
             null,
             SqlKind.SUM,
             ReturnTypes.BIGINT_NULLABLE,

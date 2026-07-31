@@ -453,6 +453,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    static boolean isUnboundCheckedLongSum(SqlAggFunction operator) {
+        return operator != LOCAL_CHECKED_LONG_SUM_OP
+            && operator.getKind() == SqlKind.SUM
+            && "CHECKED_LONG_SUM".equalsIgnoreCase(operator.getName());
+    }
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -773,7 +779,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             }
 
             private AggregateCall bindCheckedLongSum(AggregateCall call) {
-                if (call.getAggregation() == SqlStdOperatorTable.SUM || call.getAggregation().getKind() != SqlKind.SUM) {
+                if (!isUnboundCheckedLongSum(call.getAggregation())) {
                     return call;
                 }
                 return AggregateCall.create(
@@ -816,7 +822,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             }
 
             private RexOver bindCheckedLongSum(RexOver call) {
-                if (call.getAggOperator() == SqlStdOperatorTable.SUM || call.getAggOperator().getKind() != SqlKind.SUM) {
+                if (!isUnboundCheckedLongSum(call.getAggOperator())) {
                     return call;
                 }
                 RexWindow window = call.getWindow();
