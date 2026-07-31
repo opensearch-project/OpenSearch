@@ -84,7 +84,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
-        assertEquals(LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), MOCK_QSC));
+        assertEquals(
+            LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2),
+            ft.termsQuery(Arrays.asList(value1, value2), MOCK_QSC)
+        );
     }
 
     public void testRangeQuery() throws IOException {
