@@ -147,7 +147,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(new FieldExistsQuery("field"), ft.rangeQuery(false, null, true, true, MOCK_QSC));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.rangeQuery("random", null, true, true, MOCK_QSC));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.rangeQuery("random", null, true, true, MOCK_QSC)
+        );
 
         assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
     }

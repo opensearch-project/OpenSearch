@@ -251,7 +251,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType indexOnly = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
         MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
         MappedFieldType indexDv = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
-        assertNotEquals("obey DocValues", indexOnly.termsQuery(List.of("::2/16"), MOCK_QSC), indexDv.termsQuery(List.of("::2/16"), MOCK_QSC));
+        assertNotEquals(
+            "obey DocValues",
+            indexOnly.termsQuery(List.of("::2/16"), MOCK_QSC),
+            indexDv.termsQuery(List.of("::2/16"), MOCK_QSC)
+        );
         assertEquals(dvOnly.termQuery("::2/16", MOCK_QSC), dvOnly.termsQuery(List.of("::2/16"), MOCK_QSC));
         assertEquals(
             new IndexOrDocValuesQuery(indexOnly.termsQuery(List.of("::2/16"), MOCK_QSC), dvOnly.termsQuery(List.of("::2/16"), MOCK_QSC)),
