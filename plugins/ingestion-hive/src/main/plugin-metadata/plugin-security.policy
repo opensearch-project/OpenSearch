@@ -1,0 +1,35 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // Hive Metastore Thrift connection (connect to metastore_uri host:port)
+  permission java.net.SocketPermission "*", "connect,resolve";
+
+  // Hadoop FileSystem: read data files from local/HDFS/S3 paths
+  permission java.io.FilePermission "<<ALL FILES>>", "read";
+
+  // Hadoop Configuration and ServiceLoader require system property access
+  permission java.util.PropertyPermission "*", "read,write";
+
+  // Hadoop ServiceLoader and Thrift deserialization use reflection
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+
+  // Hadoop FileSystem SPI loading requires classloader access
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // Kerberos authentication (SASL/GSSAPI)
+  permission javax.security.auth.AuthPermission "getSubject";
+  permission javax.security.auth.AuthPermission "doAs";
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+  permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
+};
