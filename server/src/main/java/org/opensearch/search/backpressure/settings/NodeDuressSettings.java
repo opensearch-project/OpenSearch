@@ -12,6 +12,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 /**
  * Defines the settings for a node to be considered in duress.
@@ -89,19 +90,14 @@ public class NodeDuressSettings {
     );
 
     /**
-     * Absolute native-memory budget for this node, in bytes, scoped to the search-backpressure
-     * duress probe. Independent from the node-level resource-tracker's
-     * {@code node.native_memory.limit} so the two features can be tuned separately. When this
-     * value is {@link ByteSizeValue#ZERO} (default), the duress probe treats the budget as
-     * unconfigured and stays inert.
+     * Absolute native-memory budget for this node in bytes, used by the search-backpressure
+     * duress probe. Reads from the shared node-level setting
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING} ({@code node.native_memory.limit})
+     * so that a single cluster-level configuration drives both Admission Control and Search
+     * Back Pressure. When the shared setting is {@link ByteSizeValue#ZERO} (unconfigured), the
+     * duress probe stays inert.
      */
     private volatile ByteSizeValue nodeNativeMemory;
-    public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
-        "search_backpressure.node_duress.native_memory_limit",
-        ByteSizeValue.ZERO,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     public NodeDuressSettings(Settings settings, ClusterSettings clusterSettings) {
         numSuccessiveBreaches = SETTING_NUM_SUCCESSIVE_BREACHES.get(settings);
@@ -116,8 +112,8 @@ public class NodeDuressSettings {
         nativeMemoryThreshold = SETTING_NATIVE_MEMORY_THRESHOLD.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_THRESHOLD, this::setNativeMemoryThreshold);
 
-        nodeNativeMemory = NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNodeNativeMemory);
+        nodeNativeMemory = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNodeNativeMemory);
     }
 
     public int getNumSuccessiveBreaches() {
