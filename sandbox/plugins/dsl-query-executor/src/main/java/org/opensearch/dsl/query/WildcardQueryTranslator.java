@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -46,9 +47,17 @@ public class WildcardQueryTranslator implements QueryTranslator {
         String pattern = wildcardQuery.value();
         boolean caseInsensitive = wildcardQuery.caseInsensitive();
 
-        RelDataTypeField field = ctx.getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
+        RelDataTypeField field = ctx.getField(fieldName);
+
+        // MappedFieldType.wildcardQuery:309-317 — only keyword and text fields support wildcard queries
+        if (field.getType().getSqlTypeName() != SqlTypeName.VARCHAR) {
+            throw new ConversionException(
+                "Can only use wildcard queries on keyword and text fields - not on ["
+                    + fieldName
+                    + "] which is of type ["
+                    + field.getType().getSqlTypeName()
+                    + "]"
+            );
         }
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
@@ -79,11 +88,14 @@ public class WildcardQueryTranslator implements QueryTranslator {
      *   \*           *             escaped wildcard → literal star
      *   \?           ?             escaped wildcard → literal question
      *   \\           \\            escaped backslash → LIKE-escaped literal backslash
-     *   \{other}     \\{other}     literal backslash + char (% and _ in {other} are additionally escaped)
+     *   \{other}     {other}       escape consumed, matches Lucene WildcardQuery.toAutomaton
      *   trailing \   \\            lone trailing backslash → LIKE-escaped literal backslash
      *   literal %    \%            SQL metachar must be escaped in LIKE
      *   literal _    \_            SQL metachar must be escaped in LIKE
      * </pre>
+     * <p>
+     * Note: if the char following the consumed escape is itself a SQL LIKE metacharacter
+     * ({@code %} or {@code _}), it is additionally LIKE-escaped to remain literal.
      */
     private String convertWildcardToLike(String wildcardPattern) {
         StringBuilder result = new StringBuilder();
@@ -98,13 +110,9 @@ public class WildcardQueryTranslator implements QueryTranslator {
                         } else if (next == '\\') {
                             result.append("\\\\");
                         } else {
-                            // Why: backslash is the LIKE escape char, so a literal backslash needs \\
-                            // and if the following char is a SQL metachar it also needs escaping
+                            // Lucene WildcardQuery.toAutomaton (L99-108): escape consumed, emit next char
                             if (next == '%' || next == '_') {
-                                result.append("\\\\");
                                 result.append('\\');
-                            } else {
-                                result.append("\\\\");
                             }
                             result.append(next);
                         }

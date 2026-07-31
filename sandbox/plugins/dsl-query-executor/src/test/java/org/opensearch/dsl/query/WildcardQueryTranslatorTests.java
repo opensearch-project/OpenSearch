@@ -61,8 +61,8 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        // \d = literal backslash + 'd' → LIKE needs \\d for the literal backslash
-        assertEquals("a\\%b\\_c\\\\d%e_", ((RexLiteral) pattern).getValueAs(String.class));
+        // \d → escape consumed, emits 'd' (Lucene WildcardQuery.toAutomaton L99-108)
+        assertEquals("a\\%b\\_cd%e_", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testEscapedAsteriskProducesLiteralStar() throws ConversionException {
@@ -127,37 +127,48 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals("100\\%\\_done", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
-    public void testBackslashBeforeNonSpecialCharEmitsEscapedBackslash() throws ConversionException {
-        // \n in OpenSearch wildcard = literal backslash + n
+    public void testBackslashBeforeNonSpecialCharConsumesEscape() throws ConversionException {
+        // Lucene WildcardQuery.toAutomaton (L99-108): \n → escape consumed, emits just 'n'
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\nb"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        assertEquals("a\\\\nb", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals("anb", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
-    public void testBackslashBeforeT() throws ConversionException {
-        // \t in OpenSearch wildcard = literal backslash + t
+    public void testBackslashBeforeTConsumesEscape() throws ConversionException {
+        // Lucene WildcardQuery.toAutomaton (L99-108): \t → escape consumed, emits just 't'
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\tb"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        assertEquals("a\\\\tb", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals("atb", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
-    public void testWindowsPathBackslashes() throws ConversionException {
-        // Each \U and \t = backslash + non-special char → \\U and \\t in LIKE
+    public void testWindowsPathEscapesConsumed() throws ConversionException {
+        // Lucene WildcardQuery.toAutomaton: \U → 'U', \t → 't' (escape consumed)
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "C:\\Users\\test"), ctx);
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
         RexNode pattern = call.getOperands().get(1);
-        assertEquals("C:\\\\Users\\\\test", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals("C:Userstest", ((RexLiteral) pattern).getValueAs(String.class));
+    }
+
+    public void testBackslashBeforeSqlMetacharEscapesForLike() throws ConversionException {
+        // Lucene: \% → escape consumed, emits '%'; SQL LIKE needs \% to keep it literal
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a\\%b\\_c"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+
+        RexNode pattern = call.getOperands().get(1);
+        assertEquals("a\\%b\\_c", ((RexLiteral) pattern).getValueAs(String.class));
     }
 
     public void testWildcardWithEmptyPattern() throws ConversionException {
@@ -195,5 +206,15 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         );
         assertTrue(ex.getMessage().contains("rewrite"));
         assertTrue(ex.getMessage().contains("not supported"));
+    }
+
+    public void testWildcardThrowsForNonStringField() {
+        // MappedFieldType.wildcardQuery:309-317 rejects non-keyword/text fields
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("price", "12*"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("keyword and text"));
+        assertTrue(ex.getMessage().contains("price"));
     }
 }

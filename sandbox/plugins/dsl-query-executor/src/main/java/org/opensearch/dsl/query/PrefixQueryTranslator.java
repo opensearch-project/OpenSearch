@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -45,9 +46,17 @@ public class PrefixQueryTranslator implements QueryTranslator {
         String prefix = prefixQuery.value();
         boolean caseInsensitive = prefixQuery.caseInsensitive();
 
-        RelDataTypeField field = ctx.getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
+        RelDataTypeField field = ctx.getField(fieldName);
+
+        // MappedFieldType.prefixQuery:291-297 — only keyword and text fields support prefix queries
+        if (field.getType().getSqlTypeName() != SqlTypeName.VARCHAR) {
+            throw new ConversionException(
+                "Can only use prefix queries on keyword and text fields - not on ["
+                    + fieldName
+                    + "] which is of type ["
+                    + field.getType().getSqlTypeName()
+                    + "]"
+            );
         }
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());

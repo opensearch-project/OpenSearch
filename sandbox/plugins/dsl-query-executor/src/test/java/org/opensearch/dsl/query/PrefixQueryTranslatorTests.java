@@ -109,4 +109,14 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         RexNode pattern = call.getOperands().get(1);
         assertEquals("a\\%b\\_c\\\\d%", ((RexLiteral) pattern).getValueAs(String.class));
     }
+
+    public void testPrefixQueryThrowsForNonStringField() {
+        // MappedFieldType.prefixQuery:291-297 rejects non-keyword/text fields
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.prefixQuery("price", "12"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("keyword and text"));
+        assertTrue(ex.getMessage().contains("price"));
+    }
 }
