@@ -259,18 +259,18 @@ public class DynamicTemplate implements ToXContentObject {
                 }
             }
             if (xcontentFieldType == null) {
-                pluginMatchType = matchMappingType;
-                // Validate the plugin type against the registry before constructing the template.
-                if (!knownPluginTypes.containsKey(pluginMatchType)) {
+                // Validate the plugin type against the registry before storing it as the plugin match type.
+                if (!knownPluginTypes.containsKey(matchMappingType)) {
                     List<String> allTypes = new ArrayList<>();
                     for (XContentFieldType t : XContentFieldType.values()) {
                         allTypes.add(t.toString());
                     }
                     allTypes.addAll(knownPluginTypes.keySet());
                     throw new IllegalArgumentException(
-                        "No field type matched on [" + pluginMatchType + "], possible values are " + allTypes
+                        "No field type matched on [" + matchMappingType + "], possible values are " + allTypes
                     );
                 }
+                pluginMatchType = matchMappingType;
             }
         }
 

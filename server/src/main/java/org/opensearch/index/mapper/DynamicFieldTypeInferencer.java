@@ -42,7 +42,7 @@ public interface DynamicFieldTypeInferencer {
      *                      call {@code get()} and advance the parser to read the value. The returned
      *                      parser should be closed by the caller (e.g. via try-with-resources).
      * @return a mutable mapping config map with at minimum a {@code "type"} key (e.g.
-     *         {@code {"type": "knn_vector", "dimension": 384}}), or {@code null} to pass to the
+     *         {@code {"type": "my_type", "some_param": 384}}), or {@code null} to pass to the
      *         next inferencer. The map MUST be mutable — TypeParser implementations call
      *         {@code node.remove()} on it during parsing.
      * @throws IOException if reading from the parser fails
