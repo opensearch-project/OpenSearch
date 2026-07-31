@@ -21,8 +21,12 @@ package org.opensearch.analytics.exec.canmatch;
  *
  * @param column     sort column name, as it appears in the fragment's row type
  * @param descending true for {@code DESC}, where a shard's best value is its {@code max}
+ * @param limit      rows the coordinator must collect: {@code offset + fetch}, not {@code fetch}.
+ *                   Offset rows are collected and then discarded, so budgeting {@code fetch} alone
+ *                   would let a top-N gate think it was done while still short by {@code offset}.
+ *                   Always {@code > 0}; {@link SortSpecExtractor} returns no spec otherwise.
  *
  * @opensearch.internal
  */
-public record SortSpec(String column, boolean descending) {
+public record SortSpec(String column, boolean descending, int limit) {
 }

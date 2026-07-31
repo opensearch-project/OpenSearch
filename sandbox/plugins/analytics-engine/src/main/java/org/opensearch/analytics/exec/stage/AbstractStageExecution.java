@@ -190,6 +190,17 @@ public abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
+     * Marks {@code task} {@link StageTaskState#SKIPPED} and counts it as this task's one terminal.
+     * A skipped task is never dispatched, so nothing else would ever settle it and the stage would
+     * stay RUNNING forever.
+     */
+    public final void skipTask(StageTask task) {
+        if (task.transitionTo(StageTaskState.SKIPPED)) {
+            onTaskTerminal(task, null);
+        }
+    }
+
+    /**
      * Ensure if this stage is cancelled, our parent stage is also cancelled if not already
      * This does NOT mean individual StageTask cancellation fails the parent stages/query,
      * This only handles if a full child stage is cancelled, task management is handled

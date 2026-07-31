@@ -26,11 +26,10 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Coordinator-side shard-metadata probe. Sends one lightweight request per shard target in
+ * Coordinator-side shard-metadata check. Sends one lightweight request per shard target in
  * parallel and uses each reply for two independent things:
  *
  * <ol>
@@ -64,50 +63,51 @@ public class CanMatchPreFilterPhase {
     }
 
     /**
-     * Dispatches can-match requests to all targets in parallel.
+     * Result of a {@link #checkShards} call: the surviving targets and their sort-column ranges.
      *
-     * @param targets     resolved execution targets
-     * @param filterBytes serialized filter list (from {@link CanMatchFilterSerializer})
-     * @param listener    receives the filtered target list (only those that can match)
+     * @param targets        survivors in dispatch order — most promising first when ordering applied
+     * @param boundsByTarget shard-wide min/max, for the subset of targets that reported any
      */
-    public void filter(
-        List<ExecutionTarget> targets,
-        byte[] filterBytes,
-        String backendId,
-        ActionListener<List<ExecutionTarget>> listener
-    ) {
-        filter(targets, filterBytes, backendId, null, listener);
+    public record ShardCheckResult(List<ExecutionTarget> targets, Map<ExecutionTarget, ShardSortBounds> boundsByTarget) {
+
+        /** Fail-open result: every target kept, nothing learned about bounds. */
+        public static ShardCheckResult keepAll(List<ExecutionTarget> targets) {
+            return new ShardCheckResult(targets, Collections.emptyMap());
+        }
     }
 
     /**
-     * Dispatches to all targets in parallel, collecting the prune decision and — when
-     * {@code sortSpec} is given — each shard's min/max, then returns the survivors in
-     * dispatch order.
+     * Dispatches one can-match request per target in parallel and hands back the survivors in
+     * dispatch order plus each one's bounds.
      *
-     * @param sortSpec primary sort key + direction, or {@code null} to skip bounds collection
+     * <p>Returns without a round-trip when there is nothing to learn — no targets, or neither
+     * filters nor a sort spec.
+     *
+     * @param targets     resolved execution targets
+     * @param filterBytes serialized filter list (from {@link CanMatchFilterSerializer}); null or
+     *                    empty prunes nothing, which is the normal shape for a bare sort
+     * @param sortSpec    primary sort key + direction, or {@code null} to skip bounds collection
      */
-    public void filter(
+    public void checkShards(
         List<ExecutionTarget> targets,
         byte[] filterBytes,
         String backendId,
         SortSpec sortSpec,
-        ActionListener<List<ExecutionTarget>> listener
+        ActionListener<ShardCheckResult> listener
     ) {
         if (targets.isEmpty()) {
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(ShardCheckResult.keepAll(Collections.emptyList()));
             return;
         }
         boolean hasFilters = filterBytes != null && filterBytes.length > 0;
-        // Nothing to prune and nothing to order by — skip the round-trip entirely.
         if (hasFilters == false && sortSpec == null) {
-            listener.onResponse(targets);
+            listener.onResponse(ShardCheckResult.keepAll(targets));
             return;
         }
         byte[] effectiveFilters = hasFilters ? filterBytes : EMPTY_FILTERS;
         String sortColumn = sortSpec != null ? sortSpec.column() : null;
 
-        Set<ExecutionTarget> matching = Collections.newSetFromMap(new IdentityHashMap<>());
-        // Identity-keyed to match `matching` above: targets are compared by reference here.
+        List<ExecutionTarget> matching = new ArrayList<>(targets.size());
         Map<ExecutionTarget, ShardSortBounds> boundsByTarget = new IdentityHashMap<>();
         AtomicInteger pending = new AtomicInteger(targets.size());
         Completion completion = new Completion(matching, boundsByTarget, targets, sortSpec, listener);
@@ -168,13 +168,12 @@ public class CanMatchPreFilterPhase {
     }
 
     /**
-     * Fan-in bookkeeping: collects survivors and their bounds, then on the last response builds
-     * the final list — pruned shards removed, survivors ordered by bound where possible.
+     * Collects survivors and their bounds as responses land, then orders them and fires the listener
+     * once the last one is in.
      */
-    private record Completion(Set<ExecutionTarget> matching, Map<ExecutionTarget, ShardSortBounds> boundsByTarget, List<
-        ExecutionTarget> originalTargets, SortSpec sortSpec, ActionListener<List<ExecutionTarget>> listener) {
+    private record Completion(List<ExecutionTarget> matching, Map<ExecutionTarget, ShardSortBounds> boundsByTarget, List<
+        ExecutionTarget> originalTargets, SortSpec sortSpec, ActionListener<ShardCheckResult> listener) {
 
-        /** Target survives. {@code bounds} may be null (not requested, or unavailable). */
         void keep(ExecutionTarget target, ShardSortBounds bounds, AtomicInteger pending) {
             synchronized (matching) {
                 matching.add(target);
@@ -185,7 +184,6 @@ public class CanMatchPreFilterPhase {
             maybeComplete(pending);
         }
 
-        /** Target pruned — nothing to record, just count it in. */
         void drop(AtomicInteger pending) {
             maybeComplete(pending);
         }
@@ -194,51 +192,23 @@ public class CanMatchPreFilterPhase {
             if (pending.decrementAndGet() != 0) {
                 return;
             }
-            List<ExecutionTarget> survivors = new ArrayList<>(matching.size());
-            Map<ExecutionTarget, ShardSortBounds> bounds;
-            synchronized (matching) {
-                // Input order first, so the no-sort and mixed-type-fallback paths are unchanged.
-                for (ExecutionTarget t : originalTargets) {
-                    if (matching.contains(t)) {
-                        survivors.add(t);
-                    }
-                }
-                bounds = new IdentityHashMap<>(boundsByTarget);
-            }
-            // All shards pruned: keep the first target anyway. Downstream stages (e.g. reduce)
-            // still need one shard to execute to produce a valid, well-formed empty result —
-            // schema, empty aggregates, etc.
-            if (survivors.isEmpty() && originalTargets.isEmpty() == false) {
-                survivors.add(originalTargets.get(0));
+            if (matching.isEmpty() && originalTargets.isEmpty() == false) {
+                matching.add(originalTargets.get(0));
             }
             if (sortSpec != null) {
-                orderByBounds(survivors, bounds, sortSpec);
+                orderByBounds(matching, boundsByTarget, sortSpec);
             }
-            listener.onResponse(survivors);
+            listener.onResponse(new ShardCheckResult(matching, Collections.unmodifiableMap(boundsByTarget)));
         }
     }
 
-    /**
-     * Sorts {@code survivors} in place, most promising first: by {@code max} descending for a
-     * {@code DESC} sort, by {@code min} ascending for {@code ASC}. Stable, so ties keep their
-     * input order.
-     *
-     * <p>Shards with no bounds go last — unknown isn't promising.
-     *
-     * <p>Refuses to reorder at all when the bounds disagree on physical type, since comparing
-     * (say) millisecond- and nanosecond-scaled values orders by a meaningless key. Input order
-     * is always correct, so falling back is safe.
-     */
+    /** Sorts {@code survivors} most-promising-first: by {@code max} for DESC, {@code min} for ASC, unbounded shards last. */
     private static void orderByBounds(
         List<ExecutionTarget> survivors,
         Map<ExecutionTarget, ShardSortBounds> boundsByTarget,
         SortSpec sortSpec
     ) {
         if (survivors.size() < 2 || boundsByTarget.isEmpty()) {
-            return;
-        }
-        if (hasConsistentValueKind(boundsByTarget) == false) {
-            logger.debug("can-match: mixed sort-bound value kinds, keeping input order");
             return;
         }
         boolean descending = sortSpec.descending();
@@ -252,53 +222,6 @@ public class CanMatchPreFilterPhase {
             // DESC wants the largest max first; ASC wants the smallest min first.
             return descending ? Long.compare(b.max(), a.max()) : Long.compare(a.min(), b.min());
         });
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "can-match: ordered {} shards by {} {} -> {}",
-                survivors.size(),
-                sortSpec.column(),
-                descending ? "DESC(max)" : "ASC(min)",
-                describeOrder(survivors, boundsByTarget)
-            );
-        }
-    }
-
-    /**
-     * Renders the ordered shard sequence with each bound, for the DEBUG log.
-     *
-     * <p>TODO: remove along with the dispatch-order diagnostics once shard ordering is settled.
-     */
-    private static String describeOrder(List<ExecutionTarget> survivors, Map<ExecutionTarget, ShardSortBounds> boundsByTarget) {
-        StringBuilder sb = new StringBuilder();
-        for (ExecutionTarget target : survivors) {
-            if (sb.length() > 0) {
-                sb.append(", ");
-            }
-            if (target instanceof ShardExecutionTarget shardTarget) {
-                sb.append(shardTarget.shardId());
-            } else {
-                sb.append("non-shard");
-            }
-            ShardSortBounds bounds = boundsByTarget.get(target);
-            if (bounds == null) {
-                sb.append("[no-bounds]");
-            } else {
-                sb.append('[').append(bounds.min()).append("..").append(bounds.max()).append(']');
-            }
-        }
-        return sb.toString();
-    }
-
-    /** True when every present bound reports the same physical type. */
-    private static boolean hasConsistentValueKind(Map<ExecutionTarget, ShardSortBounds> boundsByTarget) {
-        byte kind = 0;
-        for (ShardSortBounds bounds : boundsByTarget.values()) {
-            if (kind == 0) {
-                kind = bounds.valueKind();
-            } else if (kind != bounds.valueKind()) {
-                return false;
-            }
-        }
-        return true;
+        logger.debug("can-match: ordered {} shards by {} {}", survivors.size(), sortSpec.column(), descending ? "DESC(max)" : "ASC(min)");
     }
 }

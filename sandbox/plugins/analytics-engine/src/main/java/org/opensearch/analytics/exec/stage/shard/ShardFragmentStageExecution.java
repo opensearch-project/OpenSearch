@@ -22,6 +22,7 @@ import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase;
 import org.opensearch.analytics.exec.canmatch.SortSpec;
+import org.opensearch.analytics.exec.canmatch.TopNGate;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -31,6 +32,7 @@ import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -39,7 +41,9 @@ import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -60,6 +64,8 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService dispatcher;
+    private volatile TopNGate topNGate;
+    private volatile Map<ExecutionTarget, ShardSortBounds> sortBounds = Collections.emptyMap();
 
     public ShardFragmentStageExecution(
         Stage stage,
@@ -97,8 +103,6 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         }
 
         List<CanMatchFilter> filters = stage.getCanMatchFilters();
-        // A sort alone is reason enough to probe: it prunes nothing, but the min/max it returns
-        // orders the dispatch.
         SortSpec sortSpec = stage.getSortSpec();
         boolean hasFilters = filters != null && filters.isEmpty() == false;
         if (dispatcher == null || (hasFilters == false && sortSpec == null)) {
@@ -122,20 +126,83 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             return;
         }
         CanMatchPreFilterPhase canMatchPhase = new CanMatchPreFilterPhase(dispatcher.getTransportService());
-        dispatchWithTimeoutAsync(
-            resolved,
-            filterBytes,
-            backendId,
-            sortSpec,
-            canMatchPhase,
-            CAN_MATCH_TIMEOUT,
-            ActionListener.wrap(filtered -> listener.onResponse(buildTasks(filtered)), e -> listener.onResponse(buildTasks(resolved)))
+        dispatchWithTimeoutAsync(resolved, filterBytes, backendId, sortSpec, canMatchPhase, ActionListener.wrap(checked -> {
+            setupSortGate(sortSpec, checked);
+            listener.onResponse(buildTasks(checked.targets()));
+        }, e -> listener.onResponse(buildTasks(resolved))));
+    }
+
+    /**
+     * Builds the top-N gate from what the shard check learned and publishes it, with the bounds, for the
+     * dispatch side to read. Not to be confused with {@link TopNGate#isArmed()}, which is about the
+     * heap having reached {@code K}: a gate set up here starts empty and eliminates nothing.
+     *
+     * <p>Leaves {@link #topNGate} {@code null} — every shard then dispatches as it did before this
+     * feature — when any of:
+     *
+     * <ul>
+     *   <li>no {@code sortSpec}: not a {@code sort | head N} shape, so there is no top-N to gate</li>
+     *   <li>no shard reported bounds: nothing to compare a shard against</li>
+     *   <li>shards disagree on value domain: bounds at different scales aren't comparable</li>
+     *   <li>{@code TopNGate.create} refused the limit: non-positive, or past its cap</li>
+     * </ul>
+     *
+     * <p>Runs on the can-match completion, before {@code publishTasksAndStart}, so the gate is in
+     * place before any response can arrive and nothing else ever writes these fields.
+     *
+     * <p>The value-domain check here is the sole guard against comparing bounds at different scales:
+     * a mismatch would cost wrong results, so if the shards disagree on {@code valueKind} it builds no
+     * gate at all rather than risk a cross-scale elimination.
+     */
+    void setupSortGate(SortSpec sortSpec, CanMatchPreFilterPhase.ShardCheckResult checked) {
+        if (sortSpec == null || checked.boundsByTarget().isEmpty()) {
+            return;
+        }
+        byte valueKind = 0;
+        for (ShardSortBounds bounds : checked.boundsByTarget().values()) {
+            if (valueKind == 0) {
+                valueKind = bounds.valueKind();
+            } else if (valueKind != bounds.valueKind()) {
+                logger.debug("mixed value kinds across shards, no gate for this query");
+                return;
+            }
+        }
+        // The agreed kind is not handed to the gate: with every bound checked equal above, the gate
+        // has nothing left to compare it against. It stays local, as the condition checked here.
+        TopNGate gate = TopNGate.create(sortSpec);
+        if (gate == null) {
+            logger.debug("limit {} not gateable, no gate for this query", sortSpec.limit());
+            return;
+        }
+        // Bounds are only kept once there is a gate to consult them — the dispatch side reads the
+        // two together, so publishing one without the other would just be dead state.
+        this.sortBounds = checked.boundsByTarget();
+        this.topNGate = gate;
+        logger.debug(
+            "gate set up for {} {} limit={} over {} shards with bounds",
+            sortSpec.column(),
+            sortSpec.descending() ? "DESC" : "ASC",
+            sortSpec.limit(),
+            checked.boundsByTarget().size()
         );
     }
 
     /**
+     * The top-N gate, or {@code null} when this query isn't gateable. Package-private for
+     * {@link ShardTaskRunner}, which consults it as each dispatch slot frees, and for tests.
+     */
+    TopNGate topNGate() {
+        return topNGate;
+    }
+
+    /** Bounds this stage's shard check learned, keyed by target identity. Empty when none. */
+    Map<ExecutionTarget, ShardSortBounds> sortBounds() {
+        return sortBounds;
+    }
+
+    /**
      * Dispatches can-match with a timeout. Ensures exactly one listener invocation:
-     * either the filtered result on success, or the full target list on timeout/error.
+     * either the shard-check result on success, or a keep-everything result on timeout/error.
      */
     private void dispatchWithTimeoutAsync(
         List<ExecutionTarget> targets,
@@ -143,8 +210,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         String backendId,
         SortSpec sortSpec,
         CanMatchPreFilterPhase phase,
-        TimeValue timeout,
-        ActionListener<List<ExecutionTarget>> listener
+        ActionListener<CanMatchPreFilterPhase.ShardCheckResult> listener
     ) {
         long startNanos = System.nanoTime();
         AtomicBoolean fired = new AtomicBoolean(false);
@@ -159,29 +225,29 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
 
         Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() -> {
             if (fired.compareAndSet(false, true)) {
-                logger.warn("can-match timed out after {} — fail-open, using all targets", timeout);
-                resumeOnPool(threadPool, () -> listener.onResponse(targets));
+                logger.warn("can-match timed out after {} — fail-open, using all targets", ShardFragmentStageExecution.CAN_MATCH_TIMEOUT);
+                resumeOnPool(threadPool, () -> listener.onResponse(CanMatchPreFilterPhase.ShardCheckResult.keepAll(targets)));
             }
-        }, timeout, ThreadPool.Names.SAME);
+        }, ShardFragmentStageExecution.CAN_MATCH_TIMEOUT, ThreadPool.Names.SAME);
 
-        phase.filter(targets, filterBytes, backendId, sortSpec, ActionListener.wrap(filtered -> {
+        phase.checkShards(targets, filterBytes, backendId, sortSpec, ActionListener.wrap(checked -> {
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 long elapsed = (System.nanoTime() - startNanos) / 1_000_000;
                 logger.debug(
                     "can-match complete: {} shards checked, {} pruned, {}ms, sortColumn={}",
                     targets.size(),
-                    targets.size() - filtered.size(),
+                    targets.size() - checked.targets().size(),
                     elapsed,
                     sortSpec != null ? sortSpec.column() : "none"
                 );
-                resumeOnPool(threadPool, () -> listener.onResponse(filtered));
+                resumeOnPool(threadPool, () -> listener.onResponse(checked));
             }
         }, e -> {
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 logger.debug("can-match failed, using all targets: {}", e.getMessage());
-                resumeOnPool(threadPool, () -> listener.onResponse(targets));
+                resumeOnPool(threadPool, () -> listener.onResponse(CanMatchPreFilterPhase.ShardCheckResult.keepAll(targets)));
             }
         }));
     }
@@ -218,17 +284,6 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             shardTargets.add((ShardExecutionTarget) target);
         }
         config.recordResolvedTargets(getStageId(), shardTargets);
-        // TODO: remove once sort-based shard ordering is settled. Temporary diagnostic — this list
-        // order is the dispatch order, so logging it shows what can-match reordering actually did
-        // rather than what it intended.
-        if (logger.isDebugEnabled()) {
-            StringBuilder order = new StringBuilder();
-            for (ShardExecutionTarget t : shardTargets) {
-                if (order.length() > 0) order.append(" -> ");
-                order.append(t.shardId());
-            }
-            logger.debug("dispatch order (stage {}): {}", getStageId(), order);
-        }
         return tasks;
     }
 
@@ -284,6 +339,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      */
     StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ShardStageTask task, ActionListener<Void> listener) {
         final int sourceOrdinal = ((ShardExecutionTarget) task.target()).ordinal();
+        final TopNGate gate = topNGate;
         return new StreamingResponseListener<>() {
             @Override
             public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
@@ -295,6 +351,10 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                 if (vsr == null) {
                     if (isLast) listener.onResponse(null);
                     return true;
+                }
+                // Must precede feed: the sink takes ownership of the VSR and may close it.
+                if (gate != null) {
+                    gate.feed(vsr);
                 }
                 try {
                     outputSink.feed(vsr, sourceOrdinal);

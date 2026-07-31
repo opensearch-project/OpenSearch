@@ -1653,8 +1653,8 @@ pub unsafe extern "C" fn df_can_match(
 }
 
 /// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
-/// Layout: [min, max, value_kind].
-const SORT_BOUNDS_SLOTS: usize = 3;
+/// Layout: [min, max, has_nulls, value_kind]. Mirrored by `NativeBridge.SORT_BOUNDS_SLOTS`.
+const SORT_BOUNDS_SLOTS: usize = 4;
 
 /// Shard-wide min/max of one column, for coordinator-side shard ordering.
 ///
@@ -1663,8 +1663,8 @@ const SORT_BOUNDS_SLOTS: usize = 3;
 /// would give a min/max covering only the part it visited. A too-narrow range lets the
 /// coordinator skip a shard that really holds a top-N row, so this walks everything.
 ///
-/// Writes `[min, max, value_kind]` into `out_ptr` (3 caller-allocated i64 slots) and
-/// returns 1. Returns 0 with `out_ptr` untouched when no shard-wide bound exists —
+/// Writes `[min, max, has_nulls, value_kind]` into `out_ptr` (4 caller-allocated i64 slots)
+/// and returns 1. Returns 0 with `out_ptr` untouched when no shard-wide bound exists —
 /// column absent, unsupported type, statistics missing, or files disagreeing on type.
 ///
 /// # Safety
@@ -1705,18 +1705,14 @@ pub unsafe extern "C" fn df_shard_sort_bounds(
             return Ok(0);
         };
 
+        // merge widens the range and ORs has_nulls. None means the files disagree on value
+        // domain, so there is no shard-wide range.
         folded = Some(match folded {
             None => file_bounds,
-            Some(acc) => {
-                if acc.value_kind != file_bounds.value_kind {
-                    return Ok(0);
-                }
-                crate::can_match::Bounds {
-                    min: acc.min.min(file_bounds.min),
-                    max: acc.max.max(file_bounds.max),
-                    value_kind: acc.value_kind,
-                }
-            }
+            Some(acc) => match acc.merge(file_bounds) {
+                Some(merged) => merged,
+                None => return Ok(0),
+            },
         });
     }
 
@@ -1725,7 +1721,8 @@ pub unsafe extern "C" fn df_shard_sort_bounds(
             let out = std::slice::from_raw_parts_mut(out_ptr, SORT_BOUNDS_SLOTS);
             out[0] = b.min;
             out[1] = b.max;
-            out[2] = b.value_kind as i64;
+            out[2] = if b.has_nulls { 1 } else { 0 };
+            out[3] = b.value_kind as i64;
             Ok(1)
         }
         None => Ok(0),

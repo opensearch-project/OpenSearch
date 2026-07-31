@@ -186,9 +186,8 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
-     * The {@code onTerminalTransition} hook must fire BEFORE state listeners — that's the
-     * point of the hook (stage-internal cleanup that has to precede the listener cascade
-     * which may tear down query-level resources the cleanup needs).
+     * The {@code onTerminalTransition} hook must fire before state listeners: it does stage-internal
+     * cleanup that the listener cascade (which may tear down query-level resources) depends on.
      */
     public void testOnTerminalTransitionHookFiresBeforeStateListeners() {
         List<String> order = new ArrayList<>();
@@ -206,12 +205,8 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Engine-internal cancel (e.g. cascade from a child failure, sibling-cancel sweep)
-     * must propagate to the query-level {@link org.opensearch.tasks.CancellableTask} so
-     * OpenSearch's task cancellation service tears down any in-flight data-node work.
-     * Lives on the base because it applies to every stage with remote tasks; the
-     * {@code isCancelled} guard makes it idempotent on the return trip from external
-     * cancel.
+     * Engine-internal cancel must propagate to the query-level {@code CancellableTask} so OpenSearch's
+     * cancellation service tears down in-flight data-node work.
      */
     public void testCancelPropagatesToParentTaskWhenProvided() {
         AnalyticsQueryTask parentTask = mock(AnalyticsQueryTask.class);
@@ -232,5 +227,74 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
         exec.cancel("reason");
 
         verify(parentTask, never()).cancel(any());
+    }
+
+    // ── skipTask: the terminal for a task that is never dispatched ──
+
+    /**
+     * A mix of finished and skipped tasks must still drive the pending counter to zero and reach
+     * SUCCEEDED — without {@code skipTask} settling the skipped ones, the stage would hang in RUNNING.
+     */
+    public void testStageWithSomeTasksSkippedAndSomeFinishedReachesSucceeded() {
+        TestStageExecution exec = new TestStageExecution(mockStage(13));
+        exec.materializeReturn = List.of(task(13, 0), task(13, 1), task(13, 2), task(13, 3));
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
+        assertEquals("setup: four tasks, stage running", StageExecution.State.RUNNING, exec.getState());
+
+        // Two dispatched and finished, two never sent.
+        exec.tasks().get(0).transitionTo(StageTaskState.RUNNING);
+        exec.tasks().get(0).transitionTo(StageTaskState.FINISHED);
+        exec.onTaskTerminal(exec.tasks().get(0), null);
+        exec.skipTask(exec.tasks().get(1));
+        exec.skipTask(exec.tasks().get(2));
+        assertEquals("three of four settled — still running", StageExecution.State.RUNNING, exec.getState());
+
+        exec.tasks().get(3).transitionTo(StageTaskState.RUNNING);
+        exec.tasks().get(3).transitionTo(StageTaskState.FINISHED);
+        exec.onTaskTerminal(exec.tasks().get(3), null);
+
+        assertEquals("a partly-skipped stage still succeeds", StageExecution.State.SUCCEEDED, exec.getState());
+        assertNull("skipping is not a failure", exec.getFailure());
+        assertEquals(StageTaskState.SKIPPED, exec.tasks().get(1).state());
+        assertEquals(StageTaskState.SKIPPED, exec.tasks().get(2).state());
+    }
+
+    /**
+     * A repeat skip must be a no-op — double-settling would drive the pending counter negative. The
+     * task's own CAS is the guard, and skipping every task is still a success.
+     */
+    public void testDoubleSettleSkippedIsANoOp() {
+        TestStageExecution exec = new TestStageExecution(mockStage(14));
+        exec.materializeReturn = List.of(task(14, 0), task(14, 1));
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
+
+        exec.skipTask(exec.tasks().get(0));
+        exec.skipTask(exec.tasks().get(0));  // repeat: must not decrement again
+        assertEquals("one task still outstanding, so the stage is still running", StageExecution.State.RUNNING, exec.getState());
+
+        exec.skipTask(exec.tasks().get(1));
+        assertEquals("every task skipped is still a success", StageExecution.State.SUCCEEDED, exec.getState());
+    }
+
+    /**
+     * A cancel sweep marks the task CANCELLED; a skip already in flight then finds it terminal and must
+     * leave it alone — the counter decrement belongs to whoever won the CAS.
+     */
+    public void testSettleSkippedAfterCancelDoesNotResettle() {
+        TestStageExecution exec = new TestStageExecution(mockStage(16));
+        exec.materializeReturn = List.of(task(16, 0));
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
+
+        exec.cancel("test");
+        assertEquals(StageTaskState.CANCELLED, exec.tasks().get(0).state());
+
+        exec.skipTask(exec.tasks().get(0));
+
+        assertEquals("cancel wins; the skip is dropped", StageTaskState.CANCELLED, exec.tasks().get(0).state());
+        assertEquals(StageExecution.State.CANCELLED, exec.getState());
+    }
+
+    private static StageTask task(int stageId, int partition) {
+        return new LocalStageTask(new StageTaskId(stageId, partition), l -> l.onResponse(null));
     }
 }

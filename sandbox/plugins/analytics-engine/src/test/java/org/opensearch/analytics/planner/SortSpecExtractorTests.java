@@ -23,11 +23,9 @@ import org.opensearch.analytics.planner.dag.Stage;
 import java.util.List;
 
 /**
- * Tests {@link SortSpecExtractor} against <b>post-CBO, post-DAG-cut</b> shard fragments — the
- * real input it sees at runtime — rather than hand-assembled Sort nodes. This is what proves
- * the design claim that no new planner plumbing is needed: the collated Sort that
- * {@code OpenSearchSortPushdownRewriter} pushes below the exchange lands inside the shard
- * fragment, so extraction at {@code Stage} construction finds it.
+ * Tests {@link SortSpecExtractor} against post-CBO, post-DAG-cut shard fragments — the real input it
+ * sees at runtime — rather than hand-assembled Sort nodes. Confirms the pushed-down collated Sort
+ * lands inside the shard fragment where extraction finds it, so no new planner plumbing is needed.
  */
 public class SortSpecExtractorTests extends PlanShapeTestBase {
 
@@ -39,6 +37,7 @@ public class SortSpecExtractorTests extends PlanShapeTestBase {
         assertNotNull("a pushed-down collated Sort with a fetch must yield a spec", spec);
         assertEquals("status", spec.column());
         assertFalse(spec.descending());
+        assertEquals("no offset → limit is the fetch", 10, spec.limit());
     }
 
     public void testDescendingSortWithLimit() {
@@ -62,6 +61,14 @@ public class SortSpecExtractorTests extends PlanShapeTestBase {
 
         assertNotNull(spec);
         assertEquals("status", spec.column());
+    }
+
+    /** The limit is offset + fetch: it must count the offset rows the coordinator collects then discards. */
+    public void testLimitIncludesOffset() {
+        SortSpec spec = shardSortSpec(sortLimit(0, RelFieldCollation.Direction.ASCENDING, 20, 10));
+
+        assertNotNull(spec);
+        assertEquals("limit must be offset + fetch, not fetch", 30, spec.limit());
     }
 
     // ---- shapes that must NOT yield a spec ----
@@ -113,10 +120,7 @@ public class SortSpecExtractorTests extends PlanShapeTestBase {
         );
     }
 
-    /**
-     * Runs the planner + DAG cut on {@code logicalPlan} and returns the leaf (shard) stage's
-     * extracted spec — i.e. exactly what {@code ShardFragmentStageExecution} will read.
-     */
+    /** Runs the planner + DAG cut and returns the leaf (shard) stage's extracted spec. */
     private SortSpec shardSortSpec(RelNode logicalPlan) {
         PlannerContext context = multiShardContext();
         RelNode planned = runPlanner(logicalPlan, context);

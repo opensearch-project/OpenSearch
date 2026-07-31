@@ -16,9 +16,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**
- * Wire round-trip coverage for the can-match request/response, focused on the optional
- * sort-bounds fields: they must survive serialization intact and, when absent, must not
- * perturb the pre-existing boolean-only shape.
+ * Wire round-trip coverage for the can-match request/response, focused on the optional sort-bounds
+ * fields: they must survive serialization intact and, when absent, leave the boolean-only shape unchanged.
  */
 public class AnalyticsCanMatchWireTests extends OpenSearchTestCase {
 
@@ -52,14 +51,36 @@ public class AnalyticsCanMatchWireTests extends OpenSearchTestCase {
     }
 
     public void testResponseRoundTripWithBounds() throws Exception {
-        ShardSortBounds bounds = new ShardSortBounds(100L, 5000L, ShardSortBounds.VALUE_KIND_INT64);
+        ShardSortBounds bounds = new ShardSortBounds(100L, 5000L, false, ShardSortBounds.VALUE_KIND_INT64);
         AnalyticsCanMatchResponse copy = roundTrip(new AnalyticsCanMatchResponse(true, bounds));
 
         assertTrue(copy.canMatch());
         assertNotNull(copy.bounds());
         assertEquals(100L, copy.bounds().min());
         assertEquals(5000L, copy.bounds().max());
+        assertFalse(copy.bounds().hasNulls());
         assertEquals(ShardSortBounds.VALUE_KIND_INT64, copy.bounds().valueKind());
+    }
+
+    /**
+     * Every value kind and {@code hasNulls} must round-trip: the coordinator compares kinds for
+     * equality, and a dropped {@code hasNulls=true} would let it eliminate a shard holding a top null.
+     */
+    public void testBoundsRoundTripPreservesEveryValueKindAndHasNulls() throws Exception {
+        for (byte kind : new byte[] {
+            ShardSortBounds.VALUE_KIND_INT32,
+            ShardSortBounds.VALUE_KIND_INT64,
+            ShardSortBounds.VALUE_KIND_INT64_MILLIS,
+            ShardSortBounds.VALUE_KIND_INT64_MICROS,
+            ShardSortBounds.VALUE_KIND_INT64_NANOS }) {
+            for (boolean hasNulls : new boolean[] { false, true }) {
+                ShardSortBounds bounds = new ShardSortBounds(0L, 1L, hasNulls, kind);
+                AnalyticsCanMatchResponse copy = roundTrip(new AnalyticsCanMatchResponse(true, bounds));
+
+                assertEquals("value kind " + kind + " must round-trip", kind, copy.bounds().valueKind());
+                assertEquals("hasNulls must survive the wire", hasNulls, copy.bounds().hasNulls());
+            }
+        }
     }
 
     public void testResponseRoundTripWithoutBounds() throws Exception {
@@ -75,7 +96,7 @@ public class AnalyticsCanMatchWireTests extends OpenSearchTestCase {
     }
 
     public void testBoundsRoundTripPreservesNegativeAndExtremeValues() throws Exception {
-        ShardSortBounds bounds = new ShardSortBounds(Long.MIN_VALUE, Long.MAX_VALUE, ShardSortBounds.VALUE_KIND_INT32);
+        ShardSortBounds bounds = new ShardSortBounds(Long.MIN_VALUE, Long.MAX_VALUE, false, ShardSortBounds.VALUE_KIND_INT32);
         AnalyticsCanMatchResponse copy = roundTrip(new AnalyticsCanMatchResponse(true, bounds));
 
         assertEquals(Long.MIN_VALUE, copy.bounds().min());
@@ -83,11 +104,7 @@ public class AnalyticsCanMatchWireTests extends OpenSearchTestCase {
         assertEquals(ShardSortBounds.VALUE_KIND_INT32, copy.bounds().valueKind());
     }
 
-    /**
-     * A shard that matches but has no usable statistics for the sort column (e.g. a
-     * {@code keyword} column) is a normal outcome and must serialize cleanly — the coordinator
-     * reads it as "no hint" and defers the shard.
-     */
+    /** A matching shard with no statistics (e.g. a {@code keyword} sort) must serialize cleanly as no-bounds. */
     public void testMatchingShardWithoutBoundsRoundTrips() throws Exception {
         AnalyticsCanMatchResponse copy = roundTrip(new AnalyticsCanMatchResponse(true, null));
 

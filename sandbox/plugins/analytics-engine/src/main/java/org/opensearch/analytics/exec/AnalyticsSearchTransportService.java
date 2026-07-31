@@ -46,6 +46,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
@@ -288,14 +289,26 @@ public class AnalyticsSearchTransportService {
         return streamingTransportService.getConnection(node);
     }
 
+    /**
+     * Dispatches a fragment-execution RPC to {@code targetNode}, subject to {@code pending}'s
+     * per-node concurrency window.
+     *
+     * @param stillNeeded last-moment check, run immediately before the send once a permit is granted,
+     *                    or {@code null} to always send. {@code false} abandons the send — nothing
+     *                    goes on the wire and {@code listener} is never invoked. Checked this late
+     *                    because the reason to abandon usually appears while the request waits: see
+     *                    {@code ShardTaskRunner}, where earlier shards' results can make a later
+     *                    shard provably irrelevant.
+     */
     public void dispatchFragmentStreaming(
         FragmentExecutionRequest request,
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener,
         Task parentTask,
-        PendingExecutions pending
+        PendingExecutions pending,
+        BooleanSupplier stillNeeded
     ) {
-        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending);
+        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending, stillNeeded);
     }
 
     /**
@@ -311,7 +324,7 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
-        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending);
+        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending, null);
     }
 
     /**
@@ -327,7 +340,8 @@ public class AnalyticsSearchTransportService {
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener,
         Task parentTask,
-        PendingExecutions pending
+        PendingExecutions pending,
+        BooleanSupplier stillNeeded
     ) {
         TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
             @Override
@@ -449,6 +463,9 @@ public class AnalyticsSearchTransportService {
 
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
         pending.tryRun(() -> {
+            if (stillNeeded != null && stillNeeded.getAsBoolean() == false) {
+                return false;
+            }
             try {
                 Transport.Connection connection = getConnection(targetNode);
                 streamingTransportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
@@ -459,6 +476,7 @@ public class AnalyticsSearchTransportService {
                     pending.finishAndRunNext();
                 }
             }
+            return true;
         });
     }
 }

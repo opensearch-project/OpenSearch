@@ -1812,8 +1812,8 @@ public final class NativeBridge {
         }
     }
 
-    /** Number of i64 slots {@code df_shard_sort_bounds} writes: [min, max, valueKind]. */
-    private static final int SORT_BOUNDS_SLOTS = 3;
+    /** Number of i64 slots {@code df_shard_sort_bounds} writes: [min, max, hasNulls, valueKind]. */
+    private static final int SORT_BOUNDS_SLOTS = 4;
 
     /**
      * Folds the shard-wide min/max of {@code columnName} across every parquet file and row
@@ -1835,7 +1835,8 @@ public final class NativeBridge {
             return new ShardSortBounds(
                 out.getAtIndex(ValueLayout.JAVA_LONG, 0),
                 out.getAtIndex(ValueLayout.JAVA_LONG, 1),
-                (byte) out.getAtIndex(ValueLayout.JAVA_LONG, 2)
+                out.getAtIndex(ValueLayout.JAVA_LONG, 2) != 0L,
+                (byte) out.getAtIndex(ValueLayout.JAVA_LONG, 3)
             );
         }
     }

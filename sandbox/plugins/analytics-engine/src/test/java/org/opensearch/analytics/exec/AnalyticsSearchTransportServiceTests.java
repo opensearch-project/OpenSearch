@@ -173,7 +173,8 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
             target,
             listener,
             mock(Task.class),
-            new PendingExecutions(1)
+            new PendingExecutions(1),
+            null
         );
 
         List<TransportResponseHandler<FragmentExecutionArrowResponse>> handlers = handlerCaptor.getAllValues();

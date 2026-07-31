@@ -50,7 +50,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             Collections.emptyList(),
             new byte[] { 1, 2, 3 },
             "datafusion",
@@ -72,7 +73,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[0], "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[0], "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(targets, result.get());
         verify(transportService, never()).sendRequest(
@@ -88,7 +89,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, null, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, null, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(targets, result.get());
     }
@@ -99,7 +100,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(2, result.get().size());
     }
@@ -111,29 +112,34 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
     }
 
+    /** Responses may arrive out of order; survivors must keep input order. */
     public void testOriginalOrderPreserved() {
-        // Responses may arrive out of order; result must preserve input order
-        // Both match — verify order is [0, 1] not [1, 0]
         mockCanMatchResponse(true);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         ExecutionTarget first = target("idx", 0);
         ExecutionTarget second = target("idx", 1);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(first, second), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(
+            phase,
+            List.of(first, second),
+            new byte[] { 1 },
+            "datafusion",
+            ActionListener.wrap(result::set, e -> fail(e.getMessage()))
+        );
 
         assertEquals(2, result.get().size());
         assertSame(first, result.get().get(0));
         assertSame(second, result.get().get(1));
     }
 
+    /** Shards 0,2,4 match and 1,3 prune; survivors are [0,2,4] in order. */
     public void testFiveShardsThreeMatchTwoPruned() {
-        // Shards 0,2,4 match; shards 1,3 pruned
         mockCanMatchResponseSequence(true, false, true, false, true);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         ExecutionTarget t0 = target("idx", 0);
@@ -143,7 +149,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget t4 = target("idx", 4);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(t0, t1, t2, t3, t4),
             new byte[] { 1 },
             "datafusion",
@@ -163,7 +170,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         List<ExecutionTarget> targets = List.of(first, target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertEquals("all pruned → keep exactly one", 1, result.get().size());
@@ -176,54 +183,51 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget only = target("idx", 0);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
         assertSame(only, result.get().get(0));
     }
 
+    /** A single target that prunes is force-kept — there must always be at least one shard. */
     public void testSingleTargetPrunedIsStillKept() {
-        // A single target that prunes is force-kept — there must always be at least one shard to
-        // produce a valid empty result.
         mockCanMatchResponse(false);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         ExecutionTarget only = target("idx", 0);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, List.of(only), new byte[] { 1 }, "datafusion", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertNotNull(result.get());
         assertEquals(1, result.get().size());
         assertSame(only, result.get().get(0));
     }
 
+    /** The backendId is forwarded on the request to the data node. */
     public void testBackendIdPassedInRequest() {
-        // Verify the backendId is forwarded in the request to the data node
         mockCanMatchResponse(true);
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[] { 1 }, "my-backend", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[] { 1 }, "my-backend", ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(1, result.get().size());
-        // The mock already verifies the sendRequest was called — the backendId is on the request object
     }
 
     // --- sort-bounds ordering (stage 2) ---
 
     /**
-     * A sort spec with no filters must still probe: pruning nothing, but collecting the bounds
-     * that order the dispatch. Today's fast path (return all targets, no round-trip) would skip
-     * the probe entirely for a bare {@code sort | head N}.
+     * A sort spec with no filters must still check the shards: nothing is pruned, but the round-trip
+     * runs to collect the bounds that order the dispatch.
      */
-    public void testSortSpecWithoutFiltersStillProbes() {
+    public void testSortSpecWithoutFiltersStillChecksShards() {
         mockCanMatchResponseWithBounds(true, bounds(10L, 20L));
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         List<ExecutionTarget> targets = List.of(target("idx", 0), target("idx", 1));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[0], "datafusion", descending(), ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[0], "datafusion", descending(), ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals("nothing may be pruned when there are no filters", 2, result.get().size());
         verify(transportService, times(2)).sendRequest(
@@ -235,12 +239,12 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
     }
 
     /** No filters AND no sort spec — nothing to learn, so the round-trip must be skipped. */
-    public void testNoFiltersAndNoSortSpecSkipsProbe() {
+    public void testNoFiltersAndNoSortSpecSkipsTheRoundTrip() {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         List<ExecutionTarget> targets = List.of(target("idx", 0));
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(targets, new byte[0], "datafusion", null, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        survivorsOf(phase, targets, new byte[0], "datafusion", null, ActionListener.wrap(result::set, e -> fail(e.getMessage())));
 
         assertEquals(targets, result.get());
         verify(transportService, never()).sendRequest(
@@ -255,12 +259,13 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         ExecutionTarget t0 = target("idx", 0);
         ExecutionTarget t1 = target("idx", 1);
         ExecutionTarget t2 = target("idx", 2);
-        // t0 holds the oldest data, t2 the newest — for DESC, t2 should run first.
+        // DESC orders by max, so t2 (highest max) runs first.
         mockCanMatchBoundsSequence(bounds(0L, 50L), bounds(0L, 80L), bounds(0L, 100L));
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(t0, t1, t2),
             new byte[] { 1 },
             "datafusion",
@@ -279,7 +284,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(t0, t1, t2),
             new byte[] { 1 },
             "datafusion",
@@ -290,10 +296,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         assertEquals("ASC orders by min ascending", List.of(t1, t2, t0), result.get());
     }
 
-    /**
-     * Unknown is not evidence of being promising, and a later gate can never eliminate a
-     * bound-less shard — so they are exactly the shards to defer. Mirrors vanilla's nullsLast.
-     */
+    /** Shards without bounds can never be eliminated, so they sort last (like vanilla's nullsLast). */
     public void testShardsWithoutBoundsSortLast() {
         ExecutionTarget withoutBounds = target("idx", 0);
         ExecutionTarget low = target("idx", 1);
@@ -302,7 +305,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(withoutBounds, low, high),
             new byte[] { 1 },
             "datafusion",
@@ -314,28 +318,31 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
     }
 
     /**
-     * Comparing a millisecond-scaled bound against a nanosecond one would order by a
-     * meaningless key. Falling back to input order is always correct.
+     * Ordering compares raw longs and ignores {@code valueKind}, so a millis and a nanos shard over the
+     * same instants sort by scale alone. Harmless: {@code setupSortGate} builds no gate when kinds
+     * disagree, so dispatch order never changes results.
      */
-    public void testMixedValueKindsFallsBackToInputOrder() {
-        ExecutionTarget t0 = target("idx", 0);
-        ExecutionTarget t1 = target("idx", 1);
+    public void testMixedValueKindsOrderByRawValue() {
+        ExecutionTarget millisShard = target("logs-millis", 0);
+        ExecutionTarget nanosShard = target("logs-nanos", 1);
+        // The same instant range, expressed at two scales.
         mockCanMatchBoundsSequence(
-            new ShardSortBounds(0L, 10L, ShardSortBounds.VALUE_KIND_INT32),
-            new ShardSortBounds(0L, 999L, ShardSortBounds.VALUE_KIND_INT64)
+            new ShardSortBounds(1_700_000_000_000L, 1_700_000_060_000L, false, ShardSortBounds.VALUE_KIND_INT64_MILLIS),
+            new ShardSortBounds(1_700_000_000_000_000_000L, 1_700_000_060_000_000_000L, false, ShardSortBounds.VALUE_KIND_INT64_NANOS)
         );
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
-            List.of(t0, t1),
+        survivorsOf(
+            phase,
+            List.of(millisShard, nanosShard),
             new byte[] { 1 },
             "datafusion",
             descending(),
             ActionListener.wrap(result::set, e -> fail(e.getMessage()))
         );
 
-        assertEquals("mixed types must not reorder", List.of(t0, t1), result.get());
+        assertEquals("nanos sorts first on scale alone — same instants", List.of(nanosShard, millisShard), result.get());
     }
 
     /** Pruning and ordering are independent: pruned shards drop out, survivors get ordered. */
@@ -351,7 +358,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(t0, t1, t2),
             new byte[] { 1 },
             "datafusion",
@@ -370,7 +378,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(failing, healthy),
             new byte[] { 1 },
             "datafusion",
@@ -387,7 +396,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(target("idx", 0)),
             new byte[] { 1 },
             "datafusion",
@@ -412,7 +422,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(target("idx", 0)),
             new byte[] { 1 },
             "datafusion",
@@ -436,7 +447,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(first, target("idx", 1)),
             new byte[] { 1 },
             "datafusion",
@@ -448,11 +460,7 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         assertSame(first, result.get().get(0));
     }
 
-    /**
-     * A shard with no usable statistics for the sort column — a {@code keyword} column, or a
-     * fail-open path on the data node — must be kept (never pruned on a non-answer) and deferred,
-     * never promoted ahead of a measured shard.
-     */
+    /** A matching shard with no statistics is kept but sorted after every measured shard. */
     public void testShardWithoutStatisticsIsKeptAndSortedLast() {
         ExecutionTarget noStats = target("idx", 0);
         ExecutionTarget measured = target("idx", 1);
@@ -460,7 +468,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(noStats, measured),
             new byte[] { 1 },
             "datafusion",
@@ -480,7 +489,8 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
         CanMatchPreFilterPhase phase = new CanMatchPreFilterPhase(transportService);
         AtomicReference<List<ExecutionTarget>> result = new AtomicReference<>();
 
-        phase.filter(
+        survivorsOf(
+            phase,
             List.of(t0, t1, t2),
             new byte[] { 1 },
             "datafusion",
@@ -493,16 +503,44 @@ public class CanMatchPreFilterPhaseTests extends OpenSearchTestCase {
 
     // --- helpers ---
 
+    /** {@link CanMatchPreFilterPhase#checkShards} with only the survivor list kept — what most tests assert on. */
+    private static void survivorsOf(
+        CanMatchPreFilterPhase phase,
+        List<ExecutionTarget> targets,
+        byte[] filterBytes,
+        String backendId,
+        ActionListener<List<ExecutionTarget>> listener
+    ) {
+        survivorsOf(phase, targets, filterBytes, backendId, null, listener);
+    }
+
+    private static void survivorsOf(
+        CanMatchPreFilterPhase phase,
+        List<ExecutionTarget> targets,
+        byte[] filterBytes,
+        String backendId,
+        SortSpec sortSpec,
+        ActionListener<List<ExecutionTarget>> listener
+    ) {
+        phase.checkShards(
+            targets,
+            filterBytes,
+            backendId,
+            sortSpec,
+            ActionListener.map(listener, CanMatchPreFilterPhase.ShardCheckResult::targets)
+        );
+    }
+
     private static SortSpec descending() {
-        return new SortSpec("@timestamp", true);
+        return new SortSpec("@timestamp", true, 10);
     }
 
     private static SortSpec ascending() {
-        return new SortSpec("@timestamp", false);
+        return new SortSpec("@timestamp", false, 10);
     }
 
     private static ShardSortBounds bounds(long min, long max) {
-        return new ShardSortBounds(min, max, ShardSortBounds.VALUE_KIND_INT64);
+        return new ShardSortBounds(min, max, false, ShardSortBounds.VALUE_KIND_INT64);
     }
 
     /** One scripted can-match reply: either a response pair, or a transport failure. */
