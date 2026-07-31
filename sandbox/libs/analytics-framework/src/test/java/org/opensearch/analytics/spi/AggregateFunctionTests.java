@@ -182,6 +182,12 @@ public class AggregateFunctionTests extends OpenSearchTestCase {
         assertSame(AggregateFunction.PERCENTILE_APPROX, AggregateFunction.fromNameOrError("PERCENTILE_APPROX"));
     }
 
+    // ── ARRAY_AGG (PPL mvcombine) resolves to the LIST family ──
+    public void testArrayAggResolvesToList() {
+        assertSame(LIST, AggregateFunction.fromNameOrError("ARRAY_AGG"));
+        assertSame(LIST, AggregateFunction.fromNameOrError("array_agg"));
+    }
+
     // ── fromSqlKind still works ──
 
     public void testFromSqlKindResolvesExistingEntries() {
