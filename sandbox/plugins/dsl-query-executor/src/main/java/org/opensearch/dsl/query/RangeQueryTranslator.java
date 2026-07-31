@@ -115,7 +115,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         // DISJOINT is rejected; INTERSECTS/CONTAINS/WITHIN are silently ignored (scalar fields produce
         // identical queries regardless of relation). Note: RangeQueryBuilder itself rejects DISJOINT
         // at builder level, so this is a defensive check.
-        if (rangeQuery.relation() != null && rangeQuery.relation() == ShapeRelation.DISJOINT) {
+        if (rangeQuery.relation() == ShapeRelation.DISJOINT) {
             throw new ConversionException("Range query 'relation' parameter does not support DISJOINT");
         }
 
