@@ -1986,29 +1986,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.numericType();
         }
 
-        /**
-         * Returns whether this numeric field should be advertised as searchable to the
-         * per-type query factory. On indices backed by a pluggable dataformat (composite
-         * primary + Lucene secondary), the Lucene secondary writes no BKD for numeric
-         * fields, so the point-side of {@link org.apache.lucene.search.IndexOrDocValuesQuery}
-         * reports {@code cost=0} and wins the cost race — returning zero hits. Routing
-         * through the pure doc-values branch (by treating the field as not-searchable)
-         * avoids that trap and executes correctly against the codec-served DV column.
-         *
-         * <p>Non-pluggable-dataformat indices retain their normal {@link #isSearchable()}
-         * behavior so the BKD fast path is preserved.
-         */
-        private boolean effectiveSearchable(QueryShardContext context) {
-            if (context != null && context.isPluggableDataFormatEnabled()) {
-                return false;
-            }
-            return isSearchable();
-        }
-
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            Query query = type.termQuery(name(), value, hasDocValues(), effectiveSearchable(context));
+            Query query = type.termQuery(name(), value, hasDocValues(), isEffectiveSearchable(context));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -2018,7 +1999,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            Query query = type.termsQuery(name(), values, hasDocValues(), effectiveSearchable(context));
+            Query query = type.termsQuery(name(), values, hasDocValues(), isEffectiveSearchable(context));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -2027,7 +2008,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Query bitmapQuery(BytesArray bitmap, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            return type.bitmapQuery(name(), bitmap, effectiveSearchable(context), hasDocValues());
+            return type.bitmapQuery(name(), bitmap, isEffectiveSearchable(context), hasDocValues());
         }
 
         @Override
@@ -2040,7 +2021,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 includeLower,
                 includeUpper,
                 hasDocValues(),
-                effectiveSearchable(context),
+                isEffectiveSearchable(context),
                 context
             );
             if (boost() != 1f) {

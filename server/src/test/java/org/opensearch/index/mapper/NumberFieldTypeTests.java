@@ -139,46 +139,46 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
         assertEquals(
             new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
-            ft.termsQuery(Arrays.asList(1, 2.1), null)
+            ft.termsQuery(Arrays.asList(1, 2.1), MOCK_QSC)
         );
         assertEquals(
             new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
-            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+            ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_QSC)
         );
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
         assertEquals(
             new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
-            ft.termsQuery(Arrays.asList(1, 2.1), null)
+            ft.termsQuery(Arrays.asList(1, 2.1), MOCK_QSC)
         );
         assertEquals(
             new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
-            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+            ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_QSC)
         );
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     public void testByteTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     public void testShortTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     public void testIntegerTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(42.1, MOCK_QSC) instanceof MatchNoDocsQuery);
     }
 
     private static MappedFieldType unsearchable() {
@@ -189,10 +189,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("field", 42);
         Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("field", 42), dvQuery);
-        assertEquals(query, ft.termQuery("42", null));
+        assertEquals(query, ft.termQuery("42", MOCK_QSC));
 
         MappedFieldType unsearchable = unsearchable();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
@@ -1008,19 +1008,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
         assertEquals(
             new IndexOrDocValuesQuery(new BitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
-            ft.bitmapQuery(bitmap, null)
+            ft.bitmapQuery(bitmap, MOCK_QSC)
         );
 
         ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, true, null, Collections.emptyMap());
-        assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap, null));
+        assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap, MOCK_QSC));
 
         ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, false, true, null, Collections.emptyMap());
-        assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap, null));
+        assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap, MOCK_QSC));
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
         DirectoryReader reader = DirectoryReader.open(w);
-        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap, null).rewrite(newSearcher(reader)));
+        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap, MOCK_QSC).rewrite(newSearcher(reader)));
         reader.close();
         w.close();
         dir.close();
@@ -1028,7 +1028,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberType type = randomValueOtherThan(NumberType.INTEGER, () -> randomFrom(NumberType.values()));
         ft = new NumberFieldMapper.NumberFieldType("field", type);
         NumberFieldType finalFt = ft;
-        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap, null));
+        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap, MOCK_QSC));
     }
 
     public void testBitmapQuery64() throws IOException {
@@ -1047,20 +1047,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             new IndexOrDocValuesQuery(new Bitmap64IndexQuery("field", r), new Bitmap64DocValuesQuery("field", r)),
-            ft.bitmapQuery(bitmap, null)
+            ft.bitmapQuery(bitmap, MOCK_QSC)
         );
 
         ft = new NumberFieldType("field", NumberType.LONG, false, false, true, true, true, null, Collections.emptyMap());
-        assertEquals(new Bitmap64DocValuesQuery("field", r), ft.bitmapQuery(bitmap, null));
+        assertEquals(new Bitmap64DocValuesQuery("field", r), ft.bitmapQuery(bitmap, MOCK_QSC));
 
         ft = new NumberFieldType("field", NumberType.LONG, true, false, false, false, true, null, Collections.emptyMap());
-        assertEquals(new Bitmap64IndexQuery("field", r), ft.bitmapQuery(bitmap, null));
+        assertEquals(new Bitmap64IndexQuery("field", r), ft.bitmapQuery(bitmap, MOCK_QSC));
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
         DirectoryReader reader = DirectoryReader.open(w);
 
-        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap, null).rewrite(newSearcher(reader)));
+        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap, MOCK_QSC).rewrite(newSearcher(reader)));
 
         reader.close();
         w.close();
@@ -1070,7 +1070,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         ft = new NumberFieldMapper.NumberFieldType("field", type);
         NumberFieldType finalFt = ft;
 
-        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap, null));
+        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap, MOCK_QSC));
     }
 
     public void testFetchUnsignedLongDocValues() throws IOException {

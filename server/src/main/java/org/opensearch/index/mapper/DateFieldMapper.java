@@ -538,15 +538,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 (l, u, nowUsed) -> {
                     Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
 
-                    // On indices backed by a pluggable dataformat (composite primary + Lucene secondary)
-                    // the Lucene secondary writes no BKD for date fields, so the point-side of
-                    // IndexOrDocValuesQuery reports cost=0 and wins the cost race — returning zero hits.
-                    // Force the pure doc-values branch so range/term queries resolve correctly against
-                    // the codec-served DV column.
-                    boolean effectiveSearchable = isSearchable() && !context.isPluggableDataFormatEnabled();
-
-                    // Not searchable (either declared, or gated off by the pluggable-dataformat check). Must have doc values.
-                    if (!effectiveSearchable) {
+                    if (!isEffectiveSearchable(context)) {
                         if (context.indexSortedOnField(name())) {
                             dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
                         }
