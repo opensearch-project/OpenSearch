@@ -114,7 +114,7 @@ public class Agent {
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
         var builder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
-            .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+            .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .disableClassFormatChanges()
             .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
