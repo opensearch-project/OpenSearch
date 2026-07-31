@@ -32,6 +32,9 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -74,7 +77,8 @@ import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 @PublicApi(since = "1.0.0")
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
-    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(RootObjectMapper.class);
+    private static final Logger logger = LogManager.getLogger(RootObjectMapper.class);
+    private static final String DYNAMIC_TEMPLATE_NAME_PREFIX = "__dynamic__";
 
     /**
      * Default parameters for root object
@@ -688,7 +692,7 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            String templateName = "__dynamic__" + dynamicTemplate.name();
+            String templateName = DYNAMIC_TEMPLATE_NAME_PREFIX + dynamicTemplate.name();
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
                 Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
@@ -745,11 +749,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         String pluginType = dynamicTemplate.getPluginMatchType();
+        // The plugin type was validated against the registry at parse time, so a handler is always present.
         DynamicTemplateTypeHandler handler = parserContext.mapperService().getDynamicTemplateTypes().get(pluginType);
-        if (handler == null) {
-            // Unknown plugin types are already rejected in DynamicTemplate.parse; nothing to do here.
-            return;
-        }
 
         String mappingType = dynamicTemplate.mappingType(pluginType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
@@ -758,7 +759,7 @@ public class RootObjectMapper extends ObjectMapper {
             return;
         }
 
-        String templateName = "__dynamic__" + dynamicTemplate.getName();
+        String templateName = DYNAMIC_TEMPLATE_NAME_PREFIX + dynamicTemplate.getName();
         Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, pluginType);
         if (handler.isConfigComplete(fieldTypeConfig) == false) {
             // Config relies on data-derived parameters; it can only be validated once a document is seen.
@@ -778,11 +779,10 @@ public class RootObjectMapper extends ObjectMapper {
             // violates that contract, treat it as non-fatal and defer validation to document-parse time
             // rather than failing index creation — but log it so the contract violation is visible.
             logger.warn(
-                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
-                    "dynamic template type handler for [{}] threw while normalizing a complete config for template [{}]; "
-                        + "deferring validation to document-parse time",
-                    dynamicTemplate.getName(),
-                    templateName
+                () -> new ParameterizedMessage(
+                    "Deferring index-creation validation of dynamic template [{}]: its handler threw while "
+                        + "normalizing a config it reported as complete",
+                    dynamicTemplate.getName()
                 ),
                 e
             );

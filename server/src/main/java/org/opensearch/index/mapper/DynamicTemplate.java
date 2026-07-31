@@ -40,6 +40,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -195,15 +196,18 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract String defaultMappingType();
     }
 
-    /** Parses a dynamic template without plugin-type validation: any unknown match_mapping_type is kept as a plugin match type. */
+    /**
+     * Parses a dynamic template with no plugin registry available: a {@code match_mapping_type} that is
+     * not a known {@link XContentFieldType} fails immediately, preserving the pre-plugin-SPI behavior.
+     * The plugin-aware overload is used by the mapping-parse path, which supplies the registry.
+     */
     public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
-        return parse(name, conf, null);
+        return parse(name, conf, Collections.emptyMap());
     }
 
     /**
-     * Parses a dynamic template. If {@code knownPluginTypes} is non-null, a {@code match_mapping_type}
-     * that is neither an {@link XContentFieldType} nor a registered plugin type fails here, before any
-     * {@link DynamicTemplate} is constructed.
+     * Parses a dynamic template. A {@code match_mapping_type} that is neither an {@link XContentFieldType}
+     * nor a key in {@code knownPluginTypes} fails here, before any {@link DynamicTemplate} is constructed.
      */
     static DynamicTemplate parse(String name, Map<String, Object> conf, Map<String, DynamicTemplateTypeHandler> knownPluginTypes)
         throws MapperParsingException {
@@ -256,8 +260,8 @@ public class DynamicTemplate implements ToXContentObject {
             }
             if (xcontentFieldType == null) {
                 pluginMatchType = matchMappingType;
-                // Validate plugin type before constructing the template
-                if (knownPluginTypes != null && !knownPluginTypes.containsKey(pluginMatchType)) {
+                // Validate the plugin type against the registry before constructing the template.
+                if (!knownPluginTypes.containsKey(pluginMatchType)) {
                     List<String> allTypes = new ArrayList<>();
                     for (XContentFieldType t : XContentFieldType.values()) {
                         allTypes.add(t.toString());

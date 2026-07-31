@@ -155,11 +155,20 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
     // DynamicTemplate unit tests
     // =====================================================================
 
+    /** Parses a template with the mock plugin registry, so a plugin match_mapping_type is accepted. */
+    private static DynamicTemplate parseWithRegistry(String name, Map<String, Object> conf) {
+        Map<String, DynamicTemplateTypeHandler> registry = new HashMap<>();
+        registry.put(MOCK_TYPE, new MockTemplateTypeHandler());
+        registry.put(MOCK_INFERRED_TYPE, new MockInferredTemplateTypeHandler());
+        registry.put(MOCK_THROWING_TYPE, new ThrowingTemplateTypeHandler());
+        return DynamicTemplate.parse(name, conf, registry);
+    }
+
     public void testPluginMatchTypeStoredOnParse() {
         Map<String, Object> conf = new HashMap<>();
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertEquals(MOCK_TYPE, template.getPluginMatchType());
         assertNull(template.getXContentFieldType());
     }
@@ -189,7 +198,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("match", "big_*");
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertTrue(template.matchesPluginType("big_field", "big_field", MOCK_TYPE));
     }
 
@@ -197,7 +206,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         Map<String, Object> conf = new HashMap<>();
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertFalse(template.matchesPluginType("field", "field", "other_type"));
     }
 
@@ -206,7 +215,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("match", "big_*");
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertFalse(template.matchesPluginType("small_field", "small_field", MOCK_TYPE));
     }
 
@@ -215,7 +224,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("path_match", "obj.*");
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertTrue(template.matchesPluginType("obj.field", "field", MOCK_TYPE));
         assertFalse(template.matchesPluginType("other.field", "field", MOCK_TYPE));
     }
@@ -225,7 +234,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("unmatch", "excluded_*");
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         assertTrue(template.matchesPluginType("big_field", "big_field", MOCK_TYPE));
         assertFalse(template.matchesPluginType("excluded_field", "excluded_field", MOCK_TYPE));
     }
@@ -255,7 +264,7 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         Map<String, Object> conf = new HashMap<>();
         conf.put("match_mapping_type", MOCK_TYPE);
         conf.put("mapping", Collections.singletonMap("type", "keyword"));
-        DynamicTemplate template = DynamicTemplate.parse("t", conf);
+        DynamicTemplate template = parseWithRegistry("t", conf);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(builder.toString(), containsString("\"match_mapping_type\":\"" + MOCK_TYPE + "\""));
