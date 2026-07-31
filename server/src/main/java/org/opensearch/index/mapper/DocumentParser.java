@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -1341,8 +1342,8 @@ final class DocumentParser {
                 // A buggy inferencer must not break document parsing, but the failure must be visible:
                 // log it rather than swallowing silently, then move on to the next inferencer.
                 logger.warn(
-                    () -> new org.apache.logging.log4j.message.ParameterizedMessage(
-                        "dynamic field type inferencer [{}] threw while inspecting field [{}]; skipping it",
+                    () -> new ParameterizedMessage(
+                        "Skipping dynamic field type inferencer [{}]: it threw while inspecting field [{}]",
                         inferencer.getClass().getName(),
                         resolvedFieldName
                     ),
@@ -1367,7 +1368,7 @@ final class DocumentParser {
             }
         }
 
-        if (inferredFieldMapping == null) { // put these into one if
+        if (inferredFieldMapping == null) {
             // No template and no inferencer claimed this field — fall through to existing path
             replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent, parentMapperTuple.v1());
             return true;

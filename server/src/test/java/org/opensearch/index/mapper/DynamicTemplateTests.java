@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class DynamicTemplateTests extends OpenSearchTestCase {
 
     public void testParseUnknownParam() throws Exception {
@@ -58,9 +60,9 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         Map<String, Object> templateDef2 = new HashMap<>();
         templateDef2.put("match_mapping_type", "text");
         templateDef2.put("mapping", Collections.singletonMap("store", true));
-        // Unknown match_mapping_type is stored as pluginMatchType — validation against the registry happens in RootObjectMapper
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef2);
-        assertEquals("text", template.getPluginMatchType());
+        // With no plugin registry (the public 2-arg parse), an unknown match_mapping_type fails immediately.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef2));
+        assertThat(e.getMessage(), containsString("No field type matched on [text]"));
     }
 
     public void testParseInvalidRegex() {
