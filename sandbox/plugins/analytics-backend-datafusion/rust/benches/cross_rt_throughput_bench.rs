@@ -86,8 +86,7 @@ fn bench_cross_rt_throughput(c: &mut Criterion) {
                             stream::iter(batches),
                         ));
 
-                        let cross =
-                            CrossRtStream::new_with_df_error_stream(inner, exec.clone());
+                        let cross = CrossRtStream::new_with_df_error_stream(inner, exec.clone());
                         let wrapped = RecordBatchStreamAdapter::new(cross.schema(), cross);
                         tokio::pin!(wrapped);
 

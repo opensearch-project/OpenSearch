@@ -49,12 +49,38 @@ pub fn pool_limit_error(
     ))
 }
 
+/// Query cancelled due to critical RSS pressure during execution.
+///
+/// Produced when `DynamicLimitPool.try_grow` fails, jemalloc confirms pressure,
+/// and RSS exceeds the critical threshold (95% by default). At this level, even
+/// spilling cannot recover fast enough — the query is cancelled to protect the node.
+///
+/// Java conversion: `CircuitBreakingException` → HTTP 429
+/// Key phrase: "Failed to allocate"
+///
+/// Uses the same key phrase as `pool_limit_error` so the Java converter produces
+/// a `CircuitBreakingException` with proper bytes_wanted / limit semantics.
+pub fn critical_pressure_error(
+    bytes_requested: usize,
+    consumer_name: &str,
+    consumer_reserved: usize,
+    limit: usize,
+    critical_pct: u32,
+) -> DataFusionError {
+    DataFusionError::ResourcesExhausted(format!(
+        "Failed to allocate {} bytes for {} ({} already reserved) \
+         — 0 available out of {} limit. \
+         Query cancelled: native memory RSS exceeds critical threshold ({}% of pool limit).",
+        bytes_requested, consumer_name, consumer_reserved, limit, critical_pct,
+    ))
+}
+
 /// Admission rejection: not enough pool capacity to start a new query.
 ///
 /// Produced when `acquire_budget` cannot reserve the phantom even at minimum
 /// parallelism. The query is rejected before any execution begins.
 ///
-/// Java conversion: `OpenSearchRejectedExecutionException` → HTTP 429
+/// Java conversion: `OpenSearchStatusException(TOO_MANY_REQUESTS)` → HTTP 429
 /// Key phrase: "Cannot reserve untracked memory budget"
 pub fn admission_rejected_error(
     bytes_required: usize,

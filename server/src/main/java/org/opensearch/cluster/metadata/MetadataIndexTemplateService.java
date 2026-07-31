@@ -98,9 +98,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
+import static org.opensearch.cluster.metadata.MetadataUpdateSettingsService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_COMPONENT_TEMPLATE;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE_V2;
@@ -1670,8 +1670,9 @@ public class MetadataIndexTemplateService {
             validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
             validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
 
-            // validate index total primary shards per node setting
-            validateIndexTotalPrimaryShardsPerNodeSetting(settings);
+            // validate index total primary shards per node setting against the cluster (a template has no
+            // index-local remote_store flag, so use the cluster-aware overload like the _settings update path).
+            validateIndexTotalPrimaryShardsPerNodeSetting(settings, clusterService);
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {

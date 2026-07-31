@@ -743,4 +743,23 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         assertEquals(500L, (long) controller.nativeMemoryUsed.get(shardB));
         closeShards(shardA, shardB);
     }
+
+    public void testSetNativeBufferBytesUpdatesThreshold() {
+        Settings settings = Settings.builder()
+            .put("indices.memory.native_index_buffer_size", "100mb")
+            .put("indices.memory.index_buffer_size", "10%")
+            .build();
+        MockController controller = new MockController(settings);
+
+        // Initial value from setting: 100MB
+        assertEquals(100L * 1024 * 1024, controller.nativeBufferSizeInBytes());
+
+        // Dynamically update
+        controller.setNativeBufferBytes(200L * 1024 * 1024);
+        assertEquals(200L * 1024 * 1024, controller.nativeBufferSizeInBytes());
+
+        // Update again
+        controller.setNativeBufferBytes(50L * 1024 * 1024);
+        assertEquals(50L * 1024 * 1024, controller.nativeBufferSizeInBytes());
+    }
 }

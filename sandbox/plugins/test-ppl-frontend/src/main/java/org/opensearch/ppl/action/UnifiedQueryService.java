@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.EngineContextProvider;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.sql.api.UnifiedQueryContext;
@@ -124,9 +125,12 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
+            QueryRequestContext baseCtx = contextProvider.getContext();
+            QueryRequestContext queryCtx = new QueryRequestContext(baseCtx.clusterState(), baseCtx.schema(), pplText);
+
             if (profile) {
                 PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
-                planExecutor.executeWithProfile(logicalPlan, null, future);
+                planExecutor.executeWithProfile(logicalPlan, queryCtx, future);
                 ProfiledResult result = future.actionGet();
 
                 if (result.isSuccess() == false) {
@@ -146,7 +150,7 @@ public class UnifiedQueryService {
             // (e.g. CircuitBreakingException) is handled by DefaultPlanExecutor's
             // convertingListener without being wrapped in ProfiledResult.
             PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
-            planExecutor.execute(logicalPlan, null, future);
+            planExecutor.execute(logicalPlan, queryCtx, future);
             Iterable<Object[]> results = future.actionGet();
 
             List<Object[]> rows = new ArrayList<>();

@@ -117,6 +117,24 @@ public class ReaderContextStore {
         }
     }
 
+    /**
+     * Release the caller's use-reference and free the context in one step: drops this phase's
+     * use-reference, then the store's base reference, so the reader is closed once no phase holds
+     * it. Use on terminal paths (single-session query, completed/failed fetch) instead of calling
+     * {@link #releaseContext} followed by {@link #freeContext}.
+     */
+    public void releaseAndFree(String queryId, ShardId shardId) {
+        ReaderContext ctx = activeContexts.remove(new Key(queryId, shardId));
+        if (ctx != null) {
+            try {
+                ctx.markDone();
+                ctx.close();
+            } catch (Exception e) {
+                logger.warn("[ReaderContextStore] Failed to release/free context for query={} shard={}: {}", queryId, shardId, e);
+            }
+        }
+    }
+
     public int activeCount() {
         return activeContexts.size();
     }

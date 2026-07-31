@@ -9,6 +9,8 @@
 package org.opensearch.nativebridge;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,18 +30,48 @@ import java.util.List;
  */
 public class NativeBridgeModuleTests extends OpenSearchTestCase {
 
-    public void testGetSettingsReturnsBothDecaySettings() {
+    public void testGetSettingsReturnsAllSettings() {
         NativeBridgeModule module = new NativeBridgeModule();
         List<Setting<?>> settings = module.getSettings();
-        assertEquals(2, settings.size());
+        assertEquals(4, settings.size());
         assertEquals("native.jemalloc.dirty_decay_ms", settings.get(0).getKey());
         assertEquals("native.jemalloc.muzzy_decay_ms", settings.get(1).getKey());
+        assertEquals("native.jemalloc.purge_interval", settings.get(2).getKey());
+        assertEquals("native.jemalloc.purge_threshold_percent", settings.get(3).getKey());
     }
 
     public void testMemoryStatsMethodExists() {
         NativeBridgeModule module = new NativeBridgeModule();
         // Just verifies the method is callable; result depends on native library availability
         module.memoryStats();
+    }
+
+    public void testPurgeIntervalSettingDefaults() {
+        TimeValue defaultInterval = NativeBridgeModule.JEMALLOC_PURGE_INTERVAL.getDefault(Settings.EMPTY);
+        assertEquals(TimeValue.timeValueSeconds(5), defaultInterval);
+    }
+
+    public void testPurgeThresholdPercentSettingDefaults() {
+        int defaultPercent = NativeBridgeModule.JEMALLOC_PURGE_THRESHOLD_PERCENT.getDefault(Settings.EMPTY);
+        assertEquals(85, defaultPercent);
+    }
+
+    public void testPurgeThresholdPercentSettingBounds() {
+        // Valid range: 0-100
+        Settings valid = Settings.builder().put("native.jemalloc.purge_threshold_percent", 50).build();
+        assertEquals(50, (int) NativeBridgeModule.JEMALLOC_PURGE_THRESHOLD_PERCENT.get(valid));
+
+        // Below min should throw
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings invalid = Settings.builder().put("native.jemalloc.purge_threshold_percent", -1).build();
+            NativeBridgeModule.JEMALLOC_PURGE_THRESHOLD_PERCENT.get(invalid);
+        });
+
+        // Above max should throw
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings invalid = Settings.builder().put("native.jemalloc.purge_threshold_percent", 101).build();
+            NativeBridgeModule.JEMALLOC_PURGE_THRESHOLD_PERCENT.get(invalid);
+        });
     }
 
     /**

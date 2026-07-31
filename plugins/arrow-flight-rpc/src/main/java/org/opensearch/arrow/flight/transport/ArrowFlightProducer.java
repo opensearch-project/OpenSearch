@@ -28,6 +28,9 @@ import java.util.concurrent.ExecutorService;
 
 /**
  * FlightProducer implementation for handling Arrow Flight requests.
+ *
+ * <p>Each call constructs a {@link FlightServerChannel} that gates batch submission on
+ * gRPC's {@code isReady()} via the channel's {@link FlightServerChannel#awaitReadyOrThrow()}.
  */
 class ArrowFlightProducer extends NoOpFlightProducer {
     private final BufferAllocator allocator;
@@ -37,12 +40,14 @@ class ArrowFlightProducer extends NoOpFlightProducer {
     private final FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey;
     private final FlightStatsCollector statsCollector;
     private final ExecutorService executor;
+    private final long readyTimeoutMillis;
 
     public ArrowFlightProducer(
         FlightTransport flightTransport,
         BufferAllocator allocator,
         FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey,
-        FlightStatsCollector statsCollector
+        FlightStatsCollector statsCollector,
+        long readyTimeoutMillis
     ) {
         this.threadPool = flightTransport.getThreadPool();
         this.requestHandlers = flightTransport.getRequestHandlers();
@@ -51,6 +56,7 @@ class ArrowFlightProducer extends NoOpFlightProducer {
         this.allocator = allocator;
         this.statsCollector = statsCollector;
         this.executor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
+        this.readyTimeoutMillis = readyTimeoutMillis;
     }
 
     @Override
@@ -66,7 +72,8 @@ class ArrowFlightProducer extends NoOpFlightProducer {
                 allocator,
                 middleware,
                 callTracker,
-                flightTransport.getNextFlightExecutor()
+                flightTransport.getNextFlightExecutor(),
+                readyTimeoutMillis
             );
             try {
                 BytesArray buf = new BytesArray(ticket.getBytes());

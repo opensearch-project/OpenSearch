@@ -263,7 +263,6 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
-        boolean nativeAllocator,
         boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -301,8 +300,7 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            nativeAllocator ? collectNativeAllocatorStats() : null,
-            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null,
+            nativeMemory ? collectNativeAllocatorStats() : null,
             // Always capture the process-level native memory estimate on this data node.
             // Serialized over the wire so the coordinator renders the source node's value,
             // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is

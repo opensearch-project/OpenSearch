@@ -214,6 +214,48 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         assertEquals("neq2 between adjacent-second TIMESTAMP literals must be true", Boolean.TRUE, cell);
     }
 
+    // ── Shape F-DATE: TIMESTAMP(<date column>) lifts via native CAST, not to_timestamp ──
+
+    public void testShapeFDateColumnLiftsToTimestamp() throws IOException {
+        // date0 at key00 → 2004-04-15; midnight UTC.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(timestamp(date0), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-04-15 00:00:00"
+        );
+    }
+
+    // ── TIME-vs-{DATE,TIMESTAMP} comparison routes through ComparisonTemporalCoercionAdapter ──
+    // Pre-fix every shape failed plan-time with "Unable to convert call to_timestamp(precision_time<9>?)".
+
+    /** TIME = DATE — today-anchored midnight is not 2004-07-09. */
+    public void testTimeEqualsDate() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");
+        assertEquals(Boolean.FALSE, cell);
+    }
+
+    /** {@code DATE < TIME} — TIME lifts to today-anchored TIMESTAMP, so a past DATE is less than today. */
+    public void testDateLessThanTime() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = date('2020-09-16') < time('09:07:00') | fields v");
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIME = TIMESTAMP — same time-of-day on today's date holds. */
+    public void testTimeEqualsTimestampSameTimeOfDay() throws IOException {
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = time('10:20:30') = timestamp('" + today + " 10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIMESTAMP != TIME — opposite direction. */
+    public void testTimestampNotEqualsTime() throws IOException {
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = timestamp('1984-12-15 10:20:30') != time('10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {

@@ -27,6 +27,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -150,6 +151,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
             return Regex.simpleMatch(pattern, value, caseInsensitive);
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         @Override

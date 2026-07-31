@@ -130,7 +130,7 @@ public class CompositeParquetRowGroupSettingsIT extends AbstractCompositeEngineI
             .put("index.pluggable.dataformat.enabled", true)
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .put(extraSettings);
 
         client().admin()

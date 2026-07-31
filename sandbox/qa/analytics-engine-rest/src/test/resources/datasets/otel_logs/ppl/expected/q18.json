@@ -1,0 +1,16 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "unique_traces", "type": "bigint"},
+    {"name": "serviceName", "type": "string"}
+  ],
+  "datarows": [
+    [30, 30, "cart"],
+    [25, 25, "checkout"],
+    [20, 20, "payment"],
+    [15, 15, "search"],
+    [10, 10, "recommendation"]
+  ],
+  "total": 5,
+  "size": 5
+}

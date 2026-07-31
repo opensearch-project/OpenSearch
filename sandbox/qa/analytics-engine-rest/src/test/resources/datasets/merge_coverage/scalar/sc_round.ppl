@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = round(price) | sort id | fields id, r

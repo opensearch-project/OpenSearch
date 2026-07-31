@@ -14,7 +14,6 @@
       "tags": {"type": "keyword"},
       "json_data": {"type": "text"},
       "ip_address": {"type": "ip"},
-      "location": {"type": "geo_point"},
       "status": {"type": "keyword"},
       "price": {"type": "double"},
       "quantity": {"type": "integer"}

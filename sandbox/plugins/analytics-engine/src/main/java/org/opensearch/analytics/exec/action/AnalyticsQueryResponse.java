@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.action;
 
+import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -21,9 +22,16 @@ import java.io.IOException;
 public class AnalyticsQueryResponse extends ActionResponse {
 
     private final transient Iterable<Object[]> rows;
+    private final transient ProfiledResult profiledResult;
 
     public AnalyticsQueryResponse(Iterable<Object[]> rows) {
         this.rows = rows;
+        this.profiledResult = null;
+    }
+
+    public AnalyticsQueryResponse(ProfiledResult profiledResult) {
+        this.rows = profiledResult.rows();
+        this.profiledResult = profiledResult;
     }
 
     public AnalyticsQueryResponse(StreamInput in) throws IOException {
@@ -38,5 +46,9 @@ public class AnalyticsQueryResponse extends ActionResponse {
 
     public Iterable<Object[]> getRows() {
         return rows;
+    }
+
+    public ProfiledResult getProfiledResult() {
+        return profiledResult;
     }
 }

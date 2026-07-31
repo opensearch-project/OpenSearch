@@ -931,40 +931,140 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── distinct_count / dc — not in WindowFunction enum ──────────────────────
+    // ── distinct_count / dc ────────────────────────────────────────────────────
+    // BackendPlanAdapter rewrites RexOver(DISTINCT_COUNT_APPROX) → APPROX_COUNT_DISTINCT,
+    // and the DataFusion plugin's approx_count_distinct wrapper UDAF aliases that name to
+    // DataFusion's built-in approx_distinct (HyperLogLog). At calcs's scale (17 rows, low
+    // cardinality) HLL is exact, so we can assert the exact dc count.
+    //
+    // calcs.str3 is "e" on every non-null row → dc(str3)=1. calcs.str0 has three values
+    // {FURNITURE, OFFICE SUPPLIES, TECHNOLOGY} on every row → dc(str0)=3. eventstats
+    // broadcasts the global aggregate to every row.
 
-    /** sql IT: testEventstatsDistinctCount. {@code dc()} resolves to DISTINCT_COUNT_APPROX in
-     *  the PPL parser; that aggregate isn't registered in analytics-engine, so the request
-     *  fails before reaching the window-function gate with
-     *  {@code "Cannot resolve function: DISTINCT_COUNT_APPROX"}. */
+    /** sql IT: testEventstatsDistinctCount. */
     public void testEventstatsDistinctCount() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        // Every row sees the same global dc(str3) = 1 (only "e" appears as a non-null value).
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
         );
     }
 
     /** sql IT: testEventstatsDistinctCountByCountry. */
     public void testEventstatsDistinctCountByCountry() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3 by str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        // Per-partition dc(str3): FURNITURE has 2 rows of "e" (dc=1); OFFICE SUPPLIES has 4 of
+        // "e" + 2 nulls (dc=1); TECHNOLOGY has 4 of "e" + 5 nulls (dc=1).
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 1L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
         );
     }
 
     /** sql IT: testEventstatsDistinctCountFunction. {@code distinct_count()} alias for dc. */
     public void testEventstatsDistinctCountFunction() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats distinct_count(str0) as dc_str0",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats distinct_count(str0) as dc_str0 | fields key, dc_str0"
+        );
+        // dc(str0) = 3 across all 17 rows (FURNITURE, OFFICE SUPPLIES, TECHNOLOGY).
+        assertRowsEqual(response,
+            row("key00", 3L), row("key01", 3L), row("key02", 3L), row("key03", 3L),
+            row("key04", 3L), row("key05", 3L), row("key06", 3L), row("key07", 3L),
+            row("key08", 3L), row("key09", 3L), row("key10", 3L), row("key11", 3L),
+            row("key12", 3L), row("key13", 3L), row("key14", 3L), row("key15", 3L),
+            row("key16", 3L)
         );
     }
 
-    /** sql IT: testEventstatsDistinctCountWithNull. */
+    /** sql IT: testEventstatsDistinctCountWithNull. Same query as {@link #testEventstatsDistinctCount}
+     *  — sql-plugin's variant uses STATE_COUNTRY_WITH_NULL to exercise null handling, but this QA
+     *  module only ships the {@code calcs} dataset (whose {@code str3} already has 7 nulls). The
+     *  aggregate semantics are identical. */
     public void testEventstatsDistinctCountWithNull() throws IOException {
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats dc(str3) as dc_str3",
-            "DISTINCT_COUNT_APPROX"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
+        );
+    }
+
+    /** Multi-shard variant of {@link #testEventstatsDistinctCount} — exercises the
+     *  PARTIAL/FINAL split + SINGLETON-gather path for distinct-count. dc is set-based:
+     *  every shard contributes a partial HLL sketch, the coordinator merges them into a
+     *  single global sketch, then broadcasts {@code dc(str3)=1} to every row. The same
+     *  exact rows as single-shard are expected because HLL is exact at calcs's scale. */
+    public void testEventstatsDistinctCount_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName + " | sort key | eventstats dc(str3) as dc_str3 | fields key, dc_str3"
+        );
+        assertRowsEqual(response,
+            row("key00", 1L), row("key01", 1L), row("key02", 1L), row("key03", 1L),
+            row("key04", 1L), row("key05", 1L), row("key06", 1L), row("key07", 1L),
+            row("key08", 1L), row("key09", 1L), row("key10", 1L), row("key11", 1L),
+            row("key12", 1L), row("key13", 1L), row("key14", 1L), row("key15", 1L),
+            row("key16", 1L)
+        );
+    }
+
+    /** Multi-shard variant of {@link #testEventstatsDistinctCountByCountry} — partitioned
+     *  dc with {@code by str0}. Per-partition HLL state is built per shard, merged at the
+     *  coordinator, then broadcast. Each {@code str0} group sees the same {@code dc(str3)=1}
+     *  as single-shard. */
+    public void testEventstatsDistinctCountByCountry_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | sort key | eventstats dc(str3) as dc_str3 by str0 | fields key, str0, dc_str3"
+        );
+        assertRowsEqual(
+            response,
+            row("key00", "FURNITURE", 1L),
+            row("key01", "FURNITURE", 1L),
+            row("key02", "OFFICE SUPPLIES", 1L),
+            row("key03", "OFFICE SUPPLIES", 1L),
+            row("key04", "OFFICE SUPPLIES", 1L),
+            row("key05", "OFFICE SUPPLIES", 1L),
+            row("key06", "OFFICE SUPPLIES", 1L),
+            row("key07", "OFFICE SUPPLIES", 1L),
+            row("key08", "TECHNOLOGY", 1L),
+            row("key09", "TECHNOLOGY", 1L),
+            row("key10", "TECHNOLOGY", 1L),
+            row("key11", "TECHNOLOGY", 1L),
+            row("key12", "TECHNOLOGY", 1L),
+            row("key13", "TECHNOLOGY", 1L),
+            row("key14", "TECHNOLOGY", 1L),
+            row("key15", "TECHNOLOGY", 1L),
+            row("key16", "TECHNOLOGY", 1L)
         );
     }
 

@@ -27,9 +27,7 @@ import java.util.List;
  * intermediate CAST to DOUBLE is needed because our substrait YAML declares date_part/floor as
  * fp64-only while Calcite's inference returns BIGINT for {@code part='second'}.
  *
- * <p>VARCHAR operands (bare PPL string literals like {@code SECOND('2020-09-16 17:30:45')}) are
- * coerced to TIMESTAMP so the {@code (string, precision_timestamp<P>)} signature resolves — same
- * rationale as {@link DatePartAdapters}.
+ * <p>VARCHAR / TIME operand handling: see {@link DatePartAdapters}.
  *
  * @opensearch.internal
  */

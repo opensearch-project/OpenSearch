@@ -297,7 +297,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newQueryShardContext(0, null, System::currentTimeMillis, null),
                 idFieldDataEnabled,
-                scriptService
+                scriptService,
+                dataFormatRegistry
             );
             this.indexFieldData = new IndexFieldDataService(
                 indexSettings,

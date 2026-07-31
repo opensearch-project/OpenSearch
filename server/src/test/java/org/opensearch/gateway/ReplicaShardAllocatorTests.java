@@ -52,6 +52,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -446,6 +448,30 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
         );
     }
 
+    public void testDelayedAllocationExplainUsesClusterDefault() {
+        TimeValue clusterDelay = TimeValue.timeValueHours(1);
+        Settings nodeSettings = Settings.builder()
+            .put(UnassignedInfo.CLUSTER_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), clusterDelay)
+            .build();
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.EMPTY,
+            nodeSettings,
+            UnassignedInfo.Reason.NODE_LEFT
+        );
+        allocation.debugDecision(true);
+        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+
+        ShardRouting unassignedShard = allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
+        AllocateUnassignedDecision decision = testAllocator.makeAllocationDecision(unassignedShard, allocation, testAllocator.logger);
+
+        assertThat(decision.getAllocationDecision(), equalTo(AllocationDecision.ALLOCATION_DELAYED));
+        assertThat(decision.getAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION));
+        assertThat(decision.getConfiguredDelayInMillis(), equalTo(clusterDelay.millis()));
+        assertThat(decision.getRemainingDelayInMillis() > 0, equalTo(true));
+        assertThat(decision.getRemainingDelayInMillis() <= clusterDelay.millis(), equalTo(true));
+    }
+
     public void testCancelRecoveryBetterSyncId() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
@@ -548,17 +574,30 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
         return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
     }
 
-    private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
+    private RoutingAllocation onePrimaryOnNode1And1Replica(
+        AllocationDeciders deciders,
+        Settings indexSettings,
+        UnassignedInfo.Reason reason
+    ) {
+        return onePrimaryOnNode1And1Replica(deciders, indexSettings, Settings.EMPTY, reason);
+    }
+
+    private RoutingAllocation onePrimaryOnNode1And1Replica(
+        AllocationDeciders deciders,
+        Settings indexSettings,
+        Settings nodeSettings,
+        UnassignedInfo.Reason reason
+    ) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardId.getIndexName())
-            .settings(settings(Version.CURRENT).put(settings))
+            .settings(settings(Version.CURRENT).put(indexSettings))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()));
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         // mark shard as delayed if reason is NODE_LEFT
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT
-            && UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
+            && UnassignedInfo.getNodeLeftDelayedTimeout(indexSettings, nodeSettings).nanos() > 0;
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         RoutingTable routingTable = RoutingTable.builder()
             .add(
@@ -598,7 +637,8 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            nodeSettings
         );
     }
 

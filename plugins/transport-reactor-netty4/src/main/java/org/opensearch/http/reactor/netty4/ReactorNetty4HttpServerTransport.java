@@ -59,11 +59,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -81,6 +83,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.Connection;
 import reactor.netty.DisposableChannel;
 import reactor.netty.DisposableServer;
+import reactor.netty.NettyPipeline;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRequest;
@@ -110,6 +113,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
+
+    /**
+     * The size of the http content decompressor buffer that is going to be used for request body decompression.
+     */
+    private static final int UNLIMITED_DECOMPRESSOR_BUFFER = 0;
 
     /**
      * Configure the maximum length of the content of the HTTP/2.0 clear-text upgrade request.
@@ -155,6 +163,15 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      * The number of Reactor Netty HTTP workers
      */
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
+
+    /**
+     * Set the maximum number of HTTP/2 concurrent streams
+     */
+    public static final Setting<Long> SETTING_H2_MAX_CONCURRENT_STREAMS = Setting.longSetting(
+        "h2.max_concurrent_streams",
+        100L,
+        Property.NodeScope
+    );
 
     /**
      * The maximum number of composite components for request accumulation
@@ -203,6 +220,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private volatile DisposableServer disposableServer;
     private volatile Scheduler scheduler;
     private final Map<Channel, HostChannel> hostChannels = new ConcurrentHashMap<>();
+    private final long h2MaxConcurrentStreams;
 
     /**
      * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
@@ -277,6 +295,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.h2cMaxContentLength = SETTING_H2C_MAX_CONTENT_LENGTH.get(settings);
+        this.h2MaxConcurrentStreams = SETTING_H2_MAX_CONCURRENT_STREAMS.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
     }
@@ -296,7 +315,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
-                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()))
+                .doOnConnection(conn -> conn.addHandlerFirst(NettyPipeline.HttpDecompressor, createDecompressor()))
+                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()).maxConcurrentStreams(h2MaxConcurrentStreams))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
@@ -361,6 +381,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .runOn(sharedGroup.getLowLevelGroup())
                         .bindAddress(() -> socketAddress)
                         .compress(true)
+                        .doOnConnection(conn -> conn.addHandlerFirst(NettyPipeline.HttpDecompressor, createDecompressor()))
                         .httpRequestDecoder(
                             spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                                 .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
@@ -372,6 +393,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         .http3Settings(
                             spec -> spec.tokenHandler(new SecureQuicTokenHandler(Randomness.createSecure()))
                                 .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
+                                .maxFieldSectionSize(maxHeaderSize.bytesAsInt())
                                 .maxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
@@ -481,6 +503,16 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     @Override
     public void serverAcceptedChannel(HttpChannel httpChannel) {
         super.serverAcceptedChannel(httpChannel);
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to override the default netty HttpContentDecompressor
+     * and supply a custom decompressor.
+     *
+     * Used in instances to conditionally decompress depending on the outcome from header verification.
+     */
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return new HttpContentDecompressor(UNLIMITED_DECOMPRESSOR_BUFFER);
     }
 
     /**

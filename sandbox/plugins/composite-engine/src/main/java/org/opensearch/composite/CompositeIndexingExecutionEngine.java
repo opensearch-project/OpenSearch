@@ -14,6 +14,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.composite.merge.CompositeMerger;
+import org.opensearch.composite.stats.CompositeShardStatsTracker;
+import org.opensearch.composite.stats.CompositeStatsProvider;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -37,18 +40,24 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
+import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import org.jspecify.annotations.NonNull;
 
 /**
  * A composite {@link IndexingExecutionEngine} that orchestrates indexing across
@@ -73,6 +82,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final CompositeDataFormat compositeDataFormat;
     private final Committer committer;
     private final IndexSettings indexSettings;
+    private final CompositeMerger merger;
+    private final CompositeShardStatsTracker statsTracker = new CompositeShardStatsTracker();
+    private final ShardId shardId;
+    private volatile Map<String, Collection<String>> pendingDeletes = new ConcurrentHashMap<>();
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -143,6 +156,28 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
         this.indexSettings = indexSettings;
+        this.merger = new CompositeMerger(this, compositeDataFormat);
+        this.shardId = store != null ? store.shardId() : null;
+
+        // Register the per-shard tracker so REST endpoints can read live counters; unregistered
+        // in close(). Rolls back the registration if anything below throws, to avoid leaking it.
+        CompositeStatsProvider provider = CompositeStatsProvider.getInstance();
+        boolean registered = false;
+        try {
+            if (provider != null && shardId != null) {
+                provider.register(shardId, statsTracker);
+                registered = true;
+            }
+        } catch (Throwable t) {
+            if (registered) {
+                try {
+                    provider.unregister(shardId);
+                } catch (Throwable rollbackErr) {
+                    logger.warn("Failed to unregister composite stats tracker during constructor rollback", rollbackErr);
+                }
+            }
+            throw t;
+        }
     }
 
     /**
@@ -193,7 +228,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return new CompositeMerger(this, compositeDataFormat);
+        return merger;
     }
 
     /**
@@ -223,6 +258,14 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        // recordTimeMillis owns the whole-refresh timing; incRefreshTotal counts every refresh.
+        statsTracker.incRefreshTotal();
+        return StatsRecorder.recordTimeMillis(() -> doRefresh(refreshInput), statsTracker::addRefreshTimeMillis);
+    }
+
+    private RefreshResult doRefresh(RefreshInput refreshInput) throws IOException {
+        tryDeletePendingFiles();
+
         // All per-format engines refresh normally (primary passes through, secondary does addIndexes)
         RefreshInput perFormatInput = new RefreshInput(refreshInput.existingSegments(), refreshInput.writerFiles());
         RefreshResult primary = primaryEngine.refresh(perFormatInput);
@@ -259,41 +302,25 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             if (onlyNew.size() > 1) {
                 try {
                     final long mergeStartNanos = System.nanoTime();
+                    // Counts merge-on-refresh attempts; a subset overlay of merge_total (also
+                    // incremented inside CompositeMerger.merge()).
+                    statsTracker.incRefreshMergeTotal();
+                    MergeResult mergeResult = StatsRecorder.recordTimeMillis(
+                        () -> merger.merge(
+                            MergeInput.builder().segments(onlyNew).newWriterGeneration(refreshInput.nextAvailableGeneration()).build()
+                        ),
+                        statsTracker::addRefreshMergeTimeMillis
+                    );
 
-                    Merger primaryMerger = primaryEngine.getMerger();
-                    MergeInput primaryMergeInput = MergeInput.builder()
-                        .segments(onlyNew)
-                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                        .build();
-                    MergeResult primaryResult = primaryMerger.merge(primaryMergeInput);
-                    WriterFileSet primaryMerged = primaryResult.getMergedWriterFileSetForDataformat(primaryEngine.getDataFormat());
-
-                    if (primaryMerged != null) {
-                        Segment.Builder consolidated = Segment.builder(refreshInput.nextAvailableGeneration());
-                        consolidated.addSearchableFiles(primaryEngine.getDataFormat(), primaryMerged);
-
-                        primaryResult.rowIdMapping().ifPresent(rowIdMapping -> {
-                            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-                                try {
-                                    Merger secMerger = engine.getMerger();
-                                    MergeInput secMergeInput = MergeInput.builder()
-                                        .segments(onlyNew)
-                                        .rowIdMapping(rowIdMapping)
-                                        .newWriterGeneration(refreshInput.nextAvailableGeneration())
-                                        .build();
-                                    MergeResult secResult = secMerger.merge(secMergeInput);
-                                    WriterFileSet secMerged = secResult.getMergedWriterFileSetForDataformat(engine.getDataFormat());
-                                    if (secMerged != null) {
-                                        consolidated.addSearchableFiles(engine.getDataFormat(), secMerged);
-                                    }
-                                } catch (IOException e) {
-                                    throw new java.io.UncheckedIOException(e);
-                                }
-                            }
-                        });
-
+                    if (mergeResult != null) {
                         List<Segment> result = new ArrayList<>(refreshInput.existingSegments());
-                        Segment mergedSegment = consolidated.build();
+                        Segment mergedSegment = new Segment(
+                            refreshInput.nextAvailableGeneration(),
+                            mergeResult.getMergedWriterFileSet()
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(e -> e.getKey().name(), Map.Entry::getValue))
+                        );
                         result.add(mergedSegment);
 
                         if (logger.isDebugEnabled()) {
@@ -317,11 +344,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                         assert result.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
                             : "refresh result segments must contain all configured formats";
 
+                        for (Map.Entry<String, Collection<String>> pendingDeletionPerFormat : deleteFiles(getFilesToDelete(onlyNew))
+                            .entrySet()) {
+                            pendingDeletes.computeIfAbsent(pendingDeletionPerFormat.getKey(), k -> new ArrayList<>())
+                                .addAll(pendingDeletionPerFormat.getValue());
+                        }
+
                         return new RefreshResult(List.copyOf(result));
                     }
                 } catch (Exception e) {
                     // Merge-on-refresh is best-effort. On failure, fall back to normal per-writer
                     // segments. Background merge will consolidate them later.
+                    statsTracker.incRefreshMergeFailures();
                     logger.warn("merge-on-refresh failed, falling back to per-writer segments", e);
                 }
             }
@@ -331,6 +365,31 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
             : "refresh result segments must contain all configured formats";
         return new RefreshResult(List.copyOf(newSegments));
+    }
+
+    private static @NonNull Map<String, Collection<String>> getFilesToDelete(List<Segment> segmentsToPurge) {
+        Map<String, Set<String>> filesToDelete = new HashMap<>();
+        for (Segment segment : segmentsToPurge) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                filesToDelete.compute(entry.getKey(), (k, v) -> {
+                    Set<String> files = v;
+                    if (v == null) {
+                        files = new HashSet<>();
+                    }
+                    files.addAll(entry.getValue().files());
+                    return files;
+                });
+            }
+        }
+        Map<String, Collection<String>> unmodifiable = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : filesToDelete.entrySet()) {
+            unmodifiable.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        }
+        return unmodifiable;
+    }
+
+    private void tryDeletePendingFiles() throws IOException {
+        pendingDeletes = deleteFiles(pendingDeletes);
     }
 
     private boolean shouldMergeOnRefresh(List<Segment> writerFiles) {
@@ -459,9 +518,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public void close() throws IOException {
+        CompositeStatsProvider provider = CompositeStatsProvider.getInstance();
+        if (provider != null && shardId != null) {
+            provider.unregister(shardId);
+        }
         IOUtils.closeWhileHandlingException(primaryEngine);
         secondaryEngines.forEach(IOUtils::closeWhileHandlingException);
         IOUtils.closeWhileHandlingException(committer);
+    }
+
+    /** Returns this shard's composite stats tracker, used by the writer and merger to count. */
+    public CompositeShardStatsTracker statsTracker() {
+        return statsTracker;
     }
 
     /**
@@ -523,7 +591,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             toAugment,
             config.registry(),
             config.shardPath(),
-            config.dataformatAwareStoreHandles()
+            config.dataformatAwareStoreHandles(),
+            config.indexSettings()
         );
     }
 
@@ -536,4 +605,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return secondaryEngines;
     }
 
+    @Override
+    public long maxIndexableDocs() {
+        long maxAllowedDocs = primaryEngine.maxIndexableDocs();
+        for (var engine : secondaryEngines) {
+            maxAllowedDocs = Math.min(maxAllowedDocs, engine.maxIndexableDocs());
+        }
+        return maxAllowedDocs;
+    }
 }

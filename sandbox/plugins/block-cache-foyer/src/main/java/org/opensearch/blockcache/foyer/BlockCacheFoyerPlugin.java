@@ -97,10 +97,14 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         return List.of(
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
+            FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING,
+            FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING,
-            FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING
+            FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING,
+            FoyerBlockCacheSettings.METADATA_CACHE_RATIO_SETTING,
+            FoyerBlockCacheSettings.METADATA_BLOCK_SIZE_SETTING
         );
     }
 
@@ -165,10 +169,15 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             return List.of();
         }
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
+        final long bufferPoolSizeBytes = FoyerBlockCacheSettings.BUFFER_POOL_SIZE_SETTING.get(settings).getBytes();
+        final long submitQueueSizeThresholdBytes = FoyerBlockCacheSettings.SUBMIT_QUEUE_SIZE_THRESHOLD_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
         final double sweepThresholdRatio = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(settings);
         final long persistIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING.get(settings);
+        final long metaBlockSizeBytes = FoyerBlockCacheSettings.METADATA_BLOCK_SIZE_SETTING.get(settings).getBytes();
+        final String metadataCacheRatioRaw = FoyerBlockCacheSettings.METADATA_CACHE_RATIO_SETTING.get(settings);
+        final double metadataCacheRatio = RatioValue.parseRatioValue(metadataCacheRatioRaw).getAsRatio();
         // Use the exact capacity reserved by NodeCacheService during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
@@ -185,7 +194,6 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
 
         // block_size must be strictly less than the total disk capacity.
-        final long effectiveBlockSizeBytes;
         if (blockSizeBytes >= diskCapacityBytes) {
             throw new SettingsException(
                 "block_cache.foyer.block_size ("
@@ -194,20 +202,64 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
                     + diskCapacityBytes
                     + " bytes). Reduce block_cache.foyer.block_size or increase node.search.cache.size."
             );
-        } else {
-            effectiveBlockSizeBytes = blockSizeBytes;
         }
 
         try {
-            cache = new FoyerBlockCache(
-                diskCapacityBytes,
-                diskDir,
-                blockSizeBytes,
-                ioEngine,
-                sweepIntervalSecs,
-                sweepThresholdRatio,
-                persistIntervalSecs
-            );
+            if (metadataCacheRatio > 0.0) {
+                final long metaDiskBytes = Math.round(diskCapacityBytes * metadataCacheRatio);
+                final long dataDiskBytes = diskCapacityBytes - metaDiskBytes;
+                final String dataDiskDir = diskDir + "/data";
+                final String metaDiskDir = diskDir + "/metadata";
+                cache = new FoyerBlockCache(
+                    dataDiskBytes,
+                    dataDiskDir,
+                    blockSizeBytes,
+                    bufferPoolSizeBytes,
+                    submitQueueSizeThresholdBytes,
+                    metaDiskBytes,
+                    metaDiskDir,
+                    metaBlockSizeBytes,
+                    bufferPoolSizeBytes,
+                    submitQueueSizeThresholdBytes,
+                    ioEngine,
+                    sweepIntervalSecs,
+                    sweepThresholdRatio,
+                    persistIntervalSecs
+                );
+                logger.info(
+                    "BlockCacheFoyerPlugin created tiered FoyerBlockCache (dataDir={}, metaDir={}, "
+                        + "dataDisk={}, metaDisk={}, dataBlockSize={}, metaBlockSize={}, ioEngine={})",
+                    dataDiskDir,
+                    metaDiskDir,
+                    dataDiskBytes,
+                    metaDiskBytes,
+                    blockSizeBytes,
+                    metaBlockSizeBytes,
+                    ioEngine
+                );
+            } else {
+                cache = new FoyerBlockCache(
+                    diskCapacityBytes,
+                    diskDir,
+                    blockSizeBytes,
+                    bufferPoolSizeBytes,
+                    submitQueueSizeThresholdBytes,
+                    ioEngine,
+                    sweepIntervalSecs,
+                    sweepThresholdRatio,
+                    persistIntervalSecs
+                );
+                logger.info(
+                    "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, "
+                        + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={})",
+                    diskDir,
+                    blockSizeBytes,
+                    ioEngine,
+                    sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
+                    sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
+                    persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s"
+                );
+            }
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
@@ -226,16 +278,6 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
                 FoyerBlockCacheSettings.KEY_INDEX_PERSIST_INTERVAL_SETTING,
                 newInterval -> finalCache.updatePersistInterval(newInterval)
             );
-        logger.info(
-            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, "
-                + "sweepIntervalSecs={}, sweepThresholdRatio={}, persistIntervalSecs={})",
-            diskDir,
-            blockSizeBytes,
-            ioEngine,
-            sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
-            sweepThresholdRatio == 0.0 ? "always-sweep (no threshold)" : sweepThresholdRatio,
-            persistIntervalSecs == 0 ? "disabled" : persistIntervalSecs + "s"
-        );
         return List.of(cache);
     }
 

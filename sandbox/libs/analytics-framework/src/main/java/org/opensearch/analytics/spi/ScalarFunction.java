@@ -38,6 +38,10 @@ public enum ScalarFunction {
     LESS_THAN_OR_EQUAL(Category.COMPARISON, SqlKind.LESS_THAN_OR_EQUAL),
     IS_NULL(Category.COMPARISON, SqlKind.IS_NULL),
     IS_NOT_NULL(Category.COMPARISON, SqlKind.IS_NOT_NULL),
+    IS_TRUE(Category.COMPARISON, SqlKind.IS_TRUE),
+    IS_FALSE(Category.COMPARISON, SqlKind.IS_FALSE),
+    IS_NOT_TRUE(Category.COMPARISON, SqlKind.IS_NOT_TRUE),
+    IS_NOT_FALSE(Category.COMPARISON, SqlKind.IS_NOT_FALSE),
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
@@ -83,6 +87,11 @@ public enum ScalarFunction {
      * rename surfaces as a compile error rather than as a silent string mismatch at runtime.
      */
     CONCAT(Category.STRING, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.CONCAT),
+    /**
+     * Variadic {@code CONCAT(a, b, …)} — {@code SqlLibraryOperators.CONCAT_FUNCTION}, distinct from binary {@code ||}.
+     * Substrait CONSISTENT consistency requires the per-op adapter to unify operand types before emission.
+     */
+    CONCAT_FUNCTION(Category.STRING, SqlKind.OTHER_FUNCTION, org.apache.calcite.sql.fun.SqlLibraryOperators.CONCAT_FUNCTION),
     CONCAT_WS(Category.STRING, SqlKind.OTHER_FUNCTION),
     CHAR_LENGTH(Category.STRING, SqlKind.OTHER_FUNCTION),
     REPLACE(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -113,6 +122,19 @@ public enum ScalarFunction {
      * named group at the call site.
      */
     PARSE(Category.STRING, SqlKind.OTHER_FUNCTION),
+
+    /**
+     * PPL {@code grok <field> '<grok-pattern>'} — like {@link #PARSE} but the pattern
+     * is grok syntax ({@code %{HOSTNAME:host}}) rather than a raw regex. Shares the
+     * {@code ParseFunction} UDF in the SQL plugin (3rd operand {@code 'grok'}) and the
+     * same {@code MAP<VARCHAR, VARCHAR>} return type, so it pairs with {@link #ITEM}
+     * downstream just like {@code parse}. Resolves by identifier-name "GROK" through
+     * {@link #fromSqlFunction(SqlFunction)}. The grok-pattern dictionary and its
+     * recursive resolution live entirely in the {@code grok} Rust UDF (the SQL plugin's
+     * grok library is not on OpenSearch core's classpath), so no Java-side resolution
+     * is needed here.
+     */
+    GROK(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
     // live in the shared analytics-framework SPI — they couple the framework to PPL
@@ -258,16 +280,99 @@ public enum ScalarFunction {
      * rewrites the call into a DataFusion-native interval-add expression.
      */
     TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_ADD(<date|timestamp|time>, INTERVAL n unit)} — shift a temporal value
+     * forward by an interval, returning TIMESTAMP. Resolves through the SQL plugin's
+     * {@code DateAddSubFunction} UDF named {@code "DATE_ADD"}. The analytics-backend-datafusion
+     * adapter rewrites the call into {@code DATETIME_PLUS(base, interval)}, which binds through
+     * Substrait's standard {@code add(timestamp, interval)} to DataFusion's native interval add.
+     */
+    DATE_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATE_SUB(<date|timestamp|time>, INTERVAL n unit)} — the subtract counterpart of
+     * {@link #DATE_ADD}. Lowered to {@code DATETIME_PLUS(base, -interval)} by the
+     * analytics-backend-datafusion adapter.
+     */
+    DATE_SUB(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code ADDDATE(<date|timestamp>, N | INTERVAL n unit)} — shift a temporal value forward.
+     * Shares the {@code DATE_ADD} lowering: the integer form is treated as {@code INTERVAL N DAY}.
+     * TIME bases (anchored to the query-start date by the PPL UDF) are left on the UDF path.
+     */
+    ADDDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code SUBDATE(<date|timestamp>, N | INTERVAL n unit)} — the subtract counterpart of
+     * {@link #ADDDATE}, sharing the {@code DATE_SUB} lowering.
+     */
+    SUBDATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code DATEDIFF(a, b)} — whole-day difference between the calendar dates of two temporal
+     * values ({@code arg1 - arg2}, time-of-day discarded), returning BIGINT. Lowered to a
+     * day-index subtraction by the analytics-backend-datafusion adapter.
+     */
+    DATEDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_DAYS(x)} — days since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TO_SECONDS(x)} — seconds since {@code 0000-01-01} (BIGINT). Epoch-arithmetic lowering. */
+    TO_SECONDS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code FROM_DAYS(n)} — inverse of {@link #TO_DAYS}, returns DATE. Epoch-arithmetic lowering. */
+    FROM_DAYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIME_TO_SEC(x)} — seconds-of-day of a TIME/TIMESTAMP (BIGINT). Epoch-arithmetic lowering. */
+    TIME_TO_SEC(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SEC_TO_TIME(n)} — time-of-day n seconds past midnight (TIME). from_unixtime-based lowering. */
+    SEC_TO_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code WEEKDAY(x)} — day-of-week Mon=0..Sun=6 (INTEGER). date_part('dow') remap lowering. */
+    WEEKDAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_ADD(P, n)} — add n months to a YYYYMM period (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_ADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code PERIOD_DIFF(P1, P2)} — months between two YYYYMM periods (INTEGER). Integer-arithmetic lowering. */
+    PERIOD_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code GET_FORMAT(type, region)} — constant MySQL format string (VARCHAR). Plan-time literal fold. */
+    GET_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code ADDTIME(a, b)} — a plus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    ADDTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code SUBTIME(a, b)} — a minus b's time-of-day (TIME if a is TIME, else TIMESTAMP). */
+    SUBTIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code TIMEDIFF(a, b)} (engine label TIME_DIFF) — difference of two times as a TIME. */
+    TIME_DIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code LAST_DAY(x)} — last day of x's month (DATE). date_trunc('month')+1mo-1day lowering. */
+    LAST_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code YEARWEEK(x[, mode])} — year*100+week (INTEGER) via the os_yearweek Rust UDF. */
+    YEARWEEK(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
+    /** PPL {@code JSON(s)} — validate / round-trip a JSON string; NULL on malformed input. */
+    JSON(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code JSON_ARRAY(v1, v2, …)} — JSON-array constructor over heterogeneous scalars. */
+    JSON_ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_DELETE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_EXTRACT_ALL(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_KEYS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /** PPL {@code JSON_OBJECT(k1, v1, k2, v2, …)} — JSON-object constructor over (string, scalar) pairs. */
+    JSON_OBJECT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     JSON_SET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code json_valid(str)} — resolves through the SQL plugin's
+     * {@code PPLFuncImpTable} to {@link SqlStdOperatorTable#IS_JSON_VALUE}, which is
+     * a {@link org.apache.calcite.sql.SqlPostfixOperator} named {@code "IS JSON VALUE"}
+     * with {@link SqlKind#OTHER}. Neither name-based {@link #valueOf(String)} nor
+     * {@link SqlKind}-based resolution matches. The {@link SqlKind#OTHER_FUNCTION}
+     * declaration opts out of the {@link #fromSqlKind(SqlKind)} scan (which would
+     * otherwise break {@code testFromSqlKindReturnsNullForOtherKind} by claiming
+     * {@code SqlKind.OTHER}); resolution happens via the {@code referenceOperator}
+     * singleton-identity match — same pattern as {@link #CONCAT}.
+     */
+    JSON_VALID(Category.SCALAR, SqlKind.OTHER_FUNCTION, SqlStdOperatorTable.IS_JSON_VALUE),
 
     PATTERN_PARSER(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
@@ -408,6 +513,19 @@ public enum ScalarFunction {
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves a configuration/setting token (case-insensitive) to a {@link ScalarFunction}, throwing
+     * a descriptive {@link IllegalArgumentException} if unrecognized. Used by cluster settings that
+     * name predicate functions (e.g. the delegation block-list).
+     */
+    public static ScalarFunction fromToken(String token) {
+        try {
+            return valueOf(token.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown scalar function [" + token + "]");
+        }
     }
 
     /**

@@ -1,0 +1,14 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "severityText", "type": "string"}
+  ],
+  "datarows": [
+    [60, "INFO"],
+    [20, "WARN"],
+    [15, "ERROR"],
+    [5, "DEBUG"]
+  ],
+  "total": 4,
+  "size": 4
+}

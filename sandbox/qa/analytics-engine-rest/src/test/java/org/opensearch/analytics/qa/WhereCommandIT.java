@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -166,6 +165,15 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /** Multiple {@code !=} conjuncts combined with {@code isnotnull}. */
+    public void testWhereMultipleNotEqualsAndIsNotNull() throws IOException {
+        // 13 non-null str2 values; excluding 'one' and 'two' leaves 11.
+        assertRowCount(
+            "source=" + DATASET.indexName + " | where str2 != 'one' and str2 != 'two' and isnotnull(str2) | fields str2",
+            11
+        );
+    }
+
     // ── IN / NOT IN ─────────────────────────────────────────────────────────
 
     public void testWhereInOnKeyword() throws IOException {
@@ -245,7 +253,6 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
 
     // ── Sub-expression scalar calls (pass through to DataFusion) ────────────
 
-    @AwaitsFix(bugUrl = "Real opensearch-sql plugin: a filter whose shape is not (field, literal) (REPLACE/REGEXP_REPLACE/CHAR_LENGTH/array_element(...) = literal) is marked dual-viable for performance-delegation, but Lucene's DelegatedPredicateSerializer only handles (RexInputRef, RexLiteral) and throws IllegalArgumentException at fragment conversion. Needs the marking-time canSerialize prune in OpenSearchFilterRule (engine fix, separate PR).")
     public void testWhereInnerLength() throws IOException {
         // length('FURNITURE') = 9 → 2 rows.
         assertRowCount(
@@ -267,6 +274,28 @@ public class WhereCommandIT extends AnalyticsRestTestCase {
         assertRowCount(
             "source=" + DATASET.indexName + " | where num0 + 100 > 105 | fields num0",
             3
+        );
+    }
+
+    // A correlated EXISTS subsearch. The PPL frontend injects a SUBSEARCH_MAXOUT Sort(fetch=N) at
+    // the top of the subsearch; that correlated Sort(fetch>1) blocks RelDecorrelator, leaving a
+    // LogicalCorrelate that marking rejects ("unmarked child [LogicalCorrelate]"). The planner now
+    // strips the (existence-irrelevant) limit so the EXISTS decorrelates to a join. Two calcs rows
+    // have an int1 that equals some row's int0.
+    public void testCorrelatedExistsSubsearch() throws IOException {
+        assertRowCount(
+            "source=" + DATASET.indexName + " as o | where exists [ source=" + DATASET.indexName
+                + " as i | where i.int0 = o.int1 ] | fields int1",
+            2
+        );
+    }
+
+    // Complement of the EXISTS case: NOT EXISTS keeps the remaining 15 of 17 rows.
+    public void testCorrelatedNotExistsSubsearch() throws IOException {
+        assertRowCount(
+            "source=" + DATASET.indexName + " as o | where not exists [ source=" + DATASET.indexName
+                + " as i | where i.int0 = o.int1 ] | fields int1",
+            15
         );
     }
 

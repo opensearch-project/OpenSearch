@@ -1,0 +1,1 @@
+source=%INDEX% | regex label="lbl[0-2]" | stats count()

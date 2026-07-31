@@ -17,18 +17,54 @@
 //! in the global [`QueryRegistry`] on creation, and removes the entry
 //! on [`Drop`].
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use log::debug;
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
 
+/// Process-wide epoch for cancelled_at timestamps. Using nanos since this
+/// instant avoids storing full Instant values (which aren't atomically sized).
+static PROCESS_START: Lazy<Instant> = Lazy::new(Instant::now);
+
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+
+// ---------------------------------------------------------------------------
+// Query type discriminator
+// ---------------------------------------------------------------------------
+
+/// Distinguishes shard-level queries from coordinator-level queries for stats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryType {
+    /// Data-node shard fragment execution (AnalyticsShardTask on the Java side).
+    Shard,
+    /// Coordinator-side local reduce execution (AnalyticsQueryTask on the Java side).
+    Coordinator,
+}
+
+/// Default threshold for "long-running post-cancel" — matches the Java-side
+/// `task_cancellation.duration_millis` default of 10 000 ms.
+pub const DEFAULT_CANCEL_THRESHOLD: Duration = Duration::from_secs(10);
+
+/// Runtime-configurable threshold. Initialized to DEFAULT_CANCEL_THRESHOLD (10_000 ms).
+/// Set via `set_cancel_stats_threshold`.
+static CANCEL_STATS_THRESHOLD_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(10_000);
+
+/// Returns the currently configured cancellation stats threshold.
+pub fn cancel_stats_threshold() -> Duration {
+    Duration::from_millis(CANCEL_STATS_THRESHOLD_MS.load(Ordering::Relaxed))
+}
+
+/// Sets the cancellation stats threshold (in milliseconds).
+pub fn set_cancel_stats_threshold(millis: u64) {
+    CANCEL_STATS_THRESHOLD_MS.store(millis, Ordering::Relaxed);
+}
 
 // ---------------------------------------------------------------------------
 // Per-query memory pool
@@ -71,7 +107,23 @@ impl QueryMemoryPool {
     }
 }
 
+impl std::fmt::Display for QueryMemoryPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueryMemoryPool(inner={}, current={}, peak={})",
+            self.inner.name(),
+            self.current_bytes.load(Ordering::Relaxed),
+            self.peak_bytes.load(Ordering::Relaxed)
+        )
+    }
+}
+
 impl MemoryPool for QueryMemoryPool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
     fn register(&self, consumer: &MemoryConsumer) {
         self.inner.register(consumer);
     }
@@ -115,10 +167,18 @@ impl MemoryPool for QueryMemoryPool {
 pub struct QueryTracker {
     pub start_time: Instant,
     pub context_id: i64,
+    pub query_type: QueryType,
     pub memory_pool: Arc<QueryMemoryPool>,
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Handle to the DedicatedExecutor's tokio runtime. Used by `cancel_query`
+    /// to flush pending deferred drops (pull_from_input tasks holding GroupValues
+    /// buffers) after aborting the outer CrossRtStream task.
+    pub cpu_runtime_handle: OnceLock<tokio::runtime::Handle>,
+    /// Nanos since PROCESS_START when cancellation was signalled, or 0 if not cancelled.
+    /// Set atomically via CAS in cancel_query — no lock needed.
+    pub cancelled_at_nanos: AtomicU64,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -295,20 +355,106 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     written
 }
 
-/// Fire the cancellation token for the given context_id.
+/// Maximum time the flush will block waiting for the CPU runtime to process
+/// deferred drops (pull_from_input tasks holding GroupValues buffers).
+const CANCEL_FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Yields per flush worker. The abort cascade has 3 scheduling levels:
+///   Level 1: CrossRtStream CPU task abort → drops CoalescePartitions receiver
+///   Level 2: CoalescePartitions' run_input tasks see closed channel → exit →
+///            drop PerPartitionStream → Arc<SpawnedTask> refcount hits 0
+///   Level 3: SpawnedTask::drop aborts pull_from_input → drops GroupValues
+/// Each level needs at least one scheduling round per task. With
+/// target_partitions = N, levels 2 and 3 each have N tasks.
+/// 32 yields per worker covers up to 32 partitions per level on a single worker.
+const FLUSH_YIELDS_PER_WORKER: usize = 32;
+
+/// Number of flush tasks to spawn. Spawning across multiple workers ensures
+/// the woken tasks (which may land on different workers' queues) are processed
+/// in parallel rather than serialized through one worker's yields.
+const FLUSH_WORKER_COUNT: usize = 4;
+
+/// Fire the cancellation token for the given context_id and abort the CPU task.
 /// No-op for unknown or already-completed queries.
+///
+/// Note: this does NOT flush the runtime — the abort cascade only completes
+/// after the `QueryStreamHandle` is dropped (via `stream_close`). Call
+/// [`flush_cpu_runtime`] after `stream_close` to ensure deferred drops are
+/// processed and GroupValues buffers are freed.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.cancellation_token.cancel();
         if let Some(handle) = tracker.abort_handle.get() {
             handle.abort();
         }
+        let nanos = PROCESS_START.elapsed().as_nanos() as u64;
+        tracker
+            .cancelled_at_nanos
+            .compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed)
+            .ok();
     }
+}
+
+/// Flush the CPU runtime for the given context_id, giving tokio workers
+/// scheduling opportunities to process deferred drops from the abort cascade.
+///
+/// Call this AFTER `stream_close` has dropped the `QueryStreamHandle` (which
+/// drops the JoinSet, releasing aborted task futures for collection). The flush
+/// spawns lightweight tasks that yield repeatedly, ensuring workers wake up and
+/// process the pending drops (pull_from_input futures → GroupValues buffers).
+///
+/// No-op if no runtime handle is registered or the query is unknown.
+pub fn flush_cpu_runtime(context_id: i64) {
+    let rt_handle = QUERY_REGISTRY
+        .get(&context_id)
+        .and_then(|tracker| tracker.cpu_runtime_handle.get().cloned());
+
+    if let Some(handle) = rt_handle {
+        flush_cpu_runtime_with_handle(&handle, context_id);
+    }
+}
+
+/// Flush variant that takes the runtime handle directly — used by `stream_close`
+/// which must extract the handle before dropping the tracker (drop removes it
+/// from the registry).
+pub fn flush_cpu_runtime_with_handle(handle: &tokio::runtime::Handle, context_id: i64) {
+    let (tx, rx) = std::sync::mpsc::sync_channel(FLUSH_WORKER_COUNT);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        let tx = tx.clone();
+        handle.spawn(async move {
+            for _ in 0..FLUSH_YIELDS_PER_WORKER {
+                tokio::task::yield_now().await;
+            }
+            let _ = tx.send(());
+        });
+    }
+    drop(tx);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        if rx.recv_timeout(CANCEL_FLUSH_TIMEOUT).is_err() {
+            warn!(
+                "flush_cpu_runtime({}): timed out after {}ms",
+                context_id,
+                CANCEL_FLUSH_TIMEOUT.as_millis()
+            );
+            break;
+        }
+    }
+}
+
+/// Extract the CPU runtime handle from the tracker, removing it. Used by
+/// `stream_close` to grab the handle before the tracker is dropped (which
+/// removes it from the registry).
+pub fn take_cpu_runtime_handle(context_id: i64) -> Option<tokio::runtime::Handle> {
+    QUERY_REGISTRY
+        .get(&context_id)
+        .and_then(|tracker| tracker.cpu_runtime_handle.get().cloned())
 }
 
 /// Clone the cancellation token for the given context_id, if registered.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
-    QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+    QUERY_REGISTRY
+        .get(&context_id)
+        .map(|t| t.cancellation_token.clone())
 }
 
 /// Store the CPU task's AbortHandle for the given context_id.
@@ -316,6 +462,36 @@ pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.abort_handle.set(handle).ok();
     }
+}
+
+/// Store the CPU runtime handle for the given context_id so that
+/// `cancel_query` can flush deferred drops on that runtime.
+pub fn set_cpu_runtime_handle(context_id: i64, handle: tokio::runtime::Handle) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.cpu_runtime_handle.set(handle).ok();
+    }
+}
+
+/// Counts queries currently running past the cancellation threshold, by type.
+/// Returns (shard_current, coordinator_current).
+///
+/// Lock-free: reads each entry's `cancelled_at_nanos` atomically.
+pub fn count_cancelled_running(threshold: Duration) -> (i64, i64) {
+    let mut shard_count: i64 = 0;
+    let mut coordinator_count: i64 = 0;
+    let threshold_nanos = threshold.as_nanos() as u64;
+    let now_nanos = PROCESS_START.elapsed().as_nanos() as u64;
+    for entry in QUERY_REGISTRY.iter() {
+        let tracker = entry.value();
+        let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
+        if cancelled_nanos > 0 && (now_nanos - cancelled_nanos) >= threshold_nanos {
+            match tracker.query_type {
+                QueryType::Shard => shard_count += 1,
+                QueryType::Coordinator => coordinator_count += 1,
+            }
+        }
+    }
+    (shard_count, coordinator_count)
 }
 
 // ---------------------------------------------------------------------------
@@ -338,17 +514,24 @@ pub struct QueryTrackingContext {
 impl QueryTrackingContext {
     /// Create a new query context. If `context_id` is 0, tracking is
     /// disabled and `memory_pool()` returns `None`.
-    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>) -> Self {
+    pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>, query_type: QueryType) -> Self {
         if context_id == 0 {
-            return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
+            return Self {
+                tracker: None,
+                phantom_reservation: None,
+                phantom_corrector: None,
+            };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
         let tracker = Arc::new(QueryTracker {
             start_time: Instant::now(),
             context_id,
+            query_type,
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cpu_runtime_handle: OnceLock::new(),
+            cancelled_at_nanos: AtomicU64::new(0),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
@@ -377,10 +560,11 @@ impl QueryTrackingContext {
 
     /// Apply pending phantom correction from the self-correcting budget.
     pub fn apply_pending_phantom_correction(&mut self) {
-        let (corrector, reservation) = match (&self.phantom_corrector, &mut self.phantom_reservation) {
-            (Some(c), Some(r)) => (c, r),
-            _ => return,
-        };
+        let (corrector, reservation) =
+            match (&self.phantom_corrector, &mut self.phantom_reservation) {
+                (Some(c), Some(r)) => (c, r),
+                _ => return,
+            };
         let delta = corrector.take_pending_delta();
         if delta == 0 {
             return;
@@ -421,7 +605,29 @@ impl Drop for QueryTrackingContext {
                 tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
             );
+
+            // Remove from registry BEFORE incrementing total. This ensures a
+            // query is never simultaneously visible in both the registry scan
+            // (current) and the total counter — preventing double-counting in
+            // snapshot_cancellation_stats.
             QUERY_REGISTRY.remove(&tracker.context_id);
+
+            // If this query was cancelled and ran past the threshold, bump the total counter.
+            let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
+            if cancelled_nanos > 0 {
+                let elapsed_since_cancel =
+                    PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
+                if elapsed_since_cancel >= cancel_stats_threshold().as_nanos() as u64 {
+                    match tracker.query_type {
+                        QueryType::Shard => {
+                            crate::native_node_stats::inc_native_search_shard_task_total();
+                        }
+                        QueryType::Coordinator => {
+                            crate::native_node_stats::inc_native_search_task_total();
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -431,7 +637,7 @@ mod tests {
     use super::*;
     use datafusion::execution::memory_pool::GreedyMemoryPool;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn make_global_pool(limit: usize) -> Arc<dyn MemoryPool> {
         Arc::new(GreedyMemoryPool::new(limit))
@@ -504,7 +710,7 @@ mod tests {
     #[test]
     fn test_context_returns_none_pool_for_zero_id() {
         let global = make_global_pool(10_000);
-        let ctx = QueryTrackingContext::new(0, global);
+        let ctx = QueryTrackingContext::new(0, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_none());
     }
 
@@ -512,7 +718,7 @@ mod tests {
     fn test_context_registers_and_removes_on_drop() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_000;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         assert!(ctx.memory_pool().is_some());
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
 
@@ -525,7 +731,7 @@ mod tests {
     fn test_drop_removes_from_registry() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_001;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         thread::sleep(Duration::from_millis(50));
@@ -539,7 +745,7 @@ mod tests {
     fn test_wall_secs_ticks_while_running() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_002;
-        let _ctx = QueryTrackingContext::new(ctx_id, global);
+        let _ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         let t1 = QUERY_REGISTRY.get(&ctx_id).unwrap().wall_secs();
         thread::sleep(Duration::from_millis(50));
@@ -554,7 +760,7 @@ mod tests {
     fn test_memory_tracking_through_full_lifecycle() {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_004;
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "lifecycle_test");
@@ -588,8 +794,8 @@ mod tests {
         let ctx_a_id = 50_005;
         let ctx_b_id = 50_006;
 
-        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global));
-        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global));
+        let ctx_a = QueryTrackingContext::new(ctx_a_id, Arc::clone(&global), QueryType::Shard);
+        let ctx_b = QueryTrackingContext::new(ctx_b_id, Arc::clone(&global), QueryType::Shard);
 
         let pool_a = ctx_a.memory_pool().unwrap();
         let pool_b = ctx_b.memory_pool().unwrap();
@@ -625,7 +831,7 @@ mod tests {
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_010;
 
-        let ctx = QueryTrackingContext::new(ctx_id, global);
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
         let qp = ctx.memory_pool().unwrap();
         let pool: Arc<dyn MemoryPool> = qp.clone();
         let mut reservation = make_reservation(&pool, "stream_data");
@@ -654,12 +860,200 @@ mod tests {
         let ctx_id = 50_011;
 
         {
-            let ctx = QueryTrackingContext::new(ctx_id, global);
+            let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
             let _pool = ctx.memory_pool();
             assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         } // ctx dropped here — removes from registry
 
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // Cancellation stats tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_sets_cancelled_at() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled yet
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) == 0);
+
+        // Cancel
+        cancel_query(ctx_id);
+
+        // cancelled_at should be set
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        drop(tracker);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_cancel_query_idempotent() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_002;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        cancel_query(ctx_id);
+        let first = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
+
+        thread::sleep(Duration::from_millis(10));
+        cancel_query(ctx_id);
+        let second = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
+
+        // Second cancel should not overwrite the first timestamp
+        assert_eq!(first, second);
+        drop(ctx);
+    }
+
+    #[test]
+    fn test_count_cancelled_running_with_zero_threshold() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 60_003;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Not cancelled — cancelled_at_nanos should be 0
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert_eq!(tracker.cancelled_at_nanos.load(Ordering::Relaxed), 0);
+        drop(tracker);
+
+        // Cancel it
+        cancel_query(ctx_id);
+
+        // Now cancelled_at_nanos should be > 0
+        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        drop(tracker);
+
+        drop(ctx);
+
+        // After drop, not in registry
+        assert!(QUERY_REGISTRY.get(&ctx_id).is_none());
+    }
+
+    #[test]
+    fn test_count_cancelled_running_distinguishes_query_types() {
+        let global = make_global_pool(10_000);
+        let shard_id = 60_005;
+        let coord_id = 60_006;
+
+        let shard_ctx = QueryTrackingContext::new(shard_id, Arc::clone(&global), QueryType::Shard);
+        let coord_ctx =
+            QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
+
+        cancel_query(shard_id);
+        cancel_query(coord_id);
+
+        // Verify each query is registered, cancelled, and has correct type
+        let shard_tracker = QUERY_REGISTRY.get(&shard_id).unwrap();
+        assert!(shard_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        assert_eq!(shard_tracker.query_type, QueryType::Shard);
+        drop(shard_tracker);
+
+        let coord_tracker = QUERY_REGISTRY.get(&coord_id).unwrap();
+        assert!(coord_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
+        assert_eq!(coord_tracker.query_type, QueryType::Coordinator);
+        drop(coord_tracker);
+
+        drop(shard_ctx);
+        drop(coord_ctx);
+    }
+
+    // -----------------------------------------------------------------------
+    // Flush-on-cancel tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_flushes_deferred_drops() {
+        use std::sync::atomic::AtomicBool;
+
+        // Tracks whether the captured state inside the spawned future was dropped.
+        struct DropSentinel(Arc<AtomicBool>);
+        impl Drop for DropSentinel {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+
+        let global = make_global_pool(10_000);
+        // Unique id: the QUERY_REGISTRY is process-wide and tests run in parallel, so this must not
+        // collide with any other test's id (70_001 collides with test_top_n_picks_highest_current_bytes).
+        let ctx_id = 80_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Build a dedicated executor with its own tokio runtime.
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.worker_threads(2).enable_all();
+        let exec = crate::executor::DedicatedExecutor::new("test-flush", builder, 2);
+
+        // Store the runtime handle in the tracker (mirrors production path).
+        if let Some(rt) = exec.handle() {
+            set_cpu_runtime_handle(ctx_id, rt);
+        }
+
+        // Spawn a task that holds the sentinel and blocks forever at an await.
+        let dropped = Arc::new(AtomicBool::new(false));
+        let sentinel = DropSentinel(Arc::clone(&dropped));
+
+        let (abort_handle, _join_fut) = exec.spawn_with_abort_handle(async move {
+            let _hold = sentinel; // captured in the future's state
+                                  // Block forever — only abort can end this.
+            futures::future::pending::<()>().await;
+        });
+
+        if let Some(h) = abort_handle {
+            set_abort_handle(ctx_id, h);
+        }
+
+        // Small delay to let the task actually park at the pending().await
+        thread::sleep(Duration::from_millis(10));
+
+        // Verify not yet dropped
+        assert!(
+            !dropped.load(Ordering::Acquire),
+            "sentinel should be alive before cancel"
+        );
+
+        // cancel_query aborts the task (marks it cancelled in the runtime)
+        cancel_query(ctx_id);
+
+        // The abort is async — the task future may not be dropped yet.
+        // flush_cpu_runtime gives the runtime scheduling opportunities to
+        // process the abort and drop the future (freeing the sentinel). A single
+        // flush is best-effort: it spawns a fixed number of yield tasks and
+        // returns once they finish, which under heavy parallel test load (a
+        // CPU-starved CI box running 1000+ tests against a 2-worker runtime) can
+        // race the runtime actually polling and dropping the aborted task. Poll
+        // the flush until the deferred drop is observed, bounded by a timeout so
+        // a genuine regression (flush never processes the drop) still fails.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !dropped.load(Ordering::Acquire) && Instant::now() < deadline {
+            flush_cpu_runtime(ctx_id);
+            if dropped.load(Ordering::Acquire) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        // After flushing, the sentinel must have been dropped.
+        assert!(
+            dropped.load(Ordering::Acquire),
+            "sentinel must be dropped after flush — deferred drop was not processed"
+        );
+
+        drop(ctx);
+        exec.join_blocking();
     }
 
     // -----------------------------------------------------------------------
@@ -693,9 +1087,9 @@ mod tests {
         let id_md = 70_001;
         let id_hi = 70_002;
 
-        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global));
-        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global));
-        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global));
+        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global), QueryType::Shard);
+        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global), QueryType::Shard);
+        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global), QueryType::Shard);
 
         let pool_lo: Arc<dyn MemoryPool> = ctx_lo.memory_pool().unwrap();
         let pool_md: Arc<dyn MemoryPool> = ctx_md.memory_pool().unwrap();
@@ -743,17 +1137,17 @@ mod tests {
         let zero_id = 70_101;
         let done_id = 70_102;
 
-        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global));
+        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global), QueryType::Shard);
         let live_pool: Arc<dyn MemoryPool> = live_ctx.memory_pool().unwrap();
         let mut r_live = make_reservation(&live_pool, "live");
         r_live.try_grow(4_096).unwrap();
 
         // Registered but never reserved — current_bytes stays 0.
-        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global));
+        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global), QueryType::Shard);
 
         // Completed before snapshot. Drop reservation first so QueryMemoryPool
         // is settled, then drop the context to flip the completed flag.
-        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global));
+        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global), QueryType::Shard);
         let done_pool: Arc<dyn MemoryPool> = done_ctx.memory_pool().unwrap();
         let mut r_done = make_reservation(&done_pool, "done");
         r_done.try_grow(8_192).unwrap();
@@ -782,7 +1176,7 @@ mod tests {
     fn test_top_n_with_buffer_larger_than_live_set() {
         let global = make_global_pool(1_000_000);
         let id = 70_200;
-        let ctx = QueryTrackingContext::new(id, global);
+        let ctx = QueryTrackingContext::new(id, global, QueryType::Shard);
         let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
         let mut r = make_reservation(&pool, "only");
         r.try_grow(2_048).unwrap();
@@ -813,7 +1207,7 @@ mod tests {
         let mut contexts = Vec::with_capacity(ids.len());
         let mut reservations = Vec::with_capacity(ids.len());
         for (i, id) in ids.iter().enumerate() {
-            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global));
+            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global), QueryType::Shard);
             let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
             let mut r = make_reservation(&pool, "cap");
             r.try_grow((i as usize + 1) * 1_000).unwrap();

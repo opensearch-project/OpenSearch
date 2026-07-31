@@ -15,6 +15,7 @@ import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
+import org.opensearch.analytics.planner.dag.ShardTargetResolver;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.DelegationDescriptor;
@@ -47,6 +48,11 @@ public final class ShardFragmentStageExecutionFactory implements StageExecutionF
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
+        // Inject the per-query max-shards limit (snapshotted from the dynamic cluster setting by
+        // DefaultPlanExecutor into the QueryContext) into the resolver, which enforces it at resolve().
+        if (stage.getTargetResolver() instanceof ShardTargetResolver shardResolver) {
+            shardResolver.setMaxShardsPerQuery(config.maxShardsPerQuery());
+        }
         List<FragmentExecutionRequest.PlanAlternative> planAlternatives = buildPlanAlternatives(stage);
         final String queryId = config.queryId();
         final int stageId = stage.getStageId();
@@ -54,7 +60,8 @@ public final class ShardFragmentStageExecutionFactory implements StageExecutionF
             queryId,
             stageId,
             target.shardId(),
-            planAlternatives
+            planAlternatives,
+            config.profile()
         );
         // Execution pulls the resolver off `stage` and calls resolve() lazily at start().
         // This keeps target resolution out of the build phase so cancellation before

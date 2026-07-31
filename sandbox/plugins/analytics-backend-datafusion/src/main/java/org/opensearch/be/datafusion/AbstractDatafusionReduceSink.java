@@ -12,8 +12,10 @@ import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 
 import java.util.LinkedHashMap;
@@ -41,7 +43,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
+abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, CancellableExchangeSink {
 
     /** Single-input shortcut for the per-child table id; multi-input uses {@link #inputIdFor(int)}. */
     static final String INPUT_ID = "input-0";
@@ -49,6 +51,8 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
     protected final ExchangeSinkContext ctx;
     protected final NativeRuntimeHandle runtimeHandle;
     protected final DatafusionLocalSession session;
+    /** Execution metrics + physical plan JSON, populated after reduce drains. */
+    protected volatile byte[] executionMetrics;
 
     /**
      * Non-null when constructed from a pre-prepared plan (FinalAggregateInstructionHandler):
@@ -94,6 +98,20 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
         return "input-" + childStageId;
     }
 
+    /**
+     * Fires the Rust CancellationToken for this query so that {@code stream_next}
+     * returns the sentinel {@code 0} immediately and the drain unblocks without
+     * waiting for DataFusion to finish naturally. No-op when {@code taskId} is 0
+     * (no context registered) or when already closed.
+     */
+    @Override
+    public final void cancel() {
+        long taskId = ctx.taskId();
+        if (taskId != 0L) {
+            NativeBridge.cancelQuery(taskId);
+        }
+    }
+
     @Override
     public void feed(VectorSchemaRoot batch) {
         synchronized (feedLock) {
@@ -130,6 +148,11 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
      */
     protected abstract void feedBatchUnderLock(VectorSchemaRoot batch);
 
+    /** Returns execution metrics JSON (including physical_plan) captured after reduce, or null. */
+    public byte[] getExecutionMetrics() {
+        return executionMetrics;
+    }
+
     /**
      * Subclass shutdown. Despite the historical name, this is NOT called under {@link #feedLock} —
      * the lock is released after {@link #closed} is flipped. Subclasses own the full teardown
@@ -147,7 +170,20 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
         try (CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()) {
             DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(outStream, alloc, dictProvider);
             while (it.hasNext()) {
-                ctx.downstream().feed(it.next().getArrowRoot());
+                // next() transfers ownership of the imported VSR to us. feed() takes ownership only
+                // on success; if it throws (e.g. the downstream sink was torn down on a concurrent
+                // cancel), the imported batch would otherwise leak in the per-query allocator —
+                // close it ourselves on the failure path.
+                VectorSchemaRoot batch = it.next().getArrowRoot();
+                boolean fed = false;
+                try {
+                    ctx.downstream().feed(batch);
+                    fed = true;
+                } finally {
+                    if (!fed) {
+                        batch.close();
+                    }
+                }
             }
         }
     }

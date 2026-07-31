@@ -12,9 +12,12 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.FragmentExecutionStats;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -28,6 +31,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -41,6 +45,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -123,15 +128,59 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        return executeFragmentStreamingResolved(request, shard, task).resources;
+    }
+
+    private ResolvedExecution executeFragmentStreamingResolved(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task
+    ) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
-            return startFragment(request, resolved, shard, task);
+            FragmentResources resources = startFragment(request, resolved, shard, task);
+            return new ResolvedExecution(resources, resolved);
         } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw e;
+        } catch (OpenSearchException e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw e;
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            // Log the original failure with its full stack at the origin: the thrown exception is handed
+            // to async dispatch / stream transport and can be re-wrapped or swallowed downstream, so this
+            // is the one place guaranteed to see the real cause and stack.
+            LOGGER.warn(
+                new ParameterizedMessage(
+                    "[FragmentExecution] failed to start streaming fragment on shard={} queryId={} stageId={}",
+                    shard.shardId(),
+                    resolved.queryId,
+                    resolved.stageId
+                ),
+                e
+            );
+            // Convert native errors (e.g. memory-pool / admission trips) to typed exceptions via the
+            // ACTUALLY-SELECTED backend so a resource-exhaustion failure surfaces as 429 instead of a
+            // generic 500. Only wrap as a generic RuntimeException when conversion found nothing.
+            Exception converted = convertWith(resolved.plan().getBackendId(), e);
+            if (converted != e) {
+                throw converted instanceof RuntimeException re ? re : new RuntimeException(converted);
+            }
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
+        }
+    }
+
+    /** Converts {@code e} via the named backend's exception SPI; returns {@code e} unchanged if the backend is absent or doesn't recognize it. */
+    private Exception convertWith(String backendId, Exception e) {
+        AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+        return backend == null ? e : backend.convertException(e);
+    }
+
+    private record ResolvedExecution(FragmentResources resources, ResolvedFragment resolved) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            resources.close();
         }
     }
 
@@ -149,14 +198,64 @@ public class AnalyticsSearchService implements AutoCloseable {
         try {
             executor.execute(() -> {
                 LOGGER.debug("[FragmentExecution] shard={} task={}", shard.shardId(), task.getId());
-                try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
-                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                final long startNanos = System.nanoTime();
+                long rowsProduced = 0;
+                try (ResolvedExecution exec = executeFragmentStreamingResolved(request, shard, task)) {
+                    Iterator<EngineResultBatch> it = exec.resources().stream().iterator();
                     while (it.hasNext()) {
-                        responseHandler.onBatch(it.next());
+                        EngineResultBatch batch = it.next();
+                        rowsProduced += batch.getRowCount();
+                        responseHandler.onBatch(batch);
                     }
-                    responseHandler.onComplete();
+                    long fragmentTookNanos = System.nanoTime() - startNanos;
+                    // Extract DataFusion execution metrics only when needed
+                    if (request.profile() || LOGGER.isDebugEnabled()) {
+                        byte[] metricsJson = exec.resources().getExecutionMetrics();
+                        if (LOGGER.isDebugEnabled() && metricsJson != null) {
+                            LOGGER.debug(
+                                "[FragmentMetrics] shard={} metrics={}",
+                                shard.shardId(),
+                                new String(metricsJson, StandardCharsets.UTF_8)
+                            );
+                        }
+                        if (request.profile() && metricsJson != null) {
+                            responseHandler.onCompleteWithMetrics(metricsJson);
+                        } else {
+                            responseHandler.onComplete();
+                        }
+                    } else {
+                        responseHandler.onComplete();
+                    }
+                    ResolvedFragment resolved = exec.resolved();
+                    DelegationDescriptor delegation = resolved.plan().getDelegationDescriptor();
+                    boolean usedSecondaryIndex = delegation != null;
+                    int delegatedPredicateCount = delegation != null ? delegation.delegatedPredicateCount() : 0;
+                    String filterTreeShape = delegation != null ? delegation.treeShape().name() : null;
+                    boolean hasPartialAggregate = resolved.plan()
+                        .getInstructions()
+                        .stream()
+                        .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
+                    FragmentExecutionStats stats = new FragmentExecutionStats(
+                        rowsProduced,
+                        usedSecondaryIndex,
+                        delegatedPredicateCount,
+                        filterTreeShape,
+                        hasPartialAggregate,
+                        task.getId(),
+                        task.getHeader(Task.X_OPAQUE_ID)
+                    );
+                    listener.onFragmentSuccess(
+                        request.getQueryId(),
+                        request.getStageId(),
+                        shard.shardId().toString(),
+                        fragmentTookNanos,
+                        shard.indexSettings(),
+                        stats
+                    );
                 } catch (Exception e) {
-                    responseHandler.onFailure(e);
+                    // Query phase failed: no fetch will follow, so free the reader eagerly (no-op if already freed).
+                    readerContextStore.freeContext(request.getQueryId(), shard.shardId());
+                    responseHandler.onFailure(convertWith(selectedBackendId(request), e));
                 }
             });
         } catch (Exception e) {
@@ -202,7 +301,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         AnalyticsShardTask task,
         StreamingFragmentResponseHandler responseHandler
     ) {
-        if (task != null && task.isCancelled()) {
+        assert task != null : "fetch on " + shard.shardId() + " requires a non-null AnalyticsShardTask";
+        if (task.isCancelled()) {
             responseHandler.onFailure(new TaskCancelledException("Fetch task cancelled before execution: " + task.getReasonCancelled()));
             return;
         }
@@ -237,7 +337,8 @@ public class AnalyticsSearchService implements AutoCloseable {
         assert assertFetchInvariants(readerContext, request.getQueryId());
         AnalyticsSearchBackendPlugin backend = backends.get(request.getBackendId());
         if (backend == null) {
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
             responseHandler.onFailure(
                 new IllegalStateException(
                     "No backend registered for backendId="
@@ -262,16 +363,30 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator);
+            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
-            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector);
+            // Fetch is the terminal phase: no fetch follows, so close() frees the reader eagerly.
+            resources = new FragmentResources(readerContextStore, readerContext, null, stream, null, rowIdVector, false);
+        } catch (OpenSearchException e) {
+            if (rowIdVector != null) rowIdVector.close();
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
+            responseHandler.onFailure(e);
+            return;
         } catch (Exception e) {
             if (rowIdVector != null) rowIdVector.close();
-            readerContextStore.releaseContext(request.getQueryId(), shard.shardId());
-            responseHandler.onFailure(new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e));
+            // Fetch is terminal: free the reader eagerly.
+            readerContextStore.releaseAndFree(request.getQueryId(), shard.shardId());
+            Exception converted = backend.convertException(e);
+            responseHandler.onFailure(
+                converted == e ? new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e) : converted
+            );
             return;
         }
+        // On cancel, release a fetch parked in the native pull via cooperative cancellation, not
+        // stream.close() (which would race the in-flight native pull).
+        task.setCancellationListener(() -> backend.cancelByContext(task.getId()));
         try (FragmentResources ctx = resources) {
             Iterator<EngineResultBatch> it = ctx.stream().iterator();
             while (it.hasNext()) {
@@ -279,7 +394,9 @@ public class AnalyticsSearchService implements AutoCloseable {
             }
             responseHandler.onComplete();
         } catch (Exception e) {
-            responseHandler.onFailure(e);
+            responseHandler.onFailure(backend.convertException(e));
+        } finally {
+            task.clearCancellationListener();
         }
     }
 
@@ -291,15 +408,23 @@ public class AnalyticsSearchService implements AutoCloseable {
 
         void onComplete();
 
+        /** Called with execution metrics when profiling is enabled. Default delegates to onComplete(). */
+        default void onCompleteWithMetrics(byte[] metrics) {
+            onComplete();
+        }
+
         void onFailure(Exception e);
     }
 
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
-        // QTF: hand the reader to the store so the fetch phase can reuse it without re-opening.
-        // FragmentResources holds a reference to the ReaderContext; close() releases it back
-        // to the store, the reaper closes after keepAlive.
+        // A query that requested top-N docs (row-ids) will be followed by a fetch phase that reuses
+        // this reader. When it does, close() keeps the reader in the store for the fetch; otherwise
+        // close() frees it immediately instead of waiting for the reaper.
+        // TODO: the coordinator (which knows the query shape) should tell us whether a fetch
+        // follows, rather than us inferring it from the row-id signal here.
+        boolean requiresTopDocs = requestsRowIds(resolved.plan.getInstructions());
         ReaderContext readerContext = readerContextStore.createContext(request.getQueryId(), shard.shardId(), gatedReader);
         assert assertReaderInvariants(gatedReader, readerContext, request.getQueryId(), shard);
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
@@ -308,32 +433,38 @@ public class AnalyticsSearchService implements AutoCloseable {
         Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, readerContext.getReader(), resolved.plan, shard, task);
+            ctx.setHasPartialAggregate(
+                resolved.plan.getInstructions()
+                    .stream()
+                    .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE)
+            );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
-            // Apply instruction handlers in order — each builds upon the previous handler's backend context
-            List<InstructionNode> instructions = resolved.plan.getInstructions();
-            if (!instructions.isEmpty()) {
-                FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
-                for (InstructionNode node : instructions) {
-                    FragmentInstructionHandler handler = factory.createHandler(node);
-                    backendContext = handler.apply(node, ctx, backendContext);
-                }
-            }
+            backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
             // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
             // TODO: currently assumes single accepting backend. When multiple accepting backends exist
             // (e.g., Lucene + Tantivy), group expressions by acceptingBackendId and create one handle per group.
             DelegationDescriptor delegation = resolved.plan.getDelegationDescriptor();
             if (delegation != null) {
+                // Filter delegation routes per-query state via taskId; without a task we cannot
+                // isolate concurrent queries from each other. Validate before allocating any
+                // delegation resources to avoid leaks.
+                if (task == null) {
+                    throw new IllegalStateException("Filter delegation requires a tracked task for per-query isolation");
+                }
+                long contextId = task.getId();
+
                 String acceptingBackendId = delegation.delegatedExpressions().getFirst().getAcceptingBackendId();
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
-                backend.configureFilterDelegation(handle, backendContext);
 
-                if (task != null && taskResourceTrackingService != null) {
+                // Build a thread tracker when task resource tracking is available.
+                DelegationThreadTracker tracker = null;
+                if (taskResourceTrackingService != null) {
                     long taskId = task.getId();
                     TaskResourceTrackingService service = taskResourceTrackingService;
-                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                    tracker = new DelegationThreadTracker() {
                         @Override
                         public long trackStart() {
                             long threadId = Thread.currentThread().threadId();
@@ -345,14 +476,18 @@ public class AnalyticsSearchService implements AutoCloseable {
                         public void trackEnd(long threadId) {
                             service.taskExecutionFinishedOnThread(taskId, threadId);
                         }
-                    });
-                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
+                    };
                 }
+
+                // Register handle and tracker together under the query's contextId so concurrent
+                // queries have isolated FFM callback bindings. The returned cleanup removes the
+                // binding after query execution completes.
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, tracker, backendContext);
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup);
+            return new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, requiresTopDocs);
         } catch (Exception e) {
             LOGGER.error(
                 () -> new org.apache.logging.log4j.message.ParameterizedMessage(
@@ -364,7 +499,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                 e
             );
             try {
-                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup).close();
+                // Query phase failed: no fetch will follow, so free the reader eagerly (requiresTopDocs=false).
+                new FragmentResources(readerContextStore, readerContext, engine, stream, trackerCleanup, false).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -382,8 +518,56 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
+    /**
+     * Applies each instruction handler in order. Each handler reads the previous handler's
+     * {@link BackendExecutionContext} and returns the next one. Returns {@code null} when the
+     * instruction list is empty.
+     */
+    /**
+     * Whether the query phase emits shard-global {@code __row_id__} values — i.e. a QTF query whose
+     * fetch phase will reuse this reader. Derived from the {@link ShardScanInstructionNode} the
+     * coordinator put in the plan (the same flag that makes the backend emit row ids).
+     */
+    static boolean requestsRowIds(List<InstructionNode> instructions) {
+        for (InstructionNode node : instructions) {
+            if (node instanceof ShardScanInstructionNode scan) {
+                return scan.requestsRowIds();
+            }
+        }
+        return false;
+    }
+
+    private static BackendExecutionContext applyInstructionHandlers(
+        AnalyticsSearchBackendPlugin backend,
+        List<InstructionNode> instructions,
+        ShardScanExecutionContext ctx
+    ) {
+        if (instructions.isEmpty()) return null;
+        FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
+        BackendExecutionContext backendContext = null;
+        for (InstructionNode node : instructions) {
+            FragmentInstructionHandler handler = factory.createHandler(node);
+            backendContext = handler.apply(node, ctx, backendContext);
+        }
+        return backendContext;
+    }
+
     private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
         int stageId, String shardIdStr) {
+    }
+
+    /**
+     * Backend id of the plan alternative {@code request} will actually run — the first whose backend is
+     * registered locally. Mirrors {@link #resolveFragment}'s selection so exception conversion uses the
+     * same backend that produced the failure. Returns null if none is registered.
+     */
+    private String selectedBackendId(FragmentExecutionRequest request) {
+        for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
+            if (backends.containsKey(alt.getBackendId())) {
+                return alt.getBackendId();
+            }
+        }
+        return null;
     }
 
     private ResolvedFragment resolveFragment(FragmentExecutionRequest request, IndexShard shard) {
@@ -392,8 +576,10 @@ public class AnalyticsSearchService implements AutoCloseable {
             throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
         }
 
-        // Select the first available plan alternative whose backend is registered on this node.
-        // TODO: smarter selection based on data node capabilities/load
+        // Backend selection happens on the coordinator (PlanAlternativeSelector), so the
+        // request typically carries a single alternative. We still iterate to handle the
+        // case where a stage genuinely has multiple value-producing alternatives — pick the
+        // first one whose backend is registered locally.
         FragmentExecutionRequest.PlanAlternative selectedPlan = null;
         for (FragmentExecutionRequest.PlanAlternative alt : request.getPlanAlternatives()) {
             if (backends.containsKey(alt.getBackendId())) {

@@ -123,15 +123,18 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         return (AnnotatedPredicate) dualViable.narrowTo(DRIVING);
     }
 
+    // Delegated OR Dual: the Dual leaf can't stay performance-based under OR (perf delegation is
+    // AND-only in the data node), so it's demoted to correctness and fused with the Delegated leaf
+    // into ONE Lucene shipment. The shape is then a single delegated leaf → label = CONJUNCTIVE.
+    // (The label must match what the combiner emits; a mismatch here is what caused the all-docs bug.)
     public void testOrWithCorrectnessAndPerfDelegated() {
-        // OR(correctness-delegated, perf-delegated) — perf won't combine under OR → INTERLEAVED
         RexNode correctness = annotated(ACCEPTING);
         RexNode perf = perfDelegated();
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, correctness, perf);
         OpenSearchFilter filter = buildFilter(orNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
     public void testAndWithCorrectnessAndPerfDelegated() {
@@ -145,14 +148,15 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
     }
 
+    // NOT(dual-equality) is not delegated — it stays native → NO_DELEGATION. (Combiner counterpart:
+    // FragmentConversionDriverTests#testNotEqualsStaysNative, NOT(EQUALS) → 0 delegated expressions.)
     public void testNotOfPerfDelegated() {
-        // NOT(perf-delegated) — perf under NOT won't combine → INTERLEAVED
         RexNode perf = perfDelegated();
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, perf);
         OpenSearchFilter filter = buildFilter(notNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+        assertEquals(FilterTreeShape.NO_DELEGATION, shape);
     }
 
     private OpenSearchFilter buildFilter(RexNode condition) {

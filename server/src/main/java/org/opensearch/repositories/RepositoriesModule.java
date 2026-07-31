@@ -95,7 +95,7 @@ public final class RepositoriesModule {
 
         factories.put(
             ReloadableFsRepository.TYPE,
-            metadata -> new ReloadableFsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
+            metadata -> new ReloadableFsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, fsNativeProvider)
         );
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {

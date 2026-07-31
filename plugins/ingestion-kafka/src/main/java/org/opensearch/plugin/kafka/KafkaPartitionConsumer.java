@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
-import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Duration;
@@ -47,9 +46,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     protected final Consumer<byte[], byte[]> consumer;
 
     private long lastFetchedOffset = -1;
-    final String clientId;
-    final TopicPartition topicPartition;
-    final KafkaSourceConfig config;
+    private final String clientId;
+    private final int partitionId;
+    private final KafkaSourceConfig config;
+    private TopicPartition topicPartition;
 
     /**
      * Constructor
@@ -72,6 +72,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.clientId = clientId;
         this.consumer = consumer;
         this.config = config;
+        this.partitionId = partitionId;
+    }
+
+    void initialize() throws Exception {
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
             (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(
@@ -289,7 +293,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public synchronized void close() {
         consumer.close();
     }
 

@@ -40,12 +40,18 @@ public class FragmentExecutionRequest extends ActionRequest implements ShardInvo
     private final int stageId;
     private final ShardId shardId;
     private final List<PlanAlternative> planAlternatives;
+    private final boolean profile;
 
     public FragmentExecutionRequest(String queryId, int stageId, ShardId shardId, List<PlanAlternative> planAlternatives) {
+        this(queryId, stageId, shardId, planAlternatives, false);
+    }
+
+    public FragmentExecutionRequest(String queryId, int stageId, ShardId shardId, List<PlanAlternative> planAlternatives, boolean profile) {
         this.queryId = queryId;
         this.stageId = stageId;
         this.shardId = shardId;
         this.planAlternatives = planAlternatives;
+        this.profile = profile;
     }
 
     public FragmentExecutionRequest(StreamInput in) throws IOException {
@@ -58,6 +64,7 @@ public class FragmentExecutionRequest extends ActionRequest implements ShardInvo
         for (int i = 0; i < numAlternatives; i++) {
             planAlternatives.add(new PlanAlternative(in));
         }
+        this.profile = in.readBoolean();
     }
 
     @Override
@@ -70,6 +77,7 @@ public class FragmentExecutionRequest extends ActionRequest implements ShardInvo
         for (PlanAlternative alt : planAlternatives) {
             alt.writeTo(out);
         }
+        out.writeBoolean(profile);
     }
 
     public String getQueryId() {
@@ -86,6 +94,10 @@ public class FragmentExecutionRequest extends ActionRequest implements ShardInvo
 
     public List<PlanAlternative> getPlanAlternatives() {
         return planAlternatives;
+    }
+
+    public boolean profile() {
+        return profile;
     }
 
     @Override

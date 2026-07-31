@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kinesis;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -17,9 +18,9 @@ public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
         Assert.assertNotNull("Factory should be created", factory);
     }
 
-    public void testCreateShardConsumerWithNullSource() {
+    public void testCreateShardConsumerWithNullMetadata() {
         KinesisConsumerFactory factory = new KinesisConsumerFactory();
-        expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, null));
+        expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, (IndexMetadata) null));
     }
 
     public void testParsePointerFromString() {

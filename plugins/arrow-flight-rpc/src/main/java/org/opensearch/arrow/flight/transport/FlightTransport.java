@@ -65,8 +65,10 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import io.grpc.netty.NettyServerBuilder;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
@@ -163,7 +165,13 @@ class FlightTransport extends TcpTransport {
                 statsCollector.setBufferAllocator(flightPool);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, flightPool, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(
+                this,
+                flightPool,
+                SERVER_HEADER_KEY,
+                statsCollector,
+                ServerConfig.FLIGHT_READY_TIMEOUT.get(settings).millis()
+            );
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -242,7 +250,19 @@ class FlightTransport extends TcpTransport {
                     .bossEventLoopGroup(bossEventLoopGroup)
                     .workerEventLoopGroup(workerEventLoopGroup)
                     .executor(serverExecutor)
+                    .backpressureThreshold((int) ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(settings).getBytes())
                     .middleware(SERVER_HEADER_KEY, factory);
+
+                // Server-side gRPC keepalive (see ServerConfig.FLIGHT_KEEPALIVE_TIME). NOTE: only the
+                // server pings today; adding a client keepalive also requires
+                // permitKeepAliveTime/permitKeepAliveWithoutCalls here, else the server GOAWAYs the
+                // client with "too_many_pings".
+                final long keepAliveTimeMs = ServerConfig.getGrpcKeepAliveTime().millis();
+                final long keepAliveTimeoutMs = ServerConfig.getGrpcKeepAliveTimeout().millis();
+                builder.transportHint("grpc.builderConsumer", (Consumer<NettyServerBuilder>) b -> {
+                    b.keepAliveTime(keepAliveTimeMs, TimeUnit.MILLISECONDS);
+                    b.keepAliveTimeout(keepAliveTimeoutMs, TimeUnit.MILLISECONDS);
+                });
 
                 builder.location(locations.get(0));
                 for (int i = 1; i < locations.size(); i++) {

@@ -12,6 +12,8 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
@@ -36,6 +38,8 @@ import java.util.function.Function;
  */
 final class DelegatedPredicateCombiner {
 
+    private static final Logger LOGGER = LogManager.getLogger(DelegatedPredicateCombiner.class);
+
     private final String operatorBackend;
     private final List<FieldStorageInfo> fieldStorage;
     private final CapabilityRegistry registry;
@@ -58,6 +62,16 @@ final class DelegatedPredicateCombiner {
 
     /** Bottom-up: classify each node as Delegated (carries the RexNode subtree) or Resolved. */
     Classified classify(RexNode node, Function<OperatorAnnotation, RexNode> applyFn) {
+        return classify(node, applyFn, false);
+    }
+
+    /**
+     * @param underOrNot true when any ancestor is an OR/NOT. Performance delegation can't survive a
+     *                   disjunction, so a dual-viable leaf anywhere under an OR/NOT — even nested in
+     *                   an AND — is reclassified to correctness in combine(). Threaded so this
+     *                   happens before a mixed inner AND materializes and hides the perf marker.
+     */
+    private Classified classify(RexNode node, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
         if (node instanceof AnnotatedPredicate ap) {
             String backend = ap.getViableBackends().getFirst();
             if (!backend.equals(operatorBackend) && canSerialize(ap, backend)) {
@@ -65,6 +79,12 @@ final class DelegatedPredicateCombiner {
             } else if (!ap.getPerformanceDelegationBackends().isEmpty()) {
                 String peerBackend = ap.getPerformanceDelegationBackends().getFirst();
                 if (canSerialize(ap, peerBackend)) {
+                    // Dual-viable leaf → always performance-delegated. Demotion to correctness is
+                    // decided only by tree position in combine() (under OR/NOT), never here.
+                    // TODO: an AND-side perf leaf can still ride in a tree with a surviving OR/NOT
+                    // (e.g. tag=a AND (dual OR native)); the data node Tree-classifies the whole
+                    // tree and demotes this marker to native. Detecting that here would let the
+                    // data-node fallback be removed.
                     return new Delegated(peerBackend, node, ap.getAnnotationId(), true);
                 }
             }
@@ -77,19 +97,23 @@ final class DelegatedPredicateCombiner {
                 return new Resolved(resolveCallChildren(call, applyFn));
             }
 
+            // Monotonic: once under an OR/NOT, every descendant is too (any depth of nested AND).
+            boolean childUnderOrNot = underOrNot || kind == SqlKind.OR || kind == SqlKind.NOT;
             List<Classified> kids = new ArrayList<>(call.getOperands().size());
             for (RexNode operand : call.getOperands()) {
-                kids.add(classify(operand, applyFn));
+                kids.add(classify(operand, applyFn, childUnderOrNot));
             }
-            return combine(call, kids, applyFn);
+            return combine(call, kids, applyFn, underOrNot);
         }
 
         return new Resolved(node);
     }
 
     /** Combines classified children of an AND/OR/NOT call into a single Classified result. */
-    private Classified combine(RexCall call, List<Classified> kids, Function<OperatorAnnotation, RexNode> applyFn) {
-        boolean isOrNot = call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
+    private Classified combine(RexCall call, List<Classified> kids, Function<OperatorAnnotation, RexNode> applyFn, boolean underOrNot) {
+        // True under any OR/NOT (including an AND nested beneath one): perf can't survive a
+        // disjunction, so perf children here are carved to correctness.
+        boolean isOrNot = underOrNot || call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
 
         List<Delegated> correctnessChildren = new ArrayList<>();
         List<Delegated> performanceChildren = new ArrayList<>();
@@ -98,69 +122,98 @@ final class DelegatedPredicateCombiner {
         boolean multiBackend = false;
 
         for (Classified c : kids) {
-            if (c instanceof Delegated d) {
-                if (isOrNot && d.performanceDelegation()) {
-                    ordered.add(applyFn.apply((AnnotatedPredicate) d.subtree()));
-                } else {
-                    (d.performanceDelegation() ? performanceChildren : correctnessChildren).add(d);
-                    ordered.add(d);
-                    if (commonBackend == null) commonBackend = d.backend();
-                    else if (!commonBackend.equals(d.backend())) multiBackend = true;
-                }
-            } else {
+            if (c instanceof Delegated == false) {
                 ordered.add(((Resolved) c).node());
+                continue;
+            }
+            Delegated d = (Delegated) c;
+
+            // Under OR/NOT a perf child is reclassified to correctness (ships to the peer, fusing
+            // with same-backend correctness siblings); under AND it stays performance.
+            Delegated routed = (isOrNot && d.performanceDelegation())
+                ? new Delegated(d.backend(), d.subtree(), d.firstAnnotationId(), false)
+                : d;
+            if (routed.performanceDelegation()) {
+                performanceChildren.add(routed);
+            } else {
+                correctnessChildren.add(routed);
+            }
+            ordered.add(routed);
+            if (commonBackend == null) {
+                commonBackend = routed.backend();
+            } else if (!commonBackend.equals(routed.backend())) {
+                multiBackend = true;
             }
         }
 
+        Classified result;
+        String outcome;
+        DelegatedSubtreeConvertor convertor = commonBackend == null
+            ? null
+            : registry.getBackend(commonBackend).getDelegatedSubtreeConvertor();
+
         if ((correctnessChildren.isEmpty() && performanceChildren.isEmpty()) || multiBackend) {
-            return new Resolved(materializeIndividually(call, ordered));
-        }
-
-        DelegatedSubtreeConvertor convertor = registry.getBackend(commonBackend).getDelegatedSubtreeConvertor();
-        if (convertor == null) {
-            return new Resolved(materializeIndividually(call, ordered));
-        }
-
-        if (ordered.size() == correctnessChildren.size() && performanceChildren.isEmpty()) {
-            // All children are correctness-delegated to the same backend — bubble up
+            outcome = "INDIVIDUAL";
+            result = new Resolved(materializeIndividually(call, ordered));
+        } else if (convertor == null) {
+            outcome = "INDIVIDUAL (no convertor)";
+            result = new Resolved(materializeIndividually(call, ordered));
+        } else if (ordered.size() == correctnessChildren.size() && performanceChildren.isEmpty()) {
+            // All children correctness-delegated to the same backend — bubble up.
+            outcome = "BUBBLE_UP CORRECTNESS";
             int firstId = correctnessChildren.getFirst().firstAnnotationId();
-            return new Delegated(commonBackend, call, firstId, false);
-        }
-
-        if (ordered.size() == performanceChildren.size() && correctnessChildren.isEmpty()) {
-            // All children are performance-delegated to the same backend — bubble up
+            result = new Delegated(commonBackend, call, firstId, false);
+        } else if (ordered.size() == performanceChildren.size() && correctnessChildren.isEmpty()) {
+            // All children performance-delegated to the same backend — bubble up so the parent can
+            // merge further up the tree before the Mixed branch flattens. Only reachable under AND:
+            // under OR/NOT a perf child is reclassified to correctness before this point, so it
+            // never arrives here as a performance child.
+            outcome = "BUBBLE_UP PERF";
             int firstId = performanceChildren.getFirst().firstAnnotationId();
-            return new Delegated(commonBackend, call, firstId, true);
+            result = new Delegated(commonBackend, call, firstId, true);
+        } else {
+            outcome = "MIXED";
+            // Mixed: combine correctness-delegated into one expression, performance into another.
+            byte[] correctnessCombined = null;
+            int correctnessFirstId = 0;
+            if (!correctnessChildren.isEmpty()) {
+                correctnessFirstId = correctnessChildren.getFirst().firstAnnotationId();
+                RexNode correctnessSubtree = buildCombinedSubtree(call, correctnessChildren);
+                correctnessCombined = convertor.convertSubtree(correctnessSubtree, fieldStorage);
+            }
+            byte[] performanceCombined = null;
+            int performanceFirstId = 0;
+            if (!performanceChildren.isEmpty()) {
+                performanceFirstId = performanceChildren.getFirst().firstAnnotationId();
+                RexNode performanceSubtree = buildCombinedSubtree(call, performanceChildren);
+                performanceCombined = convertor.convertSubtree(performanceSubtree, fieldStorage);
+            }
+            result = new Resolved(
+                materializeCombined(
+                    call,
+                    ordered,
+                    correctnessFirstId,
+                    commonBackend,
+                    correctnessCombined,
+                    performanceFirstId,
+                    performanceCombined
+                )
+            );
         }
 
-        // Mixed: combine correctness-delegated into one expression, performance-delegated into another.
-        byte[] correctnessCombined = null;
-        int correctnessFirstId = 0;
-        if (!correctnessChildren.isEmpty()) {
-            correctnessFirstId = correctnessChildren.getFirst().firstAnnotationId();
-            RexNode correctnessSubtree = buildCombinedSubtree(call, correctnessChildren);
-            correctnessCombined = convertor.convertSubtree(correctnessSubtree, fieldStorage);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "combine kind={} kids={} (correctness={}, perf={}, multiBackend={}) → {}{}",
+                call.getKind(),
+                kids.size(),
+                correctnessChildren.size(),
+                performanceChildren.size(),
+                multiBackend,
+                outcome,
+                commonBackend != null ? " backend=[" + commonBackend + "]" : ""
+            );
         }
-
-        byte[] performanceCombined = null;
-        int performanceFirstId = 0;
-        if (!performanceChildren.isEmpty()) {
-            performanceFirstId = performanceChildren.getFirst().firstAnnotationId();
-            RexNode performanceSubtree = buildCombinedSubtree(call, performanceChildren);
-            performanceCombined = convertor.convertSubtree(performanceSubtree, fieldStorage);
-        }
-
-        return new Resolved(
-            materializeCombined(
-                call,
-                ordered,
-                correctnessFirstId,
-                commonBackend,
-                correctnessCombined,
-                performanceFirstId,
-                performanceCombined
-            )
-        );
+        return result;
     }
 
     private RexNode materializeIndividually(RexCall call, List<Object> ordered) {
@@ -195,7 +248,7 @@ final class DelegatedPredicateCombiner {
             delegatedExpressions.add(new DelegatedExpression(perfFirstId, backend, perfCombined));
             List<RexNode> unwrapped = ordered.stream()
                 .filter(o -> o instanceof Delegated d && d.performanceDelegation())
-                .map(o -> ((AnnotatedPredicate) ((Delegated) o).subtree()).unwrap())
+                .map(o -> unwrapPreservingConnectors(((Delegated) o).subtree(), AnnotatedPredicate::unwrap))
                 .toList();
             RexNode perfOriginal = unwrapped.size() == 1 ? unwrapped.getFirst() : call.clone(call.getType(), unwrapped);
             newOperands.add(DelegationPossibleFunction.makeCall(rexBuilder, perfOriginal, perfFirstId));
@@ -226,16 +279,43 @@ final class DelegatedPredicateCombiner {
 
     /**
      * Returns the appropriate placeholder for a delegated predicate:
-     * - {@link DelegatedPredicateFunction} for correctness-delegation (driving backend cannot evaluate)
-     * - {@link DelegationPossibleFunction} for performance-delegation (driving backend can evaluate natively,
-     *   peer consulted opportunistically)
+     * <ul>
+     *   <li>{@link DelegatedPredicateFunction} for correctness-delegation (driving backend
+     *       cannot evaluate; peer runs the predicate)</li>
+     *   <li>{@link DelegationPossibleFunction} for performance-delegation (driving backend
+     *       evaluates natively, peer consulted opportunistically per-RG)</li>
+     * </ul>
+     *
+     * <p>The perf subtree may be a leaf {@link AnnotatedPredicate} or — when bubble-up
+     * fired in {@link #combine} — an AND/OR/NOT of leaves; in both cases the original
+     * (peer-unaware) RexNode is reconstructed via {@link #unwrapPreservingConnectors}.
+     * Correctness-delegation can also carry a bubbled subtree, but its placeholder only
+     * references the annotation id, not the subtree contents.
      */
     RexNode makePlaceholder(Delegated d) {
         if (d.performanceDelegation()) {
-            RexNode original = ((AnnotatedPredicate) d.subtree()).unwrap();
+            RexNode original = unwrapPreservingConnectors(d.subtree(), AnnotatedPredicate::unwrap);
             return DelegationPossibleFunction.makeCall(rexBuilder, original, d.firstAnnotationId());
         }
         return DelegatedPredicateFunction.makeCall(rexBuilder, d.firstAnnotationId());
+    }
+
+    /**
+     * Walks a delegated subtree — a leaf {@link AnnotatedPredicate} or an AND/OR/NOT of
+     * leaves bubbled up through {@link #combine} — applying {@code leafFn} to every leaf
+     * while preserving the boolean structure. The cast on the leaf is intentional: any
+     * other RexNode shape is a planner-invariant violation and should fail loudly.
+     */
+    private RexNode unwrapPreservingConnectors(RexNode node, Function<AnnotatedPredicate, RexNode> leafFn) {
+        if (node instanceof RexCall call
+            && (call.getKind() == SqlKind.AND || call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT)) {
+            List<RexNode> rewritten = new ArrayList<>(call.getOperands().size());
+            for (RexNode operand : call.getOperands()) {
+                rewritten.add(unwrapPreservingConnectors(operand, leafFn));
+            }
+            return call.clone(call.getType(), rewritten);
+        }
+        return leafFn.apply((AnnotatedPredicate) node);
     }
 
     /** Checks if the peer backend has a serializer for this predicate's function. */
@@ -256,7 +336,7 @@ final class DelegatedPredicateCombiner {
         if (delegatedChildren.size() == 1) {
             return delegatedChildren.getFirst().subtree();
         }
-        List<RexNode> subtrees = delegatedChildren.stream().map(Delegated::subtree).map(n -> (RexNode) n).toList();
+        List<RexNode> subtrees = delegatedChildren.stream().<RexNode>map(Delegated::subtree).toList();
         return call.clone(call.getType(), subtrees);
     }
 

@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -58,7 +57,6 @@ import java.util.Random;
  * {@code OpenSearchTestCase}, so the seed is printed on failure. Re-run with
  * {@code ./gradlew :...:integTest -Dtests.seed=HEX} to reproduce.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class MatchLikeParityIT extends AnalyticsRestTestCase {
 
     private static final String INDEX_NAME = "match_like_parity";

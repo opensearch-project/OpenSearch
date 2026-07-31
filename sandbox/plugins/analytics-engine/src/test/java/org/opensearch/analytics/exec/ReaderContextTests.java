@@ -28,15 +28,20 @@ public class ReaderContextTests extends OpenSearchTestCase {
         return new GatedCloseable<>(reader, () -> closed.set(true));
     }
 
-    public void testMarkInUseAndDone() {
+    public void testMarkInUseIsAdditive() {
         GatedCloseable<Reader> gated = mockGatedReader();
         ReaderContext ctx = new ReaderContext("q1", SHARD_0, gated, 30_000);
 
-        assertTrue("Should mark in-use successfully", ctx.markInUse());
-        assertFalse("Second markInUse should fail (already in-use)", ctx.markInUse());
+        // Two phases can hold the context at once; both markInUse calls succeed.
+        assertTrue(ctx.markInUse());
+        assertTrue(ctx.markInUse());
+
+        // One markDone per markInUse; still in use after the first.
+        ctx.markDone();
+        assertFalse("Still in use after one of two done", ctx.isExpired());
 
         ctx.markDone();
-        assertTrue("Should mark in-use again after done", ctx.markInUse());
+        assertTrue("Reusable once both are done", ctx.markInUse());
     }
 
     public void testNotExpiredWhileInUse() {

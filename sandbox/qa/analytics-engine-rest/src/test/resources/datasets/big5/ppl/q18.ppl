@@ -1,0 +1,1 @@
+source = big5 | stats count() as country by `aws.cloudwatch.log_stream` | sort - country | head 50

@@ -32,10 +32,16 @@ import java.util.List;
  * @param fragment             Calcite {@code RelOptUtil.toString(stage.getFragment())} rendered as an
  *                             array of lines (one element per level of indent) — much easier to read in
  *                             raw JSON than a single multi-line escaped string
+ * @param chosenBackend        backend id (e.g. "lucene", "datafusion") from the post-selector first
+ *                             plan; {@code null} when no alternative is bound, serialized as "unknown".
+ * @param treeShape            {@code FilterTreeShape} (NO_DELEGATION, CONJUNCTIVE, INTERLEAVED_BOOLEAN_EXPRESSION)
+ *                             carried by the stage's filter / shard-scan-with-delegation instruction;
+ *                             {@code null} when the stage has no delegation-bearing instruction (omitted from JSON).
  * @param tasks                per-partition task profiles registered with the TaskTracker
  */
 public record StageProfile(int stageId, String executionType, String distribution, String state, long startMs, long endMs, long elapsedMs,
-    long rowsProcessed, long tasksCompleted, long tasksFailed, List<String> fragment, List<TaskProfile> tasks) implements ToXContentObject {
+    long rowsProcessed, long tasksCompleted, long tasksFailed, List<String> fragment, String chosenBackend, String treeShape, List<
+        TaskProfile> tasks) implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -56,6 +62,8 @@ public record StageProfile(int stageId, String executionType, String distributio
                 builder.value(line);
             builder.endArray();
         }
+        builder.field("chosen_backend", chosenBackend != null ? chosenBackend : "unknown");
+        if (treeShape != null) builder.field("tree_shape", treeShape);
         builder.startArray("tasks");
         for (TaskProfile t : tasks) {
             t.toXContent(builder, params);

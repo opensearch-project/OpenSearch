@@ -62,52 +62,70 @@ final class FilterTreeShapeDeriver {
      */
     static FilterTreeShape derive(OpenSearchFilter filter, String drivingBackendId) {
         Result result = walk(filter.getCondition(), drivingBackendId);
-        if (!result.hasDelegated) {
+        if (!result.hasCorrectness && !result.hasPerf) {
+            // Nothing delegated post-combine (all native, or a perf leaf under NOT that stays native).
             return FilterTreeShape.NO_DELEGATION;
         }
-        return result.hasMixed ? FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION : FilterTreeShape.CONJUNCTIVE;
+        return result.interleaved ? FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION : FilterTreeShape.CONJUNCTIVE;
     }
 
+    /**
+     * Predicts what the combiner produces for a subtree, mirroring
+     * {@link DelegatedPredicateCombiner#combine}. Tracks four facts about the post-combine shape: a
+     * correctness-delegated shipment, a surviving performance marker, a driving-backend (native)
+     * predicate, and whether it needs the data-node tree evaluator (interleaved).
+     *
+     * <p>Performance delegation composes only under AND, so a perf leaf doesn't survive under OR/NOT:
+     * under OR it's reclassified to correctness (ships to the peer); under NOT it stays native
+     * (NOT(=) folds to != with no serializer). The shape label must match what the combiner emits,
+     * or the data node mis-routes (the historical "all-docs" disjunction bug).
+     */
     private static Result walk(RexNode node, String drivingBackendId) {
         if (node instanceof AnnotatedPredicate predicate) {
-            // Two flavors of delegation count toward "hasDelegated":
-            // 1. Correctness — viableBackends differs from operator backend (the only backend
-            // that can evaluate is the peer).
-            // 2. Performance — operator backend can evaluate natively, but a peer was also
-            // viable and is available for opportunistic per-RG consultation.
             boolean isCorrectness = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
             boolean isPerformance = !predicate.getPerformanceDelegationBackends().isEmpty();
-            boolean isDelegated = isCorrectness || isPerformance;
-            return new Result(isDelegated, false, !isDelegated, isPerformance);
+            boolean isDrivingBackend = !isCorrectness && !isPerformance;
+            return new Result(isCorrectness, isPerformance, isDrivingBackend, false);
         }
         if (node instanceof RexCall call) {
-            boolean isOrNot = call.getKind() == SqlKind.OR || call.getKind() == SqlKind.NOT;
+            boolean isOr = call.getKind() == SqlKind.OR;
+            boolean isNot = call.getKind() == SqlKind.NOT;
 
-            boolean hasDelegated = false;
+            boolean hasCorrectness = false;
+            boolean hasPerf = false;
             boolean hasDrivingBackend = false;
-            boolean hasPerformanceDelegation = false;
-            boolean hasMixed = false;
-
+            boolean interleaved = false;
             for (RexNode operand : call.getOperands()) {
-                Result childResult = walk(operand, drivingBackendId);
-                hasDelegated |= childResult.hasDelegated;
-                hasDrivingBackend |= childResult.hasDrivingBackend;
-                hasMixed |= childResult.hasMixed;
-                hasPerformanceDelegation |= childResult.hasPerformanceDelegation;
+                Result child = walk(operand, drivingBackendId);
+                hasCorrectness |= child.hasCorrectness;
+                hasPerf |= child.hasPerf;
+                hasDrivingBackend |= child.hasDrivingBackend;
+                interleaved |= child.interleaved;
             }
 
-            // Under OR/NOT, interleaving occurs when:
-            // - delegated + native predicates coexist (won't all combine), OR
-            // - correctness + performance delegated coexist (perf won't combine under OR/NOT)
-            if (isOrNot && hasDelegated && (hasDrivingBackend || hasPerformanceDelegation)) {
-                hasMixed = true;
+            // The data node does performance delegation only on the AND path, so a perf leaf can't
+            // stay perf under OR or NOT. Mirror combine():
+            if (hasPerf && isOr) {
+                // Under OR it's reclassified to correctness and shipped to the peer.
+                hasCorrectness = true;
+                hasPerf = false;
+            } else if (hasPerf && isNot) {
+                // Under NOT a dual-equality leaf folds to != (no serializer) and stays native.
+                hasDrivingBackend = true;
+                hasPerf = false;
             }
 
-            return new Result(hasDelegated, hasMixed, hasDrivingBackend, hasPerformanceDelegation);
+            // Interleaving (tree evaluator needed) arises under OR/NOT when a delegated shipment
+            // sits alongside a driving-backend operand — the two can't collapse into one peer
+            // shipment. Under AND, driving-backend + delegated coexist as separate conjuncts
+            // (single-collector path), so AND never introduces interleaving on its own.
+            interleaved |= (isOr || isNot) && hasCorrectness && hasDrivingBackend;
+
+            return new Result(hasCorrectness, hasPerf, hasDrivingBackend, interleaved);
         }
         return new Result(false, false, false, false);
     }
 
-    private record Result(boolean hasDelegated, boolean hasMixed, boolean hasDrivingBackend, boolean hasPerformanceDelegation) {
+    private record Result(boolean hasCorrectness, boolean hasPerf, boolean hasDrivingBackend, boolean interleaved) {
     }
 }

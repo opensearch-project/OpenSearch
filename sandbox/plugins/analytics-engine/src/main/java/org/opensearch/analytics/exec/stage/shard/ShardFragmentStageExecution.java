@@ -99,6 +99,9 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         if (nextCopy == null) {
             return Optional.empty();
         }
+        // Update the resolved target so downstream stages (LM fetch) route to the node
+        // that will run the retry, not the original primary that failed.
+        config.updateResolvedTarget(getStageId(), shardTarget.ordinal(), nextCopy);
         return Optional.of(new ShardStageTask(shardTask.id(), nextCopy));
     }
 
@@ -123,18 +126,19 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * offload: reordering would let isLast race ahead and drop earlier batches via the
      * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
      */
-    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(int sourceOrdinal, ActionListener<Void> listener) {
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ShardStageTask task, ActionListener<Void> listener) {
+        final int sourceOrdinal = ((ShardExecutionTarget) task.target()).ordinal();
         return new StreamingResponseListener<>() {
             @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+            public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
                 VectorSchemaRoot vsr = response.getRoot();
                 if (getState().isTerminal()) {
                     if (vsr != null) vsr.close();
-                    return;
+                    return false; // stage already settled — stop draining, let the caller cancel the stream
                 }
                 if (vsr == null) {
                     if (isLast) listener.onResponse(null);
-                    return;
+                    return true;
                 }
                 try {
                     outputSink.feed(vsr, sourceOrdinal);
@@ -147,10 +151,26 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
                         wrapped.addSuppressed(closeFailure);
                     }
                     listener.onFailure(wrapped);
-                    return;
+                    return false;
                 }
                 metrics.addRowsProcessed(vsr.getRowCount());
+                // Downstream consumer satisfied (e.g. a LimitExec above the reduce finished and dropped
+                // this input's receiver). Settle this task as success and tell the caller to cancel the
+                // stream so this shard stops scanning instead of feeding batches that will be discarded.
+                // Each input reacts independently on its own stream.
+                if (outputSink.isConsumerDone()) {
+                    listener.onResponse(null);
+                    return false;
+                }
                 if (isLast) listener.onResponse(null);
+                return true;
+            }
+
+            @Override
+            public void onStreamComplete(byte[] trailingMetadata) {
+                if (trailingMetadata != null) {
+                    task.setDataNodeMetrics(trailingMetadata);
+                }
             }
 
             @Override

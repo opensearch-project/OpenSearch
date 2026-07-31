@@ -80,7 +80,7 @@ public class RemoteMigrationIndexMetadataUpdater {
             Settings.Builder indexSettingsBuilder = Settings.builder().put(currentIndexSettings);
             updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, tlogRepoName);
             indexMetadataBuilder.settings(indexSettingsBuilder);
-            indexMetadataBuilder.settingsVersion(1 + indexMetadata.getVersion());
+            indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
         } else {
             logger.debug("Index {} does not satisfy criteria for applying remote store settings", index);
         }

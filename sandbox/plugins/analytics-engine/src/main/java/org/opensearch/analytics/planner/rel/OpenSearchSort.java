@@ -110,12 +110,12 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      * {@link org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule} alternative
      * (ER below the Sort, Sort sees a fully-gathered input).
      *
-     * <p>Pure LIMIT Sort (empty collation) — nothing to order, partition-local fetch is
-     * correct. Skip the gate.
+     * <p>A Sort with no collation AND no fetch/offset is a no-op — skip the gate.
+     * A pure LIMIT (fetch != null, no collation) still needs gathering so it applies globally.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (getCollation().getFieldCollations().isEmpty()) {
+        if (getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null) {
             return planner.getCostFactory().makeTinyCost();
         }
         for (RelNode input : getInputs()) {

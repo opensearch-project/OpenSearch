@@ -16,18 +16,15 @@ pub mod fs;
 pub use fs::build;
 pub use fs::FsConfig;
 
-use std::sync::Arc;
 use object_store::ObjectStore;
+use std::sync::Arc;
 
 /// Create a local filesystem [`ObjectStore`] from JSON config.
 ///
 /// FS backend does not use credentials.
 #[native_bridge_common::ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn fs_create_store(
-    config_ptr: *const u8,
-    config_len: i64,
-) -> i64 {
+pub unsafe extern "C" fn fs_create_store(config_ptr: *const u8, config_len: i64) -> i64 {
     if config_ptr.is_null() {
         return Err("fs_create_store: null config pointer".to_string());
     }
@@ -43,7 +40,9 @@ pub unsafe extern "C" fn fs_create_store(
 #[native_bridge_common::ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn fs_destroy_store(ptr: i64) -> i64 {
-    if ptr == 0 { return Err("fs_destroy_store: null pointer".to_string()); }
+    if ptr == 0 {
+        return Err("fs_destroy_store: null pointer".to_string());
+    }
     let _: Box<Arc<dyn ObjectStore>> = Box::from_raw(ptr as *mut Arc<dyn ObjectStore>);
     Ok(0)
 }

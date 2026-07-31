@@ -127,6 +127,133 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * Multi-shard dc correctness with heavy cross-shard value overlap. Unlike
+     * {@link #testDistinctCountAcrossShards()} (globally-unique values, so per-shard distinct sets
+     * never overlap and even a naive additive reduce is coincidentally right), here every shard
+     * sees the full value set. A correct cross-shard reduce must NOT sum per-shard distinct counts.
+     */
+    public void testDistinctCountCrossShardOverlap() throws Exception {
+        String index = "coord_reduce_dc_overlap";
+        int shards = 8;
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        String body = "{\"settings\": {"
+            + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
+            + "}, \"mappings\": {\"properties\": {\"value\": {\"type\": \"integer\"}}}}";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(body);
+        assertOkAndParse(client().performRequest(create), "create " + index);
+        Request health = new Request("GET", "/_cluster/health/" + index);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        // 800 docs, value cycles 1..10 → every shard sees all 10 values (heavy cross-shard overlap).
+        int distinct = 10;
+        int total = 800;
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"value\": ").append((i % distinct) + 1).append("}\n");
+        }
+        bulkAndRefresh(index, bulk.toString());
+
+        // Exact distinct = number of groups returned by GROUP BY value (same engine).
+        Map<String, Object> grouped = executePpl("source = " + index + " | stats count() as c by value");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> groupRows = (List<List<Object>>) grouped.get("datarows");
+        int exactDistinct = groupRows.size();
+
+        Map<String, Object> result = executePpl("source = " + index + " | stats dc(value) as dc");
+        long actual = ((Number) scalarRows(result, "dc").get(0).get(0)).longValue();
+
+        assertEquals("exact distinct (group count) must be " + distinct, distinct, exactDistinct);
+        assertTrue(
+            "dc(value) with cross-shard overlap should be ~" + distinct + " (±2), got " + actual
+                + " — a value near " + (distinct * shards) + " means per-shard distinct counts were summed across shards",
+            actual >= distinct - 2 && actual <= distinct + 2
+        );
+    }
+
+    /**
+     * Keyword-field counterpart to {@link #testDistinctCountCrossShardOverlap()} — the StringHLL
+     * accumulator path with cross-shard label overlap. Same shape: 8 shards, every shard sees the
+     * full label set, so a naive additive reduce would yield ~{@code distinct × shards}.
+     */
+    public void testDistinctCountCrossShardOverlapKeyword() throws Exception {
+        String index = "coord_reduce_dc_overlap_kw";
+        int shards = 8;
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        String body = "{\"settings\": {"
+            + "  \"number_of_shards\": " + shards + ", \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true, \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\", \"index.composite.secondary_data_formats\": \"lucene\""
+            + "}, \"mappings\": {\"properties\": {\"label\": {\"type\": \"keyword\"}}}}";
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(body);
+        assertOkAndParse(client().performRequest(create), "create " + index);
+        Request health = new Request("GET", "/_cluster/health/" + index);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+
+        // 800 docs, label cycles lbl0..lbl9 → every shard sees all 10 labels.
+        int distinct = 10;
+        int total = 800;
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {}}\n");
+            bulk.append("{\"label\": \"lbl").append(i % distinct).append("\"}\n");
+        }
+        bulkAndRefresh(index, bulk.toString());
+
+        Map<String, Object> grouped = executePpl("source = " + index + " | stats count() as c by label");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> groupRows = (List<List<Object>>) grouped.get("datarows");
+        int exactDistinct = groupRows.size();
+
+        Map<String, Object> result = executePpl("source = " + index + " | stats dc(label) as dc");
+        long actual = ((Number) scalarRows(result, "dc").get(0).get(0)).longValue();
+
+        assertEquals("exact distinct (group count) must be " + distinct, distinct, exactDistinct);
+        assertTrue(
+            "dc(label) with cross-shard overlap should be ~" + distinct + " (±2), got " + actual
+                + " — a value near " + (distinct * shards) + " means per-shard distinct counts were summed across shards",
+            actual >= distinct - 2 && actual <= distinct + 2
+        );
+    }
+
+    /**
+     * {@code stats percentile_approx(value, 50) as p} — t-digest approximate median.
+     * STATE_EXPANDING, so the split rule gathers to coordinator + single-stage. Maps to
+     * DataFusion's {@code approx_percentile_cont} via {@link
+     * org.opensearch.be.datafusion.PplAggregateCallRewriter}.
+     */
+    public void testPercentileApproxAcrossShards() throws Exception {
+        String index = "coord_reduce_percentile_approx";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePpl("source = " + index + " | stats percentile_approx(value, 50) as p");
+        List<List<Object>> rows = scalarRows(result, "p");
+
+        Object cell = rows.get(0).get(0);
+        assertNotNull("cell for 'p' must not be null — coordinator-reduce returned no value", cell);
+        double actual = ((Number) cell).doubleValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        double expected = (totalDocs + 1) / 2.0;
+        assertTrue(
+            "percentile_approx(value, 50) should be approximately " + expected + " (±2.0), got " + actual,
+            Math.abs(actual - expected) <= 2.0
+        );
+    }
+
     /** Single-shard {@code take(value, 3)} — bounded array of up to 3 values. */
     public void testTakeSingleShard() throws Exception {
         String index = "coord_reduce_take_single";
@@ -290,7 +417,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= DOCS_PER_SHARD; i++) {
@@ -329,7 +456,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : listed) {
             assertNotNull("list(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= totalDocs; i++) {
@@ -367,7 +494,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 5; i++) {
@@ -405,7 +532,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         for (Object v : got) {
             assertNotNull("values(value) elements must not be null", v);
-            seen.add(((Number) v).intValue());
+            seen.add(Integer.parseInt((String) v));
         }
         java.util.Set<Integer> expected = new java.util.HashSet<>();
         for (int i = 1; i <= 10; i++) {
@@ -520,7 +647,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -547,7 +674,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"w").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"category\": \"\", \"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(STRING_GROUP_INDEX, bulk.toString());
@@ -593,7 +720,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -618,7 +745,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(VALUE).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -642,7 +769,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             + "  \"index.pluggable.dataformat.enabled\": true,"
             + "  \"index.pluggable.dataformat\": \"composite\","
             + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "  \"index.composite.secondary_data_formats\": \"lucene\""
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
@@ -670,7 +797,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     private void indexSequentialValueDocsSingleShard(String indexName) throws Exception {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < DOCS_PER_SHARD; i++) {
-            bulk.append("{\"index\": {\"_id\": \"s").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -685,7 +812,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"v").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(i + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -699,7 +826,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     private void indexDuplicateValueDocsSingleShard(String indexName) throws Exception {
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < DOCS_PER_SHARD; i++) {
-            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append((i % 5) + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
@@ -715,7 +842,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         StringBuilder bulk = new StringBuilder();
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append((i % 10) + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());

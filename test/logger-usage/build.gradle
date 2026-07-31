@@ -29,6 +29,7 @@
  */
 
 apply plugin: 'opensearch.java'
+apply plugin: 'opensearch.publish'
 
 dependencies {
   api "org.ow2.asm:asm:${versions.asm}"

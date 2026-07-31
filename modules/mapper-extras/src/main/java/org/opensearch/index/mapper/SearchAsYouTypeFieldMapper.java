@@ -490,11 +490,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
