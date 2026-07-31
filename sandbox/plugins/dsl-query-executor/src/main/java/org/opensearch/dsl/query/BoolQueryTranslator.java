@@ -83,18 +83,12 @@ public class BoolQueryTranslator implements QueryTranslator {
 
         // Must clauses (AND)
         for (QueryBuilder mustClause : boolQuery.must()) {
-            RexNode condition = queryRegistry.convert(mustClause, ctx);
-            if (condition != null) {
-                conditions.add(condition);
-            }
+            conditions.add(queryRegistry.convert(mustClause, ctx));
         }
 
         // Filter clauses (AND) — identical to must at Calcite level (scoring irrelevant)
         for (QueryBuilder filterClause : boolQuery.filter()) {
-            RexNode condition = queryRegistry.convert(filterClause, ctx);
-            if (condition != null) {
-                conditions.add(condition);
-            }
+            conditions.add(queryRegistry.convert(filterClause, ctx));
         }
 
         // Should clauses with minimum_should_match
@@ -112,12 +106,10 @@ public class BoolQueryTranslator implements QueryTranslator {
         // Must_not clauses (NOT) with double-negation elimination
         for (QueryBuilder mustNotClause : boolQuery.mustNot()) {
             RexNode condition = queryRegistry.convert(mustNotClause, ctx);
-            if (condition != null) {
-                if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.NOT) {
-                    conditions.add(((RexCall) condition).getOperands().get(0));
-                } else {
-                    conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.NOT, condition));
-                }
+            if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.NOT) {
+                conditions.add(((RexCall) condition).getOperands().get(0));
+            } else {
+                conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.NOT, condition));
             }
         }
 
@@ -162,7 +154,7 @@ public class BoolQueryTranslator implements QueryTranslator {
         boolean hasRequired = !boolQuery.must().isEmpty() || !boolQuery.filter().isEmpty();
         String minimumShouldMatch = boolQuery.minimumShouldMatch();
 
-        int requiredMatches = calculateRequiredMatches(minimumShouldMatch, totalShould, hasRequired);
+        int requiredMatches = MinimumShouldMatchParser.calculateRequiredMatches(minimumShouldMatch, totalShould, hasRequired);
 
         if (requiredMatches == 0) {
             return null; // Should clauses are optional
@@ -177,10 +169,7 @@ public class BoolQueryTranslator implements QueryTranslator {
 
         List<RexNode> shouldConditions = new ArrayList<>();
         for (QueryBuilder shouldClause : shouldClauses) {
-            RexNode condition = queryRegistry.convert(shouldClause, ctx);
-            if (condition != null) {
-                shouldConditions.add(condition);
-            }
+            shouldConditions.add(queryRegistry.convert(shouldClause, ctx));
         }
 
         if (shouldConditions.isEmpty()) {
@@ -205,116 +194,6 @@ public class BoolQueryTranslator implements QueryTranslator {
         }
 
         return createMinimumMatchCondition(shouldConditions, requiredMatches, ctx);
-    }
-
-    /**
-     * Calculates the required number of should clauses that must match.
-     *
-     * <p>Unlike the previous implementation, this does NOT clamp the upper bound. Legacy
-     * Queries.calculateMinShouldMatch only clamps the floor to 0; values exceeding
-     * totalShould are passed through to Lucene which matches nothing. The caller
-     * (processShouldClauses) handles the match-none case when result exceeds totalShould.
-     *
-     * @return number of should clauses that must match (clamped floor to 0 only)
-     */
-    int calculateRequiredMatches(String minimumShouldMatch, int totalShould, boolean hasRequired) throws ConversionException {
-        if (minimumShouldMatch == null || minimumShouldMatch.isEmpty()) {
-            return hasRequired ? 0 : 1;
-        }
-
-        int result;
-
-        if (minimumShouldMatch.contains(" ")) {
-            result = parseMultipleCombinations(minimumShouldMatch, totalShould);
-        } else if (minimumShouldMatch.contains("<")) {
-            result = parseCombination(minimumShouldMatch, totalShould);
-        } else if (minimumShouldMatch.endsWith("%")) {
-            result = parsePercentage(minimumShouldMatch, totalShould);
-        } else {
-            result = parseInteger(minimumShouldMatch, totalShould);
-        }
-
-        // Floor clamp only — matches legacy Queries.calculateMinShouldMatch line 207: "return result < 0 ? 0 : result"
-        return Math.max(0, result);
-    }
-
-    /**
-     * Parses an integer minimum_should_match value.
-     * Non-negative values are returned as-is. Negative values are subtracted from total.
-     */
-    private int parseInteger(String value, int total) throws ConversionException {
-        try {
-            int num = Integer.parseInt(value);
-            return num >= 0 ? num : total + num;
-        } catch (NumberFormatException e) {
-            throw new ConversionException("Invalid integer in minimum_should_match: \"" + value + "\"", e);
-        }
-    }
-
-    /**
-     * Parses a percentage minimum_should_match value.
-     * Non-negative percentages are applied directly. Negative percentages represent allowed misses.
-     */
-    private int parsePercentage(String value, int total) throws ConversionException {
-        String numStr = value.substring(0, value.length() - 1);
-        try {
-            double percent = Double.parseDouble(numStr);
-            if (percent >= 0) {
-                return (int) Math.floor(total * percent / 100.0);
-            } else {
-                int allowed = (int) Math.floor(total * (-percent) / 100.0);
-                return total - allowed;
-            }
-        } catch (NumberFormatException e) {
-            throw new ConversionException("Invalid percentage in minimum_should_match: \"" + value + "\"", e);
-        }
-    }
-
-    /**
-     * Parses a single combination minimum_should_match value (e.g., "2&lt;75%").
-     * If total is less than or equal to threshold, all clauses must match.
-     */
-    private int parseCombination(String value, int total) throws ConversionException {
-        String[] parts = value.split("<");
-        if (parts.length < 2 || parts[1].isEmpty()) {
-            throw new ConversionException("Malformed combination in minimum_should_match: \"" + value + "\"");
-        }
-        int threshold;
-        try {
-            threshold = Integer.parseInt(parts[0]);
-        } catch (NumberFormatException e) {
-            throw new ConversionException("Invalid threshold in minimum_should_match: \"" + parts[0] + "\"", e);
-        }
-        if (total <= threshold) {
-            return total;
-        }
-        return parts[1].endsWith("%") ? parsePercentage(parts[1], total) : parseInteger(parts[1], total);
-    }
-
-    /**
-     * Parses multiple combinations minimum_should_match value (e.g., "3&lt;-1 5&lt;50%").
-     * Applies the appropriate rule based on which threshold range the total falls into.
-     */
-    private int parseMultipleCombinations(String value, int total) throws ConversionException {
-        String[] combinations = value.trim().split("\\s+");
-        int result = total;
-        for (String combination : combinations) {
-            String[] parts = combination.split("<");
-            if (parts.length < 2 || parts[1].isEmpty()) {
-                throw new ConversionException("Malformed combination in minimum_should_match: \"" + combination + "\"");
-            }
-            int threshold;
-            try {
-                threshold = Integer.parseInt(parts[0]);
-            } catch (NumberFormatException e) {
-                throw new ConversionException("Invalid threshold in minimum_should_match: \"" + parts[0] + "\"", e);
-            }
-            if (total <= threshold) {
-                return result;
-            }
-            result = parts[1].endsWith("%") ? parsePercentage(parts[1], total) : parseInteger(parts[1], total);
-        }
-        return result;
     }
 
     /**

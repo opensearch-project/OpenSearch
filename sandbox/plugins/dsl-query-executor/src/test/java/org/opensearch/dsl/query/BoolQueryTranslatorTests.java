@@ -364,7 +364,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
     public void testCalculateRequiredMatchesClampedToZeroWhenNegativeResult() throws ConversionException {
         // "-10" with 3 clauses → 3 + (-10) = -7 → must clamp to 0
-        int result = translator.calculateRequiredMatches("-10", 3, false);
+        int result = MinimumShouldMatchParser.calculateRequiredMatches("-10", 3, false);
         assertEquals("Negative MSM result must be clamped to 0", 0, result);
     }
 
@@ -372,13 +372,13 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         // "5" with 3 clauses → 5 > 3 → legacy matches nothing (witnessed:
         // BoolQueryBuilderTests.testMinShouldMatchBiggerThanNumberOfShouldClauses).
         // calculateRequiredMatches returns the raw value; convert() handles the match-none.
-        int result = translator.calculateRequiredMatches("5", 3, false);
+        int result = MinimumShouldMatchParser.calculateRequiredMatches("5", 3, false);
         assertEquals("MSM exceeding totalShould must be returned as-is (> totalShould signals match-none)", 5, result);
     }
 
     public void testCalculateRequiredMatchesNotClampedWhenWithinRange() throws ConversionException {
         // "2" with 3 clauses → within [0, 3], no clamping
-        int result = translator.calculateRequiredMatches("2", 3, false);
+        int result = MinimumShouldMatchParser.calculateRequiredMatches("2", 3, false);
         assertEquals("MSM within valid range should not be clamped", 2, result);
     }
 
@@ -420,7 +420,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
     public void testCalculateRequiredMatchesPercentageClampedAboveTotal() throws ConversionException {
         // "200%" with 3 clauses → floor(3 * 200 / 100) = 6 → exceeds totalShould
         // Not clamped at calculateRequiredMatches level; convert() handles match-none.
-        int result = translator.calculateRequiredMatches("200%", 3, false);
+        int result = MinimumShouldMatchParser.calculateRequiredMatches("200%", 3, false);
         assertEquals("Percentage exceeding 100% returns raw computed value (> totalShould signals match-none)", 6, result);
     }
 
@@ -766,23 +766,35 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
     // --- Parser hardening: NumberFormatException wrapping ---
 
     public void testParseIntegerInvalidThrowsConversionExceptionWithValue() {
-        ConversionException ex = expectThrows(ConversionException.class, () -> translator.calculateRequiredMatches("abc", 3, false));
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> MinimumShouldMatchParser.calculateRequiredMatches("abc", 3, false)
+        );
         assertTrue("Message must contain the offending value", ex.getMessage().contains("abc"));
     }
 
     public void testParsePercentageInvalidThrowsConversionExceptionWithValue() {
-        ConversionException ex = expectThrows(ConversionException.class, () -> translator.calculateRequiredMatches("xyz%", 3, false));
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> MinimumShouldMatchParser.calculateRequiredMatches("xyz%", 3, false)
+        );
         assertTrue("Message must contain the offending value", ex.getMessage().contains("xyz"));
     }
 
     public void testParseCombinationInvalidThresholdThrowsConversionException() {
-        ConversionException ex = expectThrows(ConversionException.class, () -> translator.calculateRequiredMatches("abc<75%", 3, false));
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> MinimumShouldMatchParser.calculateRequiredMatches("abc<75%", 3, false)
+        );
         assertTrue("Message must contain the offending value", ex.getMessage().contains("abc"));
     }
 
     public void testParseCombinationTrailingLessThanThrowsConversionException() {
         // "5<" is malformed — split produces only one part
-        ConversionException ex = expectThrows(ConversionException.class, () -> translator.calculateRequiredMatches("5<", 3, false));
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> MinimumShouldMatchParser.calculateRequiredMatches("5<", 3, false)
+        );
         assertTrue("Message must mention Malformed", ex.getMessage().contains("Malformed"));
     }
 
