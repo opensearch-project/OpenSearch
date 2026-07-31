@@ -74,6 +74,8 @@ public final class AggregationResponseBuilder {
         }
     }
 
+    // TODO: Support pipeline aggregations. They post-process the assembled aggregation tree;
+    // currently they are ignored.
     /**
      * Builds InternalAggregations from the original aggregation builders.
      */
