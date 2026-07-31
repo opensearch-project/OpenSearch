@@ -106,7 +106,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         Integer parentToken,
         Map<Collector, List<LeafReaderContext>> collectorToLeaves,
         Map<Collector, Map<LeafReaderContext, int[]>> sliceLeafDocRanges,
-        Map<Collector, Thread> sliceCollectorThreads
+        Map<Collector, Long> sliceCollectorThreads
     ) {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {

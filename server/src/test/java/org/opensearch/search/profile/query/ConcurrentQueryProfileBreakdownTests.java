@@ -122,7 +122,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final ContextualProfileBreakdown leafProfileBreakdown = new TestQueryProfileBreakdown(leafProfileBreakdownMap);
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector, sliceLeaf);
         testQueryProfileBreakdown.getContexts()
-            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), sliceLeaf), leafProfileBreakdown);
+            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), sliceLeaf), leafProfileBreakdown);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown();
         assertFalse(sliceBreakdownMap == null || sliceBreakdownMap.isEmpty());
         assertEquals(1, sliceBreakdownMap.size());
@@ -174,12 +174,12 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
         testQueryProfileBreakdown.getContexts()
             .put(
-                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), directoryReader.leaves().get(0)),
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
                 leafProfileBreakdown_1
             );
         testQueryProfileBreakdown.getContexts()
             .put(
-                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), directoryReader.leaves().get(1)),
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(1)),
                 leafProfileBreakdown_2
             );
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdown.buildSliceLevelBreakdown();
@@ -292,12 +292,12 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
         testQueryProfileBreakdown.getContexts()
             .put(
-                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), directoryReader.leaves().get(0)),
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
                 leafProfileBreakdown_1
             );
         testQueryProfileBreakdown.getContexts()
             .put(
-                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), directoryReader.leaves().get(1)),
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(1)),
                 leafProfileBreakdown_2
             );
 
@@ -354,7 +354,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_2, directoryReader.leaves().get(1));
         testQueryProfileBreakdown.getContexts()
             .put(
-                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), directoryReader.leaves().get(0)),
+                ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), directoryReader.leaves().get(0)),
                 leafProfileBreakdown_1
             );
         // leaf2 profile breakdown is not present in contexts map
@@ -501,7 +501,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         final ContextualProfileBreakdown leafProfileBreakdown = new TestQueryProfileBreakdown(leafProfileBreakdownMap);
         testQueryProfileBreakdownCombined.associateCollectorToLeaves(sliceCollector, sliceLeaf);
         testQueryProfileBreakdownCombined.getContexts()
-            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread(), sliceLeaf), leafProfileBreakdown);
+            .put(ConcurrentQueryProfileBreakdown.contextKey(Thread.currentThread().threadId(), sliceLeaf), leafProfileBreakdown);
         final Map<Collector, Map<String, Long>> sliceBreakdownMap = testQueryProfileBreakdownCombined.buildSliceLevelBreakdown();
         assertFalse(sliceBreakdownMap == null || sliceBreakdownMap.isEmpty());
         assertEquals(1, sliceBreakdownMap.size());
