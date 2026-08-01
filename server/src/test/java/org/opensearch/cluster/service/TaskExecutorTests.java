@@ -213,8 +213,8 @@ public class TaskExecutorTests extends OpenSearchTestCase {
         submitTask("unblock-task", unblockTask);
 
         block.countDown();
-        block2.await();
-        blockCompleted.await();
+        assertTrue(block2.await(10, TimeUnit.SECONDS));
+        assertTrue(blockCompleted.await(10, TimeUnit.SECONDS));
     }
 
     public void testTimeoutTask() throws Exception {
@@ -257,7 +257,7 @@ public class TaskExecutorTests extends OpenSearchTestCase {
         };
         submitTask("block-task", test2);
 
-        timedOut.await();
+        assertTrue(timedOut.await(10, TimeUnit.SECONDS));
         block.countDown();
         final CountDownLatch allProcessed = new CountDownLatch(1);
         TestTask test3 = new TestTask() {
@@ -273,7 +273,7 @@ public class TaskExecutorTests extends OpenSearchTestCase {
             }
         };
         submitTask("block-task", test3);
-        allProcessed.await(); // executed another task to double check that execute on the timed out update task is not called...
+        assertTrue(allProcessed.await(10, TimeUnit.SECONDS)); // executed another task to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));
     }
 
@@ -304,7 +304,7 @@ public class TaskExecutorTests extends OpenSearchTestCase {
         }
 
         block.close();
-        latch.await();
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
 
         Priority prevPriority = null;
         for (PrioritizedTask task : tasks) {
