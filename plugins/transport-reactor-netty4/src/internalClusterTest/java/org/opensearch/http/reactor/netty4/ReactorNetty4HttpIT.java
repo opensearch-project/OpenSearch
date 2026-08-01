@@ -17,11 +17,16 @@ import org.opensearch.OpenSearchReactorNetty4IntegTestCase;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.netty4.http3.Http3Utils;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.test.AbstractSecureSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -34,6 +39,8 @@ import javax.net.ssl.SSLException;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -42,18 +49,22 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.ReferenceCounted;
 import reactor.netty.http.HttpProtocol;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ReactorNetty4HttpIT extends OpenSearchReactorNetty4IntegTestCase {
-    public static final class SecureSettingsPlugin extends AbstractSecureSettingsPlugin {
+    public static final class SecureSettingsPlugin extends AbstractSecureSettingsPlugin implements ActionPlugin {
         public SecureSettingsPlugin() {
             super(InsecureTrustManagerFactory.INSTANCE, Http2SecurityUtil.CIPHERS);
         }
@@ -64,6 +75,15 @@ public class ReactorNetty4HttpIT extends OpenSearchReactorNetty4IntegTestCase {
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .build()
                 .newEngine(NettyAllocator.getAllocator());
+        }
+
+        @Override
+        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext, Set<RestHeaderDefinition> headersToCopy) {
+            return originalHandler -> (RestHandler) (request, channel, client) -> {
+                final HttpChannel httpChannel = request.getHttpChannel();
+                assertThat(httpChannel.get("ssl_http", SslHandler.class), is(not(nullValue())));
+                originalHandler.handleRequest(request, channel, client);
+            };
         }
     }
 
