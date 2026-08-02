@@ -34,6 +34,9 @@ final class MinimumShouldMatchParser {
             return hasRequired ? 0 : 1;
         }
 
+        // Trim whitespace matching legacy Queries.calculateMinShouldMatch (line 177).
+        minimumShouldMatch = minimumShouldMatch.trim();
+
         int result;
 
         if (minimumShouldMatch.contains(" ")) {

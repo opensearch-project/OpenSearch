@@ -25,7 +25,7 @@ import java.util.List;
  * Converts a {@link BoolQueryBuilder} to Calcite logical expressions (RexNode).
  *
  * <p>Handles must (AND), filter (AND), should (OR with minimum_should_match), and
- * must_not (NOT with double-negation elimination). Flattens nested AND/OR to satisfy
+ * must_not (IS_NOT_TRUE with double-negation elimination). Flattens nested AND/OR to satisfy
  * Calcite's RexUtil.isFlat requirement.
  *
  * <p>For minimum_should_match with 1 less-than k less-than n, emits the conjoined form
@@ -103,13 +103,19 @@ public class BoolQueryTranslator implements QueryTranslator {
             }
         }
 
-        // Must_not clauses (NOT) with double-negation elimination
+        // Must_not clauses: IS_NOT_TRUE with double-negation elimination.
+        // WHY IS_NOT_TRUE: Under SQL three-valued logic NOT(NULL) evaluates to NULL (falsy in a
+        // filter), excluding rows whose field is missing. Lucene must_not INCLUDES those rows.
+        // IS_NOT_TRUE(condition) returns TRUE when condition is NULL, preserving that semantics.
         for (QueryBuilder mustNotClause : boolQuery.mustNot()) {
             RexNode condition = queryRegistry.convert(mustNotClause, ctx);
-            if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.NOT) {
+            if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.IS_NOT_TRUE) {
+                // Double-negation elimination: IS_NOT_TRUE(IS_NOT_TRUE(x)) → x.
+                // Semantically sound: IS_NOT_TRUE(IS_NOT_TRUE(x)) is TRUE when x is TRUE, FALSE
+                // when x is FALSE or NULL — identical to x under filter evaluation.
                 conditions.add(((RexCall) condition).getOperands().get(0));
             } else {
-                conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.NOT, condition));
+                conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_TRUE, condition));
             }
         }
 

@@ -109,4 +109,14 @@ public class MinimumShouldMatchParserTests extends OpenSearchTestCase {
         );
         assertTrue("Message must contain the offending value", ex.getMessage().contains("70.5%"));
     }
+
+    // --- Trim tests matching legacy Queries.calculateMinShouldMatch line 177 ---
+
+    public void testPaddedPercentageIsTrimmedToPercentageBranch() throws ConversionException {
+        // " 70% " with surrounding spaces must be trimmed and route to the percentage branch,
+        // not the multi-combination branch (which checks for space).
+        // Legacy: Queries.calculateMinShouldMatch trims at line 177.
+        int result = MinimumShouldMatchParser.calculateRequiredMatches("  70%  ", 4, false);
+        assertEquals("Padded percentage must trim and compute floor(4*70/100)=2", 2, result);
+    }
 }

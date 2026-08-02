@@ -54,7 +54,8 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.NOT, call.getKind());
+        // must_not emits IS_NOT_TRUE so missing-field rows (NULL) are retained.
+        assertEquals(SqlKind.IS_NOT_TRUE, call.getKind());
     }
 
     // minimum_should_match: Non-negative integer
@@ -348,7 +349,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
     public void testDoubleNegationElimination() throws ConversionException {
         // bool(must_not: [bool(must_not: [term])])
-        // Should eliminate double negation: NOT(NOT(term)) -> term
+        // Should eliminate double negation: IS_NOT_TRUE(IS_NOT_TRUE(term)) -> term
         RexNode result = translator.convert(
             QueryBuilders.boolQuery().mustNot(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("name", "value"))),
             ctx
@@ -356,8 +357,28 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // Should be the term itself, not wrapped in NOT
+        // Should be the term itself, not wrapped in IS_NOT_TRUE
         assertEquals(SqlKind.EQUALS, call.getKind());
+    }
+
+    public void testNestedMustNotDoubleNegationWithMultipleClauses() throws ConversionException {
+        // bool(must: [term1], must_not: [bool(must_not: [term2])])
+        // The inner must_not emits IS_NOT_TRUE(term2), the outer must_not sees IS_NOT_TRUE
+        // and unwraps to term2. Final: AND(term1, term2).
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("name", "keep"))
+                .mustNot(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("brand", "wanted"))),
+            ctx
+        );
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.AND, call.getKind());
+        assertEquals(2, call.getOperands().size());
+        // Both operands should be EQUALS (no IS_NOT_TRUE wrapper)
+        assertEquals(SqlKind.EQUALS, ((RexCall) call.getOperands().get(0)).getKind());
+        assertEquals(SqlKind.EQUALS, ((RexCall) call.getOperands().get(1)).getKind());
     }
 
     // --- MSM result clamping tests ---
@@ -695,11 +716,11 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
     public void testAdjustPureNegativeDefaultTruePureNegativeProducesNot() throws ConversionException {
         // Legacy: adjustPureNegative=true (default) injects match-all via fixNegativeQueryIfNeeded.
-        // Our table scan is the implicit match-all, so pure-negative produces NOT.
+        // Our table scan is the implicit match-all, so pure-negative produces IS_NOT_TRUE.
         RexNode result = translator.convert(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("name", "test")), ctx);
 
-        assertTrue("Pure-negative with default adjustPureNegative must produce NOT", result instanceof RexCall);
-        assertEquals(SqlKind.NOT, ((RexCall) result).getKind());
+        assertTrue("Pure-negative with default adjustPureNegative must produce IS_NOT_TRUE", result instanceof RexCall);
+        assertEquals(SqlKind.IS_NOT_TRUE, ((RexCall) result).getKind());
     }
 
     public void testDefaultBoostAccepted() throws ConversionException {
@@ -722,7 +743,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
     public void testPureNegativeBoolProducesNot() throws ConversionException {
         // Legacy: adjustPureNegative=true (default) adds MatchAllDocsQuery FILTER,
         // meaning "match all EXCEPT these". Our table scan is the implicit match-all,
-        // so pure-negative just produces NOT conditions.
+        // so pure-negative just produces IS_NOT_TRUE conditions.
         // Citation: Queries.fixNegativeQueryIfNeeded lines 111-121.
         RexNode result = translator.convert(
             QueryBuilders.boolQuery()
@@ -735,10 +756,10 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.AND, call.getKind());
         assertEquals(2, call.getOperands().size());
-        // Each operand should be NOT(EQUALS)
+        // Each operand should be IS_NOT_TRUE(EQUALS)
         for (RexNode operand : call.getOperands()) {
             assertTrue(operand instanceof RexCall);
-            assertEquals(SqlKind.NOT, ((RexCall) operand).getKind());
+            assertEquals(SqlKind.IS_NOT_TRUE, ((RexCall) operand).getKind());
         }
     }
 
