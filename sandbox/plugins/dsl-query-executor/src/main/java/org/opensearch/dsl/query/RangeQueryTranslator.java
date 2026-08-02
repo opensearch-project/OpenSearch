@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.avatica.util.ByteString;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -151,8 +152,7 @@ public class RangeQueryTranslator implements QueryTranslator {
             Object fromValue = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName, fieldPrecision);
             RexNode bound = translateBound(fromValue, true, rangeQuery.includeLower(), fieldTypeName, field, ctx);
             if (bound != null) {
-                if (bound instanceof org.apache.calcite.rex.RexLiteral
-                    && Boolean.FALSE.equals(((org.apache.calcite.rex.RexLiteral) bound).getValueAs(Boolean.class))) {
+                if (bound instanceof RexLiteral && Boolean.FALSE.equals(((RexLiteral) bound).getValueAs(Boolean.class))) {
                     return bound; // overflow guard: match-none
                 }
                 conditions.add(bound);
@@ -164,8 +164,7 @@ public class RangeQueryTranslator implements QueryTranslator {
             Object toValue = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName, fieldPrecision);
             RexNode bound = translateBound(toValue, false, rangeQuery.includeUpper(), fieldTypeName, field, ctx);
             if (bound != null) {
-                if (bound instanceof org.apache.calcite.rex.RexLiteral
-                    && Boolean.FALSE.equals(((org.apache.calcite.rex.RexLiteral) bound).getValueAs(Boolean.class))) {
+                if (bound instanceof RexLiteral && Boolean.FALSE.equals(((RexLiteral) bound).getValueAs(Boolean.class))) {
                     return bound; // overflow guard: match-none
                 }
                 conditions.add(bound);
