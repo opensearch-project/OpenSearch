@@ -18,12 +18,9 @@ import org.apache.calcite.prepare.CalciteCatalogReader;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rel.type.RelDataTypeSystem;
-import org.apache.calcite.rel.type.RelDataTypeSystemImpl;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.aggregation.AggregationMetadata;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
@@ -44,17 +41,6 @@ import java.util.Properties;
  */
 public class SearchSourceConverter {
 
-    /** Raises TIMESTAMP max precision to 9 so date_nanos fields get TIMESTAMP(9) without clamping. */
-    private static final RelDataTypeSystem NANO_TIMESTAMP_TYPE_SYSTEM = new RelDataTypeSystemImpl() {
-        @Override
-        public int getMaxPrecision(SqlTypeName typeName) {
-            if (typeName == SqlTypeName.TIMESTAMP) {
-                return 9;
-            }
-            return super.getMaxPrecision(typeName);
-        }
-    };
-
     private final RelOptCluster cluster;
     private final CalciteCatalogReader catalogReader;
     private final FilterConverter filterConverter;
@@ -73,7 +59,7 @@ public class SearchSourceConverter {
         // TODO: Once Analytics plugin starts providing the RelOptTable, use it directly —
         // no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
 
-        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(NANO_TIMESTAMP_TYPE_SYSTEM);
+        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(DslTypeSystems.NANO_TIMESTAMP);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         this.cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
 

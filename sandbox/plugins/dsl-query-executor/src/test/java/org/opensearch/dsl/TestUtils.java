@@ -18,7 +18,6 @@ import org.apache.calcite.prepare.CalciteCatalogReader;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rel.type.RelDataTypeSystemImpl;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
@@ -29,6 +28,7 @@ import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.ScaledFloatType;
 import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.dsl.converter.ConversionContext;
+import org.opensearch.dsl.converter.DslTypeSystems;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.util.Collections;
@@ -70,15 +70,7 @@ public class TestUtils {
 
     private static Infra buildInfra() {
         // Mirrors SearchSourceConverter: TIMESTAMP max precision raised to 9 for date_nanos support.
-        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(new RelDataTypeSystemImpl() {
-            @Override
-            public int getMaxPrecision(SqlTypeName typeName) {
-                if (typeName == SqlTypeName.TIMESTAMP) {
-                    return 9;
-                }
-                return super.getMaxPrecision(typeName);
-            }
-        });
+        RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(DslTypeSystems.NANO_TIMESTAMP);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         RelOptCluster cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
 
