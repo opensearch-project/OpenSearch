@@ -416,8 +416,8 @@ public class RangeQueryTranslator implements QueryTranslator {
      * For epoch_millis format, timezone is ignored since epoch is absolute.
      * <p>
      * For precision-9 date fields (date_nanos), parsing routes to nanosecond resolution via
-     * {@link RangeDateParsing#parseDateValueNanos}, mirroring legacy
-     * {@code DateFieldMapper.Resolution.NANOSECONDS}.
+     * {@link RangeDateParsing#parseDateValue} with {@code DateResolution.NANOSECONDS}, mirroring
+     * legacy {@code DateFieldMapper.Resolution.NANOSECONDS}.
      *
      * @param value the value to process (can be String, Long, or other types)
      * @param format optional date format pattern (e.g., "dd/MM/yyyy")
@@ -449,18 +449,12 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // If format/timeZone specified or value is date-math, always date-parse
         if (format != null || timeZone != null || RangeDateParsing.isDateMathExpression(strValue)) {
-            if (isNanoPrecision(fieldPrecision)) {
-                return RangeDateParsing.parseDateValueNanos(strValue, format, timeZone, roundUp);
-            }
-            return RangeDateParsing.parseDateValueMillis(strValue, format, timeZone, roundUp);
+            return RangeDateParsing.parseDateValue(strValue, format, timeZone, roundUp, resolutionFor(fieldPrecision));
         }
 
         // Gate on field type
         if (RangeDateParsing.isDateType(fieldTypeName)) {
-            if (isNanoPrecision(fieldPrecision)) {
-                return RangeDateParsing.parseDateValueNanos(strValue, null, null, roundUp);
-            }
-            return RangeDateParsing.parseDateValueMillis(strValue, null, null, roundUp);
+            return RangeDateParsing.parseDateValue(strValue, null, null, roundUp, resolutionFor(fieldPrecision));
         } else if (RangeBoundMath.isNumericType(fieldTypeName)) {
             return new CoercedNumber(coerceToNumber(strValue, fieldTypeName));
         } else {
@@ -509,6 +503,11 @@ public class RangeQueryTranslator implements QueryTranslator {
     /** OpenSearch maps {@code date} to TIMESTAMP(3) and {@code date_nanos} to TIMESTAMP(9) (see OpenSearchSchemaBuilder.mapFieldType); any precision above 3 is nanosecond resolution. */
     private static boolean isNanoPrecision(int precision) {
         return precision > 3;
+    }
+
+    /** Selects the date resolution matching the field precision. */
+    private static RangeDateParsing.DateResolution resolutionFor(int precision) {
+        return isNanoPrecision(precision) ? RangeDateParsing.DateResolution.NANOSECONDS : RangeDateParsing.DateResolution.MILLISECONDS;
     }
 
     /**
