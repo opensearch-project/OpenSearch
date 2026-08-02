@@ -8,6 +8,7 @@
 
 package org.opensearch.common.annotation.processor;
 
+import org.opensearch.secure_sm.AccessController;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -30,8 +31,6 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +43,6 @@ interface CompilerSupport {
         return compileWithPackage(outputDirectory, ApiAnnotationProcessorTests.class.getPackageName(), name, names);
     }
 
-    @SuppressWarnings("removal")
     default CompilerResult compileWithPackage(Path outputDirectory, String pck, String name, String... names) {
         final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
@@ -65,7 +63,7 @@ interface CompilerSupport {
             );
             task.setProcessors(Collections.singleton(new ApiAnnotationProcessor()));
 
-            if (AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> task.call())) {
+            if (AccessController.doPrivileged(task::call)) {
                 return new Success(collector.getDiagnostics());
             } else {
                 return new Failure(collector.getDiagnostics());

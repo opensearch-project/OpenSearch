@@ -30,6 +30,10 @@
 
 test.enabled = false
 
+dependencies {
+  implementation project(':libs:agent-sm:agent-policy')
+}
+
 // test depend on ES core...
 disableTasks('forbiddenApisMain')
 jarHell.enabled = false
