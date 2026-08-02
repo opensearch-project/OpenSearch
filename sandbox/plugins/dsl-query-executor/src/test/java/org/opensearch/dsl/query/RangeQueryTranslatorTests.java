@@ -1327,5 +1327,43 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Infinity") || ex.getMessage().contains("non-finite"));
     }
 
+    // ========== GROUP P - CHARACTERIZATION: MILLIS vs NANOS BOUNDARY BEHAVIOUR ==========
+
+    /** Pre-1970 date on millisecond field produces a negative epoch-millis literal (1969-07-20 = -14256000000). */
+    public void testPreEpochDateOnMillisFieldProducesNegativeValue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_time").gte("1969-07-20T00:00:00Z"), ctx);
+
+        assertLiteralEpoch(result, -14256000000L);
+    }
+
+    /** Negative epoch_millis value on date_nanos field throws ConversionException. */
+    public void testNegativeEpochMillisOnDateNanosFieldThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("-1").format("epoch_millis"), ctx)
+        );
+        assertTrue(
+            "Expected message about value before epoch, got: " + ex.getMessage(),
+            ex.getMessage().contains("before epoch not representable in nanos")
+        );
+    }
+
+    /** Far-future bound on date_nanos clamps to MAX_NANOSECOND_INSTANT (2262-04-11T23:47:16.854775807Z). */
+    public void testFarFutureDateOnNanosFieldClampsToMax() throws ConversionException {
+        // 2300-01-01 is far beyond MAX_NANOSECOND_INSTANT (2262-04-11T23:47:16.854775807Z)
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("event_nanos").gte("2300-01-01"), ctx);
+
+        RexCall call = (RexCall) result;
+        RexLiteral literal = unwrapLiteral(call.getOperands().get(1));
+        assertNotNull(literal);
+        assertEquals(9, literal.getType().getPrecision());
+        // Verify clamped to MAX_NANOSECOND_INSTANT via TimestampString
+        org.apache.calcite.util.TimestampString ts = literal.getValueAs(org.apache.calcite.util.TimestampString.class);
+        assertNotNull("TimestampString must not be null", ts);
+        String tsStr = ts.toString();
+        assertTrue("Must clamp to 2262-04-11, got: " + tsStr, tsStr.startsWith("2262-04-11"));
+        assertTrue("Must contain .854775807, got: " + tsStr, tsStr.contains(".854775807"));
+    }
+
     // ========== END OF TESTS ==========
 }
