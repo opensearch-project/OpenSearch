@@ -112,7 +112,8 @@ public class BoolQueryTranslator implements QueryTranslator {
             if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.IS_NOT_TRUE) {
                 // Double-negation elimination: IS_NOT_TRUE(IS_NOT_TRUE(x)) → x.
                 // Semantically sound: IS_NOT_TRUE(IS_NOT_TRUE(x)) is TRUE when x is TRUE, FALSE
-                // when x is FALSE or NULL — identical to x under filter evaluation.
+                // when x is FALSE or NULL — identical to x under filter evaluation
+                // (a filter discards rows whose predicate is not TRUE).
                 conditions.add(((RexCall) condition).getOperands().get(0));
             } else {
                 conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_TRUE, condition));

@@ -811,12 +811,13 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testParseCombinationTrailingLessThanThrowsConversionException() {
-        // "5<" is malformed — split produces only one part
+        // "5<" is malformed — when total > threshold, split produces only one part and legacy
+        // throws ArrayIndexOutOfBoundsException (wrapped as ConversionException).
         ConversionException ex = expectThrows(
             ConversionException.class,
-            () -> MinimumShouldMatchParser.calculateRequiredMatches("5<", 3, false)
+            () -> MinimumShouldMatchParser.calculateRequiredMatches("5<", 6, false)
         );
-        assertTrue("Message must mention Malformed", ex.getMessage().contains("Malformed"));
+        assertTrue("Message must mention the spec", ex.getMessage().contains("5<"));
     }
 
     // --- Should-gate local branch tests: exact-equal AND vs over-large FALSE ---
