@@ -374,7 +374,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         if (value instanceof Long && RangeDateParsing.isDateType(fieldTypeName)) {
             long longValue = (Long) value;
             int precision = field.getType().getPrecision();
-            if (precision == 9) {
+            if (isNanoPrecision(precision)) {
                 // Nanosecond epoch: build TimestampString with 9 fractional digits to avoid
                 // makeLiteral(Long, TIMESTAMP) which interprets the Long as millis and overflows.
                 // Split: millis for the date/time base, nanoOfSecond for the fractional portion.
@@ -449,7 +449,7 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // If format/timeZone specified or value is date-math, always date-parse
         if (format != null || timeZone != null || RangeDateParsing.isDateMathExpression(strValue)) {
-            if (fieldPrecision == 9) {
+            if (isNanoPrecision(fieldPrecision)) {
                 return RangeDateParsing.parseDateValueNanos(strValue, format, timeZone, roundUp);
             }
             return RangeDateParsing.parseDateValueMillis(strValue, format, timeZone, roundUp);
@@ -457,7 +457,7 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // Gate on field type
         if (RangeDateParsing.isDateType(fieldTypeName)) {
-            if (fieldPrecision == 9) {
+            if (isNanoPrecision(fieldPrecision)) {
                 return RangeDateParsing.parseDateValueNanos(strValue, null, null, roundUp);
             }
             return RangeDateParsing.parseDateValueMillis(strValue, null, null, roundUp);
@@ -504,6 +504,11 @@ public class RangeQueryTranslator implements QueryTranslator {
                 "Failed to coerce value '" + strValue + "' to numeric type " + fieldTypeName + ": " + e.getMessage()
             );
         }
+    }
+
+    /** OpenSearch maps {@code date} to TIMESTAMP(3) and {@code date_nanos} to TIMESTAMP(9) (see OpenSearchSchemaBuilder.mapFieldType); any precision above 3 is nanosecond resolution. */
+    private static boolean isNanoPrecision(int precision) {
+        return precision > 3;
     }
 
     /**
