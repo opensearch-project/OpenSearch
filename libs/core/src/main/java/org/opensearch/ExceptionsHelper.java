@@ -131,6 +131,7 @@ public final class ExceptionsHelper {
             case IllegalArgumentException ignored -> RestStatus.BAD_REQUEST;
             case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
             case JsonParseException ignored -> RestStatus.BAD_REQUEST;
+            case com.fasterxml.jackson.core.JsonParseException ignored -> RestStatus.BAD_REQUEST;
             case NotXContentException ignored -> RestStatus.BAD_REQUEST;
             case IndexSearcher.TooManyClauses ignored -> RestStatus.BAD_REQUEST;
             case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
@@ -144,6 +145,7 @@ public final class ExceptionsHelper {
             case IllegalArgumentException ignored -> ErrorMessages.INVALID_ARGUMENT;
             case InputCoercionException ignored -> ErrorMessages.JSON_COERCION_FAILED;
             case JsonParseException ignored -> ErrorMessages.JSON_PARSE_FAILED;
+            case com.fasterxml.jackson.core.JsonParseException ignored -> ErrorMessages.JSON_PARSE_FAILED;
             case OpenSearchRejectedExecutionException ignored -> ErrorMessages.TOO_MANY_REQUESTS;
             case null, default -> "Internal failure";
         };
