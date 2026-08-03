@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.schema.ScaledFloatType;
+import org.opensearch.analytics.schema.UnsignedLongType;
 
 import java.util.Map;
 
@@ -31,7 +32,12 @@ final class TranslatorMapperRegistry {
     static final TranslatorMapperRegistry INSTANCE = new TranslatorMapperRegistry();
 
     /** Tier 1: UDT marker types keyed on exact class. */
-    private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of(ScaledFloatType.class, ScaledFloatTranslatorMapper.INSTANCE);
+    private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of(
+        ScaledFloatType.class,
+        ScaledFloatTranslatorMapper.INSTANCE,
+        UnsignedLongType.class,
+        UnsignedLongTranslatorMapper.INSTANCE
+    );
 
     /** Tier 2: Calcite built-in types keyed on SqlTypeName. Empty in this step. */
     private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of();

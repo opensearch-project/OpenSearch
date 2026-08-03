@@ -17,7 +17,6 @@ import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.schema.IpType;
-import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.dsl.converter.ConversionContext;
@@ -205,16 +204,10 @@ public class RangeQueryTranslator implements QueryTranslator {
             return null;
         }
 
-        // Unsigned long: apply legacy NumberFieldMapper.unsignedLongRangeQuery semantics.
-        // The representable range on the DSL path is [0, Long.MAX_VALUE] due to schema_coerce.rs
-        // UInt64→Int64 narrowing; values above Long.MAX_VALUE throw ConversionException.
-        if (field.getType() instanceof UnsignedLongType) {
-            return RangeBoundMath.translateUnsignedLongBound(value, isLower, inclusive, field, ctx);
-        }
-
-        // Delegate remaining types (integer decimal-adjust, whole-integer, and generic tail)
-        // to the registry-resolved mapper. The catch-all DefaultTranslatorMapper carries the
-        // entire non-UDT path including VARCHAR/CHAR keyword ranges.
+        // Delegate remaining types (including scaled_float, unsigned_long via tier 1,
+        // integer decimal-adjust, whole-integer, and generic tail) to the registry-resolved
+        // mapper. The catch-all DefaultTranslatorMapper carries the entire non-UDT path
+        // including VARCHAR/CHAR keyword ranges.
         return REGISTRY.resolve(field.getType()).translateBound(new BoundRequest(value, isLower, inclusive, null, null, field, ctx));
     }
 

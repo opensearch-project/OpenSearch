@@ -60,4 +60,34 @@ public class TranslatorMapperRegistryTests extends OpenSearchTestCase {
             registry.resolve(field.getType()) instanceof DefaultTranslatorMapper
         );
     }
+
+    /**
+     * Verifies UnsignedLongType resolves to UnsignedLongTranslatorMapper via tier 1.
+     */
+    public void testResolveUnsignedLongReturnsUnsignedLongMapper() {
+        RelDataTypeField field = ctx.getRowType().getField("unsigned_counter", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(UnsignedLongTranslatorMapper.class));
+        assertFalse(
+            "UnsignedLongType must NOT fall through to DefaultTranslatorMapper",
+            registry.resolve(field.getType()) instanceof DefaultTranslatorMapper
+        );
+    }
+
+    /**
+     * Critical assertion: ScaledFloatType, UnsignedLongType and a plain BIGINT all report
+     * SqlTypeName.BIGINT, so this test proves dispatch is keyed on the Java class (tier 1)
+     * and not on SqlTypeName. A plain BIGINT field must still resolve to DefaultTranslatorMapper
+     * because it has no tier-1 entry.
+     */
+    public void testPlainBigintResolvesToDefaultNotUdtMapper() {
+        // "timestamp" is plain BIGINT in the shared schema, not a UDT subclass
+        RelDataTypeField bigintField = ctx.getRowType().getField("timestamp", false, false);
+        assertThat(registry.resolve(bigintField.getType()), instanceOf(DefaultTranslatorMapper.class));
+
+        // Verify all three share BIGINT SqlTypeName
+        RelDataTypeField scaledField = ctx.getRowType().getField("scaled_price", false, false);
+        RelDataTypeField unsignedField = ctx.getRowType().getField("unsigned_counter", false, false);
+        assertEquals(bigintField.getType().getSqlTypeName(), scaledField.getType().getSqlTypeName());
+        assertEquals(bigintField.getType().getSqlTypeName(), unsignedField.getType().getSqlTypeName());
+    }
 }
