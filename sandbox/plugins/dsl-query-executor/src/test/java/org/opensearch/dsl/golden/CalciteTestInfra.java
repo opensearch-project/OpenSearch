@@ -22,6 +22,8 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.ScaledFloatType;
+import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.dsl.converter.DslTypeSystems;
 
 import java.util.Collections;
@@ -64,9 +66,7 @@ public class CalciteTestInfra {
             public RelDataType getRowType(RelDataTypeFactory tf) {
                 RelDataTypeFactory.Builder builder = tf.builder();
                 for (Map.Entry<String, String> entry : indexMapping.entrySet()) {
-                    SqlTypeName sqlType = toSqlTypeName(entry.getValue());
-                    int precision = precisionFor(entry.getValue());
-                    RelDataType fieldType = precision >= 0 ? tf.createSqlType(sqlType, precision) : tf.createSqlType(sqlType);
+                    RelDataType fieldType = toRelDataType(entry.getValue(), tf);
                     builder.add(entry.getKey(), tf.createTypeWithNullability(fieldType, true));
                 }
                 return builder.build();
@@ -82,6 +82,26 @@ public class CalciteTestInfra {
         RelOptTable table = Objects.requireNonNull(reader.getTable(List.of(indexName)), "Table not found in schema: " + indexName);
 
         return new InfraResult(cluster, table, schema);
+    }
+
+    /**
+     * Resolves a golden file type string to a full {@link RelDataType}, supporting both standard
+     * SqlTypeNames and user-defined types (UNSIGNED_LONG, SCALED_FLOAT).
+     */
+    private static RelDataType toRelDataType(String goldenType, RelDataTypeFactory tf) {
+        if ("UNSIGNED_LONG".equals(goldenType)) {
+            return new UnsignedLongType(DslTypeSystems.NANO_TIMESTAMP, false);
+        }
+        if (goldenType.startsWith("SCALED_FLOAT")) {
+            int factor = precisionFor(goldenType);
+            if (factor < 0) {
+                throw new IllegalArgumentException("SCALED_FLOAT requires a scaling factor, e.g. SCALED_FLOAT(100)");
+            }
+            return new ScaledFloatType(DslTypeSystems.NANO_TIMESTAMP, false, factor);
+        }
+        SqlTypeName sqlType = toSqlTypeName(goldenType);
+        int precision = precisionFor(goldenType);
+        return precision >= 0 ? tf.createSqlType(sqlType, precision) : tf.createSqlType(sqlType);
     }
 
     /**
@@ -115,13 +135,17 @@ public class CalciteTestInfra {
         }
     }
 
-    /** Returns the precision for a given golden file type. TIMESTAMP defaults to 3 (millis), TIMESTAMP_NANOS to 9. */
+    /** Returns the precision (or scaling factor) for a given golden file type string. TIMESTAMP defaults to 3 (millis), TIMESTAMP_NANOS to 9. A parenthesised number like SCALED_FLOAT(100) returns 100. */
     static int precisionFor(String goldenType) {
         if ("TIMESTAMP".equals(goldenType)) {
             return 3;
         }
         if ("TIMESTAMP_NANOS".equals(goldenType)) {
             return 9;
+        }
+        int open = goldenType.indexOf('(');
+        if (open >= 0 && goldenType.endsWith(")")) {
+            return Integer.parseInt(goldenType.substring(open + 1, goldenType.length() - 1));
         }
         return -1;
     }
