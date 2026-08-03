@@ -15,6 +15,7 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalStats;
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
@@ -49,6 +50,14 @@ public class StatsMetricTranslatorTests extends OpenSearchTestCase {
         StatsAggregationBuilder agg = new StatsAggregationBuilder("price_stats").field("invalid");
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    public void testScriptRejected() {
+        StatsAggregationBuilder agg = new StatsAggregationBuilder("price_stats").script(new Script("doc['price'].value"));
+
+        ConversionException e = expectThrows(ConversionException.class, () -> translator.validate(agg));
+
+        assertEquals("aggregation [price_stats] with a script is not supported", e.getMessage());
     }
 
     public void testNonNumericFieldRejected() {

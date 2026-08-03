@@ -52,17 +52,12 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
     }
 
     /**
-     * Rejects {@code script} (computes the metric input from a script): the translation
-     * emits plain {@code fn(field)} and a scripted input has no SQL equivalent, so its
-     * result would differ from classic search if ignored.
+     * Rejects request parameters the analytics path cannot honor, before any plan state
+     * accumulates — see {@link MetricTranslator#validateSupportedParams}.
      */
     @Override
     public void validate(ExtendedStatsAggregationBuilder agg) throws ConversionException {
-        if (agg.script() != null) {
-            throw new ConversionException(
-                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-            );
-        }
+        MetricTranslator.validateSupportedParams(agg);
     }
 
     /** See {@link AbstractMetricTranslator#toAggregateCalls(ValuesSourceAggregationBuilder, RelDataType)}. */

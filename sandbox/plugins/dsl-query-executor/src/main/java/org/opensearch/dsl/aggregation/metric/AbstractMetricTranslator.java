@@ -33,17 +33,12 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
     protected AbstractMetricTranslator() {}
 
     /**
-     * Rejects {@code script} (computes the metric input from a script): the translation
-     * emits plain {@code fn(field)} and a scripted input has no SQL equivalent, so its
-     * result would differ from classic search if ignored.
+     * Rejects request parameters the analytics path cannot honor, before any plan state
+     * accumulates — see {@link MetricTranslator#validateSupportedParams}.
      */
     @Override
     public void validate(T agg) throws ConversionException {
-        if (agg.script() != null) {
-            throw new ConversionException(
-                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-            );
-        }
+        MetricTranslator.validateSupportedParams(agg);
     }
 
     /** Returns the SQL aggregate function (e.g., AVG, SUM, MIN, MAX). */
