@@ -26,7 +26,9 @@ import org.apache.lucene.search.KnnCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -86,6 +88,13 @@ public final class VectorFieldAddingCodecReader extends FilterCodecReader {
     private final FieldInfo addedFieldInfo;
 
     /**
+     * Adds a field with no codec attributes — sufficient for plain Lucene HNSW.
+     *
+     * <p>Engine-specific writers (notably the OpenSearch k-NN plugin's native FAISS writer) derive
+     * their configuration from {@code FieldInfo.attributes()}, so those callers must use
+     * {@link #VectorFieldAddingCodecReader(CodecReader, String, int, VectorSimilarityFunction, Map,
+     * VectorSupplier)} instead.
+     *
      * @param in the source segment; every existing field is delegated to it
      * @param field name of the vector field to add; must not already exist in {@code in}
      * @param dimension the new field's dimension
@@ -97,6 +106,28 @@ public final class VectorFieldAddingCodecReader extends FilterCodecReader {
         String field,
         int dimension,
         VectorSimilarityFunction similarity,
+        VectorSupplier supplier
+    ) {
+        this(in, field, dimension, similarity, Collections.emptyMap(), supplier);
+    }
+
+    /**
+     * Adds a field carrying explicit codec attributes.
+     *
+     * <p>The attributes are how a format-specific writer learns what to build. The k-NN plugin's
+     * native path reads {@code index_description} / {@code spaceType} (via {@code parameters}),
+     * {@code space_type}, {@code data_type}, {@code knn} and the quantization framework config from
+     * this map (see {@code NativeIndexWriter.getParameters}), so a FAISS field added without them
+     * would silently fall back to defaults rather than reproducing the intended index type.
+     *
+     * @param attributes codec attributes for the new field; copied defensively
+     */
+    public VectorFieldAddingCodecReader(
+        CodecReader in,
+        String field,
+        int dimension,
+        VectorSimilarityFunction similarity,
+        Map<String, String> attributes,
         VectorSupplier supplier
     ) {
         super(in);
@@ -132,7 +163,7 @@ public final class VectorFieldAddingCodecReader extends FilterCodecReader {
             DocValuesType.NONE,
             DocValuesSkipIndexType.NONE,
             -1,                                 // dvGen
-            Collections.emptyMap(),             // attributes
+            new HashMap<>(attributes),          // attributes: how a native writer learns what to build
             0,                                  // pointDimensionCount
             0,                                  // pointIndexDimensionCount
             0,                                  // pointNumBytes
