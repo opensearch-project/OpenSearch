@@ -10,6 +10,7 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.ScaledFloatType;
 import org.opensearch.analytics.schema.UnsignedLongType;
 
@@ -36,15 +37,25 @@ final class TranslatorMapperRegistry {
         ScaledFloatType.class,
         ScaledFloatTranslatorMapper.INSTANCE,
         UnsignedLongType.class,
-        UnsignedLongTranslatorMapper.INSTANCE
+        UnsignedLongTranslatorMapper.INSTANCE,
+        IpType.class,
+        IpTranslatorMapper.INSTANCE
     );
 
-    /** Tier 2: Calcite built-in types keyed on SqlTypeName. */
+    /**
+     * Tier 2: Calcite built-in types keyed on SqlTypeName.
+     * VARBINARY maps to RejectingTranslatorMapper here, but an IP field (IpType) will match
+     * tier 1 first and get IpTranslatorMapper. Tier ordering reproduces the former compound
+     * rule in convert(): tier 1 matches IpType.class before tier 2 ever sees VARBINARY, so
+     * an ip field gets the IP mapper and a plain binary field gets rejected.
+     */
     private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of(
         SqlTypeName.TIMESTAMP,
         TimestampTranslatorMapper.INSTANCE,
         SqlTypeName.DATE,
-        TimestampTranslatorMapper.INSTANCE
+        TimestampTranslatorMapper.INSTANCE,
+        SqlTypeName.VARBINARY,
+        RejectingTranslatorMapper.INSTANCE
     );
 
     private TranslatorMapperRegistry() {}

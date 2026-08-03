@@ -78,13 +78,18 @@ final class TimestampTranslatorMapper extends BaseTranslatorMapper {
     }
 
     /**
-     * Generic term-literal behaviour for timestamp fields: creates a typed literal using the
-     * field's type.
+     * Term queries on timestamp/date fields are not yet supported on this path.
+     * Legacy {@code DateFieldMapper.termQuery} supports them, but implementing without verified
+     * parity would replace a loud crash (ClassCastException from Calcite's checkcast Long on
+     * a String) with a possibly silently-wrong answer.
+     *
+     * @throws ConversionException always, with a clear message for HTTP 400 surfacing
      */
     @Override
     public Optional<RexNode> toTermLiteral(Object value, RelDataTypeField field, ConversionContext ctx) throws ConversionException {
-        RexNode literal = ctx.getRexBuilder().makeLiteral(value, field.getType(), true);
-        return Optional.of(literal);
+        throw new ConversionException(
+            "Term queries on date fields are not yet supported on the DSL conversion path. Field: [" + field.getName() + "]"
+        );
     }
 
     /**

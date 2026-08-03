@@ -11,6 +11,7 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -106,5 +107,36 @@ public class TranslatorMapperRegistryTests extends OpenSearchTestCase {
         RelDataTypeField unsignedField = ctx.getRowType().getField("unsigned_counter", false, false);
         assertEquals(bigintField.getType().getSqlTypeName(), scaledField.getType().getSqlTypeName());
         assertEquals(bigintField.getType().getSqlTypeName(), unsignedField.getType().getSqlTypeName());
+    }
+
+    /**
+     * Verifies IpType resolves to IpTranslatorMapper via tier 1.
+     * IpType reports SqlTypeName.VARBINARY, but tier 1 keying on exact class takes priority.
+     */
+    public void testResolveIpTypeReturnsIpMapper() {
+        RelDataTypeField field = ctx.getRowType().getField("ip_address", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(IpTranslatorMapper.class));
+        assertFalse(
+            "IpType must NOT fall through to RejectingTranslatorMapper",
+            registry.resolve(field.getType()) instanceof RejectingTranslatorMapper
+        );
+    }
+
+    /**
+     * Verifies plain VARBINARY (non-IP binary field) resolves to RejectingTranslatorMapper
+     * via tier 2, and that its translateBound throws ConversionException.
+     */
+    public void testResolveVarbinaryReturnsRejectingMapper() {
+        RelDataTypeField field = ctx.getRowType().getField("binary_data", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(RejectingTranslatorMapper.class));
+
+        // Verify translateBound throws ConversionException
+        BaseTranslatorMapper mapper = registry.resolve(field.getType());
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> mapper.translateBound(new BoundRequest("abc", true, true, null, null, field, ctx))
+        );
+        assertTrue("Message should mention field name: " + ex.getMessage(), ex.getMessage().contains("binary_data"));
+        assertTrue("Message should mention range queries: " + ex.getMessage(), ex.getMessage().contains("range queries"));
     }
 }

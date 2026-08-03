@@ -8,17 +8,12 @@
 
 package org.opensearch.dsl.query;
 
-import org.apache.calcite.avatica.util.ByteString;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.analytics.schema.IpType;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.network.InetAddresses;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -26,7 +21,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 
 import java.math.BigDecimal;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -125,19 +119,6 @@ public class RangeQueryTranslator implements QueryTranslator {
             return ctx.getRexBuilder().makeLiteral(false);
         }
 
-        // Guard: binary fields are not supported for range queries.
-        // Legacy BinaryFieldMapper has no rangeQuery implementation at all.
-        // IP fields (IpType marker) are supported via byte-range comparison below.
-        if (field.getType().getSqlTypeName() == SqlTypeName.VARBINARY && !(field.getType() instanceof IpType)) {
-            throw new ConversionException("Range queries on binary fields are not supported by the DSL conversion path");
-        }
-
-        // IP field handling: encode bound strings to 16-byte IPv6-mapped sortable bytes,
-        // matching legacy IpFieldMapper.rangeQuery with InetAddressPoint.encode byte ordering.
-        if (field.getType() instanceof IpType) {
-            return convertIpRange(rangeQuery, field, ctx);
-        }
-
         SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
         int fieldPrecision = field.getType().getPrecision();
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
@@ -218,71 +199,6 @@ public class RangeQueryTranslator implements QueryTranslator {
         // mapper. The catch-all DefaultTranslatorMapper carries the entire non-UDT path
         // including VARCHAR/CHAR keyword ranges.
         return REGISTRY.resolve(field.getType()).translateBound(new BoundRequest(value, isLower, inclusive, format, timeZone, field, ctx));
-    }
-
-    /**
-     * Converts an IP-typed range query to byte-range comparisons using 16-byte IPv6-mapped
-     * encoding, matching legacy {@code IpFieldMapper.rangeQuery} with
-     * {@code InetAddressPoint.encode} byte ordering. The encoding is identical to what
-     * {@code CidrMatchFunctionAdapter.encodeIpAsIpv6} produces.
-     */
-    private RexNode convertIpRange(RangeQueryBuilder rangeQuery, RelDataTypeField field, ConversionContext ctx) throws ConversionException {
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-        List<RexNode> conditions = new ArrayList<>();
-        RelDataType varbinaryType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.VARBINARY);
-
-        if (rangeQuery.from() != null) {
-            byte[] fromBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.from()));
-            RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(fromBytes), varbinaryType, false);
-            SqlOperator op = rangeQuery.includeLower() ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN;
-            conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
-        }
-
-        if (rangeQuery.to() != null) {
-            byte[] toBytes = encodeIpAsIpv6(String.valueOf(rangeQuery.to()));
-            RexNode literal = ctx.getRexBuilder().makeLiteral(new ByteString(toBytes), varbinaryType, false);
-            SqlOperator op = rangeQuery.includeUpper() ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN;
-            conditions.add(ctx.getRexBuilder().makeCall(op, fieldRef, literal));
-        }
-
-        // No bounds -> IS_NOT_NULL (exists semantics)
-        if (conditions.isEmpty()) {
-            return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);
-        }
-
-        return conditions.size() == 1 ? conditions.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, conditions);
-    }
-
-    /**
-     * IPv6-mapped 16-byte encoding matching what the parquet writer stores. IPv4 input is
-     * encoded as 10 zero bytes + 0xff 0xff + 4 IPv4 bytes (RFC 4291 section 2.5.5.2).
-     * IPv6 is its raw 16 bytes. Identical to {@code CidrMatchFunctionAdapter.encodeIpAsIpv6}
-     * and {@code InetAddressPoint.encode} byte layout.
-     *
-     * <p>Uses {@code InetAddresses.forString} for strict textual IP parsing without DNS
-     * resolution, matching legacy behavior (IpFieldMapper uses InetAddresses.forString;
-     * hostname input is rejected).
-     *
-     * @param value textual IPv4 or IPv6 address (e.g. "192.168.0.1" or "::1")
-     * @return 16-byte IPv6-mapped encoding
-     * @throws ConversionException if the value is not a valid literal IP address
-     */
-    static byte[] encodeIpAsIpv6(String value) throws ConversionException {
-        final InetAddress inetAddress;
-        try {
-            inetAddress = InetAddresses.forString(value);
-        } catch (IllegalArgumentException e) {
-            throw new ConversionException("Failed to parse IP address value '" + value + "': not a valid IPv4 or IPv6 literal");
-        }
-        byte[] addr = inetAddress.getAddress();
-        if (addr.length == 16) {
-            return addr;
-        }
-        byte[] mapped = new byte[16];
-        mapped[10] = (byte) 0xff;
-        mapped[11] = (byte) 0xff;
-        System.arraycopy(addr, 0, mapped, 12, 4);
-        return mapped;
     }
 
     /**
