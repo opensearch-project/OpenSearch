@@ -229,6 +229,18 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals("10.0.0.2", terms.getBuckets().get(1).getKeyAsString());
     }
 
+    /** IPv6 keys must render in RFC 5952 canonical form like classic ip terms, not the uncompressed form. */
+    public void testIpv6KeyRendersCanonicalForm() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        // 2001:db8::1
+        byte[] ipv6 = { 0x20, 0x01, 0x0d, (byte) 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(ipv6), 1, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries, 1L);
+
+        assertEquals("2001:db8::1", terms.getBuckets().get(0).getKeyAsString());
+    }
+
     public void testUndecodableBinaryKeyFallsBackToBase64() {
         TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
         List<BucketEntry> entries = List.of(new BucketEntry(List.of(new byte[] { 1, 2, 3 }), 1, InternalAggregations.EMPTY));
