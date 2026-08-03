@@ -18,6 +18,7 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,19 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
             parseFormat(pattern);
         } catch (IllegalArgumentException e) {
             throw new ConversionException("aggregation [" + aggName + "] has an invalid format [" + pattern + "]: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Rejects request parameters the analytics path cannot honor. Scripted values are
+     * computed per document at collection time, which has no SQL equivalent.
+     *
+     * @param agg the metric aggregation builder
+     * @throws ConversionException if the aggregation uses a script
+     */
+    static void validateSupportedParams(ValuesSourceAggregationBuilder<?> agg) throws ConversionException {
+        if (agg.script() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a script is not supported");
         }
     }
 

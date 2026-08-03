@@ -15,11 +15,13 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -131,6 +133,21 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
         agg.missing(0);
 
         expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+    }
+
+    public void testScriptRejectedForAllSimpleMetrics() {
+        assertScriptRejected(new AvgMetricTranslator(), new AvgAggregationBuilder("m"));
+        assertScriptRejected(new SumMetricTranslator(), new SumAggregationBuilder("m"));
+        assertScriptRejected(new MinMetricTranslator(), new MinAggregationBuilder("m"));
+        assertScriptRejected(new MaxMetricTranslator(), new MaxAggregationBuilder("m"));
+    }
+
+    private <T extends ValuesSourceAggregationBuilder<T>> void assertScriptRejected(AbstractMetricTranslator<T> translator, T agg) {
+        agg.script(new Script("doc['price'].value"));
+
+        ConversionException e = expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+
+        assertEquals("aggregation [" + agg.getName() + "] with a script is not supported", e.getMessage());
     }
 
     public void testNonNumericMissingRejected() {

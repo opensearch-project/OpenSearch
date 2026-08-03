@@ -58,6 +58,7 @@ public class StatsMetricTranslator implements MetricTranslator<StatsAggregationB
     @Override
     public List<AggregateCall> toAggregateCalls(StatsAggregationBuilder agg, RelDataType rowType, LiteralColumnAllocator literals)
         throws ConversionException {
+        MetricTranslator.validateSupportedParams(agg);
         MetricTranslator.validateFormat(agg.format(), agg.getName());
         RelDataTypeField field = MetricTranslator.resolveNumericField(rowType, agg.field(), agg.getType());
         int inputColumn = AbstractMetricTranslator.inputColumn(agg, field, literals);

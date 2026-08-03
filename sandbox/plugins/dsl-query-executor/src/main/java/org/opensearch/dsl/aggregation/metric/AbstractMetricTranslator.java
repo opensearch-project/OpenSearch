@@ -59,6 +59,7 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
 
     @Override
     public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
+        MetricTranslator.validateSupportedParams(agg);
         MetricTranslator.validateFormat(agg.format(), agg.getName());
         String fieldName = getFieldName(agg);
         RelDataTypeField field;

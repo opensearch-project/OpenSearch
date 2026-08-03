@@ -15,6 +15,7 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -57,6 +58,14 @@ public class ValueCountMetricTranslatorTests extends OpenSearchTestCase {
 
         assertEquals(1, calls.size());
         assertEquals(SqlKind.COUNT, calls.get(0).getAggregation().getKind());
+    }
+
+    public void testScriptRejected() {
+        ValueCountAggregationBuilder agg = new ValueCountAggregationBuilder("price_count").script(new Script("doc['price'].value"));
+
+        ConversionException e = expectThrows(ConversionException.class, () -> translator.toAggregateCalls(agg, ctx.getRowType()));
+
+        assertEquals("aggregation [price_count] with a script is not supported", e.getMessage());
     }
 
     public void testNumericMissingCountsOverCoalescedColumn() throws ConversionException {
