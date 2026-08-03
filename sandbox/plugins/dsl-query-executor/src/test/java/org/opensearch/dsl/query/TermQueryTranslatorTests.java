@@ -181,4 +181,29 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue("Expected literal false (match-none) for decimal string term on unsigned_long", result instanceof RexLiteral);
         assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
     }
+
+    // ========== IP FIELD TERM TEST ==========
+
+    public void testIpTermThrowsConversionException() {
+        // Legacy IpFieldMapper.termQuery supports IP terms, but implementing without verified
+        // parity would replace a loud crash with a possibly silently-wrong answer.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("ip_address", "192.168.1.1"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not yet supported"));
+    }
+
+    // ========== DATE FIELD TERM TEST ==========
+
+    public void testDateTermThrowsConversionException() {
+        // Legacy DateFieldMapper.DateFieldType.termQuery (line 505) supports date terms by
+        // delegating to rangeQuery; our rejection is a known divergence until parity-verified
+        // date term support is implemented.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("created_date", "2024-01-01"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not yet supported"));
+    }
 }

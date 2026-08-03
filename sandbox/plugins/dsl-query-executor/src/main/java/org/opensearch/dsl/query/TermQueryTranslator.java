@@ -9,14 +9,15 @@
 package org.opensearch.dsl.query;
 
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.opensearch.analytics.schema.ScaledFloatType;
-import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+
+import java.util.Optional;
 
 /**
  * Converts a {@link TermQueryBuilder} to a Calcite EQUALS RexNode.
@@ -27,6 +28,8 @@ import org.opensearch.index.query.TermQueryBuilder;
  * {@code ScaledFloatFieldMapper.ScaledFloatFieldType.termQuery}.
  */
 public class TermQueryTranslator implements QueryTranslator {
+
+    private static final TranslatorMapperRegistry REGISTRY = TranslatorMapperRegistry.INSTANCE;
 
     /** Creates a new term query translator. */
     public TermQueryTranslator() {}
@@ -42,31 +45,17 @@ public class TermQueryTranslator implements QueryTranslator {
         String fieldName = termQuery.fieldName();
         Object value = termQuery.value();
 
+        RelDataTypeField field = ctx.getField(fieldName);
+        RelDataType fieldType = field.getType();
         RexNode fieldRef = ctx.makeFieldRef(fieldName);
-        RelDataType fieldType = ctx.getField(fieldName).getType();
 
-        if (fieldType instanceof ScaledFloatType sft) {
-            // ScaledFloatFieldMapper.ScaledFloatFieldType.termQuery: Math.round(value * factor)
-            // then delegates to NumberFieldMapper.NumberType.LONG.termQuery for exact equality.
-            long scaledValue = RangeBoundMath.scaleToLong(value, sft.getScalingFactor(), fieldName);
-            RexNode literal = ctx.getRexBuilder().makeLiteral(scaledValue, fieldType, true);
-            return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, fieldRef, literal);
+        Optional<RexNode> literal = REGISTRY.resolve(fieldType).toTermLiteral(value, field, ctx);
+        if (literal.isEmpty()) {
+            // Value can never match (e.g. fractional unsigned_long) → match-none.
+            return ctx.getRexBuilder().makeLiteral(false);
         }
 
-        if (fieldType instanceof UnsignedLongType) {
-            // NumberFieldMapper.NumberType.UNSIGNED_LONG.termQuery: negative/decimal → match-none;
-            // above Long.MAX → ConversionException.
-            Long unsignedValue = RangeBoundMath.parseUnsignedLongTerm(value, fieldName);
-            if (unsignedValue == null) {
-                return ctx.getRexBuilder().makeLiteral(false);
-            }
-            long longVal = unsignedValue;
-            RexNode literal = ctx.getRexBuilder().makeLiteral(longVal, fieldType, true);
-            return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, fieldRef, literal);
-        }
-
-        RexNode literal = ctx.getRexBuilder().makeLiteral(value, fieldType, true);
-        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, fieldRef, literal);
+        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, fieldRef, literal.get());
     }
 
 }

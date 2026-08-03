@@ -112,15 +112,18 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
     // Supported types: VARCHAR, INTEGER, DOUBLE, BOOLEAN, BIGINT
     // Date type still throws ClassCastException from Calcite's RexBuilder.makeLiteral()
 
-    // TODO: Enable when date type support is added
+    // TODO: Enable when date type support is added — legacy DateFieldMapper.DateFieldType.termQuery
+    // (line 505) supports term on date by delegating to rangeQuery; our rejection is a known
+    // divergence until parity-verified date term support is implemented.
     public void testDateType() {
-        expectThrows(
-            ClassCastException.class,
+        ConversionException ex = expectThrows(
+            ConversionException.class,
             () -> translator.convert(
                 QueryBuilders.termsQuery("created_date", new Object[] { new Date(1704067200000L), new Date(1706745600000L) }),
                 ctx
             )
         );
+        assertTrue(ex.getMessage().contains("not yet supported"));
     }
 
     public void testBooleanType() throws ConversionException {
@@ -151,15 +154,18 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(SqlKind.OR, call.getKind());
     }
 
-    // TODO: Enable when binary type support is added
+    // TODO: Enable when binary type support is added — legacy BinaryFieldMapper.BinaryFieldType.termQuery
+    // (line 172) throws QueryShardException("Binary fields do not support searching");
+    // ConversionException now MATCHES legacy rejection behaviour.
     public void testBinaryType() {
-        expectThrows(
-            ClassCastException.class,
+        ConversionException ex = expectThrows(
+            ConversionException.class,
             () -> translator.convert(
                 QueryBuilders.termsQuery("binary_data", new Object[] { "U29tZSBiaW5hcnkgYmxvYg==", "QW5vdGhlciBibG9i" }),
                 ctx
             )
         );
+        assertTrue(ex.getMessage().contains("does not support term queries"));
     }
 
     public void testScaledFloatTermsQuery() throws ConversionException {
