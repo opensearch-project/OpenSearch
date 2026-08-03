@@ -168,6 +168,35 @@ public final class VectorFieldSubstitutingCodecReader extends FilterCodecReader 
             }
         }
 
+        /**
+         * The merge path calls this on whatever {@code getVectorReader()} returned
+         * ({@code MergeState} does so immediately after acquiring the reader) and then reads vectors
+         * from the result. Returning a merge instance of the <em>delegate</em> here would hand the
+         * merge the original vectors and silently discard the substitution, so the substituting view
+         * must remain in place.
+         *
+         * <p>A delegate merge instance is still obtained and wrapped, so any read optimizations the
+         * underlying format applies during merge are preserved.
+         */
+        @Override
+        public KnnVectorsReader getMergeInstance() throws IOException {
+            if (delegate == null) {
+                return this;
+            }
+            KnnVectorsReader delegateMergeInstance = delegate.getMergeInstance();
+            if (delegateMergeInstance == delegate) {
+                return this;
+            }
+            return new SubstitutingVectorsReader(delegateMergeInstance, field, supplier);
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            if (delegate != null) {
+                delegate.finishMerge();
+            }
+        }
+
         @Override
         public void close() throws IOException {
             // The delegate's lifecycle belongs to the wrapped CodecReader, not to this view.

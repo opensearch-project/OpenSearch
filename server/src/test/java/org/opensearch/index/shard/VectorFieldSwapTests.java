@@ -296,6 +296,71 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
     /**
      * A different vector field in the same index must be untouched by a single-field swap.
      */
+    /**
+     * Reproduces the access pattern the OpenSearch k-NN plugin's native (FAISS) writer uses, so the
+     * mechanism is verified against the engine OpenSearch actually ships by default — not only
+     * against Lucene HNSW.
+     *
+     * <p>k-NN's {@code AbstractNativeEnginesKnnVectorsWriter.doMergeOneField} obtains its vectors via
+     * {@code KNNVectorValuesFactory.getKNNVectorValuesForMerge}, which calls
+     * {@link org.apache.lucene.codecs.KnnVectorsWriter.MergedVectorValues#mergeFloatVectorValues}.
+     * That helper reads {@code mergeState.knnVectorsReaders}, which {@code MergeState} populates by
+     * calling {@code reader.getVectorReader().getMergeInstance()} on each input reader. This test
+     * drives exactly that sequence and asserts the substituted values — not the originals — are what
+     * a native writer would consume.
+     *
+     * <p>This does not exercise FAISS quantization or JNI; it pins the contract at the seam where
+     * core hands vectors to any {@code KnnVectorsWriter}, which is what the plugin depends on.
+     */
+    public void testSubstitutionSurvivesMergeInstanceAcquisition() throws Exception {
+        try (Directory src = newDirectory()) {
+            buildSourceIndex(src);
+            try (DirectoryReader reader = DirectoryReader.open(src)) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    final int[] ids = docIdToLogicalId(ctx.reader());
+                    VectorFieldSubstitutingCodecReader wrapped = new VectorFieldSubstitutingCodecReader(
+                        (SegmentReader) ctx.reader(),
+                        VECTOR_FIELD,
+                        (docId, dim) -> newModelVector(ids[docId], dim)
+                    );
+
+                    // Step 1: exactly what MergeState does (MergeState.java:165-167).
+                    org.apache.lucene.codecs.KnnVectorsReader vectorsReader = wrapped.getVectorReader();
+                    assertNotNull("wrapped reader must expose a vectors reader", vectorsReader);
+                    org.apache.lucene.codecs.KnnVectorsReader mergeInstance = vectorsReader.getMergeInstance();
+                    assertNotNull("merge instance must not be null", mergeInstance);
+
+                    // Step 2: what k-NN's native writer reads through the merge instance.
+                    FloatVectorValues values = mergeInstance.getFloatVectorValues(VECTOR_FIELD);
+                    assertNotNull("merge instance must expose the substituted field", values);
+
+                    int seen = 0;
+                    var it = values.iterator();
+                    for (int doc = it.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                        float[] actual = values.vectorValue(it.index());
+                        assertArrayEquals(
+                            "a native (FAISS) writer must receive the NEW vector for doc " + ids[doc],
+                            newModelVector(ids[doc], DIM),
+                            actual,
+                            1e-6f
+                        );
+                        // Guard against the failure mode this test exists for: the merge instance
+                        // silently reverting to the delegate's original vectors.
+                        assertFalse(
+                            "merge instance must not serve the OLD vector for doc " + ids[doc],
+                            java.util.Arrays.equals(oldModelVector(ids[doc], DIM), actual)
+                        );
+                        seen++;
+                    }
+                    assertEquals("every document in the leaf was checked", ctx.reader().maxDoc(), seen);
+
+                    // A field the swap does not target must still resolve through the delegate.
+                    assertNull("an unknown field resolves to null, not an error", mergeInstance.getFloatVectorValues("no_such_field"));
+                }
+            }
+        }
+    }
+
     public void testOtherVectorFieldUntouched() throws Exception {
         final String otherField = "embedding_other";
         try (Directory src = newDirectory(); Directory dest = newDirectory()) {
