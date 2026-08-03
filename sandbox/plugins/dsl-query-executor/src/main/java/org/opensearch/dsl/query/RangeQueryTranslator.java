@@ -16,7 +16,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.util.TimestampString;
 import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.ScaledFloatType;
 import org.opensearch.analytics.schema.UnsignedLongType;
@@ -55,6 +54,8 @@ import java.util.List;
  * {@code IpFieldMapper.rangeQuery} with {@code InetAddressPoint.encode} byte ordering.
  */
 public class RangeQueryTranslator implements QueryTranslator {
+
+    private static final TranslatorMapperRegistry REGISTRY = TranslatorMapperRegistry.INSTANCE;
 
     /**
      * Returns the query type this translator handles.
@@ -205,9 +206,6 @@ public class RangeQueryTranslator implements QueryTranslator {
             return null;
         }
 
-        Object adjusted = value;
-        boolean adjustedInclusive = inclusive;
-
         // Scaled float: scale bound via Math.round(value * factor) then apply integer inclusivity.
         // Must precede the decimal truncate+adjust path — legacy ScaledFloatFieldType.rangeQuery
         // uses Math.round only, not the truncate+adjust logic of NumberFieldMapper INTEGER.rangeQuery.
@@ -241,48 +239,10 @@ public class RangeQueryTranslator implements QueryTranslator {
             return RangeBoundMath.translateUnsignedLongBound(value, isLower, inclusive, field, ctx);
         }
 
-        // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
-        // truncate to int and adjust based on sign and bound direction.
-        if (RangeBoundMath.isIntegerType(fieldTypeName) && RangeBoundMath.hasDecimalPart(value)) {
-            long truncated = RangeBoundMath.toLongValue(value);
-            if (isLower) {
-                // Positive decimal lower bound -> increment
-                if (RangeBoundMath.signum(value) > 0) {
-                    if (truncated >= RangeBoundMath.getMaxValueForType(fieldTypeName)) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    adjusted = RangeBoundMath.narrowToFieldType(truncated + 1, fieldTypeName);
-                } else {
-                    adjusted = RangeBoundMath.narrowToFieldType(truncated, fieldTypeName);
-                }
-            } else {
-                // Negative decimal upper bound -> decrement
-                if (RangeBoundMath.signum(value) < 0) {
-                    if (truncated <= RangeBoundMath.getMinValueForType(fieldTypeName)) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    adjusted = RangeBoundMath.narrowToFieldType(truncated - 1, fieldTypeName);
-                } else {
-                    adjusted = RangeBoundMath.narrowToFieldType(truncated, fieldTypeName);
-                }
-            }
-            adjustedInclusive = true; // decimal adjustment makes bound inclusive
-        } else if (RangeBoundMath.isIntegerType(fieldTypeName) && !RangeBoundMath.hasDecimalPart(value) && value instanceof Number) {
-            // Whole numeric value on integer field: narrow to field-appropriate type for Calcite
-            adjusted = RangeBoundMath.narrowToFieldType(((Number) value).longValue(), fieldTypeName);
-        }
-
-        RexNode literal = createLiteral(adjusted, field, ctx, fieldTypeName);
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-
-        SqlOperator op;
-        if (isLower) {
-            op = adjustedInclusive ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.GREATER_THAN;
-        } else {
-            op = adjustedInclusive ? SqlStdOperatorTable.LESS_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN;
-        }
-
-        return ctx.getRexBuilder().makeCall(op, fieldRef, literal);
+        // Delegate remaining types (integer decimal-adjust, whole-integer, and generic tail)
+        // to the registry-resolved mapper. The catch-all DefaultTranslatorMapper carries the
+        // entire non-UDT path including VARCHAR/CHAR keyword ranges.
+        return REGISTRY.resolve(field.getType()).translateBound(new BoundRequest(value, isLower, inclusive, null, null, field, ctx));
     }
 
     /**
@@ -348,57 +308,6 @@ public class RangeQueryTranslator implements QueryTranslator {
         mapped[11] = (byte) 0xff;
         System.arraycopy(addr, 0, mapped, 12, 4);
         return mapped;
-    }
-
-    /**
-     * Creates a literal RexNode with appropriate type based on the field type and value.
-     * <p>
-     * For Long values on TIMESTAMP/DATE fields, creates a timestamp literal with precision matching
-     * the field (3 for date/millis, 9 for date_nanos). For precision 9, the Long is interpreted as
-     * epoch-nanoseconds and converted to a {@link TimestampString} preserving all nine fractional
-     * digits. For precision 3, it is interpreted as epoch-milliseconds. This ensures the Substrait
-     * path emits PrecisionTimestampLiteral with matching units (nanos vs millis).
-     * <p>
-     * For CoercedNumber values (from string-to-number coercion), uses makeLiteral with the
-     * field's type; Calcite canonically types exact-numeric literals as DECIMAL, which is
-     * semantically equivalent for comparisons.
-     * For other types, uses the field's original type.
-     *
-     * @param value the value to create a literal for
-     * @param field the field definition from the schema
-     * @param ctx the conversion context
-     * @param fieldTypeName the SqlTypeName of the field
-     * @return RexNode literal with appropriate type and precision
-     */
-    private RexNode createLiteral(Object value, RelDataTypeField field, ConversionContext ctx, SqlTypeName fieldTypeName) {
-        if (value instanceof Long && RangeDateParsing.isDateType(fieldTypeName)) {
-            long longValue = (Long) value;
-            int precision = field.getType().getPrecision();
-            if (isNanoPrecision(precision)) {
-                // Nanosecond epoch: build TimestampString with 9 fractional digits to avoid
-                // makeLiteral(Long, TIMESTAMP) which interprets the Long as millis and overflows.
-                // Split: millis for the date/time base, nanoOfSecond for the fractional portion.
-                long epochMillis = longValue / 1_000_000L;
-                int nanoOfSecond = (int) (longValue % 1_000_000_000L);
-                // Handle negative modulo edge case (should not occur for valid nanos since epoch)
-                if (nanoOfSecond < 0) {
-                    nanoOfSecond += 1_000_000_000;
-                    epochMillis -= 1;
-                }
-                TimestampString ts = TimestampString.fromMillisSinceEpoch(epochMillis).withNanos(nanoOfSecond);
-                return ctx.getRexBuilder().makeTimestampLiteral(ts, precision);
-            }
-            // Precision 3 (millis): use standard makeLiteral which interprets Long as epoch-millis.
-            RelDataType timestampType = ctx.getRexBuilder().getTypeFactory().createSqlType(SqlTypeName.TIMESTAMP, precision);
-            return ctx.getRexBuilder().makeLiteral(value, timestampType, true);
-        }
-        if (value instanceof CoercedNumber) {
-            // For string-coerced numbers, use Calcite's standard makeLiteral.
-            // Calcite canonically types exact-numeric literals as DECIMAL which is correct.
-            Number num = ((CoercedNumber) value).value;
-            return ctx.getRexBuilder().makeLiteral(num, field.getType(), true);
-        }
-        return ctx.getRexBuilder().makeLiteral(value, field.getType(), true);
     }
 
     /**

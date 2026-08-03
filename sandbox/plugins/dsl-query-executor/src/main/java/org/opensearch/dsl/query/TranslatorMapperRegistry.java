@@ -1,0 +1,55 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.dsl.query;
+
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.sql.type.SqlTypeName;
+
+import java.util.Map;
+
+/**
+ * Two-tier resolver mapping field types to their translator mapper.
+ *
+ * <p>Tier 1 keys on the exact Java class of the {@code RelDataType}, handling UDT marker types
+ * (e.g. ScaledFloatType, UnsignedLongType, IpType) that share the same {@code SqlTypeName}
+ * (BIGINT or VARBINARY). Tier 2 keys on {@code SqlTypeName} for Calcite's own types.
+ * The fallback is {@link DefaultTranslatorMapper} and NEVER a throw, preserving today's
+ * deny-list polarity (one explicit rejection plus a permissive generic tail).
+ *
+ * <p>Both tier maps are empty in this initial step; mappers are registered in later steps.
+ */
+final class TranslatorMapperRegistry {
+
+    /** Singleton instance. */
+    static final TranslatorMapperRegistry INSTANCE = new TranslatorMapperRegistry();
+
+    /** Tier 1: UDT marker types keyed on exact class. Empty in this step. */
+    private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of();
+
+    /** Tier 2: Calcite built-in types keyed on SqlTypeName. Empty in this step. */
+    private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of();
+
+    private TranslatorMapperRegistry() {}
+
+    /**
+     * Resolves the mapper for a given field type. Returns tier 1 hit, else tier 2 hit,
+     * else the catch-all {@link DefaultTranslatorMapper}.
+     *
+     * @param fieldType the Calcite type of the field
+     * @return the appropriate translator mapper, never null
+     */
+    BaseTranslatorMapper resolve(RelDataType fieldType) {
+        BaseTranslatorMapper udt = byUdtClass.get(fieldType.getClass());
+        if (udt != null) {
+            return udt;
+        }
+        BaseTranslatorMapper byName = bySqlType.get(fieldType.getSqlTypeName());
+        return byName != null ? byName : DefaultTranslatorMapper.INSTANCE;
+    }
+}
