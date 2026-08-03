@@ -502,6 +502,134 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Shows why replay alone does not remove the need to stop writes: replay is only safe once it can
+     * *converge*, and it converges only if new operations stop arriving faster than they are replayed.
+     *
+     * <p>This models the "replay without freezing" attempt. The swap snapshots at T1. Writes continue
+     * while replay runs, so each replay round finds fresh work created during the previous round. The
+     * test asserts the two structural facts that force a freeze:
+     *
+     * <ol>
+     *   <li>after any finite number of rounds with writes still arriving, the destination is
+     *       <em>still</em> behind the source — the gap never reaches zero; and
+     *   <li>the moment writes stop, a single round closes it exactly.
+     * </ol>
+     *
+     * <p>So the freeze is not an alternative to replay — it is the terminating condition replay needs.
+     * Option 2 uses both: a short freeze that starts after replay has caught up, rather than a long one
+     * covering the whole rebuild.
+     */
+    public void testReplayNeedsWritesToStopInOrderToConverge() throws Exception {
+        try (Directory src = newDirectory(); Directory dest = newDirectory()) {
+            IndexWriterConfig srcCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            try (IndexWriter srcWriter = new IndexWriter(src, srcCfg)) {
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    srcWriter.addDocument(makeDoc(i, oldModelVector(i, DIM)));
+                }
+                srcWriter.commit();
+                int nextId = NUM_DOCS;
+
+                // ---- T1: snapshot + swap (the expensive vector rebuild) ----
+                try (DirectoryReader readerAtT1 = DirectoryReader.open(src)) {
+                    IndexWriterConfig destCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                        .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                    try (IndexWriter destWriter = new IndexWriter(dest, destCfg)) {
+                        List<CodecReader> wrapped = new ArrayList<>();
+                        for (LeafReaderContext ctx : readerAtT1.leaves()) {
+                            final int[] ids = docIdToLogicalId(ctx.reader());
+                            wrapped.add(
+                                new VectorFieldSubstitutingCodecReader(
+                                    (SegmentReader) ctx.reader(),
+                                    VECTOR_FIELD,
+                                    (docId, dim) -> newModelVector(ids[docId], dim)
+                                )
+                            );
+                        }
+                        destWriter.addIndexes(wrapped.toArray(new CodecReader[0]));
+                        destWriter.commit();
+                    }
+                }
+
+                // Writes that arrived during the rebuild — the T1..T2 backlog.
+                final int duringRebuild = 30;
+                for (int i = 0; i < duringRebuild; i++) {
+                    srcWriter.addDocument(makeDoc(nextId++, oldModelVector(nextId, DIM)));
+                }
+                srcWriter.commit();
+
+                // ---- replay rounds, with writes STILL ARRIVING ----
+                IndexWriterConfig replayCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+                int replayedTotal = 0;
+                try (IndexWriter destWriter = new IndexWriter(dest, replayCfg)) {
+                    for (int round = 0; round < 3; round++) {
+                        int replayedThisRound;
+                        try (DirectoryReader srcNow = DirectoryReader.open(src); DirectoryReader destNow = DirectoryReader.open(dest)) {
+                            // Replay exactly the operations the destination is missing. A replayed doc
+                            // must be re-embedded too: the new index holds only new-model vectors.
+                            replayedThisRound = srcNow.numDocs() - destNow.numDocs();
+                            for (int i = 0; i < replayedThisRound; i++) {
+                                int id = NUM_DOCS + replayedTotal + i;
+                                destWriter.addDocument(makeDoc(id, newModelVector(id, DIM)));
+                            }
+                        }
+                        destWriter.commit();
+                        replayedTotal += replayedThisRound;
+
+                        // ...but more writes land while that round was running.
+                        for (int i = 0; i < 10; i++) {
+                            srcWriter.addDocument(makeDoc(nextId++, oldModelVector(nextId, DIM)));
+                        }
+                        srcWriter.commit();
+                    }
+                }
+
+                // (1) Still behind: the gap never closed while writes kept coming.
+                try (DirectoryReader srcNow = DirectoryReader.open(src); DirectoryReader destNow = DirectoryReader.open(dest)) {
+                    assertTrue(
+                        "with writes still arriving, replay cannot catch up: src=" + srcNow.numDocs() + " dest=" + destNow.numDocs(),
+                        destNow.numDocs() < srcNow.numDocs()
+                    );
+                }
+
+                // (2) Freeze — stop writing — and one round closes it exactly.
+                IndexWriterConfig finalCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+                try (IndexWriter destWriter = new IndexWriter(dest, finalCfg)) {
+                    int remaining;
+                    try (DirectoryReader srcNow = DirectoryReader.open(src); DirectoryReader destNow = DirectoryReader.open(dest)) {
+                        remaining = srcNow.numDocs() - destNow.numDocs();
+                    }
+                    for (int i = 0; i < remaining; i++) {
+                        int id = NUM_DOCS + replayedTotal + i;
+                        destWriter.addDocument(makeDoc(id, newModelVector(id, DIM)));
+                    }
+                    destWriter.commit();
+                }
+
+                try (DirectoryReader srcNow = DirectoryReader.open(src); DirectoryReader destNow = DirectoryReader.open(dest)) {
+                    assertEquals("once writes stop, one replay round converges", srcNow.numDocs(), destNow.numDocs());
+                }
+            }
+
+            // Every document in the converged index carries a NEW-model vector, including replayed ones.
+            try (DirectoryReader destReader = DirectoryReader.open(dest)) {
+                IndexSearcher searcher = new IndexSearcher(destReader);
+                for (int probe : new int[] { 0, NUM_DOCS + 5 }) {
+                    TopDocs td = searcher.search(new KnnFloatVectorQuery(VECTOR_FIELD, newModelVector(probe, DIM), 1), 1);
+                    assertEquals(1, td.scoreDocs.length);
+                    assertEquals(
+                        "doc " + probe + " (swapped or replayed) must carry the new-model vector",
+                        Integer.toString(probe),
+                        searcher.storedFields().document(td.scoreDocs[0].doc).get("_id")
+                    );
+                }
+            }
+        }
+    }
+
     public void testDimensionMismatchIsRejected() throws Exception {
         try (Directory src = newDirectory(); Directory dest = newDirectory()) {
             buildSourceIndex(src);
