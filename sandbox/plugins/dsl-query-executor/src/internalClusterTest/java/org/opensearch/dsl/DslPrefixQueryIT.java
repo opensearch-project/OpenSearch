@@ -14,7 +14,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 /**
- * Integration tests for prefix query conversion to Calcite LIKE expressions.
+ * Integration tests for prefix query delegation to Lucene via PREFIX_QUERY RexCall.
  */
 @AwaitsFix(bugUrl = "DSL query pipeline not fully wired E2E: fragment conversion, shard execution and Arrow Flight drain pending")
 public class DslPrefixQueryIT extends DslIntegTestBase {

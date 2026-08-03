@@ -16,7 +16,7 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[LIKE($0, 'test*file?name\\\\end', '\\')])",
+    "LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'test\\*file\\?name\\\\end'))])",
     "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price"],

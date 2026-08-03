@@ -10,7 +10,12 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -18,14 +23,24 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Converts a {@link WildcardQueryBuilder} to a Calcite {@code LIKE ... ESCAPE '\'} expression.
- * Translates {@code *} to {@code %} and {@code ?} to {@code _}, escaping SQL metacharacters
- * and honouring WildcardQueryBuilder backslash-escape semantics.
+ * Converts a {@link WildcardQueryBuilder} to a WILDCARD_QUERY_DSL RexCall that delegates to Lucene
+ * via the analytics backend serializer. The Lucene wildcard pattern is passed verbatim — no
+ * SQL LIKE conversion or escape manipulation occurs.
  */
 public class WildcardQueryTranslator implements QueryTranslator {
+
+    private static final SqlFunction WILDCARD_QUERY_DSL_FUNCTION = new SqlFunction(
+        "WILDCARD_QUERY_DSL",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
 
     @Override
     public Class<? extends QueryBuilder> getQueryType() {
@@ -62,82 +77,28 @@ public class WildcardQueryTranslator implements QueryTranslator {
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
 
+        RexNode fieldMap = ctx.getRexBuilder()
+            .makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, ctx.getRexBuilder().makeLiteral("field"), fieldRef);
+        RexNode queryMap = ctx.getRexBuilder()
+            .makeCall(
+                SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                ctx.getRexBuilder().makeLiteral("query"),
+                ctx.getRexBuilder().makeLiteral(pattern)
+            );
+
+        List<RexNode> operands = new ArrayList<>(List.of(fieldMap, queryMap));
+
         if (caseInsensitive) {
-            fieldRef = ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LOWER, fieldRef);
-            pattern = pattern.toLowerCase(Locale.ROOT);
+            operands.add(
+                ctx.getRexBuilder()
+                    .makeCall(
+                        SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                        ctx.getRexBuilder().makeLiteral("case_insensitive"),
+                        ctx.getRexBuilder().makeLiteral("true")
+                    )
+            );
         }
 
-        String likePattern = convertWildcardToLike(pattern);
-        RexNode patternLiteral = ctx.getRexBuilder().makeLiteral(likePattern);
-
-        // ESCAPE operand is required so Calcite knows '\' is the escape character in the pattern
-        RexNode escapeChar = ctx.getRexBuilder().makeLiteral("\\");
-
-        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral, escapeChar);
-    }
-
-    /**
-     * Converts an OpenSearch wildcard pattern to a SQL LIKE pattern.
-     * <p>
-     * Escape-conversion contract (backslash is the OpenSearch escape character):
-     * <pre>
-     *   Input        LIKE output   Reason
-     *   ─────────    ───────────   ──────
-     *   *            %             wildcard → SQL any-chars
-     *   ?            _             wildcard → SQL single-char
-     *   \*           *             escaped wildcard → literal star
-     *   \?           ?             escaped wildcard → literal question
-     *   \\           \\            escaped backslash → LIKE-escaped literal backslash
-     *   \{other}     {other}       escape consumed, matches Lucene WildcardQuery.toAutomaton
-     *   trailing \   \\            lone trailing backslash → LIKE-escaped literal backslash
-     *   literal %    \%            SQL metachar must be escaped in LIKE
-     *   literal _    \_            SQL metachar must be escaped in LIKE
-     * </pre>
-     * <p>
-     * Note: if the char following the consumed escape is itself a SQL LIKE metacharacter
-     * ({@code %} or {@code _}), it is additionally LIKE-escaped to remain literal.
-     */
-    private String convertWildcardToLike(String wildcardPattern) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < wildcardPattern.length(); i++) {
-            char c = wildcardPattern.charAt(i);
-            switch (c) {
-                case '\\':
-                    if (i + 1 < wildcardPattern.length()) {
-                        char next = wildcardPattern.charAt(i + 1);
-                        if (next == '*' || next == '?') {
-                            result.append(next);
-                        } else if (next == '\\') {
-                            result.append("\\\\");
-                        } else {
-                            // Lucene WildcardQuery.toAutomaton (L99-108): escape consumed, emit next char
-                            if (next == '%' || next == '_') {
-                                result.append('\\');
-                            }
-                            result.append(next);
-                        }
-                        i++; // consume the next character
-                    } else {
-                        // Trailing lone backslash treated as literal
-                        result.append("\\\\");
-                    }
-                    break;
-                case '%':
-                    result.append("\\%");
-                    break;
-                case '_':
-                    result.append("\\_");
-                    break;
-                case '*':
-                    result.append('%');
-                    break;
-                case '?':
-                    result.append('_');
-                    break;
-                default:
-                    result.append(c);
-            }
-        }
-        return result.toString();
+        return ctx.getRexBuilder().makeCall(WILDCARD_QUERY_DSL_FUNCTION, operands);
     }
 }

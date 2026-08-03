@@ -16,7 +16,7 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[LIKE($0, 'lap%', '\\')])",
+    "LogicalFilter(condition=[PREFIX_QUERY(MAP('field', $0), MAP('query', 'lap'))])",
     "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price"],

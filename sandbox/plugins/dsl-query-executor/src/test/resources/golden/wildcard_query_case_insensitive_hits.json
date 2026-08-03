@@ -17,7 +17,7 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[LIKE(LOWER($0), 'lap%', '\\')])",
+    "LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'LAP*'), MAP('case_insensitive', 'true'))])",
     "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price"],

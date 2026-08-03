@@ -10,7 +10,12 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -18,13 +23,24 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.PrefixQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Converts a {@link PrefixQueryBuilder} to a Calcite {@code LIKE 'prefix%' ESCAPE '\'} expression.
- * Case-insensitive mode wraps the field and pattern in {@code LOWER()}.
+ * Converts a {@link PrefixQueryBuilder} to a PREFIX_QUERY RexCall that delegates to Lucene
+ * via the analytics backend serializer. The prefix value is passed verbatim — no SQL LIKE
+ * escaping or pattern construction occurs.
  */
 public class PrefixQueryTranslator implements QueryTranslator {
+
+    private static final SqlFunction PREFIX_QUERY_FUNCTION = new SqlFunction(
+        "PREFIX_QUERY",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
 
     @Override
     public Class<? extends QueryBuilder> getQueryType() {
@@ -61,25 +77,28 @@ public class PrefixQueryTranslator implements QueryTranslator {
 
         RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
 
+        RexNode fieldMap = ctx.getRexBuilder()
+            .makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, ctx.getRexBuilder().makeLiteral("field"), fieldRef);
+        RexNode queryMap = ctx.getRexBuilder()
+            .makeCall(
+                SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                ctx.getRexBuilder().makeLiteral("query"),
+                ctx.getRexBuilder().makeLiteral(prefix)
+            );
+
+        List<RexNode> operands = new ArrayList<>(List.of(fieldMap, queryMap));
+
         if (caseInsensitive) {
-            fieldRef = ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LOWER, fieldRef);
-            prefix = prefix.toLowerCase(Locale.ROOT);
+            operands.add(
+                ctx.getRexBuilder()
+                    .makeCall(
+                        SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                        ctx.getRexBuilder().makeLiteral("case_insensitive"),
+                        ctx.getRexBuilder().makeLiteral("true")
+                    )
+            );
         }
 
-        String likePattern = escapeLikePattern(prefix) + "%";
-        RexNode patternLiteral = ctx.getRexBuilder().makeLiteral(likePattern);
-
-        // ESCAPE operand is required so Calcite knows '\' is the escape character in the pattern
-        RexNode escapeChar = ctx.getRexBuilder().makeLiteral("\\");
-
-        return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.LIKE, fieldRef, patternLiteral, escapeChar);
-    }
-
-    /**
-     * Escapes SQL LIKE metacharacters ({@code %}, {@code _}, {@code \}) in the prefix value.
-     * Backslash is escaped first to avoid double-escaping.
-     */
-    private String escapeLikePattern(String value) {
-        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return ctx.getRexBuilder().makeCall(PREFIX_QUERY_FUNCTION, operands);
     }
 }
