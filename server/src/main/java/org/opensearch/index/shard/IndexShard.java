@@ -6264,7 +6264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Fetch the latest SegmentInfos held by the shard's underlying Engine, wrapped
-     * by a a {@link GatedCloseable} to ensure files are not deleted/merged away.
+     * by a {@link GatedCloseable} to ensure files are not deleted/merged away.
      *
      * @throws EngineException - When segment infos cannot be safely retrieved
      */

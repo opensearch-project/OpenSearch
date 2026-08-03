@@ -231,10 +231,11 @@ async fn run_tree_and_plan(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
-            global_base: 0,
-            sort_min: None,
+        arrow_schema: schema.clone(),
+        global_base: 0,
+        sort_min: None,
         sort_max: None,
-};
+    };
 
     // Normalize NOT push-down; build one collector per Collector leaf in DFS order.
     let tree = tree.push_not_down();
@@ -254,7 +255,11 @@ async fn run_tree_and_plan(
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -273,8 +278,10 @@ async fn run_tree_and_plan(
                         _stream_metrics,
                     ),
                 ),
-                collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
-                stats_prune_tree: None, rg_index_to_pos: HashMap::new(),
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                stats_prune_tree: None,
+                rg_index_to_pos: HashMap::new(),
             });
             Ok(eval)
         })

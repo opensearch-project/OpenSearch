@@ -105,10 +105,11 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
-                    sort_min: None,
+            sort_min: None,
             sort_max: None,
-});
+        });
         global_first_row += seg_rows as i64;
     }
     LoadedSegment {
@@ -228,8 +229,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         leaf_exprs
             .iter()
             .filter_map(|expr| {
-                crate::indexed_table::page_pruner::build_pruning_predicate(expr, loaded.schema.clone())
-                    .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+                crate::indexed_table::page_pruner::build_pruning_predicate(
+                    expr,
+                    loaded.schema.clone(),
+                )
+                .map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
             })
             .collect(),
     );
@@ -241,9 +245,17 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         let pruning_predicates = Arc::clone(&pruning_predicates);
         Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
-            let rg_index_to_pos: HashMap<usize, usize> = chunk.row_group_indices.iter()
-                .enumerate().map(|(pos, &idx)| (idx, pos)).collect();
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
+            let rg_index_to_pos: HashMap<usize, usize> = chunk
+                .row_group_indices
+                .iter()
+                .enumerate()
+                .map(|(pos, &idx)| (idx, pos))
+                .collect();
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -271,7 +283,8 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
                     crate::indexed_table::eval::CollectorCallStrategy::FullRange,
                     crate::indexed_table::eval::CollectorCallStrategy::PageRangeSplit,
                 ][seed as usize % 3],
-                stats_prune_tree: stats_prune_tree.cloned(), rg_index_to_pos,
+                stats_prune_tree: stats_prune_tree.cloned(),
+                rg_index_to_pos,
             });
             Ok(eval)
         })
@@ -405,7 +418,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
         Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
                 pruner,
@@ -431,7 +448,16 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         })
     };
 
-    Some(run_single_collector_query(loaded, factory, residual_logical, force_strategy, _corpus.config.min_skip_run_override).await)
+    Some(
+        run_single_collector_query(
+            loaded,
+            factory,
+            residual_logical,
+            force_strategy,
+            _corpus.config.min_skip_run_override,
+        )
+        .await,
+    )
 }
 
 /// Execute `SELECT * FROM t WHERE <residual>` so DataFusion's planner
@@ -461,8 +487,8 @@ async fn run_single_collector_query(
         let mut indices = std::collections::BTreeSet::new();
         if let Some(ref pp) = pushdown_predicate {
             let _ = pp.apply(|node| {
-                if let Some(col) = node
-                    .downcast_ref::<datafusion::physical_expr::expressions::Column>()
+                if let Some(col) =
+                    node.downcast_ref::<datafusion::physical_expr::expressions::Column>()
                 {
                     indices.insert(col.index());
                 }
@@ -771,8 +797,7 @@ fn collect_predicate_column_indices(tree: &BoolNode) -> Vec<usize> {
     let mut indices = std::collections::BTreeSet::new();
     for expr in &exprs {
         let _ = expr.apply(|node| {
-            if let Some(col) = node
-                .downcast_ref::<datafusion::physical_expr::expressions::Column>()
+            if let Some(col) = node.downcast_ref::<datafusion::physical_expr::expressions::Column>()
             {
                 indices.insert(col.index());
             }
@@ -979,9 +1004,7 @@ mod tests {
         let col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("price", 3));
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
-        let collector = BoolNode::Collector {
-            annotation_id: 0,
-        };
+        let collector = BoolNode::Collector { annotation_id: 0 };
         let tree_node = BoolNode::And(vec![collector, predicate]);
         let matching: Vec<i32> = (0..100i32).collect();
         let gt = GeneratedTree {
@@ -997,9 +1020,7 @@ mod tests {
     async fn harness_bare_collector() {
         let corpus = build_corpus(FixtureConfig::small(0x2222));
         let loaded = load_segment(&corpus);
-        let collector = BoolNode::Collector {
-            annotation_id: 0,
-        };
+        let collector = BoolNode::Collector { annotation_id: 0 };
         let matching: Vec<i32> = (0..100i32).collect();
         let gt = GeneratedTree {
             tree: collector,
@@ -1026,9 +1047,7 @@ mod tests {
         let cfg = FixtureConfig::block_granular_dense(0x4444);
         let corpus = build_corpus(cfg);
         let loaded = load_segment(&corpus);
-        let tree = BoolNode::And(vec![BoolNode::Collector {
-            annotation_id: 0,
-        }]);
+        let tree = BoolNode::And(vec![BoolNode::Collector { annotation_id: 0 }]);
         let mut rng = StdRng::seed_from_u64(0x5555);
         let mut candidates: Vec<i32> = (0..corpus.num_rows() as i32).collect();
         candidates.shuffle(&mut rng);
@@ -1055,7 +1074,8 @@ mod tests {
             .await
             .expect("bare Collector classifies as SingleCollector");
             assert_eq!(
-                expected, actual,
+                expected,
+                actual,
                 "bare collector block-granular strategy={:?}: expected {} rows, got {}",
                 strategy,
                 expected.len(),
@@ -1142,9 +1162,7 @@ mod tests {
         let col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("price", price_idx));
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
-        let collector_leaf = BoolNode::Collector {
-            annotation_id: 0,
-        };
+        let collector_leaf = BoolNode::Collector { annotation_id: 0 };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 
         // 5% density, uniform.
@@ -1217,12 +1235,8 @@ mod tests {
             BoolNode::Predicate(Arc::new(BinaryExpr::new(phys_col, Operator::Lt, phys_lit)));
 
         // Multi-collector → classifies as Tree path.
-        let c1 = BoolNode::Collector {
-            annotation_id: 0,
-        };
-        let c2 = BoolNode::Collector {
-            annotation_id: 1,
-        };
+        let c1 = BoolNode::Collector { annotation_id: 0 };
+        let c2 = BoolNode::Collector { annotation_id: 1 };
         let tree_node = BoolNode::And(vec![BoolNode::Or(vec![c1, c2]), predicate]);
 
         // Two collectors, 5% density each, uniform.
@@ -1300,9 +1314,7 @@ mod tests {
         let col: Arc<dyn PhysicalExpr> = Arc::new(Column::new("price", price_idx));
         let lit: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(1000))));
         let predicate = BoolNode::Predicate(Arc::new(BinaryExpr::new(col, Operator::Lt, lit)));
-        let collector_leaf = BoolNode::Collector {
-            annotation_id: 0,
-        };
+        let collector_leaf = BoolNode::Collector { annotation_id: 0 };
         let tree_node = BoolNode::And(vec![collector_leaf, predicate]);
 
         // Uniform random subset at `pct`% density.

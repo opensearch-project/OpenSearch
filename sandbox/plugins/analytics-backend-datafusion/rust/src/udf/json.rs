@@ -37,7 +37,9 @@ pub struct JsonUdf {
 
 impl JsonUdf {
     pub fn new() -> Self {
-        Self { signature: Signature::user_defined(Volatility::Immutable) }
+        Self {
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
     }
 }
 
@@ -117,7 +119,10 @@ mod tests {
 
     #[test]
     fn return_type_is_utf8() {
-        assert_eq!(JsonUdf::new().return_type(&[DataType::Utf8]).unwrap(), DataType::Utf8);
+        assert_eq!(
+            JsonUdf::new().return_type(&[DataType::Utf8]).unwrap(),
+            DataType::Utf8
+        );
     }
 
     #[test]

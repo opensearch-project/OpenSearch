@@ -355,16 +355,26 @@ public class VSRManager implements AutoCloseable {
 
     @Override
     public void close() {
+        // vsrPool.close() MUST run even if awaitPendingWrite / writer.flush() throws: a failed or
+        // timed-out background write (IOException from awaitPendingWrite) previously skipped it,
+        // stranding the pool's per-VSR child allocators (their off-heap Arrow buffers leaked onto
+        // the ingest pool for the node's lifetime — "Memory was leaked by query"). Release the pool
+        // in a finally so the buffers are reclaimed regardless of the drain/flush outcome.
         try {
             awaitPendingWrite(ROTATION_TIMEOUT, true);
             if (writer != null) {
                 writer.flush();
             }
-            vsrPool.close();
-            managedVSR.set(null);
         } catch (Exception e) {
             logger.error("Error during close for {}: {}", fileName, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
+        } finally {
+            try {
+                vsrPool.close();
+            } catch (Exception e) {
+                logger.error("Error releasing VSR pool during close for {}: {}", fileName, e.getMessage());
+            }
+            managedVSR.set(null);
         }
     }
 
@@ -465,5 +475,10 @@ public class VSRManager implements AutoCloseable {
     /** Visible for testing — returns the pending background write future, or null. */
     Future<?> getPendingWrite() {
         return pendingWrite;
+    }
+
+    /** Visible for testing — injects a pending background write future to exercise close() paths. */
+    void setPendingWrite(Future<?> future) {
+        this.pendingWrite = future;
     }
 }

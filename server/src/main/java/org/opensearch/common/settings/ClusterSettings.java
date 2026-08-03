@@ -39,6 +39,7 @@ import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
+import org.opensearch.action.search.pruning.SearchIndexPruningSettings;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -699,6 +700,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
                 SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
                 SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API,
+                SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING,
+                SnapshotsService.SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING,
+                SnapshotsService.SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING,
                 FsHealthService.ENABLED_SETTING,
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
@@ -721,6 +725,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
+                TaskResourceTrackingService.BINARY_RESOURCE_USAGE_HEADER_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,
@@ -733,7 +738,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
-                NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                NodeDuressSettings.SETTING_NATIVE_MEMORY_LIMIT_LEGACY,
                 NodeDuressSettings.SETTING_NATIVE_MEMORY_THRESHOLD,
                 SearchTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchTaskSettings.SETTING_CANCELLATION_RATE,
@@ -933,12 +938,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
                 StreamSearchTransportService.STREAM_SEARCH_ENABLED,
                 TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
-                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
+                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING,
+                SearchIndexPruningSettings.ENABLED,
+                SearchIndexPruningSettings.MIN_SHARDS,
+                SearchIndexPruningSettings.FIELDS
             )
         )
     );
 
-    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(
+        Collections.singletonList(NodeDuressSettings.NATIVE_MEMORY_LIMIT_UPGRADER)
+    );
 
     /**
      * Map of feature flag name to feature-flagged cluster settings. Once each feature

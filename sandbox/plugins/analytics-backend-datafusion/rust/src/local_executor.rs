@@ -38,8 +38,8 @@ use datafusion::execution::{SendableRecordBatchStream, SessionStateBuilder};
 use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::prelude::{SessionConfig, SessionContext};
-use native_bridge_common::log_debug;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
+use native_bridge_common::log_debug;
 use prost::Message;
 use substrait::proto::Plan;
 
@@ -71,17 +71,24 @@ impl LocalSession {
     pub fn new(runtime_env: &RuntimeEnv) -> Self {
         let runtime_env = Arc::new(runtime_env.clone());
         let mut config = SessionConfig::new();
-        config.options_mut().execution.target_partitions = crate::api::get_reduce_target_partitions();
+        config.options_mut().execution.target_partitions =
+            crate::api::get_reduce_target_partitions();
         let state = SessionStateBuilder::new()
             .with_config(config)
             .with_runtime_env(runtime_env)
             .with_default_features()
-            .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
+            .with_physical_optimizer_rules(
+                crate::agg_mode::physical_optimizer_rules_without_combine(),
+            )
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
-        Self { ctx, prepared_plan: None, _phantom_reservation: None }
+        Self {
+            ctx,
+            prepared_plan: None,
+            _phantom_reservation: None,
+        }
     }
 
     /// Returns the configured batch_size for this session.
@@ -91,7 +98,11 @@ impl LocalSession {
 
     /// Returns the current target_partitions for this session.
     pub fn target_partitions(&self) -> usize {
-        self.ctx.copied_config().options().execution.target_partitions
+        self.ctx
+            .copied_config()
+            .options()
+            .execution
+            .target_partitions
     }
 
     /// Reduce target_partitions on this session. Only reduces, never increases.
@@ -114,7 +125,10 @@ impl LocalSession {
     /// Sets the phantom reservation for this session. Caller should check
     /// phantom_size() first and only acquire a new reservation if the new
     /// estimate is larger than the current one.
-    pub fn set_phantom(&mut self, reservation: datafusion::execution::memory_pool::MemoryReservation) {
+    pub fn set_phantom(
+        &mut self,
+        reservation: datafusion::execution::memory_pool::MemoryReservation,
+    ) {
         self._phantom_reservation = Some(reservation);
     }
 
@@ -179,20 +193,34 @@ impl LocalSession {
     pub async fn execute_substrait(
         &self,
         bytes: &[u8],
-    ) -> Result<(SendableRecordBatchStream, Arc<dyn datafusion::physical_plan::ExecutionPlan>), DataFusionError> {
+    ) -> Result<
+        (
+            SendableRecordBatchStream,
+            Arc<dyn datafusion::physical_plan::ExecutionPlan>,
+        ),
+        DataFusionError,
+    > {
         let plan = Plan::decode(bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
-        log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+        log_debug!(
+            "DataFusion logical plan:\n{}",
+            logical_plan.display_indent()
+        );
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
 
         let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
-        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
-        log_debug!("DataFusion coordinator reduce physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
-        let stream = datafusion::physical_plan::execute_stream(physical_plan.clone(), self.ctx.task_ctx())
-            .map_err(|e| DataFusionError::Execution(format!("execute_substrait: {}", e)))?;
+        let physical_plan =
+            crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+        log_debug!(
+            "DataFusion coordinator reduce physical plan:\n{}",
+            displayable(physical_plan.as_ref()).indent(true)
+        );
+        let stream =
+            datafusion::physical_plan::execute_stream(physical_plan.clone(), self.ctx.task_ctx())
+                .map_err(|e| DataFusionError::Execution(format!("execute_substrait: {}", e)))?;
         Ok((stream, physical_plan))
     }
 
@@ -357,7 +385,10 @@ mod tests {
         let producer = std::thread::spawn(move || {
             for chunk in &[vec![1i64, 2, 3], vec![4, 5, 6], vec![7, 8, 9]] {
                 let outcome = sender.send_blocking(Ok(i64_batch(&producer_schema, chunk)), &handle);
-                assert!(matches!(outcome, crate::partition_stream::SendOutcome::Sent));
+                assert!(matches!(
+                    outcome,
+                    crate::partition_stream::SendOutcome::Sent
+                ));
             }
             drop(sender); // EOF
         });
@@ -488,7 +519,10 @@ mod tests {
             // version; cast to Utf8 so the assertion is independent of the concrete string type.
             let col = datafusion::arrow::compute::cast(batch.column(0), &DataType::Utf8)
                 .expect("cast concat output to Utf8");
-            let col = col.as_any().downcast_ref::<StringArray>().expect("utf8 col");
+            let col = col
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .expect("utf8 col");
             for i in 0..col.len() {
                 results.push(col.value(i).to_string());
             }
@@ -564,7 +598,8 @@ mod tests {
         let ctx_id = 98_765;
         let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
             Arc::new(GreedyMemoryPool::new(10_000));
-        let _tracking = QueryTrackingContext::new(ctx_id, pool, query_tracker::QueryType::Coordinator);
+        let _tracking =
+            QueryTrackingContext::new(ctx_id, pool, query_tracker::QueryType::Coordinator);
 
         // A future that would block indefinitely — `cancel_query` is the
         // only way out. Mirrors a coord reduce stalled on an input partition

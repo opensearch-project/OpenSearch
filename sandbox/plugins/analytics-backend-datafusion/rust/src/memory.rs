@@ -171,9 +171,11 @@ impl MemoryPool for DynamicLimitPool {
         // callers `used + additional` cannot overflow `usize`. Use a saturating
         // CAS loop so that a buggy caller (or a malicious `additional == usize::MAX`)
         // cannot wrap the counter.
-        let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
-            Some(used.saturating_add(additional))
-        });
+        let _ = self
+            .used
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                Some(used.saturating_add(additional))
+            });
     }
 
     fn shrink(&self, _reservation: &MemoryReservation, shrink: usize) {
@@ -256,7 +258,8 @@ impl MemoryPool for DynamicLimitPool {
         let dynamic_limit = &self.dynamic_limit;
 
         // Fast path: try the normal CAS against the pool limit.
-        let cas_result = self.used
+        let cas_result = self
+            .used
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 let limit = dynamic_limit.load(Ordering::Acquire);
                 let new_used = used.checked_add(additional)?;
@@ -267,7 +270,8 @@ impl MemoryPool for DynamicLimitPool {
             // Charge the exemption budget only now that the grow succeeded;
             // released saturating in `shrink`.
             if exempted {
-                self.exempt_outstanding.fetch_add(additional, Ordering::Relaxed);
+                self.exempt_outstanding
+                    .fetch_add(additional, Ordering::Relaxed);
             }
             return Ok(());
         }
@@ -284,13 +288,19 @@ impl MemoryPool for DynamicLimitPool {
         let used = self.used.load(Ordering::Relaxed);
         // Only attempt override if the allocation is plausible (won't overflow).
         if used.checked_add(additional).is_some() {
-            if crate::memory_guard::should_override(limit, crate::memory_guard::OverrideContext::Execution) {
+            if crate::memory_guard::should_override(
+                limit,
+                crate::memory_guard::OverrideContext::Execution,
+            ) {
                 // jemalloc confirms headroom — allow the grow
-                let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
-                    u.checked_add(additional)
-                });
+                let _ = self
+                    .used
+                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
+                        u.checked_add(additional)
+                    });
                 if exempted {
-                    self.exempt_outstanding.fetch_add(additional, Ordering::Relaxed);
+                    self.exempt_outstanding
+                        .fetch_add(additional, Ordering::Relaxed);
                 }
                 return Ok(());
             }
@@ -481,9 +491,9 @@ mod tests {
                             break;
                         }
                         if handle.limit() >= 2048 {
-                            reservation
-                                .try_grow(2048)
-                                .expect("once handle.limit() reflects the raise, try_grow must succeed");
+                            reservation.try_grow(2048).expect(
+                                "once handle.limit() reflects the raise, try_grow must succeed",
+                            );
                             break;
                         }
                         std::hint::spin_loop();

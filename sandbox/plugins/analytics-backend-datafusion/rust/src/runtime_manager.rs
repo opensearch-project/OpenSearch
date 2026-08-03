@@ -56,9 +56,7 @@ impl RuntimeManager {
             datanode_max_concurrent,
         );
 
-        let cpu_monitor = cpu_executor
-            .handle()
-            .map(|h| RuntimeMonitor::new(&h));
+        let cpu_monitor = cpu_executor.handle().map(|h| RuntimeMonitor::new(&h));
 
         Self {
             io_runtime,

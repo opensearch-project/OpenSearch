@@ -662,6 +662,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
                 "delete-dangling-index",
                 "create-data-stream",
                 "remove-data-stream",
+                "modify-data-stream",
                 "create-index-template",
                 "remove-index-template",
                 "create-component-template",
@@ -713,7 +714,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
                         + key
                         + "' has been removed from ClusterManagerTask enum, but it is persisted in cluster state "
                         + "by all prior versions. Removing it will cause fatal node startup failures during upgrades. "
-                        + "Reference: V2263212313. Either restore the enum value or add a cluster state migration."
+                        + "Either restore the enum value or add a cluster state migration."
                 );
             }
         }

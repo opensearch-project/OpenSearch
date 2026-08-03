@@ -149,7 +149,7 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings
+     * settings. BlobServiceClient is thread safe and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
      *
      * @param clientName client name
@@ -162,7 +162,7 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings
+     * settings. BlobServiceClient is thread safe and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
 
      * @param clientName client name

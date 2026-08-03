@@ -246,6 +246,8 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu.max", "read";
+  // cgroup v2: read by the JVM's container-aware OperatingSystemMXBean.getCpuLoad() (usage_usec/nr_periods)
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu.stat", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu.weight", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus.effective", "read";
