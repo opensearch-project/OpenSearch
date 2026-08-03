@@ -97,6 +97,59 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(1, valueReaders.size());
     }
 
+    public void testSubfieldDocValue() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", FIELD_TYPE)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
+
+        XContentBuilder json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .startObject("detail")
+            .field("name", "foo")
+            .field("age", 25)
+            .endObject()
+            .field("other", "bar")
+            .endObject()
+            .endObject();
+
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(json), MediaTypeRegistry.JSON));
+        writer.addDocument(d.rootDoc());
+        writer.commit();
+
+        List<LeafReaderContext> readers = refreshReader();
+        assertEquals(1, readers.size());
+
+        IndexFieldData<?> detailNameFieldData = getForField("field.detail.name");
+        org.opensearch.index.fielddata.LeafOrdinalsFieldData detailNameLeafData = 
+            (org.opensearch.index.fielddata.LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
+        
+        org.opensearch.index.fielddata.ScriptDocValues<?> scriptValues = detailNameLeafData.getScriptValues();
+        scriptValues.setNextDocId(0);
+        
+        assertEquals(1, scriptValues.size());
+        assertEquals("foo", scriptValues.get(0));
+
+        IndexFieldData<?> detailAgeFieldData = getForField("field.detail.age");
+        org.opensearch.index.fielddata.LeafOrdinalsFieldData detailAgeLeafData = 
+            (org.opensearch.index.fielddata.LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
+        
+        scriptValues = detailAgeLeafData.getScriptValues();
+        scriptValues.setNextDocId(0);
+        
+        assertEquals(1, scriptValues.size());
+        assertEquals("25", scriptValues.get(0));
+    }
+
     @Override
     protected String getFieldDataType() {
         return FIELD_TYPE;

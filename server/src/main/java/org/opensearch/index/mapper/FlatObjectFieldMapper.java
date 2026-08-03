@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -34,6 +35,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.query.QueryShardContext;
@@ -227,7 +229,58 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
+            if (isSubField()) {
+                String prefix = getPathPrefix(name());
+                return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), (SortedSetDocValues sdv) -> {
+                    SortedBinaryDocValues sbdv = org.opensearch.index.fielddata.FieldData.toString(sdv);
+                    return new org.opensearch.index.fielddata.ScriptDocValues.Strings(
+                        new PrefixFilteredSortedBinaryDocValues(sbdv, prefix)
+                    );
+                }, CoreValuesSourceType.BYTES);
+            }
             return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), CoreValuesSourceType.BYTES);
+        }
+
+        private static class PrefixFilteredSortedBinaryDocValues extends org.opensearch.index.fielddata.SortedBinaryDocValues {
+            private final org.opensearch.index.fielddata.SortedBinaryDocValues in;
+            private final BytesRef prefix;
+            private int docValueCount;
+            private final java.util.List<BytesRef> matches = new java.util.ArrayList<>();
+            private int index;
+
+            PrefixFilteredSortedBinaryDocValues(org.opensearch.index.fielddata.SortedBinaryDocValues in, String prefix) {
+                this.in = in;
+                this.prefix = new BytesRef(prefix);
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                if (in.advanceExact(doc)) {
+                    matches.clear();
+                    int count = in.docValueCount();
+                    for (int i = 0; i < count; i++) {
+                        BytesRef val = in.nextValue();
+                        if (val.length >= prefix.length && org.apache.lucene.util.StringHelper.startsWith(val, prefix)) {
+                            BytesRef stripped = new BytesRef(val.bytes, val.offset + prefix.length, val.length - prefix.length);
+                            matches.add(BytesRef.deepCopyOf(stripped));
+                        }
+                    }
+                    docValueCount = matches.size();
+                    index = 0;
+                    return docValueCount > 0;
+                }
+                return false;
+            }
+
+            @Override
+            public int docValueCount() {
+                return docValueCount;
+            }
+
+            @Override
+            public BytesRef nextValue() throws IOException {
+                return matches.get(index++);
+            }
         }
 
         @Override
