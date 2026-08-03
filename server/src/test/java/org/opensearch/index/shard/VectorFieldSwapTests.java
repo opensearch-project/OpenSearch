@@ -416,6 +416,92 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
     /**
      * A dimension mismatch must fail loudly rather than silently corrupting the field.
      */
+    /**
+     * Pins the point-in-time semantics of the swap: the destination reflects the source exactly as of
+     * the commit the reader was opened on (call it T1), and documents written to the source after T1
+     * are <b>silently absent</b> from the destination.
+     *
+     * <p>This is the property that makes the swap a snapshot operation rather than a live mirror, and
+     * it is why an API built on this mechanism must block writes on the source (as
+     * {@code MetadataCreateIndexService.validateResizeIndex} already requires for resize:
+     * {@code index.blocks.write=true}) or otherwise reconcile the T1..T2 window. Without that, a
+     * concurrently-indexed document is simply lost from the swapped index — no error, no warning.
+     */
+    public void testSwapIsPointInTimeAndDropsPostSnapshotWrites() throws Exception {
+        try (Directory src = newDirectory(); Directory dest = newDirectory()) {
+            // ---- T1: the source has NUM_DOCS committed ----
+            IndexWriterConfig srcCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            try (IndexWriter srcWriter = new IndexWriter(src, srcCfg)) {
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    srcWriter.addDocument(makeDoc(i, oldModelVector(i, DIM)));
+                }
+                srcWriter.commit();
+
+                // Open the reader = take the snapshot at T1. Everything after this is invisible to it,
+                // exactly as LocalShardSnapshot pins IndexShard.acquireLastIndexCommit().
+                try (DirectoryReader readerAtT1 = DirectoryReader.open(src)) {
+                    assertEquals("snapshot sees the T1 corpus", NUM_DOCS, readerAtT1.numDocs());
+
+                    // ---- concurrent ingestion: 25 more docs land on the source AFTER T1 ----
+                    final int lateDocs = 25;
+                    for (int i = NUM_DOCS; i < NUM_DOCS + lateDocs; i++) {
+                        srcWriter.addDocument(makeDoc(i, oldModelVector(i, DIM)));
+                    }
+                    srcWriter.commit();
+
+                    // The pinned reader still does not see them.
+                    assertEquals("the T1 reader is unaffected by later writes", NUM_DOCS, readerAtT1.numDocs());
+                    try (DirectoryReader freshReader = DirectoryReader.open(src)) {
+                        assertEquals("the source itself has advanced", NUM_DOCS + lateDocs, freshReader.numDocs());
+                    }
+
+                    // ---- run the swap off the T1 snapshot ----
+                    IndexWriterConfig destCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                        .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                    try (IndexWriter destWriter = new IndexWriter(dest, destCfg)) {
+                        List<CodecReader> wrapped = new ArrayList<>();
+                        for (LeafReaderContext ctx : readerAtT1.leaves()) {
+                            final int[] ids = docIdToLogicalId(ctx.reader());
+                            wrapped.add(
+                                new VectorFieldSubstitutingCodecReader(
+                                    (SegmentReader) ctx.reader(),
+                                    VECTOR_FIELD,
+                                    (docId, dim) -> newModelVector(ids[docId], dim)
+                                )
+                            );
+                        }
+                        destWriter.addIndexes(wrapped.toArray(new CodecReader[0]));
+                        destWriter.commit();
+                    }
+                }
+            }
+
+            // ---- the destination is a T1 snapshot: re-embedded, and missing the late docs ----
+            try (DirectoryReader destReader = DirectoryReader.open(dest)) {
+                assertEquals("destination holds exactly the T1 document set", NUM_DOCS, destReader.numDocs());
+
+                IndexSearcher searcher = new IndexSearcher(destReader);
+
+                // A document present at T1 is there, carrying its NEW vector.
+                TopDocs inWindow = searcher.search(new KnnFloatVectorQuery(VECTOR_FIELD, newModelVector(0, DIM), 1), 1);
+                assertEquals(1, inWindow.scoreDocs.length);
+                assertEquals(
+                    "a T1 document survives with its new vector",
+                    "0",
+                    searcher.storedFields().document(inWindow.scoreDocs[0].doc).get("_id")
+                );
+
+                // A document written after T1 is absent entirely — this is the data-loss window.
+                TopDocs afterWindow = searcher.search(
+                    new org.apache.lucene.search.TermQuery(new org.apache.lucene.index.Term("_id", Integer.toString(NUM_DOCS))),
+                    1
+                );
+                assertEquals("a post-T1 document is silently missing from the swapped index", 0, afterWindow.totalHits.value());
+            }
+        }
+    }
+
     public void testDimensionMismatchIsRejected() throws Exception {
         try (Directory src = newDirectory(); Directory dest = newDirectory()) {
             buildSourceIndex(src);
