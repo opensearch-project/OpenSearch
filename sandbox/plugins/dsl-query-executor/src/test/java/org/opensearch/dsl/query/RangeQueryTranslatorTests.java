@@ -1413,5 +1413,79 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue("Must contain .854775807, got: " + tsStr, tsStr.contains(".854775807"));
     }
 
+    // ========== GROUP Q - BOOLEAN RANGE PARITY ==========
+    // Parity with BooleanFieldMapper.BooleanFieldType.rangeQuery:309 which converts bounds to
+    // BytesRef "T"/"F", collapses lower==upper to termQuery, and returns MatchNoDocsQuery for
+    // impossible ranges. Vanilla's collapse-to-term and match-none special cases are expressed
+    // here as ordinary comparisons that SQL evaluates identically.
+
+    /** gte(true) AND lte(true) selects only true; vanilla collapses to termQuery(true). */
+    public void testBooleanRangeGteTrueAndLteTrue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("is_active").gte(true).lte(true), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.AND, call.getKind());
+        assertEquals(2, call.getOperands().size());
+
+        RexCall lower = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, lower.getKind());
+        assertEquals(5, ((RexInputRef) lower.getOperands().get(0)).getIndex());
+        RexLiteral lowerLit = unwrapLiteral(lower.getOperands().get(1));
+        assertEquals(Boolean.TRUE, lowerLit.getValueAs(Boolean.class));
+
+        RexCall upper = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, upper.getKind());
+        assertEquals(5, ((RexInputRef) upper.getOperands().get(0)).getIndex());
+        RexLiteral upperLit = unwrapLiteral(upper.getOperands().get(1));
+        assertEquals(Boolean.TRUE, upperLit.getValueAs(Boolean.class));
+    }
+
+    /** gte(false) AND lte(true) selects both values; vanilla returns an existsQuery equivalent. */
+    public void testBooleanRangeGteFalseAndLteTrue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("is_active").gte(false).lte(true), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.AND, call.getKind());
+        assertEquals(2, call.getOperands().size());
+
+        RexCall lower = (RexCall) call.getOperands().get(0);
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, lower.getKind());
+        assertEquals(5, ((RexInputRef) lower.getOperands().get(0)).getIndex());
+        RexLiteral lowerLit = unwrapLiteral(lower.getOperands().get(1));
+        assertEquals(Boolean.FALSE, lowerLit.getValueAs(Boolean.class));
+
+        RexCall upper = (RexCall) call.getOperands().get(1);
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, upper.getKind());
+        assertEquals(5, ((RexInputRef) upper.getOperands().get(0)).getIndex());
+        RexLiteral upperLit = unwrapLiteral(upper.getOperands().get(1));
+        assertEquals(Boolean.TRUE, upperLit.getValueAs(Boolean.class));
+    }
+
+    /** gt(true) can never be satisfied; vanilla returns MatchNoDocsQuery for this impossible range. */
+    public void testBooleanRangeGtTrue() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("is_active").gt(true), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN, call.getKind());
+        assertEquals(5, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        RexLiteral lit = unwrapLiteral(call.getOperands().get(1));
+        assertEquals(Boolean.TRUE, lit.getValueAs(Boolean.class));
+    }
+
+    /** lt(false) can never be satisfied; vanilla returns MatchNoDocsQuery for this impossible range. */
+    public void testBooleanRangeLtFalse() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("is_active").lt(false), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN, call.getKind());
+        assertEquals(5, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        RexLiteral lit = unwrapLiteral(call.getOperands().get(1));
+        assertEquals(Boolean.FALSE, lit.getValueAs(Boolean.class));
+    }
+
     // ========== END OF TESTS ==========
 }
