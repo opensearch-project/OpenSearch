@@ -486,19 +486,9 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     public TransportStats stats() {
-        TransportStats base = transport.getStats();
-        return new TransportStats.Builder().serverOpen(base.getServerOpen())
-            .totalOutboundConnections(base.getTotalOutboundConnections())
-            .rxCount(base.getRxCount())
-            .rxSize(base.getRxSize().getBytes())
-            .txCount(base.getTxCount())
-            .txSize(base.getTxSize().getBytes())
-            .channelCloseByType(base.getChannelCloseByType())
-            .outgoingTimeouts(outgoingTimeouts.get())
+        // The transport owns every counter except the two request-level ones tracked here.
+        return new TransportStats.Builder(transport.getStats()).outgoingTimeouts(outgoingTimeouts.get())
             .requestsFailedOnDisconnect(requestsFailedOnDisconnect.get())
-            .connectFailures(base.getConnectFailures())
-            .connectTimeMillis(base.getConnectTimeMillis())
-            .connectTimeMillisMax(base.getConnectTimeMillisMax())
             .build();
     }
 

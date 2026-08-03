@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -124,12 +125,21 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        channelCloseByType = in.readMap(StreamInput::readString, StreamInput::readVLong);
-        outgoingTimeouts = in.readVLong();
-        requestsFailedOnDisconnect = in.readVLong();
-        connectFailures = in.readVLong();
-        connectTimeMillis = in.readVLong();
-        connectTimeMillisMax = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            channelCloseByType = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            outgoingTimeouts = in.readVLong();
+            requestsFailedOnDisconnect = in.readVLong();
+            connectFailures = in.readVLong();
+            connectTimeMillis = in.readVLong();
+            connectTimeMillisMax = in.readVLong();
+        } else {
+            channelCloseByType = Collections.emptyMap();
+            outgoingTimeouts = 0L;
+            requestsFailedOnDisconnect = 0L;
+            connectFailures = 0L;
+            connectTimeMillis = 0L;
+            connectTimeMillisMax = 0L;
+        }
     }
 
     @Override
@@ -140,12 +150,14 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        out.writeMap(channelCloseByType, StreamOutput::writeString, StreamOutput::writeVLong);
-        out.writeVLong(outgoingTimeouts);
-        out.writeVLong(requestsFailedOnDisconnect);
-        out.writeVLong(connectFailures);
-        out.writeVLong(connectTimeMillis);
-        out.writeVLong(connectTimeMillisMax);
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeMap(channelCloseByType, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeVLong(outgoingTimeouts);
+            out.writeVLong(requestsFailedOnDisconnect);
+            out.writeVLong(connectFailures);
+            out.writeVLong(connectTimeMillis);
+            out.writeVLong(connectTimeMillisMax);
+        }
     }
 
     public long serverOpen() {
@@ -235,6 +247,25 @@ public class TransportStats implements Writeable, ToXContentFragment {
         private long connectTimeMillisMax = 0L;
 
         public Builder() {}
+
+        /**
+         * Seeds the builder from an existing {@link TransportStats}, so a caller that only contributes a
+         * subset of the counters does not have to restate the rest.
+         */
+        public Builder(TransportStats base) {
+            this.serverOpen = base.serverOpen;
+            this.totalOutboundConnections = base.totalOutboundConnections;
+            this.rxCount = base.rxCount;
+            this.rxSize = base.rxSize;
+            this.txCount = base.txCount;
+            this.txSize = base.txSize;
+            this.channelCloseByType = base.channelCloseByType;
+            this.outgoingTimeouts = base.outgoingTimeouts;
+            this.requestsFailedOnDisconnect = base.requestsFailedOnDisconnect;
+            this.connectFailures = base.connectFailures;
+            this.connectTimeMillis = base.connectTimeMillis;
+            this.connectTimeMillisMax = base.connectTimeMillisMax;
+        }
 
         public Builder serverOpen(long serverOpen) {
             this.serverOpen = serverOpen;

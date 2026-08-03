@@ -109,6 +109,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -353,6 +354,27 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(nodeStats.getTransport().getServerOpen(), deserializedNodeStats.getTransport().getServerOpen());
                     assertEquals(nodeStats.getTransport().getTxCount(), deserializedNodeStats.getTransport().getTxCount());
                     assertEquals(nodeStats.getTransport().getTxSize(), deserializedNodeStats.getTransport().getTxSize());
+                    assertEquals(
+                        nodeStats.getTransport().getChannelCloseByType(),
+                        deserializedNodeStats.getTransport().getChannelCloseByType()
+                    );
+                    assertEquals(
+                        nodeStats.getTransport().getOutgoingTimeouts(),
+                        deserializedNodeStats.getTransport().getOutgoingTimeouts()
+                    );
+                    assertEquals(
+                        nodeStats.getTransport().getRequestsFailedOnDisconnect(),
+                        deserializedNodeStats.getTransport().getRequestsFailedOnDisconnect()
+                    );
+                    assertEquals(nodeStats.getTransport().getConnectFailures(), deserializedNodeStats.getTransport().getConnectFailures());
+                    assertEquals(
+                        nodeStats.getTransport().getConnectTimeMillis(),
+                        deserializedNodeStats.getTransport().getConnectTimeMillis()
+                    );
+                    assertEquals(
+                        nodeStats.getTransport().getConnectTimeMillisMax(),
+                        deserializedNodeStats.getTransport().getConnectTimeMillisMax()
+                    );
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
@@ -799,6 +821,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
+        Map<String, Long> channelCloseByType = new HashMap<>();
+        for (TransportRequestOptions.Type channelType : TransportRequestOptions.Type.values()) {
+            channelCloseByType.put(channelType.name(), randomNonNegativeLong());
+        }
         TransportStats transportStats = frequently()
             ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())
                 .totalOutboundConnections(randomNonNegativeLong())
@@ -806,6 +832,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 .rxSize(randomNonNegativeLong())
                 .txCount(randomNonNegativeLong())
                 .txSize(randomNonNegativeLong())
+                .channelCloseByType(channelCloseByType)
+                .outgoingTimeouts(randomNonNegativeLong())
+                .requestsFailedOnDisconnect(randomNonNegativeLong())
+                .connectFailures(randomNonNegativeLong())
+                .connectTimeMillis(randomNonNegativeLong())
+                .connectTimeMillisMax(randomNonNegativeLong())
                 .build()
             : null;
         HttpStats httpStats = frequently()
