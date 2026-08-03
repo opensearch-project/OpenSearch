@@ -37,6 +37,7 @@ public class WildcardQueryDslSerializer extends AbstractRelevanceSerializer {
         for (Map.Entry<String, String> entry : params.entrySet()) {
             switch (entry.getKey()) {
                 case "case_insensitive" -> wildcardQb.caseInsensitive(Boolean.parseBoolean(entry.getValue()));
+                case "rewrite" -> wildcardQb.rewrite(entry.getValue());
                 default -> {
                     /* ignore unrecognized params for forward compatibility */ }
             }

@@ -125,6 +125,25 @@ public class PrefixQuerySerializerTests extends OpenSearchTestCase {
         assertTrue("Message must contain 'prefix_query', got: " + ex.getMessage(), ex.getMessage().contains("prefix_query"));
     }
 
+    /**
+     * Verifies that the rewrite parameter is applied to PrefixQueryBuilder when passed as a MAP operand.
+     */
+    public void testRewriteParameterAppliedToBuilder() throws IOException {
+        RexCall call = buildPrefixCall("title", "lap", Map.of("rewrite", "constant_score"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            PrefixQueryBuilder prefixQb = (PrefixQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("title", prefixQb.fieldName());
+            assertEquals("lap", prefixQb.value());
+            assertEquals("constant_score", prefixQb.rewrite());
+        }
+    }
+
     // ── Helper ──────────────────────────────────────────────────────────────────
 
     private RexCall buildPrefixCall(String fieldName, String queryText, Map<String, String> params) {

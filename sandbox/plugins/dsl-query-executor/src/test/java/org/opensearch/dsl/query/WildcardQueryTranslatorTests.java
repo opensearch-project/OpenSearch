@@ -171,13 +171,10 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("not supported"));
     }
 
-    public void testWildcardThrowsForRewriteParameter() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx)
-        );
-        assertTrue(ex.getMessage().contains("rewrite"));
-        assertTrue(ex.getMessage().contains("not supported"));
+    public void testWildcardThrowsForRewriteParameter() throws ConversionException {
+        // Rewrite is now passed through (H2 disposition) — no longer rejected.
+        // Validation occurs on the data node via QueryParsers.parseRewriteMethod.
+        translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx);
     }
 
     // ── Field resolution ────────────────────────────────────────────────────────
@@ -190,5 +187,83 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         RexCall fieldMap = (RexCall) call.getOperands().get(0);
         RexInputRef inputRef = (RexInputRef) fieldMap.getOperands().get(1);
         assertEquals(2, inputRef.getIndex());
+    }
+
+    // ── Rewrite pass-through (H2 disposition) ───────────────────────────────────
+
+    /**
+     * The rewrite parameter must be passed through as a MAP operand rather than rejected.
+     */
+    public void testRewriteParameterEmitsMapOperand() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx);
+        RexCall call = (RexCall) result;
+
+        // Should have 3 operands: field, query, rewrite param
+        assertEquals(3, call.getOperands().size());
+        RexCall paramMap = (RexCall) call.getOperands().get(2);
+        assertEquals("MAP", paramMap.getOperator().getName());
+        RexLiteral paramKey = (RexLiteral) paramMap.getOperands().get(0);
+        assertEquals("rewrite", paramKey.getValueAs(String.class));
+        RexLiteral paramValue = (RexLiteral) paramMap.getOperands().get(1);
+        assertEquals("constant_score", paramValue.getValueAs(String.class));
+    }
+
+    // ── Boost rejection regression guard ────────────────────────────────────────
+
+    /**
+     * Boost must remain rejected with ConversionException — regression guard for the approved disposition.
+     */
+    public void testBoostParameterRejectedWithConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").boost(1.5f), ctx)
+        );
+        assertTrue("Must mention 'boost', got: " + ex.getMessage(), ex.getMessage().contains("boost"));
+        assertTrue("Must mention 'not supported', got: " + ex.getMessage(), ex.getMessage().contains("not supported"));
+    }
+
+    // ── Behaviour-pinning: leading wildcard emitted verbatim (M3) ───────────────
+
+    /**
+     * Behaviour-pinning test: a leading-wildcard pattern is emitted verbatim — no rewriting or rejection.
+     */
+    public void testLeadingWildcardPatternEmittedVerbatim() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*checkout"), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals("*checkout", queryValue.getValueAs(String.class));
+    }
+
+    // ── Behaviour-pinning: case_insensitive explicitly false ────────────────────
+
+    /**
+     * Behaviour-pinning test: explicitly setting case_insensitive to false emits no case_insensitive
+     * param operand — the translator only emits the param when true.
+     */
+    public void testExplicitCaseInsensitiveFalseEmitsNoParam() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*").caseInsensitive(false), ctx);
+        RexCall call = (RexCall) result;
+
+        // Only 2 operands: field and query — no case_insensitive param when value is false
+        assertEquals(2, call.getOperands().size());
+    }
+
+    // ── Behaviour-pinning: unicode pattern emitted verbatim (L1) ────────────────
+
+    /**
+     * Behaviour-pinning test: a unicode pattern containing German sharp s (ß) and accented characters
+     * is emitted verbatim — documents that case folding is now Lucene's ASCII-only behaviour
+     * rather than our old LOWER() wrapping.
+     */
+    public void testUnicodePatternWithSharpSEmittedVerbatim() throws ConversionException {
+        String unicodePattern = "straße*über?";
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", unicodePattern), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals(unicodePattern, queryValue.getValueAs(String.class));
     }
 }

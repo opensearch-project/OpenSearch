@@ -138,6 +138,25 @@ public class WildcardQueryDslSerializerTests extends OpenSearchTestCase {
         assertTrue("Message must contain 'wildcard_query_dsl', got: " + ex.getMessage(), ex.getMessage().contains("wildcard_query_dsl"));
     }
 
+    /**
+     * Verifies that the rewrite parameter is applied to WildcardQueryBuilder when passed as a MAP operand.
+     */
+    public void testRewriteParameterAppliedToBuilder() throws IOException {
+        RexCall call = buildWildcardDslCall("title", "che*k", Map.of("rewrite", "constant_score"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("title", wildcardQb.fieldName());
+            assertEquals("che*k", wildcardQb.value());
+            assertEquals("constant_score", wildcardQb.rewrite());
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
     private void assertVerbatimPattern(String pattern) throws IOException {

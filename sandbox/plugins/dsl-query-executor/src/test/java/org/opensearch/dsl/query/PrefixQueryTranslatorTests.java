@@ -122,13 +122,10 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("not supported"));
     }
 
-    public void testPrefixQueryThrowsForRewriteParameter() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.prefixQuery("name", "lap").rewrite("constant_score"), ctx)
-        );
-        assertTrue(ex.getMessage().contains("rewrite"));
-        assertTrue(ex.getMessage().contains("not supported"));
+    public void testPrefixQueryThrowsForRewriteParameter() throws ConversionException {
+        // Rewrite is now passed through (H2 disposition) — no longer rejected.
+        // Validation occurs on the data node via QueryParsers.parseRewriteMethod.
+        translator.convert(QueryBuilders.prefixQuery("name", "lap").rewrite("constant_score"), ctx);
     }
 
     public void testPrefixQueryThrowsForNonStringField() {
@@ -149,5 +146,52 @@ public class PrefixQueryTranslatorTests extends OpenSearchTestCase {
         RexCall fieldMap = (RexCall) call.getOperands().get(0);
         RexInputRef inputRef = (RexInputRef) fieldMap.getOperands().get(1);
         assertEquals(2, inputRef.getIndex()); // 'brand' is index 2
+    }
+
+    // ── Rewrite pass-through (H2 disposition) ───────────────────────────────────
+
+    /**
+     * The rewrite parameter must be passed through as a MAP operand rather than rejected.
+     */
+    public void testRewriteParameterEmitsMapOperand() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "lap").rewrite("constant_score"), ctx);
+        RexCall call = (RexCall) result;
+
+        // Should have 3 operands: field, query, rewrite param
+        assertEquals(3, call.getOperands().size());
+        RexCall paramMap = (RexCall) call.getOperands().get(2);
+        assertEquals("MAP", paramMap.getOperator().getName());
+        RexLiteral paramKey = (RexLiteral) paramMap.getOperands().get(0);
+        assertEquals("rewrite", paramKey.getValueAs(String.class));
+        RexLiteral paramValue = (RexLiteral) paramMap.getOperands().get(1);
+        assertEquals("constant_score", paramValue.getValueAs(String.class));
+    }
+
+    // ── Boost rejection regression guard ────────────────────────────────────────
+
+    /**
+     * Boost must remain rejected with ConversionException — regression guard for the approved disposition.
+     */
+    public void testBoostParameterRejectedWithConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.prefixQuery("name", "lap").boost(1.5f), ctx)
+        );
+        assertTrue("Must mention 'boost', got: " + ex.getMessage(), ex.getMessage().contains("boost"));
+        assertTrue("Must mention 'not supported', got: " + ex.getMessage(), ex.getMessage().contains("not supported"));
+    }
+
+    // ── Behaviour-pinning: case_insensitive explicitly false ────────────────────
+
+    /**
+     * Behaviour-pinning test: explicitly setting case_insensitive to false emits no case_insensitive
+     * param operand — the translator only emits the param when true.
+     */
+    public void testExplicitCaseInsensitiveFalseEmitsNoParam() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.prefixQuery("name", "lap").caseInsensitive(false), ctx);
+        RexCall call = (RexCall) result;
+
+        // Only 2 operands: field and query — no case_insensitive param when value is false
+        assertEquals(2, call.getOperands().size());
     }
 }

@@ -21,31 +21,45 @@ _search request
 | `terms` | `SEARCH($field, Sarg[v1, v2, ...])` — multi-value equality |
 | `match_all` | Skipped (boolean literal `TRUE`) |
 | `exists` | `IS NOT NULL($field)` — field existence check (boost not supported) |
-| `prefix` | `LIKE 'value%' ESCAPE '\'` — prefix match with escaped SQL metacharacters |
-| `wildcard` | `LIKE 'pattern' ESCAPE '\'` — `*`→`%`, `?`→`_`, with escape handling |
+| `prefix` | Delegated `PREFIX_QUERY` RexCall — Lucene `PrefixQueryBuilder` on data node |
+| `wildcard` | Delegated `WILDCARD_QUERY_DSL` RexCall — Lucene `WildcardQueryBuilder` on data node |
 
 ### Prefix Query
 
-Converts to `LIKE 'prefix%' ESCAPE '\'`. Supports `case_insensitive` (wraps in `LOWER()`).
-SQL metacharacters (`%`, `_`, `\`) in the prefix value are escaped.
+Emits a delegated `PREFIX_QUERY` RexCall (Category.FULL_TEXT). The prefix value is passed
+verbatim to `PrefixQuerySerializer`, which builds a real `PrefixQueryBuilder` on the data node.
+Lucene performs the matching against the term dictionary, inheriting normalizer handling and the
+`index_prefixes` O(1) fast path.
 
 ```json
-{"prefix": {"name": "lap"}}           → name LIKE 'lap%'
-{"prefix": {"name": {"value": "LAP", "case_insensitive": true}}} → LOWER(name) LIKE 'lap%'
+{"prefix": {"name": "lap"}}           → PREFIX_QUERY(MAP('field',name), MAP('query','lap'))
+{"prefix": {"name": {"value": "LAP", "case_insensitive": true}}}
+  → PREFIX_QUERY(MAP('field',name), MAP('query','LAP'), MAP('case_insensitive','true'))
 ```
 
 ### Wildcard Query
 
-Converts `*`→`%` and `?`→`_` with backslash-escape semantics matching WildcardQueryBuilder.
-Supports `case_insensitive`.
+Emits a delegated `WILDCARD_QUERY_DSL` RexCall (Category.FULL_TEXT). The Lucene wildcard
+pattern (`*`, `?`, `\` escapes) is passed verbatim — no SQL conversion occurs. A dedicated
+serializer is used because the existing `WildcardQuerySerializer` expects SQL-form patterns
+and would reinterpret a literal `%` in customer data as a wildcard.
 
 ```json
-{"wildcard": {"name": "lap*"}}        → name LIKE 'lap%'
-{"wildcard": {"name": "l?ptop"}}      → name LIKE 'l_ptop'
-{"wildcard": {"name": "*book*"}}      → name LIKE '%book%'
+{"wildcard": {"name": "lap*"}}        → WILDCARD_QUERY_DSL(MAP('field',name), MAP('query','lap*'))
+{"wildcard": {"name": "l?ptop"}}      → WILDCARD_QUERY_DSL(MAP('field',name), MAP('query','l?ptop'))
 ```
 
-Unsupported parameters for both: `boost`, `rewrite` (throw ConversionException).
+Supported parameters: `value` (verbatim), `case_insensitive` (delegated to builder; ASCII-only folding),
+`rewrite` (passed through to builder, validated on data node). Rejected: `boost` (throws ConversionException —
+scores are not surfaced). Ignored: `_name` (matched_queries not surfaced).
+
+### Known Divergences (prefix / wildcard)
+
+| # | Divergence | Detail |
+|---|---|---|
+| 1 | `search.allow_expensive_queries=false` not honoured | The Lucene backend hardcodes an always-true supplier (LuceneAnalyticsBackendPlugin:284). Vanilla refuses prefix/wildcard when this setting is false. Pre-existing property of the delegation layer. |
+| 2 | Page pruning lost | A delegated predicate yields an all-true bitmap at the pruning stage (page_pruner.rs:779-782); the previous LIKE form was prunable (page_pruner.rs:24). Correctness preserved by residual re-evaluation (single_collector.rs:604-611). Follow-up: schema enrichment would enable a prunable fast path. |
+| 3 | Unmapped field types | `wildcard`, `constant_keyword`, `version` and `flat_object` support prefix/wildcard in vanilla but are not mapped into the analytics schema. Pre-existing schema limitation. |
 
 ## Dependencies
 
