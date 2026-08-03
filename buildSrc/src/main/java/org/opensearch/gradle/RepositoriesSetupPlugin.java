@@ -63,6 +63,13 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
     public static void configureRepositories(Project project) {
         // ensure all repositories use secure urls
         // TODO: remove this with gradle 7.0, which no longer allows insecure urls
+        //
+        // The artifactUrls of a Maven repository are no longer checked here. Gradle 9.6 deprecated
+        // that whole feature -- separate locations for POMs and artifacts, with no Maven equivalent --
+        // and reading it warns from DefaultMavenArtifactRepository#nagAboutArtifactUrlsDeprecation,
+        // which this build turns into a failure via org.gradle.warning.mode=fail. Nothing is lost in
+        // practice: the setters are deprecated too, no repository in this build sets artifactUrls, and
+        // a build that did would already be failing on the setter.
         project.getRepositories().all(repository -> {
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
