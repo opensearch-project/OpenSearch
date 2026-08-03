@@ -9,6 +9,7 @@
 package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
@@ -854,6 +855,153 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue("Over-large MSM must produce FALSE literal", result instanceof RexLiteral);
         assertFalse("Must be boolean FALSE (match-none)", RexLiteral.booleanValue(result));
+    }
+
+    // --- Data-type variety: bool composition preserves child literal typing ---
+
+    public void testBoolMustWithNumericChildPreservesIntegerLiteral() throws ConversionException {
+        // Bool wrapping a numeric term clause must preserve the INTEGER literal value.
+        RexNode result = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("price", 42)), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall eq = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, eq.getKind());
+        // price is index 1 in the test schema
+        assertEquals(1, ((RexInputRef) eq.getOperands().get(0)).getIndex());
+        // Nullable field wraps literal in CAST
+        RexCall cast = (RexCall) eq.getOperands().get(1);
+        RexLiteral literal = (RexLiteral) cast.getOperands().get(0);
+        assertEquals(SqlTypeName.INTEGER, literal.getType().getSqlTypeName());
+        assertEquals(Integer.valueOf(42), literal.getValueAs(Integer.class));
+    }
+
+    public void testBoolMustWithBooleanChildPreservesBooleanLiteral() throws ConversionException {
+        // Bool wrapping a boolean term clause must preserve the BOOLEAN literal value.
+        RexNode result = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("is_active", true)), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall eq = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, eq.getKind());
+        // is_active is index 5 in the test schema
+        assertEquals(5, ((RexInputRef) eq.getOperands().get(0)).getIndex());
+        // Nullable field wraps literal in CAST
+        RexCall cast = (RexCall) eq.getOperands().get(1);
+        RexLiteral literal = (RexLiteral) cast.getOperands().get(0);
+        assertEquals(SqlTypeName.BOOLEAN, literal.getType().getSqlTypeName());
+        assertTrue("Boolean literal must be TRUE", literal.getValueAs(Boolean.class));
+    }
+
+    public void testBoolMustWithDateChildPreservesDateLiteral() throws ConversionException {
+        // Bool wrapping a date term clause must preserve the DATE literal value.
+        // Calcite DATE expects days-since-epoch (integer); 19738 = 2024-01-15.
+        // Note: passing a date string (e.g. "2024-01-15") through TermQueryTranslator to a
+        // DATE-typed field throws ClassCastException in RexBuilder.clean() because Calcite
+        // requires an Integer for DATE. This test uses the integer form that Calcite accepts.
+        RexNode result = translator.convert(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("created_date", 19738)), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall eq = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, eq.getKind());
+        // created_date is index 4 in the test schema
+        assertEquals(4, ((RexInputRef) eq.getOperands().get(0)).getIndex());
+        // Nullable field wraps literal in CAST
+        RexCall cast = (RexCall) eq.getOperands().get(1);
+        RexLiteral literal = (RexLiteral) cast.getOperands().get(0);
+        assertEquals(SqlTypeName.DATE, literal.getType().getSqlTypeName());
+        // Days-since-epoch value must be preserved
+        assertNotNull("Date literal value must not be null", literal.getValue());
+        assertEquals(Integer.valueOf(19738), literal.getValueAs(Integer.class));
+    }
+
+    public void testBoolMustMixedTypesPreservesAllLiteralsInOrder() throws ConversionException {
+        // Mixed bool: string child + numeric child + boolean child in a single must list.
+        // Assert each operand's value survives composition in order.
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("name", "laptop"))
+                .must(QueryBuilders.termQuery("price", 999))
+                .must(QueryBuilders.termQuery("is_active", false)),
+            ctx
+        );
+
+        assertTrue(result instanceof RexCall);
+        RexCall and = (RexCall) result;
+        assertEquals(SqlKind.AND, and.getKind());
+        assertEquals(3, and.getOperands().size());
+
+        // First operand: name = 'laptop' (VARCHAR, index 0)
+        RexCall eq0 = (RexCall) and.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, eq0.getKind());
+        assertEquals(0, ((RexInputRef) eq0.getOperands().get(0)).getIndex());
+        RexLiteral lit0 = (RexLiteral) ((RexCall) eq0.getOperands().get(1)).getOperands().get(0);
+        assertEquals("laptop", lit0.getValueAs(String.class));
+
+        // Second operand: price = 999 (INTEGER, index 1)
+        RexCall eq1 = (RexCall) and.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, eq1.getKind());
+        assertEquals(1, ((RexInputRef) eq1.getOperands().get(0)).getIndex());
+        RexLiteral lit1 = (RexLiteral) ((RexCall) eq1.getOperands().get(1)).getOperands().get(0);
+        assertEquals(Integer.valueOf(999), lit1.getValueAs(Integer.class));
+
+        // Third operand: is_active = false (BOOLEAN, index 5)
+        RexCall eq2 = (RexCall) and.getOperands().get(2);
+        assertEquals(SqlKind.EQUALS, eq2.getKind());
+        assertEquals(5, ((RexInputRef) eq2.getOperands().get(0)).getIndex());
+        RexLiteral lit2 = (RexLiteral) ((RexCall) eq2.getOperands().get(1)).getOperands().get(0);
+        assertFalse("Boolean literal must be FALSE", lit2.getValueAs(Boolean.class));
+    }
+
+    public void testBoolMinimumShouldMatchMixedTypesConjoinedFormPreservesTypes() throws ConversionException {
+        // Mixed should clauses (string + numeric + boolean) under minimum_should_match=2
+        // with 3 clauses. Required count (2) is strictly between 1 and clause count (3).
+        // Asserts: AND(OR(...), GTE(...)) form, CASE leaf count == 3, and each clause's
+        // typed literal survives in the OR conjunct.
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("name", "tablet"))
+                .should(QueryBuilders.termQuery("price", 500))
+                .should(QueryBuilders.termQuery("is_active", true))
+                .minimumShouldMatch("2"),
+            ctx
+        );
+
+        assertTrue(result instanceof RexCall);
+        RexCall and = (RexCall) result;
+        assertEquals(SqlKind.AND, and.getKind());
+        assertEquals("Conjoined form must have exactly 2 conjuncts", 2, and.getOperands().size());
+
+        // First conjunct: OR of all 3 typed conditions
+        RexCall or = (RexCall) and.getOperands().get(0);
+        assertEquals(SqlKind.OR, or.getKind());
+        assertEquals(3, or.getOperands().size());
+
+        // Verify each OR operand preserves its typed literal value
+        // OR operand 0: name = 'tablet' (VARCHAR)
+        RexCall shouldEq0 = (RexCall) or.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, shouldEq0.getKind());
+        assertEquals(0, ((RexInputRef) shouldEq0.getOperands().get(0)).getIndex());
+        RexLiteral shouldLit0 = (RexLiteral) ((RexCall) shouldEq0.getOperands().get(1)).getOperands().get(0);
+        assertEquals("tablet", shouldLit0.getValueAs(String.class));
+
+        // OR operand 1: price = 500 (INTEGER)
+        RexCall shouldEq1 = (RexCall) or.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, shouldEq1.getKind());
+        assertEquals(1, ((RexInputRef) shouldEq1.getOperands().get(0)).getIndex());
+        RexLiteral shouldLit1 = (RexLiteral) ((RexCall) shouldEq1.getOperands().get(1)).getOperands().get(0);
+        assertEquals(Integer.valueOf(500), shouldLit1.getValueAs(Integer.class));
+
+        // OR operand 2: is_active = true (BOOLEAN)
+        RexCall shouldEq2 = (RexCall) or.getOperands().get(2);
+        assertEquals(SqlKind.EQUALS, shouldEq2.getKind());
+        assertEquals(5, ((RexInputRef) shouldEq2.getOperands().get(0)).getIndex());
+        RexLiteral shouldLit2 = (RexLiteral) ((RexCall) shouldEq2.getOperands().get(1)).getOperands().get(0);
+        assertTrue("Boolean literal must be TRUE", shouldLit2.getValueAs(Boolean.class));
+
+        // Second conjunct: GTE with CASE leaf count == clause count (3)
+        RexCall gte = (RexCall) and.getOperands().get(1);
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, gte.getKind());
+        int caseCount = countNodes(gte, SqlKind.CASE);
+        assertEquals("CASE leaf count must equal clause count (type-agnostic conjoined form)", 3, caseCount);
     }
 
     // --- Helper methods for conjoined-form tests ---
