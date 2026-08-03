@@ -9,6 +9,7 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.result.BucketEntry;
@@ -146,7 +147,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
     private static String keyString(Object key) {
         if (key instanceof byte[] bytes) {
             try {
-                return InetAddress.getByAddress(bytes).getHostAddress();
+                return NetworkAddress.format(InetAddress.getByAddress(bytes));
             } catch (UnknownHostException e) {
                 // Not a 4/16-byte address; fall back to a printable, deterministic form.
                 return Base64.getEncoder().encodeToString(bytes);
