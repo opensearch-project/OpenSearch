@@ -104,4 +104,31 @@ public class NodeDuressSettingsTests extends OpenSearchTestCase {
         settings.setNodeNativeMemory(new ByteSizeValue(4096L));
         assertEquals(4096L, settings.getNodeNativeMemory());
     }
+
+    /**
+     * BWC: a cluster that had {@code search_backpressure.node_duress.native_memory_limit} set
+     * in its persistent cluster state must have that value transparently migrated to
+     * {@code node.native_memory.limit} by {@link NodeDuressSettings#NATIVE_MEMORY_LIMIT_UPGRADER}
+     * during cluster-state recovery, so the SBP duress probe still honours the operator's
+     * original intent after upgrade.
+     */
+    public void testLegacySettingUpgraderMigratesKeyToNodeNativeMemoryLimit() {
+        // Simulate old cluster-state that contains the legacy SBP-specific key.
+        Settings legacyClusterState = Settings.builder().put(NodeDuressSettings.SETTING_NATIVE_MEMORY_LIMIT_LEGACY.getKey(), "4gb").build();
+
+        // Must pass BUILT_IN_SETTING_UPGRADERS explicitly — the two-arg ClusterSettings
+        // constructor defaults to an empty upgrader set, mirroring the path SettingsModule takes.
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            new java.util.HashSet<>(ClusterSettings.BUILT_IN_SETTING_UPGRADERS)
+        );
+        Settings upgraded = clusterSettings.upgradeSettings(legacyClusterState);
+
+        // Old key must be gone after upgrade.
+        assertNull(upgraded.get(NodeDuressSettings.SETTING_NATIVE_MEMORY_LIMIT_LEGACY.getKey()));
+        // New unified key must carry the original value, compared as bytes to avoid
+        // depending on the internal string representation produced by the upgrader.
+        assertEquals(4L * 1024 * 1024 * 1024, ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(upgraded).getBytes());
+    }
 }

@@ -10,6 +10,7 @@ package org.opensearch.search.backpressure.settings;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
@@ -88,6 +89,39 @@ public class NodeDuressSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * @deprecated Use {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}
+     *             ({@code node.native_memory.limit}) instead. This key is retained solely for
+     *             BWC upgrade migration via {@link #NATIVE_MEMORY_LIMIT_UPGRADER}; it is no
+     *             longer read at runtime.
+     */
+    @Deprecated
+    public static final Setting<ByteSizeValue> SETTING_NATIVE_MEMORY_LIMIT_LEGACY = Setting.byteSizeSetting(
+        "search_backpressure.node_duress.native_memory_limit",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    /**
+     * Upgrades the legacy {@code search_backpressure.node_duress.native_memory_limit} key
+     * to the unified {@code node.native_memory.limit} key during cluster-state recovery.
+     * Wired into {@link org.opensearch.common.settings.ClusterSettings#BUILT_IN_SETTING_UPGRADERS}
+     * so the migration happens automatically on the first node startup after upgrade.
+     */
+    public static final SettingUpgrader<ByteSizeValue> NATIVE_MEMORY_LIMIT_UPGRADER = new SettingUpgrader<ByteSizeValue>() {
+        @Override
+        public Setting<ByteSizeValue> getSetting() {
+            return SETTING_NATIVE_MEMORY_LIMIT_LEGACY;
+        }
+
+        @Override
+        public String getKey(final String key) {
+            return ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey();
+        }
+    };
 
     /**
      * Absolute native-memory budget for this node in bytes, used by the search-backpressure
