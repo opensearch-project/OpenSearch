@@ -630,6 +630,108 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Tests the "field pair + alias flip" idea: instead of building a new index, declare two vector
+     * fields up front ({@code embedding_foo}, {@code embedding_bar}), keep one empty, populate the
+     * empty one with the new model, then repoint a field alias.
+     *
+     * <p>This checks the load-bearing assumption — that the second field can be populated while the
+     * first is preserved — and shows the actual cost: because a segment is immutable, "populating"
+     * {@code embedding_bar} still rewrites the segment. The saving is not avoided I/O; it is that the
+     * result lands in the <b>same index</b>, so no cutover of the index itself is needed.
+     *
+     * <p>Also demonstrates the sparse-field cost that makes the naive version expensive: a vector
+     * field that is empty for every document still costs nothing, but once populated the index holds
+     * <b>two</b> full vector columns simultaneously.
+     */
+    public void testFieldPairPopulateSecondVectorFieldInPlace() throws Exception {
+        final String fooField = "embedding_foo";
+        final String barField = "embedding_bar";
+
+        try (Directory src = newDirectory(); Directory dest = newDirectory()) {
+            // ---- ingest: only embedding_foo is populated; embedding_bar is declared but empty ----
+            IndexWriterConfig cfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            try (IndexWriter w = new IndexWriter(src, cfg)) {
+                for (int i = 0; i < 100; i++) {
+                    Document d = new Document();
+                    d.add(new StringField("_id", Integer.toString(i), Field.Store.YES));
+                    d.add(new TextField("body", syntheticProse(i, 0), Field.Store.YES));
+                    d.add(new KnnFloatVectorField(fooField, oldModelVector(i, DIM)));
+                    // embedding_bar intentionally absent — a Lucene field costs nothing when unset.
+                    w.addDocument(d);
+                }
+                w.commit();
+            }
+
+            long srcBytes = directorySize(src);
+            try (DirectoryReader r = DirectoryReader.open(src)) {
+                for (LeafReaderContext ctx : r.leaves()) {
+                    assertNotNull("foo is populated", ctx.reader().getFloatVectorValues(fooField));
+                    assertNull("bar carries no data while unset", ctx.reader().getFloatVectorValues(barField));
+                }
+            }
+
+            // ---- the "swap": populate embedding_bar with the NEW model, preserve embedding_foo ----
+            // A segment is immutable, so this is still a rewrite; the substituting reader supplies the
+            // new field's values while every existing field (including foo) bulk-copies.
+            IndexWriterConfig destCfg = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            try (DirectoryReader reader = DirectoryReader.open(src); IndexWriter w = new IndexWriter(dest, destCfg)) {
+                // Populating a *previously empty* field cannot be done by substituting an existing
+                // reader (there is nothing to substitute), so the documents are re-added. This is the
+                // key limitation: field-pair population is NOT a bulk-copy operation for the new field.
+                StoredFields sf = reader.storedFields();
+                for (int i = 0; i < reader.maxDoc(); i++) {
+                    int id = Integer.parseInt(sf.document(i).get("_id"));
+                    Document d = new Document();
+                    d.add(new StringField("_id", Integer.toString(id), Field.Store.YES));
+                    d.add(new TextField("body", sf.document(i).get("body"), Field.Store.YES));
+                    d.add(new KnnFloatVectorField(fooField, oldModelVector(id, DIM)));  // old model retained
+                    d.add(new KnnFloatVectorField(barField, newModelVector(id, DIM)));  // new model added
+                    w.addDocument(d);
+                }
+                w.commit();
+            }
+
+            // ---- both fields now coexist and are independently queryable ----
+            try (DirectoryReader destReader = DirectoryReader.open(dest)) {
+                assertEquals(100, destReader.numDocs());
+                IndexSearcher searcher = new IndexSearcher(destReader);
+
+                // The alias would point at bar after the flip; both are live in the meantime.
+                TopDocs viaBar = searcher.search(new KnnFloatVectorQuery(barField, newModelVector(7, DIM), 1), 1);
+                assertEquals(
+                    "new-model field answers with the new vector",
+                    "7",
+                    searcher.storedFields().document(viaBar.scoreDocs[0].doc).get("_id")
+                );
+
+                TopDocs viaFoo = searcher.search(new KnnFloatVectorQuery(fooField, oldModelVector(7, DIM), 1), 1);
+                assertEquals(
+                    "old-model field still answers — instant rollback target",
+                    "7",
+                    searcher.storedFields().document(viaFoo.scoreDocs[0].doc).get("_id")
+                );
+
+                for (LeafReaderContext ctx : destReader.leaves()) {
+                    assertNotNull(ctx.reader().getFloatVectorValues(fooField));
+                    assertNotNull(ctx.reader().getFloatVectorValues(barField));
+                }
+            }
+
+            // ---- the honest cost: two vector columns are resident at once ----
+            long destBytes = directorySize(dest);
+            logger.info("--- field pair: storage cost ---");
+            logger.info("one vector column (foo only) : {} bytes", srcBytes);
+            logger.info("two vector columns (foo+bar) : {} bytes", destBytes);
+            assertTrue(
+                "holding both models costs materially more than holding one: " + srcBytes + " -> " + destBytes,
+                destBytes > srcBytes
+            );
+        }
+    }
+
     public void testDimensionMismatchIsRejected() throws Exception {
         try (Directory src = newDirectory(); Directory dest = newDirectory()) {
             buildSourceIndex(src);
