@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
@@ -34,7 +35,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -42,9 +45,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.index.fielddata.FieldData;
-import org.opensearch.index.fielddata.ScriptDocValues;
-import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -233,7 +233,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             if (isSubField()) {
-                String prefix = getPathPrefix(name());
+                String prefix = getDVPrefix(rootFieldName) + getPathPrefix(name());
                 return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), (SortedSetDocValues sdv) -> {
                     SortedBinaryDocValues sbdv = FieldData.toString(sdv);
                     return new ScriptDocValues.Strings(
