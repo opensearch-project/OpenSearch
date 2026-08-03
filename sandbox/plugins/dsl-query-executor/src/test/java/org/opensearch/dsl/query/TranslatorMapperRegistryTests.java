@@ -44,9 +44,26 @@ public class TranslatorMapperRegistryTests extends OpenSearchTestCase {
         assertThat(registry.resolve(field.getType()), instanceOf(DefaultTranslatorMapper.class));
     }
 
-    public void testResolveTimestampReturnsDefault() {
+    public void testResolveTimestampReturnsTimestampMapper() {
         RelDataTypeField field = ctx.getRowType().getField("event_time", false, false);
-        assertThat(registry.resolve(field.getType()), instanceOf(DefaultTranslatorMapper.class));
+        assertThat(registry.resolve(field.getType()), instanceOf(TimestampTranslatorMapper.class));
+    }
+
+    /**
+     * Verifies a DATE field resolves to TimestampTranslatorMapper via tier 2.
+     */
+    public void testResolveDateReturnsTimestampMapper() {
+        RelDataTypeField field = ctx.getRowType().getField("created_date", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(TimestampTranslatorMapper.class));
+    }
+
+    /**
+     * Verifies DateOnlyType resolves to TimestampTranslatorMapper via tier 2.
+     * No tier-1 entry is needed because DateOnlyType extends BasicSqlType and reports TIMESTAMP.
+     */
+    public void testResolveDateOnlyTypeReturnsTimestampMapperViaTier2() {
+        RelDataTypeField field = ctx.getRowType().getField("event_nanos", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(TimestampTranslatorMapper.class));
     }
 
     /**

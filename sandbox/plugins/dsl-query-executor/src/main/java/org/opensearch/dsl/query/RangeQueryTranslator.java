@@ -145,11 +145,16 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         String format = rangeQuery.format();
         String timeZone = rangeQuery.timeZone();
+        boolean isDateField = RangeDateParsing.isDateType(fieldTypeName);
 
         // Lower bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
         if (rangeQuery.from() != null) {
-            Object fromValue = processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName, fieldPrecision);
-            RexNode bound = translateBound(fromValue, true, rangeQuery.includeLower(), fieldTypeName, field, ctx);
+            // For date fields, the mapper owns parsing - pass raw value with format/timeZone.
+            // For non-date fields, pre-process here as before (numeric coercion, string passthrough).
+            Object fromValue = isDateField
+                ? rangeQuery.from()
+                : processValue(rangeQuery.from(), format, timeZone, !rangeQuery.includeLower(), fieldTypeName, fieldPrecision);
+            RexNode bound = translateBound(fromValue, true, rangeQuery.includeLower(), format, timeZone, field, ctx);
             if (bound != null) {
                 if (bound instanceof RexLiteral && Boolean.FALSE.equals(((RexLiteral) bound).getValueAs(Boolean.class))) {
                     return bound; // overflow guard: match-none
@@ -160,8 +165,10 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         // Upper bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
         if (rangeQuery.to() != null) {
-            Object toValue = processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName, fieldPrecision);
-            RexNode bound = translateBound(toValue, false, rangeQuery.includeUpper(), fieldTypeName, field, ctx);
+            Object toValue = isDateField
+                ? rangeQuery.to()
+                : processValue(rangeQuery.to(), format, timeZone, rangeQuery.includeUpper(), fieldTypeName, fieldPrecision);
+            RexNode bound = translateBound(toValue, false, rangeQuery.includeUpper(), format, timeZone, field, ctx);
             if (bound != null) {
                 if (bound instanceof RexLiteral && Boolean.FALSE.equals(((RexLiteral) bound).getValueAs(Boolean.class))) {
                     return bound; // overflow guard: match-none
@@ -187,7 +194,8 @@ public class RangeQueryTranslator implements QueryTranslator {
      * @param value the processed bound value (may be null)
      * @param isLower true if this is the lower bound, false for upper
      * @param inclusive true if the original bound is inclusive (gte/lte vs gt/lt)
-     * @param fieldTypeName the SqlTypeName of the field
+     * @param format optional date format from the range query
+     * @param timeZone optional time zone from the range query
      * @param field the field definition from the schema
      * @param ctx the conversion context
      * @return RexNode comparison, literal false for overflow match-none, or null if value is null
@@ -196,7 +204,8 @@ public class RangeQueryTranslator implements QueryTranslator {
         Object value,
         boolean isLower,
         boolean inclusive,
-        SqlTypeName fieldTypeName,
+        String format,
+        String timeZone,
         RelDataTypeField field,
         ConversionContext ctx
     ) throws ConversionException {
@@ -208,7 +217,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         // integer decimal-adjust, whole-integer, and generic tail) to the registry-resolved
         // mapper. The catch-all DefaultTranslatorMapper carries the entire non-UDT path
         // including VARCHAR/CHAR keyword ranges.
-        return REGISTRY.resolve(field.getType()).translateBound(new BoundRequest(value, isLower, inclusive, null, null, field, ctx));
+        return REGISTRY.resolve(field.getType()).translateBound(new BoundRequest(value, isLower, inclusive, format, timeZone, field, ctx));
     }
 
     /**

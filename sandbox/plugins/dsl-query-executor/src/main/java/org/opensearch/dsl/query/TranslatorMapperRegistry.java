@@ -39,8 +39,13 @@ final class TranslatorMapperRegistry {
         UnsignedLongTranslatorMapper.INSTANCE
     );
 
-    /** Tier 2: Calcite built-in types keyed on SqlTypeName. Empty in this step. */
-    private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of();
+    /** Tier 2: Calcite built-in types keyed on SqlTypeName. */
+    private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of(
+        SqlTypeName.TIMESTAMP,
+        TimestampTranslatorMapper.INSTANCE,
+        SqlTypeName.DATE,
+        TimestampTranslatorMapper.INSTANCE
+    );
 
     private TranslatorMapperRegistry() {}
 
