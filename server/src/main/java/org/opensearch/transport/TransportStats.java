@@ -41,6 +41,9 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Stats for transport activity
@@ -56,6 +59,23 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long rxSize;
     private final long txCount;
     private final long txSize;
+    // Individual channel sockets closed, keyed by channel type. Distinguishes impairment affecting only
+    // some channel types from a whole-node failure.
+    private final Map<String, Long> channelCloseByType;
+    // outgoingTimeouts: requests that got no response within their timeout.
+    // requestsFailedOnDisconnect: in-flight requests cancelled when a connection closed.
+    private final long outgoingTimeouts;
+    private final long requestsFailedOnDisconnect;
+    // Connect-time counters, covering the connection-open path that the request-level counters above
+    // cannot observe:
+    // connectFailures: outbound connection opens that failed or timed out.
+    // connectTimeMillis: cumulative time spent opening connections that succeeded. Average open latency
+    // is connectTimeMillis / totalOutboundConnections.
+    // connectTimeMillisMax: worst-case single connection open time since node start, useful for judging
+    // whether lowering transport.connect_timeout is safe.
+    private final long connectFailures;
+    private final long connectTimeMillis;
+    private final long connectTimeMillisMax;
 
     /**
      * Private constructor that takes a builder.
@@ -69,6 +89,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.rxSize = builder.rxSize;
         this.txCount = builder.txCount;
         this.txSize = builder.txSize;
+        this.channelCloseByType = Collections.unmodifiableMap(new HashMap<>(builder.channelCloseByType));
+        this.outgoingTimeouts = builder.outgoingTimeouts;
+        this.requestsFailedOnDisconnect = builder.requestsFailedOnDisconnect;
+        this.connectFailures = builder.connectFailures;
+        this.connectTimeMillis = builder.connectTimeMillis;
+        this.connectTimeMillisMax = builder.connectTimeMillisMax;
     }
 
     /**
@@ -83,6 +109,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.rxSize = rxSize;
         this.txCount = txCount;
         this.txSize = txSize;
+        this.channelCloseByType = Collections.emptyMap();
+        this.outgoingTimeouts = 0L;
+        this.requestsFailedOnDisconnect = 0L;
+        this.connectFailures = 0L;
+        this.connectTimeMillis = 0L;
+        this.connectTimeMillisMax = 0L;
     }
 
     public TransportStats(StreamInput in) throws IOException {
@@ -92,6 +124,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
+        channelCloseByType = in.readMap(StreamInput::readString, StreamInput::readVLong);
+        outgoingTimeouts = in.readVLong();
+        requestsFailedOnDisconnect = in.readVLong();
+        connectFailures = in.readVLong();
+        connectTimeMillis = in.readVLong();
+        connectTimeMillisMax = in.readVLong();
     }
 
     @Override
@@ -102,6 +140,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
+        out.writeMap(channelCloseByType, StreamOutput::writeString, StreamOutput::writeVLong);
+        out.writeVLong(outgoingTimeouts);
+        out.writeVLong(requestsFailedOnDisconnect);
+        out.writeVLong(connectFailures);
+        out.writeVLong(connectTimeMillis);
+        out.writeVLong(connectTimeMillisMax);
     }
 
     public long serverOpen() {
@@ -110,6 +154,10 @@ public class TransportStats implements Writeable, ToXContentFragment {
 
     public long getServerOpen() {
         return serverOpen();
+    }
+
+    public long getTotalOutboundConnections() {
+        return totalOutboundConnections;
     }
 
     public long rxCount() {
@@ -144,6 +192,30 @@ public class TransportStats implements Writeable, ToXContentFragment {
         return txSize();
     }
 
+    public Map<String, Long> getChannelCloseByType() {
+        return channelCloseByType;
+    }
+
+    public long getOutgoingTimeouts() {
+        return outgoingTimeouts;
+    }
+
+    public long getRequestsFailedOnDisconnect() {
+        return requestsFailedOnDisconnect;
+    }
+
+    public long getConnectFailures() {
+        return connectFailures;
+    }
+
+    public long getConnectTimeMillis() {
+        return connectTimeMillis;
+    }
+
+    public long getConnectTimeMillisMax() {
+        return connectTimeMillisMax;
+    }
+
     /**
      * Builder for the {@link TransportStats} class.
      * Provides a fluent API for constructing a TransportStats object.
@@ -155,6 +227,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
         private long rxSize = 0;
         private long txCount = 0;
         private long txSize = 0;
+        private Map<String, Long> channelCloseByType = Collections.emptyMap();
+        private long outgoingTimeouts = 0L;
+        private long requestsFailedOnDisconnect = 0L;
+        private long connectFailures = 0L;
+        private long connectTimeMillis = 0L;
+        private long connectTimeMillisMax = 0L;
 
         public Builder() {}
 
@@ -188,6 +266,36 @@ public class TransportStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder channelCloseByType(Map<String, Long> channelCloseByType) {
+            this.channelCloseByType = channelCloseByType;
+            return this;
+        }
+
+        public Builder outgoingTimeouts(long outgoingTimeouts) {
+            this.outgoingTimeouts = outgoingTimeouts;
+            return this;
+        }
+
+        public Builder requestsFailedOnDisconnect(long requestsFailedOnDisconnect) {
+            this.requestsFailedOnDisconnect = requestsFailedOnDisconnect;
+            return this;
+        }
+
+        public Builder connectFailures(long connectFailures) {
+            this.connectFailures = connectFailures;
+            return this;
+        }
+
+        public Builder connectTimeMillis(long connectTimeMillis) {
+            this.connectTimeMillis = connectTimeMillis;
+            return this;
+        }
+
+        public Builder connectTimeMillisMax(long connectTimeMillisMax) {
+            this.connectTimeMillisMax = connectTimeMillisMax;
+            return this;
+        }
+
         /**
          * Creates a {@link TransportStats} object from the builder's current state.
          * @return A new TransportStats instance.
@@ -206,6 +314,14 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
         builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
+        if (channelCloseByType.isEmpty() == false) {
+            builder.field(Fields.CHANNEL_CLOSE_BY_TYPE, channelCloseByType);
+        }
+        builder.field(Fields.OUTGOING_TIMEOUTS, outgoingTimeouts);
+        builder.field(Fields.REQUESTS_FAILED_ON_DISCONNECT, requestsFailedOnDisconnect);
+        builder.field(Fields.CONNECT_FAILURES, connectFailures);
+        builder.field(Fields.CONNECT_TIME_MILLIS, connectTimeMillis);
+        builder.field(Fields.CONNECT_TIME_MILLIS_MAX, connectTimeMillisMax);
         builder.endObject();
         return builder;
     }
@@ -220,5 +336,11 @@ public class TransportStats implements Writeable, ToXContentFragment {
         static final String TX_COUNT = "tx_count";
         static final String TX_SIZE = "tx_size";
         static final String TX_SIZE_IN_BYTES = "tx_size_in_bytes";
+        static final String CHANNEL_CLOSE_BY_TYPE = "channel_close_by_type";
+        static final String OUTGOING_TIMEOUTS = "outgoing_timeouts";
+        static final String REQUESTS_FAILED_ON_DISCONNECT = "requests_failed_on_disconnect";
+        static final String CONNECT_FAILURES = "connect_failures";
+        static final String CONNECT_TIME_MILLIS = "connect_time_millis";
+        static final String CONNECT_TIME_MILLIS_MAX = "connect_time_millis_max";
     }
 }

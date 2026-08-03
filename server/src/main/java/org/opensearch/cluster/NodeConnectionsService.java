@@ -61,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.common.settings.Setting.Property;
@@ -345,6 +346,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final Runnable connectActivity = new AbstractRunnable() {
 
             final AbstractRunnable abstractRunnable = this;
+            // Tracks wall-clock start of the current connect attempt (nanoseconds).
+            // Written in doRun() before connectToNode; read in onResponse/onFailure callbacks.
+            // volatile ensures visibility across the thread-pool hand-off.
+            volatile long connectStartNanos;
 
             @Override
             protected void doRun() {
@@ -356,11 +361,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     onConnected();
                 } else {
                     logger.debug("connecting to {}", discoveryNode);
+                    connectStartNanos = System.nanoTime();
                     transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
                             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                            logger.debug("connected to {}", discoveryNode);
+                            final long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - connectStartNanos);
+                            logger.debug("connected to {} in [{}ms]", discoveryNode, elapsedMs);
                             onConnected();
                         }
 
@@ -383,9 +390,15 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
                 // only warn every 6th failure
                 final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
+                final long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - connectStartNanos);
                 logger.log(
                     level,
-                    new ParameterizedMessage("failed to connect to {} (tried [{}] times)", discoveryNode, currentFailureCount),
+                    new ParameterizedMessage(
+                        "failed to connect to {} after [{}ms] (tried [{}] times)",
+                        discoveryNode,
+                        elapsedMs,
+                        currentFailureCount
+                    ),
                     e
                 );
                 onCompletion(ActivityType.CONNECTING, e, disconnectActivity);
