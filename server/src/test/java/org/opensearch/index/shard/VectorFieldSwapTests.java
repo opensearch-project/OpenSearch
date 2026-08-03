@@ -732,6 +732,54 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Pins a capability limit that decides which delivery shape suits an embedding-model upgrade:
+     * <b>substitution cannot change the vector's dimension.</b>
+     *
+     * <p>The substituted view reports the source field's own dimension (it delegates {@code dimension()}),
+     * and the destination inherits the source's field metadata, so replacement vectors must match the
+     * original dimension exactly. Real model upgrades routinely change dimension (768→1024, 1536→3072),
+     * and for those the field-adding path — which carries its own dimension — is required instead.
+     *
+     * <p>Without this test the limit is invisible: it surfaces only as a merge-time failure.
+     */
+    public void testSubstitutionCannotChangeVectorDimension() throws Exception {
+        try (Directory src = newDirectory(); Directory dest = newDirectory()) {
+            buildSourceIndex(src);
+            IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+                .setMergeScheduler(new org.apache.lucene.index.SerialMergeScheduler());
+            try (DirectoryReader reader = DirectoryReader.open(src); IndexWriter w = new IndexWriter(dest, iwc)) {
+                List<CodecReader> wrapped = new ArrayList<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    // The substituted view still reports the SOURCE dimension...
+                    FloatVectorValues srcValues = ctx.reader().getFloatVectorValues(VECTOR_FIELD);
+                    assertEquals("source dimension", DIM, srcValues.dimension());
+                    wrapped.add(
+                        new VectorFieldSubstitutingCodecReader(
+                            (SegmentReader) ctx.reader(),
+                            VECTOR_FIELD,
+                            // ...so supplying a larger vector, as a real model upgrade would, cannot work.
+                            (docId, dim) -> new float[DIM * 2]
+                        )
+                    );
+                }
+                CodecReader[] arr = wrapped.toArray(new CodecReader[0]);
+                Exception e = expectThrows(Exception.class, () -> w.addIndexes(arr));
+                Throwable cause = e;
+                boolean sawDimensionComplaint = false;
+                while (cause != null) {
+                    if (cause.getMessage() != null && cause.getMessage().contains("dimension")) {
+                        sawDimensionComplaint = true;
+                        break;
+                    }
+                    cause = cause.getCause();
+                }
+                assertTrue("a dimension change must be refused, not silently accepted; got: " + e, sawDimensionComplaint);
+            }
+        }
+    }
+
     public void testDimensionMismatchIsRejected() throws Exception {
         try (Directory src = newDirectory(); Directory dest = newDirectory()) {
             buildSourceIndex(src);

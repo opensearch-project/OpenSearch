@@ -377,6 +377,61 @@ public class VectorFieldAddingTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * The decisive capability question for an embedding-model upgrade: real upgrades routinely change the
+     * vector's dimension (768→1024, 1536→3072). Adding a field carries its own dimension, so the new
+     * field may differ from the existing one — and both coexist in the same index.
+     *
+     * <p>This is the property the substituting approach does <b>not</b> have: substitution reuses the
+     * source field's own metadata, so the replacement vectors must match the original dimension exactly.
+     * Any upgrade that changes dimension therefore requires the field-adding path.
+     */
+    public void testAddedFieldMayHaveADifferentDimensionThanTheExistingField() throws Exception {
+        final int newDim = DIM * 2;   // e.g. 768 -> 1536
+        try (Directory src = newDirectory(); Directory dest = newDirectory()) {
+            buildSource(src, config());
+
+            try (DirectoryReader reader = DirectoryReader.open(src); IndexWriter w = new IndexWriter(dest, config())) {
+                List<CodecReader> wrapped = new ArrayList<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    final int[] ids = docIdToLogicalId(ctx.reader());
+                    wrapped.add(
+                        new VectorFieldAddingCodecReader(
+                            (SegmentReader) ctx.reader(),
+                            NEW_FIELD,
+                            newDim,
+                            VectorSimilarityFunction.DOT_PRODUCT,
+                            docId -> {
+                                float[] v = new float[newDim];
+                                for (int i = 0; i < newDim; i++) {
+                                    v[i] = (float) Math.sin((ids[docId] + 1) * 0.31 + i * 0.05) + 1.5f;
+                                }
+                                VectorUtil.l2normalize(v);
+                                return v;
+                            }
+                        )
+                    );
+                }
+                w.addIndexes(wrapped.toArray(new CodecReader[0]));
+                w.commit();
+            }
+
+            TestUtil.checkIndex(dest);
+            try (DirectoryReader destReader = DirectoryReader.open(dest)) {
+                assertEquals("all documents carried over", NUM_DOCS, destReader.numDocs());
+                for (LeafReaderContext ctx : destReader.leaves()) {
+                    FloatVectorValues old = ctx.reader().getFloatVectorValues(OLD_FIELD);
+                    FloatVectorValues added = ctx.reader().getFloatVectorValues(NEW_FIELD);
+                    assertNotNull(old);
+                    assertNotNull(added);
+                    // The two models' fields coexist at DIFFERENT dimensions in one index.
+                    assertEquals("existing field keeps its dimension", DIM, old.dimension());
+                    assertEquals("added field carries the new model's dimension", newDim, added.dimension());
+                }
+            }
+        }
+    }
+
     /** Adding a field that already exists is a caller error and must fail fast, not silently no-op. */
     public void testAddingAnExistingFieldIsRejected() throws Exception {
         try (Directory src = newDirectory()) {
