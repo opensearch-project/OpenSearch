@@ -18,6 +18,7 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -84,6 +85,19 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
     }
 
     /**
+     * Rejects request parameters the analytics path cannot honor. Scripted values are
+     * computed per document at collection time, which has no SQL equivalent.
+     *
+     * @param agg the metric aggregation builder
+     * @throws ConversionException if the aggregation uses a script
+     */
+    static void validateSupportedParams(ValuesSourceAggregationBuilder<?> agg) throws ConversionException {
+        if (agg.script() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a script is not supported");
+        }
+    }
+
+    /**
      * Coerces the request's {@code missing} value to a double for the COALESCE substitute
      * column; non-numeric substitutes are rejected.
      *
@@ -107,7 +121,9 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
     }
 
     /**
-     * Converts the metric aggregation to Calcite AggregateCall(s).
+     * Converts the metric aggregation to Calcite AggregateCall(s). Callers run
+     * {@link #validate} first (the tree walker does, once per aggregation); this method
+     * assumes an already-validated request.
      *
      * @param agg the metric aggregation builder
      * @param rowType the index row type for field lookup
