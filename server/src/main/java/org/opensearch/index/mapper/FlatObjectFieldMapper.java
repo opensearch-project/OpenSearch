@@ -42,6 +42,9 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -232,8 +235,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (isSubField()) {
                 String prefix = getPathPrefix(name());
                 return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), (SortedSetDocValues sdv) -> {
-                    SortedBinaryDocValues sbdv = org.opensearch.index.fielddata.FieldData.toString(sdv);
-                    return new org.opensearch.index.fielddata.ScriptDocValues.Strings(
+                    SortedBinaryDocValues sbdv = FieldData.toString(sdv);
+                    return new ScriptDocValues.Strings(
                         new PrefixFilteredSortedBinaryDocValues(sbdv, prefix)
                     );
                 }, CoreValuesSourceType.BYTES);
@@ -241,14 +244,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), CoreValuesSourceType.BYTES);
         }
 
-        private static class PrefixFilteredSortedBinaryDocValues extends org.opensearch.index.fielddata.SortedBinaryDocValues {
-            private final org.opensearch.index.fielddata.SortedBinaryDocValues in;
+        private static class PrefixFilteredSortedBinaryDocValues extends SortedBinaryDocValues {
+            private final SortedBinaryDocValues in;
             private final BytesRef prefix;
             private int docValueCount;
-            private final java.util.List<BytesRef> matches = new java.util.ArrayList<>();
+            private final List<BytesRef> matches = new ArrayList<>();
             private int index;
 
-            PrefixFilteredSortedBinaryDocValues(org.opensearch.index.fielddata.SortedBinaryDocValues in, String prefix) {
+            PrefixFilteredSortedBinaryDocValues(SortedBinaryDocValues in, String prefix) {
                 this.in = in;
                 this.prefix = new BytesRef(prefix);
             }
@@ -260,7 +263,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     int count = in.docValueCount();
                     for (int i = 0; i < count; i++) {
                         BytesRef val = in.nextValue();
-                        if (val.length >= prefix.length && org.apache.lucene.util.StringHelper.startsWith(val, prefix)) {
+                        if (val.length >= prefix.length && StringHelper.startsWith(val, prefix)) {
                             BytesRef stripped = new BytesRef(val.bytes, val.offset + prefix.length, val.length - prefix.length);
                             matches.add(BytesRef.deepCopyOf(stripped));
                         }

@@ -15,6 +15,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.AbstractFieldDataTestCase;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
 
@@ -130,22 +132,22 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(1, readers.size());
 
         IndexFieldData<?> detailNameFieldData = getForField("field.detail.name");
-        org.opensearch.index.fielddata.LeafOrdinalsFieldData detailNameLeafData = 
-            (org.opensearch.index.fielddata.LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
-        
-        org.opensearch.index.fielddata.ScriptDocValues<?> scriptValues = detailNameLeafData.getScriptValues();
+        LeafOrdinalsFieldData detailNameLeafData =
+            (LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
+
+        ScriptDocValues<?> scriptValues = detailNameLeafData.getScriptValues();
         scriptValues.setNextDocId(0);
-        
+
         assertEquals(1, scriptValues.size());
         assertEquals("foo", scriptValues.get(0));
 
         IndexFieldData<?> detailAgeFieldData = getForField("field.detail.age");
-        org.opensearch.index.fielddata.LeafOrdinalsFieldData detailAgeLeafData = 
-            (org.opensearch.index.fielddata.LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
-        
+        LeafOrdinalsFieldData detailAgeLeafData =
+            (LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
+
         scriptValues = detailAgeLeafData.getScriptValues();
         scriptValues.setNextDocId(0);
-        
+
         assertEquals(1, scriptValues.size());
         assertEquals("25", scriptValues.get(0));
     }
