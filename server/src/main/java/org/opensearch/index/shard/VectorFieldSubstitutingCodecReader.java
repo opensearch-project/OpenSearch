@@ -198,8 +198,13 @@ public final class VectorFieldSubstitutingCodecReader extends FilterCodecReader 
             }
             if (replacement.length != base.dimension()) {
                 throw new IllegalArgumentException(
-                    "replacement vector for doc [" + docId + "] has dimension [" + replacement.length + "] but field expects [" + base
-                        .dimension() + "]"
+                    "replacement vector for doc ["
+                        + docId
+                        + "] has dimension ["
+                        + replacement.length
+                        + "] but field expects ["
+                        + base.dimension()
+                        + "]"
                 );
             }
             return replacement;

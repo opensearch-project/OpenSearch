@@ -9,6 +9,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -29,7 +30,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.opensearch.test.OpenSearchTestCase;
@@ -227,9 +227,7 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
                     // Materialize docId -> logical _id on this thread; the supplier runs on the
                     // merge thread, where the source StoredFields must not be touched.
                     final int[] ids = docIdToLogicalId(ctx.reader());
-                    wrapped.add(
-                        new VectorFieldSubstitutingCodecReader(cr, VECTOR_FIELD, (docId, dim) -> newModelVector(ids[docId], dim))
-                    );
+                    wrapped.add(new VectorFieldSubstitutingCodecReader(cr, VECTOR_FIELD, (docId, dim) -> newModelVector(ids[docId], dim)));
                 }
                 w.addIndexes(wrapped.toArray(new CodecReader[0]));
                 w.commit();
@@ -380,7 +378,8 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
                 Throwable cause = e;
                 boolean sawDimensionComplaint = false;
                 while (cause != null) {
-                    if (cause instanceof IllegalArgumentException && cause.getMessage() != null
+                    if (cause instanceof IllegalArgumentException
+                        && cause.getMessage() != null
                         && cause.getMessage().contains("dimension")) {
                         sawDimensionComplaint = true;
                         break;
