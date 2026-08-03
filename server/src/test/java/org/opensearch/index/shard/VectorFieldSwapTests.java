@@ -509,6 +509,12 @@ public class VectorFieldSwapTests extends OpenSearchTestCase {
             logger.info("source index bytes           : {}", srcBytes);
             logger.info("full reindex bytes           : {}", fullReindexBytes);
             logger.info("swap: vector file bytes      : {}", vectorBytes);
+            // The destination of an addIndexes() swap contains a full bulk-copy of the non-vector
+            // data, so its total size is NOT the byte saving. The saving this metric reports is the
+            // work that must be redone (vector rebuild) versus redoing everything. Converting that
+            // into a disk saving requires hardlinking the untouched files, which is what a
+            // clone-based API buys (see design doc section 7.2).
+            logger.info("swap: TOTAL dest dir bytes   : {}", directorySize(swapped));
             logger.info("METRIC_BYTES_RATIO_X1000={}", ratioX1000);
 
             Path metricFile = Path.of(System.getProperty("vectorswap.metric.out", tmp.resolve("metric.txt").toString()));
