@@ -533,6 +533,54 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
 
         RexCall upperBound = (RexCall) call.getOperands().get(1);
         assertLiteralString(upperBound, "dell");
+
+        // Assert operators
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, lowerBound.getKind());
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, upperBound.getKind());
+
+        // Assert column reference (brand is index 2 in TestUtils schema)
+        RexInputRef lowerRef = (RexInputRef) lowerBound.getOperands().get(0);
+        assertEquals(2, lowerRef.getIndex());
+        RexInputRef upperRef = (RexInputRef) upperBound.getOperands().get(0);
+        assertEquals(2, upperRef.getIndex());
+
+        // Assert literal type (Calcite produces CHAR for string literals)
+        RexLiteral lowerLit = unwrapLiteral(lowerBound.getOperands().get(1));
+        assertEquals(SqlTypeName.CHAR, lowerLit.getTypeName());
+        RexLiteral upperLit = unwrapLiteral(upperBound.getOperands().get(1));
+        assertEquals(SqlTypeName.CHAR, upperLit.getTypeName());
+    }
+
+    /**
+     * Exclusive string bounds on keyword field produce GREATER_THAN / LESS_THAN operators.
+     */
+    public void testExclusiveLexicographicRangeOnKeywordField() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("brand").gt("apple").lt("dell"), ctx);
+
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.AND, call.getKind());
+
+        RexCall lowerBound = (RexCall) call.getOperands().get(0);
+        RexCall upperBound = (RexCall) call.getOperands().get(1);
+
+        // Assert exclusive operators
+        assertEquals(SqlKind.GREATER_THAN, lowerBound.getKind());
+        assertEquals(SqlKind.LESS_THAN, upperBound.getKind());
+
+        // Assert column reference
+        RexInputRef lowerRef = (RexInputRef) lowerBound.getOperands().get(0);
+        assertEquals(2, lowerRef.getIndex());
+        RexInputRef upperRef = (RexInputRef) upperBound.getOperands().get(0);
+        assertEquals(2, upperRef.getIndex());
+
+        // Assert literal values and type
+        assertLiteralString(lowerBound, "apple");
+        assertLiteralString(upperBound, "dell");
+        RexLiteral lowerLit = unwrapLiteral(lowerBound.getOperands().get(1));
+        assertEquals(SqlTypeName.CHAR, lowerLit.getTypeName());
+        RexLiteral upperLit = unwrapLiteral(upperBound.getOperands().get(1));
+        assertEquals(SqlTypeName.CHAR, upperLit.getTypeName());
     }
 
     /**
