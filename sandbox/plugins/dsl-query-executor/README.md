@@ -59,7 +59,7 @@ scores are not surfaced). Ignored: `_name` (matched_queries not surfaced).
 |---|---|---|
 | 1 | `search.allow_expensive_queries=false` not honoured | The Lucene backend hardcodes an always-true supplier (LuceneAnalyticsBackendPlugin:284). Vanilla refuses prefix/wildcard when this setting is false. Pre-existing property of the delegation layer. |
 | 2 | Page pruning lost | A delegated predicate yields an all-true bitmap at the pruning stage (page_pruner.rs:779-782); the previous LIKE form was prunable (page_pruner.rs:24). Correctness preserved by residual re-evaluation (single_collector.rs:604-611). Follow-up: schema enrichment would enable a prunable fast path. |
-| 3 | Unmapped field types | `wildcard`, `constant_keyword`, `version` and `flat_object` support prefix/wildcard in vanilla but are not mapped into the analytics schema. Pre-existing schema limitation. |
+| 3 | Field types not storable in this engine mode | `wildcard`, `constant_keyword`, `version` and `flat_object` support prefix/wildcard in vanilla, but indexes using them cannot be created in optimized engine mode at all — the Parquet primary format (`CoreDataFieldPlugin`) and the Lucene secondary format (`LuceneFieldFactoryRegistry`) register no writers for them, so index creation fails with `MapperParsingException` (see `CompositeFieldCapabilityIT`). Storage-layer limitation shared by every query front-end via `OpenSearchSchemaBuilder`, not a prefix/wildcard behaviour difference. |
 
 ## Dependencies
 
