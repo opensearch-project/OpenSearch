@@ -10,6 +10,7 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.ScaledFloatType;
 
 import java.util.Map;
 
@@ -22,15 +23,15 @@ import java.util.Map;
  * The fallback is {@link DefaultTranslatorMapper} and NEVER a throw, preserving today's
  * deny-list polarity (one explicit rejection plus a permissive generic tail).
  *
- * <p>Both tier maps are empty in this initial step; mappers are registered in later steps.
+ * <p>Both tier maps are populated incrementally as per-type mappers are introduced.
  */
 final class TranslatorMapperRegistry {
 
     /** Singleton instance. */
     static final TranslatorMapperRegistry INSTANCE = new TranslatorMapperRegistry();
 
-    /** Tier 1: UDT marker types keyed on exact class. Empty in this step. */
-    private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of();
+    /** Tier 1: UDT marker types keyed on exact class. */
+    private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of(ScaledFloatType.class, ScaledFloatTranslatorMapper.INSTANCE);
 
     /** Tier 2: Calcite built-in types keyed on SqlTypeName. Empty in this step. */
     private final Map<SqlTypeName, BaseTranslatorMapper> bySqlType = Map.of();

@@ -48,4 +48,16 @@ public class TranslatorMapperRegistryTests extends OpenSearchTestCase {
         RelDataTypeField field = ctx.getRowType().getField("event_time", false, false);
         assertThat(registry.resolve(field.getType()), instanceOf(DefaultTranslatorMapper.class));
     }
+
+    /**
+     * Verifies ScaledFloatType resolves to ScaledFloatTranslatorMapper via tier 1.
+     */
+    public void testResolveScaledFloatReturnsScaledFloatMapper() {
+        RelDataTypeField field = ctx.getRowType().getField("scaled_price", false, false);
+        assertThat(registry.resolve(field.getType()), instanceOf(ScaledFloatTranslatorMapper.class));
+        assertFalse(
+            "ScaledFloatType must NOT fall through to DefaultTranslatorMapper",
+            registry.resolve(field.getType()) instanceof DefaultTranslatorMapper
+        );
+    }
 }

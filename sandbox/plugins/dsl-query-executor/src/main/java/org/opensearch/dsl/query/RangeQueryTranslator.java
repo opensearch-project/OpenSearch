@@ -17,7 +17,6 @@ import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.schema.IpType;
-import org.opensearch.analytics.schema.ScaledFloatType;
 import org.opensearch.analytics.schema.UnsignedLongType;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
@@ -204,32 +203,6 @@ public class RangeQueryTranslator implements QueryTranslator {
     ) throws ConversionException {
         if (value == null) {
             return null;
-        }
-
-        // Scaled float: scale bound via Math.round(value * factor) then apply integer inclusivity.
-        // Must precede the decimal truncate+adjust path — legacy ScaledFloatFieldType.rangeQuery
-        // uses Math.round only, not the truncate+adjust logic of NumberFieldMapper INTEGER.rangeQuery.
-        if (field.getType() instanceof ScaledFloatType sft) {
-            long scaledBound = RangeBoundMath.scaleBound(value, sft, field.getName());
-            // Inclusivity adjustment per NumberFieldMapper.longRangeQuery: exclusive bounds
-            // increment (lower) or decrement (upper) to make them inclusive.
-            if (!inclusive) {
-                if (isLower) {
-                    if (scaledBound == Long.MAX_VALUE) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    scaledBound++;
-                } else {
-                    if (scaledBound == Long.MIN_VALUE) {
-                        return ctx.getRexBuilder().makeLiteral(false);
-                    }
-                    scaledBound--;
-                }
-            }
-            RexNode literal = ctx.getRexBuilder().makeLiteral(scaledBound, field.getType(), true);
-            RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-            SqlOperator op = isLower ? SqlStdOperatorTable.GREATER_THAN_OR_EQUAL : SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
-            return ctx.getRexBuilder().makeCall(op, fieldRef, literal);
         }
 
         // Unsigned long: apply legacy NumberFieldMapper.unsignedLongRangeQuery semantics.
