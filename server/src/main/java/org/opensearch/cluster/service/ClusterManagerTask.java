@@ -19,6 +19,7 @@ public enum ClusterManagerTask {
     // Tasks with default threshold (50)
     CREATE_INDEX("create-index", 50),
     UPDATE_SETTINGS("update-settings", 50),
+    PUT_INDEX_FIELD_DOMAINS("put-index-field-domains", 50),
     CLUSTER_UPDATE_SETTINGS("cluster-update-settings", 50),
     DELETE_INDEX("delete-index", 50),
     DELETE_DANGLING_INDEX("delete-dangling-index", 50),
