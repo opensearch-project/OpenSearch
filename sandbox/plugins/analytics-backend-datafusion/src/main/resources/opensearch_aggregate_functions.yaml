@@ -2,19 +2,6 @@
 ---
 urn: extension:org.opensearch:aggregate_functions
 aggregate_functions:
-  - name: checked_long_sum
-    description: >-
-      Analytics-engine binding for SQL's CHECKED_LONG_SUM. The DataFusion runtime
-      delegates this function to its native SUM implementation while retaining a
-      distinct output name for intermediate schemas.
-    impls:
-      - args:
-          - name: x
-            value: any
-        nullability: DECLARED_OUTPUT
-        decomposable: MANY
-        intermediate: i64?
-        return: i64?
   - name: approx_distinct
     description: >-
       Approximate distinct count using HyperLogLog. Maps to DataFusion's

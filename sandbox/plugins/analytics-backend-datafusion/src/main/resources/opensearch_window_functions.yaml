@@ -2,18 +2,6 @@
 ---
 urn: extension:org.opensearch:window_functions
 window_functions:
-  - name: checked_long_sum
-    description: >-
-      Window form of the analytics-engine CHECKED_LONG_SUM binding. Execution
-      delegates to DataFusion's native SUM window accumulator.
-    impls:
-      - args:
-          - name: x
-            value: any
-        decomposable: MANY
-        intermediate: i64?
-        return: i64?
-        window_type: STREAMING
   - name: os_count_distinct
     description: >-
       Window form of `os_count_distinct(x)`. Emitted as the substrait window

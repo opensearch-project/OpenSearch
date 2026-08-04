@@ -28,8 +28,6 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexOver;
-import org.apache.calcite.rex.RexWindow;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunction;
@@ -72,7 +70,6 @@ import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.FunctionMappings;
-import io.substrait.isthmus.expression.RexExpressionConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -434,31 +431,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
-    /**
-     * Analytics-engine binding for SQL's reflective {@code CHECKED_LONG_SUM}. The runtime
-     * implementation delegates to DataFusion's native SUM but keeps this distinct function name
-     * so plans containing both SUM and CHECKED_LONG_SUM do not produce duplicate Arrow field names.
-     */
-    static final SqlAggFunction LOCAL_CHECKED_LONG_SUM_OP = new SqlAggFunction(
-        "checked_long_sum",
-        null,
-        SqlKind.SUM,
-        ReturnTypes.BIGINT_NULLABLE,
-        null,
-        OperandTypes.NUMERIC,
-        SqlFunctionCategory.USER_DEFINED_FUNCTION,
-        false,
-        false,
-        Optionality.FORBIDDEN
-    ) {
-    };
-
-    static boolean isUnboundCheckedLongSum(SqlAggFunction operator) {
-        return operator != LOCAL_CHECKED_LONG_SUM_OP
-            && operator.getKind() == SqlKind.SUM
-            && "CHECKED_LONG_SUM".equalsIgnoreCase(operator.getName());
-    }
-
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
@@ -469,16 +441,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
-        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct"),
-        FunctionMappings.s(LOCAL_CHECKED_LONG_SUM_OP, "checked_long_sum")
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern"),
         // Mirror ADDITIONAL_AGGREGATE_SIGS: rename APPROX_COUNT_DISTINCT to DataFusion's `approx_distinct`.
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
-        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct"),
-        FunctionMappings.s(LOCAL_CHECKED_LONG_SUM_OP, "checked_long_sum")
+        FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );
 
     /**
@@ -743,8 +713,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 AggregateCall call,
                 Function<RexNode, Expression> rexConverter
             ) {
-                AggregateCall substraitCall = bindCheckedLongSum(call);
-                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, substraitCall, rexConverter);
+                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, call, rexConverter);
                 if (bound.isEmpty()) {
                     return bound;
                 }
@@ -778,25 +747,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
 
-            private AggregateCall bindCheckedLongSum(AggregateCall call) {
-                if (!isUnboundCheckedLongSum(call.getAggregation())) {
-                    return call;
-                }
-                return AggregateCall.create(
-                    call.getParserPosition(),
-                    LOCAL_CHECKED_LONG_SUM_OP,
-                    call.isDistinct(),
-                    call.isApproximate(),
-                    call.ignoreNulls(),
-                    call.rexList,
-                    call.getArgList(),
-                    call.filterArg,
-                    call.distinctKeys,
-                    call.collation,
-                    call.getType(),
-                    call.getName()
-                );
-            }
         };
         // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
@@ -812,36 +762,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     .collect(ImmutableList.toImmutableList());
             }
 
-            @Override
-            public Optional<Expression.WindowFunctionInvocation> convert(
-                RexOver call,
-                Function<RexNode, Expression> rexConverter,
-                RexExpressionConverter rexExpressionConverter
-            ) {
-                return super.convert(bindCheckedLongSum(call), rexConverter, rexExpressionConverter);
-            }
-
-            private RexOver bindCheckedLongSum(RexOver call) {
-                if (!isUnboundCheckedLongSum(call.getAggOperator())) {
-                    return call;
-                }
-                RexWindow window = call.getWindow();
-                return (RexOver) new RexBuilder(typeFactory).makeOver(
-                    call.getType(),
-                    LOCAL_CHECKED_LONG_SUM_OP,
-                    call.getOperands(),
-                    window.partitionKeys,
-                    window.orderKeys,
-                    window.getLowerBound(),
-                    window.getUpperBound(),
-                    window.getExclude(),
-                    window.isRows(),
-                    true,
-                    false,
-                    call.isDistinct(),
-                    call.ignoreNulls()
-                );
-            }
         };
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
