@@ -337,7 +337,10 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), containsString("dynamic template type [dup_type] is already registered"));
+        assertThat(e.getMessage(), containsString("dynamic template type [dup_type] is registered by both"));
+        // The message names both colliding plugins so the misconfiguration is easy to trace.
+        assertThat(e.getMessage(), containsString(plugins.get(0).getClass().getName()));
+        assertThat(e.getMessage(), containsString(plugins.get(1).getClass().getName()));
     }
 
     public void testNoDynamicInferencersOrTemplateTypesByDefault() {

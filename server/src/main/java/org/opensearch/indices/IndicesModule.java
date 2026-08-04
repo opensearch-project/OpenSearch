@@ -96,6 +96,7 @@ import org.opensearch.plugins.MapperPlugin;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,13 +136,25 @@ public class IndicesModule extends AbstractModule {
     /** Merges dynamic template type handlers from all mapper plugins; throws if two plugins register the same type string. */
     private static Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes(List<MapperPlugin> mapperPlugins) {
         Map<String, DynamicTemplateTypeHandler> templateTypes = new LinkedHashMap<>();
+        // Tracks which plugin registered each type so a collision can name both plugins involved.
+        Map<String, String> registeredBy = new HashMap<>();
         for (MapperPlugin mapperPlugin : mapperPlugins) {
+            String pluginName = mapperPlugin.getClass().getName();
             Map<String, DynamicTemplateTypeHandler> pluginTypes = mapperPlugin.getDynamicTemplateTypes();
             for (Map.Entry<String, DynamicTemplateTypeHandler> entry : pluginTypes.entrySet()) {
                 if (templateTypes.containsKey(entry.getKey())) {
-                    throw new IllegalArgumentException("dynamic template type [" + entry.getKey() + "] is already registered");
+                    throw new IllegalArgumentException(
+                        "dynamic template type ["
+                            + entry.getKey()
+                            + "] is registered by both ["
+                            + registeredBy.get(entry.getKey())
+                            + "] and ["
+                            + pluginName
+                            + "]"
+                    );
                 }
                 templateTypes.put(entry.getKey(), entry.getValue());
+                registeredBy.put(entry.getKey(), pluginName);
             }
         }
         return templateTypes;
