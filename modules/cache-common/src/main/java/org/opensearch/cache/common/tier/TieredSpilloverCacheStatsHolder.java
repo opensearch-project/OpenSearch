@@ -174,12 +174,12 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     public void removeDimensions(List<String> dimensionValues) {
         assert dimensionValues.size() == dimensionNames.size() - 1
             : "Must specify a value for every dimension except tier when removing from StatsHolder";
-        // As we are removing nodes from the tree, obtain the lock
-        lock.lock();
+        // As we are removing nodes from the tree, obtain the write lock.
+        lock.writeLock().lock();
         try {
             removeDimensionsHelper(dimensionValues, statsRoot, 0);
         } finally {
-            lock.unlock();
+            lock.writeLock().unlock();
         }
     }
 }
