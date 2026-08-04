@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for {@link QuerySerializerRegistry} serializers — optional parameter round-trips
@@ -1211,6 +1212,81 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
             // Defaults should be preserved
             assertEquals(Fuzziness.AUTO, fuzzyQb.fuzziness());
         }
+    }
+
+    /**
+     * Tests FuzzySerializer throws IllegalArgumentException for a malformed integer parameter.
+     */
+    public void testFuzzySerializerThrowsOnMalformedIntegerParam() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("prefix_length", "abc"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must name the offending parameter, got: " + exception.getMessage(),
+            exception.getMessage().contains("prefix_length")
+        );
+    }
+
+    /**
+     * Tests FuzzySerializer throws IllegalArgumentException for an unrecognised boolean value.
+     */
+    public void testFuzzySerializerThrowsOnInvalidBooleanParam() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("transpositions", "yes"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must name the offending parameter, got: " + exception.getMessage(),
+            exception.getMessage().contains("transpositions")
+        );
+    }
+
+    // --- Registry key-set assertion test ---
+
+    /**
+     * Asserts the registry's key set matches the expected set of ScalarFunctions.
+     * Ensures new serializer registrations are deliberate and accounted for.
+     * Mirrors the registry key-set assertion pattern used by sibling test classes.
+     */
+    public void testRegistryKeySetMatchesExpectedFunctions() {
+        assertEquals(
+            Set.of(
+                ScalarFunction.MATCH,
+                ScalarFunction.MATCH_PHRASE,
+                ScalarFunction.MATCH_BOOL_PREFIX,
+                ScalarFunction.MATCH_PHRASE_PREFIX,
+                ScalarFunction.MULTI_MATCH,
+                ScalarFunction.QUERY_STRING,
+                ScalarFunction.SIMPLE_QUERY_STRING,
+                ScalarFunction.WILDCARD_QUERY,
+                ScalarFunction.QUERY,
+                ScalarFunction.MATCHALL,
+                ScalarFunction.EQUALS,
+                ScalarFunction.NOT_EQUALS,
+                ScalarFunction.IS_NULL,
+                ScalarFunction.IS_NOT_NULL,
+                ScalarFunction.LIKE,
+                ScalarFunction.GREATER_THAN,
+                ScalarFunction.GREATER_THAN_OR_EQUAL,
+                ScalarFunction.LESS_THAN,
+                ScalarFunction.LESS_THAN_OR_EQUAL,
+                ScalarFunction.REGEXP,
+                ScalarFunction.SARG_PREDICATE,
+                ScalarFunction.FUZZY
+            ),
+            serializers.keySet()
+        );
     }
 
     // --- Helper methods ---

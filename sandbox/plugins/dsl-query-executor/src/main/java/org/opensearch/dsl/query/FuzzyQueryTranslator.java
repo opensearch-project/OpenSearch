@@ -41,6 +41,9 @@ public class FuzzyQueryTranslator implements QueryTranslator {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
+    /** Creates a new fuzzy query translator. */
+    public FuzzyQueryTranslator() {}
+
     @Override
     public Class<? extends QueryBuilder> getQueryType() {
         return FuzzyQueryBuilder.class;
@@ -50,6 +53,57 @@ public class FuzzyQueryTranslator implements QueryTranslator {
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         FuzzyQueryBuilder fuzzyQuery = (FuzzyQueryBuilder) query;
 
+        ValidatedPayload payload = validateQuery(fuzzyQuery, ctx);
+
+        // Build the RexCall: FUZZY(MAP('field',$ref), MAP('query',literal), [MAP(param,value)]...)
+        RelDataTypeField field = payload.field();
+        String value = payload.value();
+        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+
+        List<RexNode> operands = new ArrayList<>();
+        // Operand 0: MAP('field', $inputRef)
+        operands.add(
+            ctx.getRexBuilder().makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, ctx.getRexBuilder().makeLiteral("field"), fieldRef)
+        );
+        // Operand 1: MAP('query', value)
+        operands.add(
+            ctx.getRexBuilder()
+                .makeCall(
+                    SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                    ctx.getRexBuilder().makeLiteral("query"),
+                    ctx.getRexBuilder().makeLiteral(value)
+                )
+        );
+
+        // Optional params — emit only non-defaults
+        Fuzziness fuzziness = fuzzyQuery.fuzziness();
+        String fuzzinessStr = fuzziness.asString();
+        if (!fuzziness.equals(FuzzyQueryBuilder.DEFAULT_FUZZINESS)) {
+            operands.add(makeParamMap(ctx, "fuzziness", fuzzinessStr));
+        }
+        int prefixLength = fuzzyQuery.prefixLength();
+        if (prefixLength != FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH) {
+            operands.add(makeParamMap(ctx, "prefix_length", String.valueOf(prefixLength)));
+        }
+        int maxExpansions = fuzzyQuery.maxExpansions();
+        if (maxExpansions != FuzzyQueryBuilder.DEFAULT_MAX_EXPANSIONS) {
+            operands.add(makeParamMap(ctx, "max_expansions", String.valueOf(maxExpansions)));
+        }
+        if (fuzzyQuery.transpositions() != FuzzyQueryBuilder.DEFAULT_TRANSPOSITIONS) {
+            operands.add(makeParamMap(ctx, "transpositions", String.valueOf(fuzzyQuery.transpositions())));
+        }
+        if (fuzzyQuery.rewrite() != null) {
+            operands.add(makeParamMap(ctx, "rewrite", fuzzyQuery.rewrite()));
+        }
+
+        return ctx.getRexBuilder().makeCall(FUZZY_FUNCTION, operands);
+    }
+
+    /** Holds the field reference and query value resolved during validation. */
+    private record ValidatedPayload(RelDataTypeField field, String value) {
+    }
+
+    private ValidatedPayload validateQuery(FuzzyQueryBuilder fuzzyQuery, ConversionContext ctx) throws ConversionException {
         // Reject unsupported params — FuzzyQueryBuilder.boost() (scoring-only in delegated predicate)
         if (fuzzyQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Fuzzy query does not support non-default boost");
@@ -102,42 +156,7 @@ public class FuzzyQueryTranslator implements QueryTranslator {
             throw new ConversionException("Invalid fuzziness value '" + fuzzinessStr + "': " + e.getMessage());
         }
 
-        // Build the RexCall: FUZZY(MAP('field',$ref), MAP('query',literal), [MAP(param,value)]...)
-        RexNode fieldRef = ctx.getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-
-        List<RexNode> operands = new ArrayList<>();
-        // Operand 0: MAP('field', $inputRef)
-        operands.add(
-            ctx.getRexBuilder().makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, ctx.getRexBuilder().makeLiteral("field"), fieldRef)
-        );
-        // Operand 1: MAP('query', value)
-        operands.add(
-            ctx.getRexBuilder()
-                .makeCall(
-                    SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
-                    ctx.getRexBuilder().makeLiteral("query"),
-                    ctx.getRexBuilder().makeLiteral(value)
-                )
-        );
-
-        // Optional params — emit only non-defaults
-        if (!fuzziness.equals(FuzzyQueryBuilder.DEFAULT_FUZZINESS)) {
-            operands.add(makeParamMap(ctx, "fuzziness", fuzzinessStr));
-        }
-        if (prefixLength != FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH) {
-            operands.add(makeParamMap(ctx, "prefix_length", String.valueOf(prefixLength)));
-        }
-        if (maxExpansions != FuzzyQueryBuilder.DEFAULT_MAX_EXPANSIONS) {
-            operands.add(makeParamMap(ctx, "max_expansions", String.valueOf(maxExpansions)));
-        }
-        if (fuzzyQuery.transpositions() != FuzzyQueryBuilder.DEFAULT_TRANSPOSITIONS) {
-            operands.add(makeParamMap(ctx, "transpositions", String.valueOf(fuzzyQuery.transpositions())));
-        }
-        if (fuzzyQuery.rewrite() != null) {
-            operands.add(makeParamMap(ctx, "rewrite", fuzzyQuery.rewrite()));
-        }
-
-        return ctx.getRexBuilder().makeCall(FUZZY_FUNCTION, operands);
+        return new ValidatedPayload(field, value);
     }
 
     private RexNode makeParamMap(ConversionContext ctx, String key, String value) {
@@ -148,5 +167,4 @@ public class FuzzyQueryTranslator implements QueryTranslator {
                 ctx.getRexBuilder().makeLiteral(value)
             );
     }
-
 }

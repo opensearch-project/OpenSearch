@@ -56,10 +56,35 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("INTEGER"));
     }
 
+    public void testRejectsDateField() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.fuzzyQuery("created_date", "2024-01-01"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("DATE"));
+    }
+
+    public void testRejectsVarbinaryField() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.fuzzyQuery("binary_data", "deadbeef"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("VARBINARY"));
+    }
+
+    public void testRejectsBooleanField() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.fuzzyQuery("is_active", "true"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("BOOLEAN"));
+    }
+
     public void testRejectsUnknownField() {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.fuzzyQuery("nonexistent", "value"), ctx));
     }
 
+    // Pins rejection of a structurally invalid fuzziness value (non-numeric, non-AUTO)
     public void testRejectsInvalidFuzziness() {
         ConversionException ex = expectThrows(
             ConversionException.class,
@@ -153,6 +178,36 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals("false", ((RexLiteral) transpositionsMap.getOperands().get(1)).getValueAs(String.class));
     }
 
+    public void testEmitsRewriteAsMapOperand() throws ConversionException {
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop").rewrite("constant_score");
+        RexNode result = translator.convert(fqb, ctx);
+        RexCall call = (RexCall) result;
+        // field + query + rewrite = 3 operands
+        assertEquals(3, call.getOperands().size());
+
+        RexCall rewriteMap = (RexCall) call.getOperands().get(2);
+        assertEquals("rewrite", ((RexLiteral) rewriteMap.getOperands().get(0)).getValueAs(String.class));
+        assertEquals("constant_score", ((RexLiteral) rewriteMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
+    public void testNumericValueStringified() throws ConversionException {
+        // FuzzyQueryBuilder accepts Object values; numeric values are stringified via toString()
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "42");
+        RexNode result = translator.convert(fqb, ctx);
+        RexCall call = (RexCall) result;
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        assertEquals("42", ((RexLiteral) queryMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
+    public void testBooleanValueStringified() throws ConversionException {
+        // Boolean values are stringified via toString() matching BytesRefs.toBytesRef path
+        FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "true");
+        RexNode result = translator.convert(fqb, ctx);
+        RexCall call = (RexCall) result;
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        assertEquals("true", ((RexLiteral) queryMap.getOperands().get(1)).getValueAs(String.class));
+    }
+
     public void testAcceptsCustomAutoFuzziness() throws ConversionException {
         // AUTO:4,7 is a valid custom auto form — should translate without error
         FuzzyQueryBuilder fqb = QueryBuilders.fuzzyQuery("name", "laptop").fuzziness(Fuzziness.build("AUTO:4,7"));
@@ -178,6 +233,8 @@ public class FuzzyQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals("3", ((RexLiteral) fuzzinessMap.getOperands().get(1)).getValueAs(String.class));
     }
 
+    // Pins rejection of an alphabetic non-keyword fuzziness ("abc" passes Fuzziness.build()
+    // but fails asDistance() — distinct from "INVALID" which is a recognisable keyword form)
     public void testRejectsNonNumericFuzziness() {
         ConversionException ex = expectThrows(
             ConversionException.class,
