@@ -87,6 +87,11 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             repo.setUrl("https://ci.opensearch.org/maven2/");
             repo.content(descriptor -> descriptor.excludeGroupByRegex("adoptium.*|adoptopenjdk.*|openjdk.*"));
         });
+        repos.maven(repo -> {
+            repo.setName("Plugin Mirror");
+            repo.setUrl("https://ci.opensearch.org/m2/");
+            repo.content(descriptor -> descriptor.excludeGroupByRegex("adoptium.*|adoptopenjdk.*|openjdk.*"));
+        });
         repos.mavenCentral(repo -> { repo.content(descriptor -> descriptor.excludeGroupByRegex("adoptium.*|adoptopenjdk.*|openjdk.*")); });
 
         String luceneVersion = VersionProperties.getLucene();
