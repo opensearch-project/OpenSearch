@@ -17,15 +17,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class TransportStatsTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
-        // A single channel type keeps the rendered map order deterministic.
-        TransportStats stats = createTestInstance(Collections.singletonMap("REG", 12L));
+        // Channel types are rendered in sorted order regardless of how the source map iterates.
+        TransportStats stats = createTestInstance(Map.of("reg", 12L, "bulk", 7L));
 
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         builder.startObject();
@@ -44,7 +44,7 @@ public class TransportStatsTests extends OpenSearchTestCase {
             + stats.getTxCount()
             + ",\"tx_size_in_bytes\":"
             + stats.getTxSize().getBytes()
-            + ",\"channel_close_by_type\":{\"REG\":12}"
+            + ",\"channel_close_by_type\":{\"bulk\":7,\"reg\":12}"
             + ",\"outgoing_timeouts\":"
             + stats.getOutgoingTimeouts()
             + ",\"requests_failed_on_disconnect\":"
@@ -176,7 +176,7 @@ public class TransportStatsTests extends OpenSearchTestCase {
     public void testChannelCloseByTypeIsUnmodifiable() {
         TransportStats stats = createTestInstance(randomChannelCloseByType());
 
-        expectThrows(UnsupportedOperationException.class, () -> stats.getChannelCloseByType().put("REG", 1L));
+        expectThrows(UnsupportedOperationException.class, () -> stats.getChannelCloseByType().put("reg", 1L));
     }
 
     private void assertAllFieldsEqual(TransportStats expected, TransportStats actual) {
@@ -206,7 +206,7 @@ public class TransportStatsTests extends OpenSearchTestCase {
     private static Map<String, Long> randomChannelCloseByType() {
         Map<String, Long> channelCloseByType = new HashMap<>();
         for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
-            channelCloseByType.put(type.name(), randomNonNegativeLong());
+            channelCloseByType.put(type.name().toLowerCase(Locale.ROOT), randomNonNegativeLong());
         }
         return channelCloseByType;
     }

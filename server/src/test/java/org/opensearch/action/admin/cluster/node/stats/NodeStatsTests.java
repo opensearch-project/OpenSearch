@@ -121,6 +121,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -823,7 +824,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
         Map<String, Long> channelCloseByType = new HashMap<>();
         for (TransportRequestOptions.Type channelType : TransportRequestOptions.Type.values()) {
-            channelCloseByType.put(channelType.name(), randomNonNegativeLong());
+            channelCloseByType.put(channelType.name().toLowerCase(Locale.ROOT), randomNonNegativeLong());
         }
         TransportStats transportStats = frequently()
             ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())

@@ -1422,9 +1422,7 @@ public class TransportService extends AbstractLifecycleComponent
             List<Transport.ResponseContext<? extends TransportResponse>> pruned = responseHandlers.prune(
                 h -> h.connection().getCacheKey().equals(connection.getCacheKey())
             );
-            if (pruned.isEmpty() == false) {
-                requestsFailedOnDisconnect.addAndGet(pruned.size());
-            }
+            requestsFailedOnDisconnect.addAndGet(pruned.size());
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
             getExecutorService().execute(new Runnable() {
