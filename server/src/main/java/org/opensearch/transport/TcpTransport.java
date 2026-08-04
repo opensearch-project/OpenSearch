@@ -361,6 +361,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
          * deliberate close of the connection (node left the cluster, transport shutting down) is not a socket failure
          * at all. Both of those cases are filtered out by the {@link #isClosing} check, which is why this has to run
          * before the connection is closed.
+         * <p>
+         * A teardown therefore contributes exactly one socket, the first to close. Sockets that fail at almost the
+         * same moment as that one are not counted separately, because once teardown is under way a closing socket is
+         * indistinguishable from one the teardown itself closed. Sampling the first failure is enough to show which
+         * channel types are unhealthy, which is what this breakdown is for.
          */
         void recordChannelClose(int channelIndex, long openTimeMillis) {
             if (isClosing.get()) {

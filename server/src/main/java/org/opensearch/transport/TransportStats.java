@@ -63,7 +63,8 @@ public class TransportStats implements Writeable, ToXContentFragment {
     // Socket closes that brought a connection down, keyed by channel type. Distinguishes impairment
     // affecting only some channel types from a whole-node failure. A socket carrying several types counts
     // against each of them, since its loss affects all of them, so the total across types is not the number
-    // of sockets closed. Connections closed deliberately are not counted.
+    // of sockets closed. Each teardown contributes one socket, and connections closed deliberately are not
+    // counted at all.
     private final Map<String, Long> channelCloseByType;
     // outgoingTimeouts: requests that got no response within their timeout.
     // requestsFailedOnDisconnect: in-flight requests cancelled when a connection closed.
@@ -74,7 +75,8 @@ public class TransportStats implements Writeable, ToXContentFragment {
     // connectFailures: outbound connection opens that failed or timed out.
     // connectTimeMillis: cumulative time spent on connection opens that succeeded, measured over the whole
     // open path including the transport handshake. Average open latency is connectTimeMillis /
-    // totalOutboundConnections.
+    // totalOutboundConnections, which pairs correctly because that counter is also incremented once per
+    // successful open.
     // connectTimeMillisMax: slowest single connection open since node start. This is a high watermark that is
     // never reset, so on a long-lived node it reflects the worst event ever seen rather than recent behaviour.
     private final long connectFailures;
