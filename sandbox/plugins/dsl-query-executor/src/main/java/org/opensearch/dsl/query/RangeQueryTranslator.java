@@ -82,10 +82,9 @@ public class RangeQueryTranslator implements QueryTranslator {
      * level before our translator is invoked.
      * <p>
      * Field-type gating for string values (when no format/timeZone/date-math indicators):
-     * - TIMESTAMP/DATE fields: parsed through DateMathParser
+     * - TIMESTAMP/DATE and IP fields: delegated to per-type mapper classes via the TranslatorMapperRegistry
      * - Numeric fields: coerced to number using the field's type
      * - VARCHAR/CHAR fields: kept as-is for lexicographic comparison
-     * - IP fields (IpType): encoded to 16-byte sortable bytes
      *
      * @param query the RangeQueryBuilder to convert
      * @param ctx the conversion context containing schema and RexBuilder
@@ -207,17 +206,12 @@ public class RangeQueryTranslator implements QueryTranslator {
      * Processing logic:
      * - If format or timeZone is specified, or the string is a date-math expression
      *   (starts with "now" or contains "||"), it is always parsed as a date value.
-     * - Otherwise, for TIMESTAMP/DATE fields: string values are parsed through DateMathParser.
      * - For numeric fields (INTEGER, BIGINT, DOUBLE, etc.): string values are coerced to numbers.
      * - For VARCHAR/CHAR fields: string values are kept as-is for lexicographic comparison.
      * <p>
      * Non-string values are returned as-is regardless of field type.
      * <p>
      * For epoch_millis format, timezone is ignored since epoch is absolute.
-     * <p>
-     * For precision-9 date fields (date_nanos), parsing routes to nanosecond resolution via
-     * {@link RangeDateParsing#parseDateValue} with {@code DateResolution.NANOSECONDS}, mirroring
-     * legacy {@code DateFieldMapper.Resolution.NANOSECONDS}.
      *
      * @param value the value to process (can be String, Long, or other types)
      * @param format optional date format pattern (e.g., "dd/MM/yyyy")
@@ -253,9 +247,7 @@ public class RangeQueryTranslator implements QueryTranslator {
         }
 
         // Gate on field type
-        if (RangeDateParsing.isDateType(fieldTypeName)) {
-            return RangeDateParsing.parseDateValue(strValue, null, null, roundUp, resolutionFor(fieldPrecision));
-        } else if (RangeBoundMath.isNumericType(fieldTypeName)) {
+        if (RangeBoundMath.isNumericType(fieldTypeName)) {
             return new CoercedNumber(coerceToNumber(strValue, fieldTypeName));
         } else {
             // VARCHAR/CHAR and other types: keep string as-is for lexicographic comparison
