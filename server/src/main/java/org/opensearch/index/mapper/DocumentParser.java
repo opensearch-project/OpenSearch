@@ -1230,15 +1230,43 @@ final class DocumentParser {
         final String[] resolvedPaths = paths != null ? paths : splitAndValidatePath(fieldName);
         Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, resolvedPaths, parentMapper);
         ObjectMapper resolvedParent = parentMapperTuple.v2();
+        final int parentPathSlots = parentMapperTuple.v1();
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(resolvedParent, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT || dynamic == ObjectMapper.Dynamic.FALSE) {
             // Release path-slots added by getDynamicParentMapper before returning
-            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+            for (int i = 0; i < parentPathSlots; i++) {
                 context.path().remove();
             }
             return false;
         }
 
+        // getDynamicParentMapper added parentPathSlots to context.path(); release them on every exit
+        // (including an exception, e.g. buffering failure or an ambiguous-claim MapperParsingException)
+        // so ContentPath is not left corrupt for subsequent fields in the same document.
+        try {
+            return attemptPluginInference(context, dynamic, resolvedParent, resolvedPaths, inferencers, templateTypes);
+        } finally {
+            for (int i = 0; i < parentPathSlots; i++) {
+                context.path().remove();
+            }
+        }
+    }
+
+    /**
+     * Body of the plugin-inference attempt. Path slots added by {@code getDynamicParentMapper} are
+     * released by the caller's {@code finally}, so this method only manages the field-name slot it adds
+     * for replay. Returns {@code true} if a plugin claimed the field (template or inferencer) or it was
+     * replayed through the existing path.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static boolean attemptPluginInference(
+        ParseContext context,
+        ObjectMapper.Dynamic dynamic,
+        ObjectMapper resolvedParent,
+        String[] resolvedPaths,
+        List<DynamicFieldTypeInferencer> inferencers,
+        Map<String, DynamicTemplateTypeHandler> templateTypes
+    ) throws IOException {
         XContentParser parser = context.parser();
         MediaType contentType = parser.contentType();
 
@@ -1317,10 +1345,6 @@ final class DocumentParser {
                     // corrupt for subsequent fields in the same document.
                     context.path().remove();
                 }
-            } finally {
-                for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                    context.path().remove();
-                }
             }
             return true;
         }
@@ -1370,13 +1394,13 @@ final class DocumentParser {
 
         if (inferredFieldMapping == null) {
             // No template and no inferencer claimed this field — fall through to existing path
-            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent, parentMapperTuple.v1());
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
             return true;
         }
 
         String inferredType = (String) inferredFieldMapping.get("type");
         if (inferredType == null) {
-            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent, parentMapperTuple.v1());
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
             return true;
         }
 
@@ -1385,7 +1409,7 @@ final class DocumentParser {
         Mapper.TypeParser typeParser = parserContext.typeParser(inferredType);
         if (typeParser == null) {
             // Unknown type — fall through to existing path rather than failing
-            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent, parentMapperTuple.v1());
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
             return true;
         }
 
@@ -1409,10 +1433,6 @@ final class DocumentParser {
                 // corrupt for subsequent fields in the same document.
                 context.path().remove();
             }
-        } finally {
-            for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                context.path().remove();
-            }
         }
         return true;
     }
@@ -1421,13 +1441,8 @@ final class DocumentParser {
      * Replays raw-buffered field content through the normal unmapped-field logic — dynamic
      * templates, parseDynamicValue, parseNonDynamicArray — as if the buffer had never been created.
      */
-    private static void replayThroughExistingPath(
-        ParseContext context,
-        ObjectMapper parentMapper,
-        String fieldName,
-        byte[] rawContent,
-        int pathsAddedByGetDynamicParentMapper
-    ) throws IOException {
+    private static void replayThroughExistingPath(ParseContext context, ObjectMapper parentMapper, String fieldName, byte[] rawContent)
+        throws IOException {
         XContentParser originalParser = context.parser();
         try (
             XContentParser replayParser = originalParser.contentType()
@@ -1452,10 +1467,6 @@ final class DocumentParser {
                     if (replayToken != null && replayToken.isValue()) {
                         parseValue(replayContext, parentMapper, fieldName, replayToken, replayPaths);
                     }
-            }
-        } finally {
-            for (int i = 0; i < pathsAddedByGetDynamicParentMapper; i++) {
-                context.path().remove();
             }
         }
     }
