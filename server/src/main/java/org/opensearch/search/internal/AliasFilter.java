@@ -63,19 +63,46 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * document in the shard. This is the mode any pre-3.8 node speaks over the
      * wire, and it is the default for every code path today.
      * <p>
-     * {@link #PRE_FILTER} is a placeholder for the filter-aware-alias work: the
-     * filter is intended to be pushed into statistics / term-enumeration so the
-     * BM25 side-channel does not leak hidden-doc {@code df}. This enum only
-     * <em>records</em> the choice today &mdash; no code path acts on it yet.
-     * The behavior lands in a follow-up change; see the design notes on
+     * {@link #PRE_FILTER} applies the alias filter before scoring / term
+     * enumeration, so BM25 collection statistics reflect only the documents the
+     * alias admits rather than the whole shard. See the design notes on
      * filter-aware aliases.
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
     public enum Enforcement implements Writeable {
-        POST_FILTER,
-        PRE_FILTER;
+        POST_FILTER("post_filter"),
+        PRE_FILTER("pre_filter");
+
+        private final String value;
+
+        Enforcement(String value) {
+            this.value = value;
+        }
+
+        /** The canonical REST/XContent string for this enforcement mode (e.g. {@code "pre_filter"}). */
+        public String value() {
+            return value;
+        }
+
+        /**
+         * Parse an enforcement mode from its REST/XContent string. Returns {@link #POST_FILTER} for a
+         * {@code null} value so an unspecified enforcement keeps today's behavior.
+         *
+         * @throws IllegalArgumentException if {@code value} is non-null but not a known mode
+         */
+        public static Enforcement fromString(String value) {
+            if (value == null) {
+                return POST_FILTER;
+            }
+            for (Enforcement e : values()) {
+                if (e.value.equals(value)) {
+                    return e;
+                }
+            }
+            throw new IllegalArgumentException("unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter]");
+        }
 
         public static Enforcement readFrom(StreamInput in) throws IOException {
             return in.readEnum(Enforcement.class);
@@ -87,7 +114,14 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         }
     }
 
-    /** First OpenSearch version that carries the {@link Enforcement} field on the wire. */
+    /**
+     * First OpenSearch version that carries the {@link Enforcement} field on the wire.
+     * <p>
+     * TODO(filter-aware-alias): pinned to V_3_8_0 for now because main is still on 3.8 and V_3_9_0 does
+     * not yet exist; bump to the release this actually ships in once main is bumped. The same gate is
+     * duplicated for this field's other wire representations in IndicesAliasesRequest.AliasActions and
+     * AliasMetadata (grep "TODO(filter-aware-alias)") -- update all three together.
+     */
     static final Version ENFORCEMENT_VERSION = Version.V_3_8_0;
 
     private final String[] aliases;
@@ -158,8 +192,8 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     /**
      * Returns where the alias filter should be applied in the query pipeline. Always
      * non-null; defaults to {@link Enforcement#POST_FILTER} for backward compatibility.
-     * No code path acts on {@link Enforcement#PRE_FILTER} yet &mdash; this is scaffolding
-     * for the filter-aware-alias work.
+     * {@link Enforcement#PRE_FILTER} causes {@code DefaultSearchContext} to apply the filter
+     * before scoring so BM25 statistics reflect only the documents the alias admits.
      */
     public Enforcement getEnforcement() {
         return enforcement;
@@ -170,9 +204,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases)
-            && Objects.equals(filter, that.filter)
-            && enforcement == that.enforcement;
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter) && enforcement == that.enforcement;
     }
 
     @Override
@@ -182,9 +214,6 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public String toString() {
-        return "AliasFilter{aliases=" + Arrays.toString(aliases)
-            + ", filter=" + filter
-            + ", enforcement=" + enforcement
-            + '}';
+        return "AliasFilter{aliases=" + Arrays.toString(aliases) + ", filter=" + filter + ", enforcement=" + enforcement + '}';
     }
 }

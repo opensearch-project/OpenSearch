@@ -129,8 +129,7 @@ public class AliasFilterTests extends OpenSearchTestCase {
         out.setVersion(legacy);
         original.writeTo(out);
 
-        try (StreamInput raw = out.bytes().streamInput();
-             StreamInput in = new NamedWriteableAwareStreamInput(raw, NAMED_WRITEABLES)) {
+        try (StreamInput raw = out.bytes().streamInput(); StreamInput in = new NamedWriteableAwareStreamInput(raw, NAMED_WRITEABLES)) {
             in.setVersion(legacy);
             final AliasFilter roundTripped = new AliasFilter(in);
             // Old wire format carries no enforcement -> receiver defaults to POST_FILTER.

@@ -289,6 +289,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
+            // TODO(filter-aware-alias): bump to V_3_9_0 once main is on 3.9 (see AliasFilter.ENFORCEMENT_VERSION).
             if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
                 enforcement = in.readOptionalString();
             }
@@ -307,6 +308,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
+            // TODO(filter-aware-alias): bump to V_3_9_0 once main is on 3.9 (see AliasFilter.ENFORCEMENT_VERSION).
             if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
                 out.writeOptionalString(enforcement);
             }

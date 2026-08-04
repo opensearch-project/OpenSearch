@@ -2276,12 +2276,12 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         // Determine the enforcement mode for the resolved aliases. If any alias in the set opts into
-        // pre-filtering, the whole filter is applied before scoring so the BM25 side-channel is closed.
+        // pre-filtering, the whole filter is applied before scoring so BM25 statistics reflect only the visible subset.
         AliasFilter.Enforcement enforcement = AliasFilter.Enforcement.POST_FILTER;
         if (aliases != null && indexMetadata != null) {
             for (String alias : aliases) {
                 AliasMetadata aliasMetadata = indexMetadata.getAliases().get(alias);
-                if (aliasMetadata != null && "pre_filter".equals(aliasMetadata.enforcement())) {
+                if (aliasMetadata != null && AliasFilter.Enforcement.PRE_FILTER.value().equals(aliasMetadata.enforcement())) {
                     enforcement = AliasFilter.Enforcement.PRE_FILTER;
                     break;
                 }

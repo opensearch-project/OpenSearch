@@ -39,6 +39,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 
@@ -58,13 +59,24 @@ public class DfsPhase {
         try {
             Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
             Map<Term, TermStatistics> stats = new HashMap<>();
+            // Filter-aware aliases (A6): when filtered_stats is enabled, the per-shard statistics that this dfs phase
+            // ships to the coordinator must ALSO be restricted to the alias-filter (visible) subset -- otherwise the
+            // coordinator would sum whole-shard numbers and the aggregated statistics would no longer reflect the
+            // visible subset that filtered_stats is meant to score over.
+            // We delegate the actual statistics computation to the ContextIndexSearcher, which applies the filtered
+            // overrides while its aggregatedDfs is still null (the dfs phase runs before AggregatedDfs is assigned).
+            final boolean filteredStatistics = context.useFilteredStatistics() && context.aliasFilter() != null;
+            final ContextIndexSearcher contextSearcher = context.searcher();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override
                 public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
-                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
+                    // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    TermStatistics ts = filteredStatistics
+                        ? contextSearcher.termStatistics(term, docFreq, totalTermFreq)
+                        : super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
                     }
@@ -76,7 +88,10 @@ public class DfsPhase {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
-                    CollectionStatistics cs = super.collectionStatistics(field);
+                    // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    CollectionStatistics cs = filteredStatistics
+                        ? contextSearcher.collectionStatistics(field)
+                        : super.collectionStatistics(field);
                     if (cs != null) {
                         fieldStatistics.put(field, cs);
                     }

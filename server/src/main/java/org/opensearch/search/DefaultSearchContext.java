@@ -155,6 +155,33 @@ final class DefaultSearchContext extends SearchContext {
 
     private static final Logger logger = LogManager.getLogger(DefaultSearchContext.class);
 
+    /**
+     * Selects the scoring behavior for a {@code pre_filter} alias. The wire-level {@link AliasFilter.Enforcement}
+     * enum is intentionally binary ({@code POST_FILTER}/{@code PRE_FILTER}); {@code PRE_FILTER} however has two
+     * possible scoring sub-behaviors:
+     * <ul>
+     *   <li>{@code constant_score} (default): the user's query is wrapped in a {@link ConstantScoreQuery} so no
+     *       BM25 IDF is computed at all. This is the behavior verified by {@code FilterAwareAliasIT}.</li>
+     *   <li>{@code filtered_stats}: real BM25 scoring is performed, but the collection/term statistics are computed
+     *       over only the documents matching the alias filter (see {@link ContextIndexSearcher} and
+     *       {@link SearchContext#useFilteredStatistics()}).</li>
+     * </ul>
+     * Rather than expand the wire enum now, the {@code filtered_stats} sub-behavior is gated behind this JVM system
+     * property so that {@code constant_score} remains the default {@code pre_filter} behavior. Set
+     * {@code -Dopensearch.filter_aware_alias.filtered_stats=true} to opt in.
+     */
+    static final String FILTERED_STATISTICS_PROPERTY = "opensearch.filter_aware_alias.filtered_stats";
+
+    /**
+     * Read on each call (not cached in a {@code static final}) so tests and operators can toggle the
+     * {@code filtered_stats} sub-behavior without a JVM restart. The property is the conservative gate
+     * that keeps {@code constant_score} the default {@code pre_filter} behavior until filtered statistics
+     * graduate to a first-class wire-level scoring mode.
+     */
+    static boolean filteredStatisticsEnabled() {
+        return Boolean.parseBoolean(System.getProperty(FILTERED_STATISTICS_PROPERTY, "false"));
+    }
+
     private final ReaderContext readerContext;
     private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
@@ -476,13 +503,23 @@ final class DefaultSearchContext extends SearchContext {
         if (aliasFilter != null) {
             AliasFilter requestAliasFilter = request.getAliasFilter();
             if (requestAliasFilter != null && requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER) {
-                // Pre-filter enforcement: apply the alias filter before scoring by wrapping the user's
-                // query in a constant-score boolean query. Because scoring runs only over the docs that
-                // pass the filter, the BM25 collection statistics (N, df) naturally exclude hidden docs
-                // -- closing the side-channel that post-filtering (the default) leaves open.
-                query = new ConstantScoreQuery(
-                    new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build()
-                );
+                if (useFilteredStatistics()) {
+                    // Pre-filter enforcement, filtered_stats scoring: keep real BM25 scoring but restrict the
+                    // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
+                    // clause. The visibility-aware statistics are supplied by ContextIndexSearcher, which computes
+                    // collection/term stats over only the alias-filter bitset (see useFilteredStatistics()). This
+                    // way a term confined to filtered-out docs contributes no df to a visible document's IDF,
+                    // without collapsing scoring to a constant like the constant_score behavior below does.
+                    filters.add(aliasFilter);
+                } else {
+                    // Pre-filter enforcement, constant_score scoring (default): apply the alias filter before
+                    // scoring by wrapping the user's query in a constant-score boolean query. Because scoring runs
+                    // only over the docs that pass the filter, the BM25 collection statistics (N, df) reflect only
+                    // the visible subset, unlike post-filtering (the default) which scores over the whole shard.
+                    query = new ConstantScoreQuery(
+                        new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build()
+                    );
+                }
             } else {
                 filters.add(aliasFilter);
             }
@@ -829,6 +866,18 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query aliasFilter() {
         return aliasFilter;
+    }
+
+    @Override
+    public boolean useFilteredStatistics() {
+        // Filtered BM25 statistics apply only when an alias filter is present, the alias is enforced as a
+        // pre_filter, and the filtered_stats scoring sub-behavior has been opted into. Otherwise we keep
+        // whole-shard statistics (post_filter, or pre_filter with the default constant_score behavior).
+        if (aliasFilter == null || filteredStatisticsEnabled() == false) {
+            return false;
+        }
+        AliasFilter requestAliasFilter = request.getAliasFilter();
+        return requestAliasFilter != null && requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER;
     }
 
     @Override
