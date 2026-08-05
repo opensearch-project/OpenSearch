@@ -132,14 +132,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
-        if (factories.countAggregators() > 0) {
-            return true;
-        }
-        // No sub-agg: partition only when we can determine UPFRONT that the filter-rewrite fast path will
-        // decline (non-indexed/non-numeric field, script/missing, overlapping ranges, or nested under a
-        // parent bucket agg), so the O(docs) doc-by-doc fallback — which parallelizes — runs. Otherwise the
-        // sub-linear fast path applies and intra would only regress it. See DateHistogramAggregatorFactory.
+        // Partition only when the filter-rewrite fast path declines (non-numeric/non-indexed field,
+        // script/missing, overlapping ranges, or nested) — see DateHistogramAggregatorFactory.
         boolean fastPathApplies = parent == null && RangeAggregatorBridge.filterRewriteFastPathApplies(config, ranges);
         return fastPathApplies == false;
     }

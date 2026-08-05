@@ -768,12 +768,19 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(10d, 20d);
         assertTrue(supportsIntraSegmentSearch(overlapping));
 
-        // with a sub-aggregation: always intra-eligible (partition-aware collection)
-        RangeAggregationBuilder withSub = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+        // sub-agg but fast path applies (non-overlapping): NOT intra-eligible (BKD walk would duplicate per partition)
+        RangeAggregationBuilder withSubFastPath = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
             .addRange(0d, 5d)
             .addRange(10d, 20d)
             .subAggregation(new AvgAggregationBuilder("avg").field(NUMBER_FIELD_NAME));
-        assertTrue(supportsIntraSegmentSearch(withSub));
+        assertFalse(supportsIntraSegmentSearch(withSubFastPath));
+
+        // with a sub-aggregation AND fast path declines (overlapping ranges): intra-eligible (doc-by-doc parallelizes)
+        RangeAggregationBuilder withSubDeclines = new RangeAggregationBuilder("test").field(NUMBER_FIELD_NAME)
+            .addRange(0d, 12d)
+            .addRange(10d, 20d)
+            .subAggregation(new AvgAggregationBuilder("avg").field(NUMBER_FIELD_NAME));
+        assertTrue(supportsIntraSegmentSearch(withSubDeclines));
     }
 
     private boolean supportsIntraSegmentSearch(RangeAggregationBuilder builder) throws IOException {

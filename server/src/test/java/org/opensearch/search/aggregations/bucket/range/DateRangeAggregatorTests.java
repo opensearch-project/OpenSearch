@@ -340,12 +340,19 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .addRange("2015-06-01", "2016-01-01");
         assertTrue(supportsIntraSegmentSearch(overlapping));
 
-        // with a sub-aggregation: always intra-eligible (partition-aware collection)
-        DateRangeAggregationBuilder withSub = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
+        // sub-agg but fast path applies (non-overlapping): NOT intra-eligible (BKD walk would duplicate per partition)
+        DateRangeAggregationBuilder withSubFastPath = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
             .addRange("2015-01-01", "2015-06-01")
             .addRange("2015-06-01", "2016-01-01")
             .subAggregation(new AvgAggregationBuilder("avg").field(DATE_FIELD_NAME));
-        assertTrue(supportsIntraSegmentSearch(withSub));
+        assertFalse(supportsIntraSegmentSearch(withSubFastPath));
+
+        // with a sub-aggregation AND fast path declines (overlapping ranges): intra-eligible (doc-by-doc parallelizes)
+        DateRangeAggregationBuilder withSubDeclines = new DateRangeAggregationBuilder("test").field(DATE_FIELD_NAME)
+            .addRange("2015-01-01", "2015-09-01")
+            .addRange("2015-06-01", "2016-01-01")
+            .subAggregation(new AvgAggregationBuilder("avg").field(DATE_FIELD_NAME));
+        assertTrue(supportsIntraSegmentSearch(withSubDeclines));
     }
 
     private boolean supportsIntraSegmentSearch(DateRangeAggregationBuilder builder) throws IOException {

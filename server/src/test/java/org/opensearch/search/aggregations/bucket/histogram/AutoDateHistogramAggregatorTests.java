@@ -1340,11 +1340,22 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             supportsIntraSegmentSearch(new AutoDateHistogramAggregationBuilder("dh").setNumBuckets(10).field(AGGREGABLE_DATE), false)
         );
 
-        // with a sub-aggregation: always intra-eligible (partition-aware collection)
+        // sub-agg but fast path applies (UTC): NOT intra-eligible (BKD walk would duplicate per partition)
+        assertFalse(
+            supportsIntraSegmentSearch(
+                new AutoDateHistogramAggregationBuilder("dh").setNumBuckets(10)
+                    .field(AGGREGABLE_DATE)
+                    .subAggregation(new AvgAggregationBuilder("avg").field("n")),
+                true
+            )
+        );
+
+        // with a sub-aggregation AND fast path declines (non-UTC): intra-eligible (doc-by-doc parallelizes)
         assertTrue(
             supportsIntraSegmentSearch(
                 new AutoDateHistogramAggregationBuilder("dh").setNumBuckets(10)
                     .field(AGGREGABLE_DATE)
+                    .timeZone(ZoneId.of("America/New_York"))
                     .subAggregation(new AvgAggregationBuilder("avg").field("n")),
                 true
             )

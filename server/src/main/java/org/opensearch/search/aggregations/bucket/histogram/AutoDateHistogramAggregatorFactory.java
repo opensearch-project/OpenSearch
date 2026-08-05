@@ -133,13 +133,8 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
-        if (factories.countAggregators() > 0) {
-            return true;
-        }
-        // No sub-agg: partition only when we can determine UPFRONT that the filter-rewrite fast path will
-        // decline (so the O(docs) doc-by-doc fallback, which parallelizes, runs). auto_date_histogram uses
-        // roundingInfos[0].rounding for its filter-rewrite canOptimize check. See DateHistogramAggregatorFactory.
+        // Partition only when the filter-rewrite fast path declines (see DateHistogramAggregatorFactory);
+        // auto_date_histogram uses roundingInfos[0].rounding for the canOptimize check.
         boolean fastPathApplies = parent == null
             && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, roundingInfos[0].rounding);
         return fastPathApplies == false;

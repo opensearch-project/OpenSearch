@@ -1966,8 +1966,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             )
         );
 
-        // with a sub-aggregation: always intra-eligible (partition-aware collection)
-        assertTrue(
+        // sub-agg but fast path applies (UTC): NOT intra-eligible (BKD walk would duplicate per partition)
+        assertFalse(
             supportsIntraSegmentSearch(
                 new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
                     .calendarInterval(DateHistogramInterval.YEAR)
@@ -1976,9 +1976,18 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             )
         );
 
-        // nested under a parent bucket agg (parent != null): the fast path cannot apply, so the child
-        // date_histogram is intra-eligible. The numeric histogram parent opts into intra unconditionally, so the
-        // whole tree supports intra -> exercises the parent != null branch of the gate.
+        // with a sub-aggregation AND fast path declines (non-UTC): intra-eligible (doc-by-doc parallelizes)
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .timeZone(ZoneId.of("America/New_York"))
+                    .subAggregation(new AvgAggregationBuilder("avg").field("n")),
+                true
+            )
+        );
+
+        // nested under a numeric histogram (parent != null): fast path can't apply -> intra-eligible
         assertTrue(
             supportsIntraSegmentSearch(
                 new HistogramAggregationBuilder("outer").field("n")

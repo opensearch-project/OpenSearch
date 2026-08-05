@@ -157,15 +157,10 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // With a sub-agg the per-doc collection dominates and the partition-aware traversal parallelizes it.
-        if (factories.countAggregators() > 0) {
-            return true;
-        }
-        // No sub-agg: the filter-rewrite fast path (pointTree.size() bulk count) is sub-linear and cannot be
-        // partitioned, so partitioning would only regress it. That fast path applies only when tryOptimize
-        // succeeds. When we can determine UPFRONT (request-level, segment-independent) that it will decline
-        // (non-UTC rounding, script/missing, non-indexed field, or nested under a parent bucket agg), the agg
-        // falls back to an O(docs) doc-by-doc scan that DOES parallelize under intra -> partition it.
+        // Partition only when the filter-rewrite fast path will decline (non-UTC, script/missing, non-indexed
+        // field, or nested) and collection falls back to a doc-by-doc / skip-list scan that parallelizes safely.
+        // When the fast path applies its BKD point-tree walk is not partition-aware, so partitioning would
+        // duplicate the walk per partition and regress; stay sequential in that case.
         boolean fastPathApplies = parent == null && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, rounding);
         return fastPathApplies == false;
     }
