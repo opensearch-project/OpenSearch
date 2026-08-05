@@ -39,12 +39,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
     private final Bits liveDocs;
     private final FixedBitSet bitSet;
 
-    // Under intra-segment search this collector runs once per partition of the segment; restrict collected
-    // doc ids to the current partition's [minDocId, maxDocId) so each partition counts (and sub-aggregates)
-    // only its own docs. For a whole-segment run these are 0 and maxDoc, so the checks are no-ops.
-    private final int minDocId;
-    private final int maxDocId;
-
     public SubAggRangeCollector(
         Ranges ranges,
         BiConsumer<Integer, Integer> incrementRangeDocCount,
@@ -59,14 +53,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
         this.collectableSubAggregators = subAggCollectorParam.collectableSubAggregators();
         this.leafCtx = subAggCollectorParam.leafCtx();
         this.liveDocs = leafCtx.reader().getLiveDocs();
-        this.minDocId = subAggCollectorParam.minDocId();
-        this.maxDocId = Math.min(subAggCollectorParam.maxDocId(), leafCtx.reader().maxDoc());
         bitSet = new FixedBitSet(leafCtx.reader().maxDoc());
-    }
-
-    /** Whether the doc falls within this partition's doc-id range (and is live). */
-    private boolean inPartition(int docId) {
-        return docId >= minDocId && docId < maxDocId;
     }
 
     @Override
@@ -80,17 +67,17 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     @Override
     public void countNode(int count) {
-        throw new UnsupportedOperationException("countNode should be unreachable");
+        throw new UnsupportedOperationException("countNode should not be called with sub-aggregations");
     }
 
     @Override
     public void count() {
-        throw new UnsupportedOperationException("countNode should be unreachable");
+        throw new UnsupportedOperationException("count should not be called with sub-aggregations");
     }
 
     @Override
     public void collectDocId(int docId) {
-        if (inPartition(docId) && isDocLive(docId)) {
+        if (isDocLive(docId)) {
             counter++;
             bitSet.set(docId);
         }
@@ -98,10 +85,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     @Override
     public void collectDocIdSet(DocIdSetIterator iter) throws IOException {
-        // Explicitly OR iter intoBitSet to filter out deleted docs
-        // Skip ahead to the partition's lower bound to avoid iterating docs owned by other partitions.
-        int doc = iter.advance(minDocId);
-        for (; doc < maxDocId; doc = iter.nextDoc()) {
+        for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
             if (isDocLive(doc)) {
                 counter++;
                 bitSet.set(doc);
@@ -118,7 +102,6 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
         // trigger the sub agg collection for this range
         try {
-            // build a new leaf collector for each bucket
             LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
             sub.collect(DocIdStreamHelper.getDocIdStream(bitSet), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
