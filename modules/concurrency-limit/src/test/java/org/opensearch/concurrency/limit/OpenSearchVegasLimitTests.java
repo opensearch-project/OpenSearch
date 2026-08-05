@@ -295,4 +295,37 @@ public class OpenSearchVegasLimitTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> OpenSearchVegasLimit.newBuilder().probeInflightThreshold(-0.1));
         expectThrows(IllegalArgumentException.class, () -> OpenSearchVegasLimit.newBuilder().probeInflightThreshold(1.1));
     }
+
+    // -------------------------------------------------------------------------
+    // Fractional upDriftFactor
+    // -------------------------------------------------------------------------
+
+    public void testFractionalUpDriftFactorNotTruncated() {
+        // Verify that upDriftFactor=1.5 produces different alpha/beta/threshold
+        // than upDriftFactor=1.0 — i.e. the fractional part is not truncated.
+        // Both limiters start at the same initial limit and get the same samples,
+        // so any difference in limit evolution proves the fractional factor took effect.
+        OpenSearchVegasLimit factor1 = OpenSearchVegasLimit.newBuilder().initialLimit(20).maxConcurrency(200).upDriftFactor(1.0).build();
+        OpenSearchVegasLimit factor1_5 = OpenSearchVegasLimit.newBuilder().initialLimit(20).maxConcurrency(200).upDriftFactor(1.5).build();
+
+        long baseRtt = TimeUnit.MILLISECONDS.toNanos(10);
+        // Establish baseline
+        factor1.onSample(0, baseRtt, 10, false);
+        factor1_5.onSample(0, baseRtt, 10, false);
+
+        // Drive both limiters with identical samples and compare outcomes.
+        // The wider drift window from factor=1.5 should cause divergent behavior.
+        boolean diverged = false;
+        for (int i = 0; i < 100; i++) {
+            long rtt = TimeUnit.MILLISECONDS.toNanos(10 + i % 5);
+            int inflight = 10 + i % 8;
+            factor1.onSample(0, rtt, inflight, false);
+            factor1_5.onSample(0, rtt, inflight, false);
+            if (factor1.getLimit() != factor1_5.getLimit()) {
+                diverged = true;
+                break;
+            }
+        }
+        assertTrue("upDriftFactor=1.5 must produce different limit evolution than 1.0", diverged);
+    }
 }

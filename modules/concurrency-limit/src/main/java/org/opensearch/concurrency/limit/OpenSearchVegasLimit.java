@@ -285,9 +285,9 @@ public class OpenSearchVegasLimit extends AbstractLimit {
             decreaseConsecutive = 0;
             return (int) estimatedLimit;
         } else {
-            alpha = (int) upDriftFactor * alphaFunc.applyAsInt((int) estimatedLimit);
-            beta = (int) upDriftFactor * betaFunc.applyAsInt((int) estimatedLimit);
-            threshold = (int) upDriftFactor * thresholdFunc.applyAsInt((int) estimatedLimit);
+            alpha = (int) (upDriftFactor * alphaFunc.applyAsInt((int) estimatedLimit));
+            beta = (int) (upDriftFactor * betaFunc.applyAsInt((int) estimatedLimit));
+            threshold = (int) (upDriftFactor * thresholdFunc.applyAsInt((int) estimatedLimit));
 
             if (queueSize <= threshold || queueSize < alpha) {
                 // Increase zone: require increaseHysteresis consecutive qualifying samples.
