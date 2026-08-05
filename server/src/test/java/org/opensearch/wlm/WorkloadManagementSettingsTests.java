@@ -76,13 +76,13 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
 
     /**
      * Tests the invalid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
-     * When the value is set more than {@literal 0.9}
+     * When the value is set more than {@literal 0.9}. The max is enforced at settings-update validation time.
      */
     public void testInvalidNodeLevelCpuRejectionThresholdCase1() {
-        Settings settings = Settings.builder().put(NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME, 0.8).build();
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(settings, cs);
-        assertThrows(IllegalArgumentException.class, () -> workloadManagementSettings.setNodeLevelCpuRejectionThreshold(0.95));
+        new WorkloadManagementSettings(Settings.EMPTY, cs);
+        Settings update = Settings.builder().put(NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME, 0.95).build();
+        assertThrows(IllegalArgumentException.class, () -> cs.validate(update, true));
     }
 
     /**
@@ -126,13 +126,13 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
 
     /**
      * Tests the invalid value for {@code wlm.workload_group.node.cpu_cancellation_threshold}
-     * When the value is set more than {@literal 0.95}
+     * When the value is set more than {@literal 0.95}. The max is enforced at settings-update validation time.
      */
     public void testInvalidNodeLevelCpuCancellationThresholdCase1() {
-        Settings settings = Settings.builder().put(NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME, 0.9).build();
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(settings, cs);
-        assertThrows(IllegalArgumentException.class, () -> workloadManagementSettings.setNodeLevelCpuCancellationThreshold(0.96));
+        new WorkloadManagementSettings(Settings.EMPTY, cs);
+        Settings update = Settings.builder().put(NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME, 0.96).build();
+        assertThrows(IllegalArgumentException.class, () -> cs.validate(update, true));
     }
 
     /**
@@ -176,13 +176,13 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
 
     /**
      * Tests the invalid value for {@code wlm.workload_group.node.memory_cancellation_threshold}
-     * When the value is set more than {@literal 0.95}
+     * When the value is set more than {@literal 0.95}. The max is enforced at settings-update validation time.
      */
     public void testInvalidNodeLevelMemoryCancellationThresholdCase1() {
-        Settings settings = Settings.builder().put(NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME, 0.9).build();
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(settings, cs);
-        assertThrows(IllegalArgumentException.class, () -> workloadManagementSettings.setNodeLevelMemoryCancellationThreshold(0.96));
+        new WorkloadManagementSettings(Settings.EMPTY, cs);
+        Settings update = Settings.builder().put(NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME, 0.96).build();
+        assertThrows(IllegalArgumentException.class, () -> cs.validate(update, true));
     }
 
     /**
@@ -226,13 +226,13 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
 
     /**
      * Tests the invalid value for {@code wlm.workload_group.node.memory_rejection_threshold}
-     * When the value is set more than {@literal 0.9}
+     * When the value is set more than {@literal 0.9}. The max is enforced at settings-update validation time.
      */
     public void testInvalidNodeLevelMemoryRejectionThresholdCase1() {
-        Settings settings = Settings.builder().put(NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME, 0.9).build();
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(settings, cs);
-        assertThrows(IllegalArgumentException.class, () -> workloadManagementSettings.setNodeLevelMemoryRejectionThreshold(0.92));
+        new WorkloadManagementSettings(Settings.EMPTY, cs);
+        Settings update = Settings.builder().put(NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME, 0.92).build();
+        assertThrows(IllegalArgumentException.class, () -> cs.validate(update, true));
     }
 
     /**
@@ -422,17 +422,23 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * The setters enforce the single-value (non-negativity, max) bounds, so a direct setter call with a negative value
-     * is rejected. Ordering is intentionally NOT enforced in the setters (see the lower-both tests above).
+     * The setters run as the settings-update consumers at apply time and only assign; all bounds and ordering are
+     * enforced up front by {@code NodeLevelThresholdValidator} at validation time. This guards against reintroducing an
+     * apply-time throw in a setter (which, for the cross-setting ordering invariant, destabilized the cluster-manager).
      */
-    public void testNegativeNodeThresholdsRejectedBySetters() {
+    public void testSettersOnlyAssignAndDoNotThrow() {
         ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         WorkloadManagementSettings wlm = new WorkloadManagementSettings(Settings.EMPTY, cs);
 
-        assertThrows(IllegalArgumentException.class, () -> wlm.setNodeLevelCpuCancellationThreshold(-0.1));
-        assertThrows(IllegalArgumentException.class, () -> wlm.setNodeLevelCpuRejectionThreshold(-0.1));
-        assertThrows(IllegalArgumentException.class, () -> wlm.setNodeLevelMemoryCancellationThreshold(-0.1));
-        assertThrows(IllegalArgumentException.class, () -> wlm.setNodeLevelMemoryRejectionThreshold(-0.1));
+        // Values that validation would reject (out of range, and cancellation < rejection) are still assigned by the
+        // raw setters without throwing, because the setters no longer validate.
+        wlm.setNodeLevelCpuCancellationThreshold(0.99);
+        assertEquals(0.99, wlm.getNodeLevelCpuCancellationThreshold(), 1e-9);
+        wlm.setNodeLevelCpuRejectionThreshold(-0.1);
+        assertEquals(-0.1, wlm.getNodeLevelCpuRejectionThreshold(), 1e-9);
+        wlm.setNodeLevelMemoryCancellationThreshold(0.1);
+        wlm.setNodeLevelMemoryRejectionThreshold(0.9); // rejection > cancellation; setter does not enforce ordering
+        assertEquals(0.9, wlm.getNodeLevelMemoryRejectionThreshold(), 1e-9);
     }
 
     /**
