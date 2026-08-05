@@ -31,22 +31,16 @@ import java.util.Map;
 public class ClusterManagerThrottlingSettingsIT extends AbstractRollingTestCase {
 
     public void testThrottlingSettingsSurviveRollingUpgrade() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            // Throttling settings are only supported on versions >= 2.5.0
-            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_2_5_0)) {
-                // On the old cluster, persist throttling settings for several task types.
-                // These will be written into cluster state metadata.
-                trySetThrottlingSetting("put-mapping", 5000);
-                trySetThrottlingSetting("create-index", 100);
-            }
-            // Verify cluster is healthy in old state
-            verifyClusterHealth();
-        } else {
-            // After upgrade (mixed or fully upgraded), verify the cluster is healthy.
-            // If settings restoration failed due to missing task key registrations,
-            // nodes would have crashed and the cluster would not be green/yellow.
-            verifyClusterHealth();
+        // On the old cluster, attempt to persist throttling settings (supported on >= 2.5.0)
+        if (CLUSTER_TYPE == ClusterType.OLD && UPGRADE_FROM_VERSION.onOrAfter(Version.V_2_5_0)) {
+            trySetThrottlingSetting("put-mapping", 5000);
+            trySetThrottlingSetting("create-index", 100);
         }
+
+        // In all phases (old, mixed, upgraded), verify the cluster is healthy.
+        // If settings restoration failed due to missing task key registrations,
+        // nodes would have crashed and the cluster would not be green/yellow.
+        verifyClusterHealth();
     }
 
     private void trySetThrottlingSetting(String taskKey, int threshold) throws IOException {

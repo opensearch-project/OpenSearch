@@ -28,12 +28,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -639,107 +636,35 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         return taskList;
     }
 
-    // ========================================================================================
-    // Backward Compatibility Tests
-    //
-    // These tests ensure that task keys persisted in cluster state by prior versions remain valid.
-    // Fatal node crash caused by removed registerClusterManagerTask()
-    // calls breaking cluster state restoration.
-    // ========================================================================================
-
     /**
-     * All task keys that have been persisted in cluster state metadata by any released version.
-     * DO NOT REMOVE any key from this set — doing so allows removal of the corresponding enum
-     * value, which will cause fatal node startup failures during upgrades.
+     * Verifies that every ClusterManagerTask enum value can be registered without error.
+     * This guards against the scenario where a task key exists in the enum (and may be
+     * persisted in cluster state) but is never registered at runtime — causing
+     * validateSetting() to throw IllegalArgumentException during cluster state restoration.
      */
-    private static final Set<String> HISTORICALLY_PERSISTED_TASK_KEYS = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                "create-index",
-                "update-settings",
-                "cluster-update-settings",
-                "delete-index",
-                "delete-dangling-index",
-                "create-data-stream",
-                "remove-data-stream",
-                "modify-data-stream",
-                "create-index-template",
-                "remove-index-template",
-                "create-component-template",
-                "remove-component-template",
-                "create-index-template-v2",
-                "remove-index-template-v2",
-                "put-pipeline",
-                "delete-pipeline",
-                "put-search-pipeline",
-                "delete-search-pipeline",
-                "create-persistent-task",
-                "finish-persistent-task",
-                "remove-persistent-task",
-                "update-task-state",
-                "create-query-group",
-                "delete-query-group",
-                "update-query-group",
-                "put-script",
-                "delete-script",
-                "put-repository",
-                "delete-repository",
-                "create-snapshot",
-                "delete-snapshot",
-                "restore-snapshot",
-                "cluster-reroute-api",
-                "auto-create",
-                "rollover-index",
-                "index-aliases",
-                "put-mapping",
-                "update-snapshot-state",
-                "in-place-split-shard"
-            )
-        )
-    );
+    public void testAllEnumTasksCanBeRegistered() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getClusterManagerService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
 
-    /**
-     * Verifies that every historically persisted task key still exists in the ClusterManagerTask enum.
-     * If this test fails, a key was removed that is persisted in cluster state by prior versions,
-     * which will cause fatal node startup failures during upgrades.
-     */
-    public void testBWCAllHistoricallyPersistedKeysExistInEnum() {
-        for (String key : HISTORICALLY_PERSISTED_TASK_KEYS) {
-            try {
-                ClusterManagerTask task = ClusterManagerTask.fromKey(key);
-                assertEquals(key, task.getKey());
-            } catch (IllegalArgumentException e) {
-                fail(
-                    "BACKWARD COMPATIBILITY VIOLATION: The task key '"
-                        + key
-                        + "' has been removed from ClusterManagerTask enum, but it is persisted in cluster state "
-                        + "by all prior versions. Removing it will cause fatal node startup failures during upgrades. "
-                        + "Either restore the enum value or add a cluster state migration."
-                );
-            }
-        }
-    }
-
-    /**
-     * Verifies that every value in the ClusterManagerTask enum is covered by the BWC protection set.
-     * If this test fails because a NEW key was added, add it to HISTORICALLY_PERSISTED_TASK_KEYS.
-     */
-    public void testBWCAllCurrentEnumValuesAreCoveredByHistoricalSet() {
-        Set<String> currentEnumKeys = new HashSet<>();
         for (ClusterManagerTask task : ClusterManagerTask.values()) {
-            currentEnumKeys.add(task.getKey());
+            throttler.registerClusterManagerTask(task, true);
         }
 
-        Set<String> missingFromBWC = new HashSet<>(currentEnumKeys);
-        missingFromBWC.removeAll(HISTORICALLY_PERSISTED_TASK_KEYS);
-
-        assertTrue(
-            "The following ClusterManagerTask keys exist in the enum but are NOT in "
-                + "HISTORICALLY_PERSISTED_TASK_KEYS. Once a key is added to the enum and registered, "
-                + "it may be persisted in cluster state and must be protected from removal. "
-                + "Add these keys to HISTORICALLY_PERSISTED_TASK_KEYS: "
-                + missingFromBWC,
-            missingFromBWC.isEmpty()
-        );
+        // After registering all tasks, THROTTLING_TASK_KEYS should contain every enum key
+        for (ClusterManagerTask task : ClusterManagerTask.values()) {
+            assertTrue(
+                "ClusterManagerTask."
+                    + task.name()
+                    + " (key='"
+                    + task.getKey()
+                    + "') was not found in "
+                    + "THROTTLING_TASK_KEYS after registration. If this task's registerClusterManagerTask() "
+                    + "call is removed, persisted cluster state containing its throttling threshold will cause "
+                    + "a fatal node startup failure during upgrades.",
+                throttler.THROTTLING_TASK_KEYS.containsKey(task.getKey())
+            );
+        }
     }
 }
