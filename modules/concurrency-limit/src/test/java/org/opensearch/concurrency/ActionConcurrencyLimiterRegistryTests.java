@@ -152,6 +152,24 @@ public class ActionConcurrencyLimiterRegistryTests extends OpenSearchTestCase {
         token.token().onSuccess();
     }
 
+    public void testDynamicDisableClearsState() {
+        Settings s = enabled("search", "indices:data/read/search");
+        ClusterSettings cs = clusterSettings(s);
+        ActionConcurrencyLimiterRegistry registry = newRegistry(s, cs);
+
+        // acquire and release a token so the limiter has a non-zero limit snapshot
+        AcquireResult token = registry.tryAcquire("indices:data/read/search", null, null);
+        assertTrue(token.isAcquired());
+        token.token().onSuccess();
+        assertTrue("limit should be > 0 while enabled", registry.getStats().getSnapshots().get(0).getCurrentLimit() > 0);
+
+        // disable dynamically
+        cs.applySettings(Settings.builder().put(ConcurrencyLimitSettings.SETTING_PREFIX + "search.mode", "disabled").build());
+
+        assertFalse("disabled alias removed from reverse map", registry.hasLimiterFor("indices:data/read/search"));
+        assertEquals("snapshot limit should be 0 after disable", 0, registry.getStats().getSnapshots().get(0).getCurrentLimit());
+    }
+
     public void testDynamicActionNameChange() {
         Settings s = enabled("search", "indices:data/read/search");
         ClusterSettings cs = clusterSettings(s);

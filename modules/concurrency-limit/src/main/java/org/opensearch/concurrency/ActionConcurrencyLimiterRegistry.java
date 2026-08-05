@@ -228,6 +228,8 @@ public class ActionConcurrencyLimiterRegistry {
                     newState.warmedUp = true;
                 }
                 state.set(newState);
+            } else {
+                state.set(null);
             }
             this.mode = cfg.mode;
         }
