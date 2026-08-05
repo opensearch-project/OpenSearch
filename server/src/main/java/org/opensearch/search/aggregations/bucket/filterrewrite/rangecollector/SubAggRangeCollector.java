@@ -67,12 +67,12 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     @Override
     public void countNode(int count) {
-        throw new UnsupportedOperationException("countNode should not be called with sub-aggregations");
+        throw new UnsupportedOperationException("countNode should be unreachable");
     }
 
     @Override
     public void count() {
-        throw new UnsupportedOperationException("count should not be called with sub-aggregations");
+        throw new UnsupportedOperationException("countNode should be unreachable");
     }
 
     @Override
@@ -85,7 +85,9 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
     @Override
     public void collectDocIdSet(DocIdSetIterator iter) throws IOException {
-        for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
+        // Explicitly OR iter intoBitSet to filter out deleted docs
+        iter.nextDoc();
+        for (int doc = iter.docID(); doc < DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
             if (isDocLive(doc)) {
                 counter++;
                 bitSet.set(doc);
@@ -102,6 +104,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
 
         // trigger the sub agg collection for this range
         try {
+            // build a new leaf collector for each bucket
             LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
             sub.collect(DocIdStreamHelper.getDocIdStream(bitSet), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);

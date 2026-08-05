@@ -39,12 +39,10 @@ public final class FilterRewriteOptimizationContext {
     private final boolean canOptimize;
     private boolean preparedAtShardLevel = false;
 
-    // When intra-segment search is enabled, a single segment may be split into multiple partitions
-    // and getLeafCollector (hence tryOptimize) is invoked once per partition on the same segment.
-    // The filter-rewrite optimization computes whole-segment bucket counts via a point-tree
-    // The BKD point-tree walk counts the whole segment; under intra-segment search the segment is
-    // partitioned across threads, so running tryOptimize per partition would multiply counts (#18016).
-    // When true we skip the optimization and fall back to the partition-safe doc-by-doc path.
+    // Under intra-segment search a segment is split into partitions and tryOptimize runs once per
+    // partition. The BKD point-tree walk counts the whole segment, so running it per partition would
+    // multiply counts (#18016). When true we skip the optimization and fall back to the partition-safe
+    // doc-by-doc / skip-list path.
     private final boolean intraSegmentSearchEnabled;
 
     private final AggregatorBridge aggregatorBridge;
@@ -124,9 +122,7 @@ public final class FilterRewriteOptimizationContext {
             return false;
         }
 
-        // Under intra-segment search the segment is partitioned and this method is called per partition.
-        // The BKD point-tree traversal counts the whole segment, so running it per partition would multiply
-        // counts (see #18016). Skip and fall back to the partition-safe doc-by-doc / skip-list path.
+        // Skip under intra-segment search: the whole-segment count would run per partition (#18016).
         if (intraSegmentSearchEnabled) {
             return false;
         }
@@ -181,7 +177,7 @@ public final class FilterRewriteOptimizationContext {
     }
 
     /**
-     * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}.
+     * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}
      */
     public record SubAggCollectorParam(BucketCollector collectableSubAggregators, LeafReaderContext leafCtx) {
     }
