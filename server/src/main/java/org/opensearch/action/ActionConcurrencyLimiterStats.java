@@ -65,14 +65,14 @@ public class ActionConcurrencyLimiterStats implements Writeable, ToXContentFragm
         }
 
         public ActionLimiterSnapshot(StreamInput in) throws IOException {
-            this.alias          = in.readString();
-            this.actionName     = in.readString();
-            this.mode           = in.readString();
-            this.algorithm      = in.readString();
-            this.currentLimit   = in.readVInt();
-            this.inFlight       = in.readVInt();
-            this.totalRejected  = in.readVLong();
-            this.lastRttMillis  = in.readLong();
+            this.alias = in.readString();
+            this.actionName = in.readString();
+            this.mode = in.readString();
+            this.algorithm = in.readString();
+            this.currentLimit = in.readVInt();
+            this.inFlight = in.readVInt();
+            this.totalRejected = in.readVLong();
+            this.lastRttMillis = in.readLong();
             this.rttNoLoadMillis = in.readLong();
         }
 
@@ -98,21 +98,47 @@ public class ActionConcurrencyLimiterStats implements Writeable, ToXContentFragm
             builder.field("current_limit", currentLimit);
             builder.field("in_flight", inFlight);
             builder.field("total_rejected", totalRejected);
-            if (lastRttMillis != RTT_UNAVAILABLE)    builder.field("last_rtt_millis", lastRttMillis);
-            if (rttNoLoadMillis != RTT_UNAVAILABLE)  builder.field("rtt_no_load_millis", rttNoLoadMillis);
+            if (lastRttMillis != RTT_UNAVAILABLE) builder.field("last_rtt_millis", lastRttMillis);
+            if (rttNoLoadMillis != RTT_UNAVAILABLE) builder.field("rtt_no_load_millis", rttNoLoadMillis);
             builder.endObject();
             return builder;
         }
 
-        public String getAlias()          { return alias; }
-        public String getActionName()     { return actionName; }
-        public String getMode()           { return mode; }
-        public String getAlgorithm()      { return algorithm; }
-        public int getCurrentLimit()      { return currentLimit; }
-        public int getInFlight()          { return inFlight; }
-        public long getTotalRejected()    { return totalRejected; }
-        public long getLastRttMillis()    { return lastRttMillis; }
-        public long getRttNoLoadMillis()  { return rttNoLoadMillis; }
+        public String getAlias() {
+            return alias;
+        }
+
+        public String getActionName() {
+            return actionName;
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public String getAlgorithm() {
+            return algorithm;
+        }
+
+        public int getCurrentLimit() {
+            return currentLimit;
+        }
+
+        public int getInFlight() {
+            return inFlight;
+        }
+
+        public long getTotalRejected() {
+            return totalRejected;
+        }
+
+        public long getLastRttMillis() {
+            return lastRttMillis;
+        }
+
+        public long getRttNoLoadMillis() {
+            return rttNoLoadMillis;
+        }
     }
 
     private final List<ActionLimiterSnapshot> snapshots;
@@ -148,5 +174,7 @@ public class ActionConcurrencyLimiterStats implements Writeable, ToXContentFragm
         return builder;
     }
 
-    public List<ActionLimiterSnapshot> getSnapshots() { return snapshots; }
+    public List<ActionLimiterSnapshot> getSnapshots() {
+        return snapshots;
+    }
 }
