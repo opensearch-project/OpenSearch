@@ -102,6 +102,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final Clusters clusters;
     private final long tookInMillis;
     private final PhaseTook phaseTook;
+    @Nullable
+    private final SearchShardInfo shardInfo;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -127,6 +129,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            shardInfo = in.readOptionalWriteable(SearchShardInfo::new);
+        } else {
+            shardInfo = null;
+        }
     }
 
     public SearchResponse(
@@ -139,7 +146,19 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, null, shardFailures, clusters, null);
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            null,
+            shardFailures,
+            clusters,
+            null,
+            null
+        );
     }
 
     public SearchResponse(
@@ -163,7 +182,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             null,
             shardFailures,
             clusters,
-            pointInTimeId
+            pointInTimeId,
+            null
         );
     }
 
@@ -179,6 +199,34 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Clusters clusters,
         String pointInTimeId
     ) {
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            phaseTook,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            null
+        );
+    }
+
+    public SearchResponse(
+        SearchResponseSections internalResponse,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        PhaseTook phaseTook,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId,
+        @Nullable SearchShardInfo shardInfo
+    ) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
@@ -189,6 +237,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.tookInMillis = tookInMillis;
         this.phaseTook = phaseTook;
         this.shardFailures = shardFailures;
+        this.shardInfo = shardInfo;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null : "SearchResponse can't have both scrollId ["
             + scrollId
@@ -329,6 +378,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return clusters;
     }
 
+    /**
+     * Returns the per-shard information collected during this search, or {@code null} when the
+     * request did not opt in via {@code shard_info=true}.
+     */
+    @Nullable
+    public SearchShardInfo getShardInfo() {
+        return shardInfo;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -362,7 +420,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             getSuccessfulShards(),
             getSkippedShards(),
             getFailedShards(),
-            getShardFailures()
+            getShardFailures(),
+            shardInfo
         );
         clusters.toXContent(builder, params);
         internalResponse.toXContent(builder, params);
@@ -395,6 +454,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         String searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
+        SearchShardInfo shardInfo = null;
         List<SearchExtBuilder> extBuilders = new ArrayList<>();
         List<ProcessorExecutionDetail> processorResult = new ArrayList<>();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
@@ -446,6 +506,12 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                 while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
+                            } else {
+                                parser.skipChildren();
+                            }
+                        } else if (token == Token.START_OBJECT) {
+                            if (SearchShardInfo.SHARD_INFO_FIELD.equals(currentFieldName)) {
+                                shardInfo = SearchShardInfo.fromXContent(parser);
                             } else {
                                 parser.skipChildren();
                             }
@@ -551,7 +617,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             phaseTook,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
-            searchContextId
+            searchContextId,
+            shardInfo
         );
     }
 
@@ -573,6 +640,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalWriteable(shardInfo);
+        }
     }
 
     @Override
@@ -752,6 +822,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
+        return empty(tookInMillisSupplier, clusters, null);
+    }
+
+    static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters, @Nullable SearchShardInfo shardInfo) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
             searchHits,
@@ -769,9 +843,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             0,
             0,
             tookInMillisSupplier.get(),
+            null,
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
-            null
+            null,
+            shardInfo
         );
     }
 }
