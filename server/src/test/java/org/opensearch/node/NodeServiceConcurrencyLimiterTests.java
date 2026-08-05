@@ -123,7 +123,17 @@ public class NodeServiceConcurrencyLimiterTests extends OpenSearchTestCase {
     public void testStatsWithConcurrencyLimiterTrueAndSupplierPresent() {
         ActionConcurrencyLimiterStats expected = new ActionConcurrencyLimiterStats(
             List.of(
-                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot("search", "indices:data/read/search", "enforced", "vegas", 20, 5, 0L, 10L, 8L)
+                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot(
+                    "search",
+                    "indices:data/read/search",
+                    "enforced",
+                    "vegas",
+                    20,
+                    5,
+                    0L,
+                    10L,
+                    8L
+                )
             )
         );
         NodeService nodeService = createNodeService(() -> expected);
@@ -143,7 +153,17 @@ public class NodeServiceConcurrencyLimiterTests extends OpenSearchTestCase {
     public void testStatsWithConcurrencyLimiterFalse() {
         ActionConcurrencyLimiterStats stats = new ActionConcurrencyLimiterStats(
             List.of(
-                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot("search", "indices:data/read/search", "enforced", "vegas", 20, 5, 0L, -1L, -1L)
+                new ActionConcurrencyLimiterStats.ActionLimiterSnapshot(
+                    "search",
+                    "indices:data/read/search",
+                    "enforced",
+                    "vegas",
+                    20,
+                    5,
+                    0L,
+                    -1L,
+                    -1L
+                )
             )
         );
         NodeService nodeService = createNodeService(() -> stats);
