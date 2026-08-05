@@ -54,6 +54,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.io.PrintWriter;
@@ -128,6 +129,7 @@ public class PlannerImpl {
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
+        modifiedRelNode = normalizeValues(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
@@ -369,6 +371,18 @@ public class PlannerImpl {
             .bottomUp()
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .run(input, listener);
+    }
+
+    /**
+     * Pre-marking: normalise inline Values character columns + literals to precision-unspecified
+     * VARCHAR so isthmus emits a length-independent Substrait Str for both schema and cells, keeping
+     * DataFusionFragmentConvertor generic. See {@link OpenSearchValuesCharNormalizeRule}.
+     */
+    private static RelNode normalizeValues(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("values-char-normalize")
+            .bottomUp()
+            .addRuleInstance(new OpenSearchValuesCharNormalizeRule())
             .run(input, listener);
     }
 

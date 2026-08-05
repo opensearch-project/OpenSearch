@@ -61,7 +61,6 @@ import java.util.function.Function;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
-import io.substrait.expression.ExpressionCreator;
 import io.substrait.expression.FunctionArg;
 import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.extension.ExtensionCollector;
@@ -71,7 +70,6 @@ import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
 import io.substrait.isthmus.expression.FunctionMappings;
-import io.substrait.isthmus.expression.LiteralConverter;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
@@ -85,10 +83,8 @@ import io.substrait.relation.Filter;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.Sort;
-import io.substrait.relation.VirtualTableScan;
 import io.substrait.type.NamedStruct;
 import io.substrait.type.Type;
-import io.substrait.type.TypeCreator;
 import io.substrait.type.proto.TypeProtoConverter;
 
 /** Converts Calcite RelNode fragments to Substrait protobuf bytes for the DataFusion Rust runtime. */
@@ -773,76 +769,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             windowConverter,
             typeConverter
         );
-        LiteralConverter literalConverter = new LiteralConverter(typeConverter);
         return new SubstraitRelVisitor(converterProvider) {
             @Override
             public Rel visit(org.apache.calcite.rel.core.Aggregate aggregate) {
                 Rel rel = super.visit(aggregate);
                 return rel instanceof Aggregate agg ? addNullArgFilters(aggregate, agg) : rel;
             }
-
-            @Override
-            public Rel visit(org.apache.calcite.rel.core.Values values) {
-                if (values.getTuples().isEmpty()) {
-                    // No row literals means no per-value char length to conflict with the schema;
-                    // isthmus's default zero-row VirtualTable is fine.
-                    return super.visit(values);
-                }
-                return virtualTableWithStrLiterals(values, typeConverter, literalConverter);
-            }
         };
-    }
-
-    /**
-     * Builds the Substrait {@link VirtualTableScan} for an inline {@link org.apache.calcite.rel.core.Values}
-     * leaf, normalising every CHAR/VARCHAR column to a length-independent {@code Str} in both the base
-     * schema and the row literals.
-     */
-    private static Rel virtualTableWithStrLiterals(
-        org.apache.calcite.rel.core.Values values,
-        TypeConverter typeConverter,
-        LiteralConverter literalConverter
-    ) {
-        RelDataType rowType = values.getRowType();
-        List<RelDataTypeField> fields = rowType.getFieldList();
-
-        List<String> names = new ArrayList<>(fields.size());
-        List<Type> fieldTypes = new ArrayList<>(fields.size());
-        for (RelDataTypeField f : fields) {
-            names.add(f.getName());
-            if (isCharacter(f.getType())) {
-                fieldTypes.add(TypeCreator.of(f.getType().isNullable()).STRING);
-            } else {
-                fieldTypes.add(typeConverter.toSubstrait(f.getType()));
-            }
-        }
-        NamedStruct schema = NamedStruct.of(names, TypeCreator.REQUIRED.struct(fieldTypes));
-
-        List<Expression.NestedStruct> rows = new ArrayList<>(values.getTuples().size());
-        for (List<RexLiteral> tuple : values.getTuples()) {
-            List<Expression> cells = new ArrayList<>(tuple.size());
-            for (int c = 0; c < tuple.size(); c++) {
-                RexLiteral lit = tuple.get(c);
-                RelDataType cellType = fields.get(c).getType();
-                if (isCharacter(cellType)) {
-                    if (lit.isNull()) {
-                        cells.add(ExpressionCreator.typedNull(TypeCreator.of(true).STRING));
-                    } else {
-                        cells.add(ExpressionCreator.string(cellType.isNullable(), lit.getValueAs(String.class)));
-                    }
-                } else {
-                    cells.add(literalConverter.convert(lit));
-                }
-            }
-            rows.add(ExpressionCreator.nestedStruct(false, cells));
-        }
-
-        return VirtualTableScan.builder().initialSchema(schema).addAllRows(rows).build();
-    }
-
-    private static boolean isCharacter(RelDataType type) {
-        SqlTypeName t = type.getSqlTypeName();
-        return t == SqlTypeName.CHAR || t == SqlTypeName.VARCHAR;
     }
 
     /**
