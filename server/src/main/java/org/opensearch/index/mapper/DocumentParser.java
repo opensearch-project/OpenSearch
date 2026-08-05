@@ -1404,6 +1404,22 @@ final class DocumentParser {
             return true;
         }
 
+        // An inferencer may only produce a plugin-registered type. This mirrors the template path,
+        // where DynamicTemplate.parse rejects a match_mapping_type that no plugin registered, and it
+        // stops an inferencer from silently reshaping arbitrary unmapped fields into core built-in
+        // types (e.g. keyword, date, long) that it does not own. If the type is not one a plugin
+        // registered, ignore the claim and fall through to the existing dynamic-mapping path.
+        if (templateTypes.containsKey(inferredType) == false) {
+            logger.warn(
+                "Dynamic field type inferencer [{}] returned unregistered type [{}] for field [{}]; ignoring the claim",
+                claimingInferencer.getClass().getName(),
+                inferredType,
+                resolvedFieldName
+            );
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
+            return true;
+        }
+
         // Step 3: No template — use inferencer result directly.
         Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(inferredType);

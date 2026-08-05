@@ -87,19 +87,32 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
         }
     }
 
+    // A numeric value the inferencer maps to the core type "long" (a type it does not register),
+    // used to prove core rejects an inferred type no plugin owns.
+    private static final int CORE_TYPE_SENTINEL = 999;
+
     /**
-     * Claims numeric scalars >= 100 as "long".
+     * Claims numeric scalars >= 100 as the plugin-registered {@link #MOCK_TYPE}, except for the
+     * {@link #CORE_TYPE_SENTINEL} value, which it claims as the core type "long" — a type it does
+     * not register — so a test can assert core rejects an unregistered inferred type.
      * Using scalars (not arrays) avoids needing a parsesArrayValue mapper in core tests.
      */
     static class MockInferencer implements DynamicFieldTypeInferencer {
         @Override
         public Map<String, Object> inferFieldType(FieldValueParserSupplier fieldValueParser) throws IOException {
+            double value;
             try (XContentParser parser = fieldValueParser.get()) {
                 if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) return null;
-                if (parser.doubleValue() < 100) return null;
+                value = parser.doubleValue();
+                if (value < 100) return null;
             }
             Map<String, Object> config = new HashMap<>();
-            config.put("type", "long");
+            if (value == CORE_TYPE_SENTINEL) {
+                config.put("type", "long");
+                return config;
+            }
+            config.put("type", MOCK_TYPE);
+            config.put("required_param", "present");
             return config;
         }
     }
@@ -457,8 +470,19 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
 
     public void testInferencerClaimsLargeNumericScalar() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}));
-        // 200 >= 100 threshold — MockInferencer claims it as "long"
+        // 200 >= 100 threshold — MockInferencer claims it as the plugin-registered MOCK_TYPE
         ParsedDocument doc = mapper.parse(source(b -> b.field("big_number", 200)));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapper fieldMapper = doc.dynamicMappingsUpdate().root().getMapper("big_number");
+        assertNotNull(fieldMapper);
+        assertThat(fieldMapper.typeName(), equalTo("faketype"));
+    }
+
+    public void testInferencerReturningCoreTypeIsRejected() throws IOException {
+        // The inferencer returns the core type "long" (which it does not register) for the sentinel
+        // value. Core must ignore the claim and let the normal dynamic-mapping path map it as long.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("big_number", CORE_TYPE_SENTINEL)));
         assertNotNull(doc.dynamicMappingsUpdate());
         Mapper fieldMapper = doc.dynamicMappingsUpdate().root().getMapper("big_number");
         assertNotNull(fieldMapper);
