@@ -100,4 +100,33 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
             Settings.builder().put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true).build()
         );
     }
+
+    public void testEnablingWithoutFeatureFlagRejectedAtValidation() {
+        // Feature flag intentionally NOT locked on: enabling the setting must be rejected during settings-update
+        // validation (before commit), not at apply time.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+        Settings enable = Settings.builder()
+            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), true)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> cs.validate(enable, true));
+        assertTrue(e.getMessage().contains("experimental feature"));
+    }
+
+    public void testValidatorDoesNotRejectDefaultOrUnrelatedUpdatesWhenFlagOff() {
+        // Regression guard: the validator must only fire when the value is true. Settings-update validation runs every
+        // setting's validator against its default value on every _cluster/settings update, so a validator that threw on
+        // the default (false) would reject ALL cluster settings updates when the (off-by-default) flag is disabled.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+
+        // Explicitly disabling must pass even with the flag off.
+        Settings disable = Settings.builder()
+            .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)
+            .build();
+        cs.validate(disable, true);
+
+        // An unrelated dynamic setting update must not be affected by this validator.
+        Settings unrelated = Settings.builder().put("cluster.max_shards_per_node", 2000).build();
+        cs.validate(unrelated, true);
+        cs.validateUpdate(unrelated);
+    }
 }

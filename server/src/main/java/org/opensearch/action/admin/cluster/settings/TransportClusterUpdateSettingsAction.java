@@ -58,6 +58,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -66,6 +67,7 @@ import java.io.IOException;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.service.ClusterManagerTask.CLUSTER_UPDATE_SETTINGS;
 import static org.opensearch.index.remote.RemoteStoreUtils.checkAndFinalizeRemoteStoreMigration;
+import static org.opensearch.script.ScriptService.SCRIPT_MAX_SIZE_IN_BYTES;
 
 /**
  * Transport action for updating cluster settings
@@ -266,6 +268,10 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                         clusterSettings.upgradeSettings(request.persistentSettings()),
                         logger
                     );
+                    // Validate against the post-update state so the effective value (whether set, reset, or unchanged) is
+                    // checked against the existing stored scripts before this state is published. This stateful invariant
+                    // cannot be enforced by a Setting.Validator; rejecting here avoids throwing at apply time.
+                    validateScriptMaxSizeInBytes(clusterState);
                     clusterState = checkAndFinalizeRemoteStoreMigration(isCompatibilityModeChanging, request, clusterState, logger);
                     changed = clusterState != currentState;
                     return clusterState;
@@ -355,5 +361,19 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                 );
             }
         }
+    }
+
+    /**
+     * Rejects a {@code script.max_size_in_bytes} update that would lower the limit below an already stored script.
+     * <p>
+     * This invariant depends on cluster state (the stored scripts), so it cannot be expressed by a
+     * {@link org.opensearch.common.settings.Setting.Validator}. Validating the effective value in the post-update state
+     * here rejects the update before it is published, instead of throwing while the state is applied (which was reachable
+     * only at apply time and would destabilize the cluster-manager). Reading the effective value from the merged settings
+     * also covers a reset-to-default that would lower the limit, not just an explicit smaller value.
+     */
+    private void validateScriptMaxSizeInBytes(ClusterState updatedState) {
+        int effectiveMaxSize = SCRIPT_MAX_SIZE_IN_BYTES.get(updatedState.metadata().settings());
+        ScriptService.validateMaxSizeInBytes(effectiveMaxSize, updatedState);
     }
 }

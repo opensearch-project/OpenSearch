@@ -63,4 +63,19 @@ public class SearchShardTaskSettingsTests extends OpenSearchTestCase {
             () -> new SearchShardTaskSettings(raw2, new ClusterSettings(raw2, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
     }
+
+    public void testHeapMovingAverageWindowSizeZeroRejectedAtValidation() {
+        // A window size of 0 (or negative) makes the moving average reject a zero window at apply time; the parser lower
+        // bound now rejects it at settings-update validation time instead.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings zero = Settings.builder().put(SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 0).build();
+        expectThrows(IllegalArgumentException.class, () -> cs.validate(zero, true));
+
+        Settings negative = Settings.builder().put(SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.getKey(), -1).build();
+        expectThrows(IllegalArgumentException.class, () -> cs.validate(negative, true));
+
+        // 1 is the smallest valid window and must be accepted.
+        Settings one = Settings.builder().put(SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 1).build();
+        cs.validate(one, true);
+    }
 }
