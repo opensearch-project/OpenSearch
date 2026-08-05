@@ -236,9 +236,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 String prefix = getDVPrefix(rootFieldName) + getPathPrefix(name());
                 return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), (SortedSetDocValues sdv) -> {
                     SortedBinaryDocValues sbdv = FieldData.toString(sdv);
-                    return new ScriptDocValues.Strings(
-                        new PrefixFilteredSortedBinaryDocValues(sbdv, prefix)
-                    );
+                    return new ScriptDocValues.Strings(new PrefixFilteredSortedBinaryDocValues(sbdv, prefix));
                 }, CoreValuesSourceType.BYTES);
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), CoreValuesSourceType.BYTES);

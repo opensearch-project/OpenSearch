@@ -132,8 +132,7 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(1, readers.size());
 
         IndexFieldData<?> detailNameFieldData = getForField("field.detail.name");
-        LeafOrdinalsFieldData detailNameLeafData =
-            (LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
+        LeafOrdinalsFieldData detailNameLeafData = (LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
 
         ScriptDocValues<?> scriptValues = detailNameLeafData.getScriptValues();
         scriptValues.setNextDocId(0);
@@ -142,8 +141,7 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals("foo", scriptValues.get(0));
 
         IndexFieldData<?> detailAgeFieldData = getForField("field.detail.age");
-        LeafOrdinalsFieldData detailAgeLeafData =
-            (LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
+        LeafOrdinalsFieldData detailAgeLeafData = (LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
 
         scriptValues = detailAgeLeafData.getScriptValues();
         scriptValues.setNextDocId(0);
