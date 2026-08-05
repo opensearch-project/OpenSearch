@@ -96,7 +96,13 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 final SearchResponse response;
                 try {
                     long tookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-                    response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), tookInMillis);
+                    response = SearchResponseBuilder.build(
+                        results,
+                        request,
+                        converter.getAggregationRegistry(),
+                        converter.getPipelineRegistry(),
+                        tookInMillis
+                    );
                 } catch (Exception buildEx) {
                     logger.error("DSL response building failed", buildEx);
                     listener.onFailure(buildEx);

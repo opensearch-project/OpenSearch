@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
+import org.opensearch.dsl.aggregation.pipeline.PipelineRegistry;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.QueryPlans;
@@ -40,6 +41,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -51,7 +53,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         request.source(new SearchSourceBuilder());
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 42L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 42L);
 
         assertNotNull(response);
         assertEquals(200, response.status().getStatus());
@@ -66,7 +68,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest();
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 100L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 100L);
 
         assertNotNull(response);
         assertEquals(200, response.status().getStatus());
@@ -78,7 +80,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest();
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 50L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 50L);
 
         assertNotNull(response);
         assertEquals(200, response.status().getStatus());
@@ -94,7 +96,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 75L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 75L);
 
         assertNotNull(response);
         assertEquals(75L, response.getTook().millis());
@@ -106,7 +108,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         request.source(new SearchSourceBuilder());
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 10L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 10L);
 
         assertEquals(1, response.getTotalShards());
         assertEquals(1, response.getSuccessfulShards());
@@ -118,10 +120,10 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest();
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response1 = SearchResponseBuilder.build(List.of(), request, registry, 0L);
+        SearchResponse response1 = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 0L);
         assertEquals(0L, response1.getTook().millis());
 
-        SearchResponse response2 = SearchResponseBuilder.build(List.of(), request, registry, 999L);
+        SearchResponse response2 = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 999L);
         assertEquals(999L, response2.getTook().millis());
     }
 
@@ -129,7 +131,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest();
         AggregationRegistry registry = new AggregationRegistry();
 
-        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 10L);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, PipelineRegistry.create(), 10L);
 
         assertNotNull(response.getHits());
         assertEquals(0, response.getHits().getHits().length);
@@ -184,7 +186,13 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
-        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+        SearchResponse response = SearchResponseBuilder.build(
+            results,
+            request,
+            converter.getAggregationRegistry(),
+            converter.getPipelineRegistry(),
+            1L
+        );
 
         StringTerms byBrand = response.getAggregations().get("by_brand");
         assertNotNull("by_brand must be present", byBrand);
@@ -275,7 +283,13 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
-        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+        SearchResponse response = SearchResponseBuilder.build(
+            results,
+            request,
+            converter.getAggregationRegistry(),
+            converter.getPipelineRegistry(),
+            1L
+        );
 
         // brand_first → BrandA → by_category → Cat1 (avg 850), Cat2 (avg 700)
         StringTerms brandFirst = response.getAggregations().get("brand_first");
@@ -320,7 +334,13 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
-        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+        SearchResponse response = SearchResponseBuilder.build(
+            results,
+            request,
+            converter.getAggregationRegistry(),
+            converter.getPipelineRegistry(),
+            1L
+        );
 
         StringTerms byBrand = response.getAggregations().get("by_brand");
         assertEquals(1, byBrand.getBuckets().size());
@@ -353,7 +373,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         expectThrows(
             ConversionException.class,
-            () -> SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L)
+            () -> SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), converter.getPipelineRegistry(), 1L)
         );
     }
 
@@ -402,7 +422,13 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
-        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+        SearchResponse response = SearchResponseBuilder.build(
+            results,
+            request,
+            converter.getAggregationRegistry(),
+            converter.getPipelineRegistry(),
+            1L
+        );
 
         StringTerms byBrand = response.getAggregations().get("by_brand");
         assertNotNull(byBrand);
@@ -454,15 +480,22 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                 for (List<Object> row : tc.getMockResultRows()) {
                     rows.add(row.toArray());
                 }
-                ExecutionResult result = new ExecutionResult(matchingPlans.get(0), rows);
+                List<ExecutionResult> executionResults = new ArrayList<>();
+                executionResults.add(new ExecutionResult(matchingPlans.get(0), rows));
+                String additionalFailure = addAdditionalResults(tc, plans, executionResults);
+                if (additionalFailure != null) {
+                    failures.add(fileName + ": " + additionalFailure);
+                    continue;
+                }
 
                 // Build and serialize SearchResponse
                 SearchRequest searchRequest = new SearchRequest(tc.getIndexName());
                 searchRequest.source(searchSource);
                 SearchResponse response = SearchResponseBuilder.build(
-                    List.of(result),
+                    executionResults,
                     searchRequest,
                     converter.getAggregationRegistry(),
+                    converter.getPipelineRegistry(),
                     0L
                 );
                 String responseJson = Strings.toString(MediaTypeRegistry.JSON, response);
@@ -508,6 +541,31 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Builds ExecutionResults for the golden file's additional plans (matched positionally
+     * within each type). Returns a failure message, or null on success.
+     */
+    private static String addAdditionalResults(GoldenTestCase tc, QueryPlans plans, List<ExecutionResult> executionResults) {
+        if (tc.getAdditionalPlans() == null) {
+            return null;
+        }
+        Map<QueryPlans.Type, Integer> nextIndexByType = new HashMap<>();
+        for (GoldenTestCase.AdditionalPlan additional : tc.getAdditionalPlans()) {
+            QueryPlans.Type type = QueryPlans.Type.valueOf(additional.getPlanType());
+            int index = nextIndexByType.merge(type, 1, Integer::sum) - 1;
+            List<QueryPlans.QueryPlan> typed = plans.get(type);
+            if (typed.size() <= index) {
+                return "expected additional " + type + " plan #" + index + " but only " + typed.size() + " produced";
+            }
+            List<Object[]> additionalRows = new ArrayList<>();
+            for (List<Object> row : additional.getMockResultRows()) {
+                additionalRows.add(row.toArray());
+            }
+            executionResults.add(new ExecutionResult(typed.get(index), additionalRows));
+        }
+        return null;
+    }
 
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
         String json;

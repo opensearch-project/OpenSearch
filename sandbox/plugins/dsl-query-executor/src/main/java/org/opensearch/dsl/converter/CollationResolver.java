@@ -41,11 +41,34 @@ public final class CollationResolver {
      * @throws ConversionException if a sort field cannot be resolved
      */
     public static List<RelFieldCollation> resolve(AggregationMetadata metadata, RelDataType postAggRowType) throws ConversionException {
+        return resolve(metadata, metadata.getBucketOrders(), postAggRowType);
+    }
+
+    /**
+     * Resolves the given bucket orders against the post-agg schema. Compound orders are
+     * flattened. Callers needing one aggregation's own ordering — rather than every order
+     * accumulated at the granularity (same-field siblings share one metadata) — pass it
+     * explicitly.
+     *
+     * @param metadata the aggregation metadata providing the field name lists
+     * @param orders the bucket orders to resolve
+     * @param postAggRowType the actual row type of the LogicalAggregate node
+     * @return list of field collations for LogicalSort
+     * @throws ConversionException if a sort field cannot be resolved
+     */
+    public static List<RelFieldCollation> resolve(AggregationMetadata metadata, List<BucketOrder> orders, RelDataType postAggRowType)
+        throws ConversionException {
         Map<String, List<Integer>> postAggFieldIndex = buildPostAggFieldIndex(metadata, postAggRowType);
 
         List<RelFieldCollation> collations = new ArrayList<>();
-        for (BucketOrder order : metadata.getBucketOrders()) {
-            resolveOrder(order, postAggFieldIndex, collations);
+        for (BucketOrder order : orders) {
+            if (order instanceof InternalOrder.CompoundOrder compound) {
+                for (BucketOrder element : compound.orderElements()) {
+                    resolveOrder(element, postAggFieldIndex, collations);
+                }
+            } else {
+                resolveOrder(order, postAggFieldIndex, collations);
+            }
         }
         return collations;
     }

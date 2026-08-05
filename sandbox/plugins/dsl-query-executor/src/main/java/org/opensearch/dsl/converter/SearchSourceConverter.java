@@ -26,13 +26,25 @@ import org.opensearch.dsl.aggregation.AggregationMetadata;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
+import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
+import org.opensearch.dsl.aggregation.pipeline.BucketsPathResolver;
+import org.opensearch.dsl.aggregation.pipeline.PipelinePlanComposer;
+import org.opensearch.dsl.aggregation.pipeline.PipelineRegistry;
+import org.opensearch.dsl.aggregation.pipeline.PipelineTranslator;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -52,6 +64,7 @@ public class SearchSourceConverter {
     private final PostAggregateConverter postAggConverter;
     private final AggregationTreeWalker treeWalker;
     private final AggregationRegistry aggRegistry;
+    private final PipelineRegistry pipelineRegistry;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -81,11 +94,17 @@ public class SearchSourceConverter {
 
         this.aggRegistry = AggregationRegistryFactory.create();
         this.treeWalker = new AggregationTreeWalker(aggRegistry);
+        this.pipelineRegistry = PipelineRegistry.create();
     }
 
     /** Returns the aggregation registry used by this converter. */
     public AggregationRegistry getAggregationRegistry() {
         return aggRegistry;
+    }
+
+    /** Returns the pipeline aggregation registry used by this converter. */
+    public PipelineRegistry getPipelineRegistry() {
+        return pipelineRegistry;
     }
 
     /**
@@ -122,8 +141,10 @@ public class SearchSourceConverter {
         }
 
         // Aggregation path: Scan → Filter → Aggregate → PostAggregate (one per granularity level)
+        List<AggregationMetadata> metadataList = List.of();
+        Map<AggregationMetadata, RelNode> preSortAggregates = new LinkedHashMap<>();
         if (hasAggs) {
-            List<AggregationMetadata> metadataList = treeWalker.walk(
+            metadataList = treeWalker.walk(
                 searchSource.aggregations().getAggregatorFactories(),
                 table.getRowType(),
                 cluster.getTypeFactory()
@@ -131,12 +152,79 @@ public class SearchSourceConverter {
             for (AggregationMetadata metadata : metadataList) {
                 ConversionContext aggCtx = ctx.withAggregationMetadata(metadata);
                 RelNode aggs = aggConverter.convert(base, metadata);
+                preSortAggregates.put(metadata, aggs);
                 aggs = postAggConverter.convert(aggs, aggCtx);
                 builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs, metadata));
             }
         }
 
+        // Pipeline path: sibling aggregate shaped to its visible buckets → second-level aggregate
+        convertPipelines(searchSource, builder, metadataList, preSortAggregates);
+
         return builder.build();
+    }
+
+    /**
+     * Converts sibling pipeline aggregations into {@link QueryPlans.Type#PIPELINE} plans.
+     * Pipelines targeting the same sibling share one plan; results map back by column name.
+     */
+    private void convertPipelines(
+        SearchSourceBuilder searchSource,
+        QueryPlans.Builder builder,
+        List<AggregationMetadata> metadataList,
+        Map<AggregationMetadata, RelNode> preSortAggregates
+    ) throws ConversionException {
+        if (searchSource.aggregations() == null) {
+            return;
+        }
+        Collection<PipelineAggregationBuilder> pipelines = searchSource.aggregations().getPipelineAggregatorFactories();
+        if (pipelines == null || pipelines.isEmpty()) {
+            return;
+        }
+        Collection<AggregationBuilder> rootAggs = searchSource.aggregations().getAggregatorFactories();
+
+        Map<TermsAggregationBuilder, List<PipelinePlanComposer.PipelineTarget>> bySibling = new LinkedHashMap<>();
+        for (PipelineAggregationBuilder pipeline : pipelines) {
+            PipelineTranslator<PipelineAggregationBuilder> translator = pipelineRegistry.get(pipeline.getClass());
+            if (translator == null) {
+                throw new ConversionException(
+                    "pipeline aggregation [" + pipeline.getName() + "] of type [" + pipeline.getWriteableName() + "] is not supported"
+                );
+            }
+            BucketsPathResolver.ResolvedBucketsPath resolved = BucketsPathResolver.resolve(pipeline, rootAggs, aggRegistry);
+            bySibling.computeIfAbsent(resolved.sibling(), s -> new ArrayList<>())
+                .add(new PipelinePlanComposer.PipelineTarget(pipeline, resolved.metricColumn()));
+        }
+
+        for (Map.Entry<TermsAggregationBuilder, List<PipelinePlanComposer.PipelineTarget>> entry : bySibling.entrySet()) {
+            TermsAggregationBuilder sibling = entry.getKey();
+            AggregationMetadata metadata = findSiblingMetadata(sibling, metadataList);
+            RelNode plan = PipelinePlanComposer.compose(
+                entry.getValue(),
+                sibling,
+                metadata,
+                preSortAggregates.get(metadata),
+                cluster.getRexBuilder(),
+                pipelineRegistry
+            );
+            builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.PIPELINE, plan, null));
+        }
+    }
+
+    /** Finds the walker metadata whose GROUP BY matches the sibling's own grouping fields. */
+    private AggregationMetadata findSiblingMetadata(TermsAggregationBuilder sibling, List<AggregationMetadata> metadataList)
+        throws ConversionException {
+        BucketTranslator<AggregationBuilder> bucketTranslator = aggRegistry.getBucket(sibling.getClass());
+        if (bucketTranslator == null) {
+            throw new ConversionException("No bucket translator registered for sibling aggregation [" + sibling.getName() + "]");
+        }
+        List<String> groupFields = bucketTranslator.getGrouping(sibling).getFieldNames();
+        for (AggregationMetadata metadata : metadataList) {
+            if (metadata.getGroupByFieldNames().equals(groupFields)) {
+                return metadata;
+            }
+        }
+        throw new ConversionException("No aggregation plan produced for pipeline sibling [" + sibling.getName() + "]");
     }
 
     private static boolean hasAggregations(SearchSourceBuilder searchSource) {

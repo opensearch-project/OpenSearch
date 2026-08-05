@@ -25,7 +25,9 @@ public final class QueryPlans {
         /** Document hits. */
         HITS,
         /** Aggregation results. */
-        AGGREGATION
+        AGGREGATION,
+        /** Pipeline aggregation results. */
+        PIPELINE
     }
 
     /**
@@ -34,7 +36,8 @@ public final class QueryPlans {
      * @param type what part of the response this plan produces
      * @param relNode the Calcite logical plan to execute
      * @param aggregationMetadata the walker-produced metadata this plan was built from, or
-     *        {@code null} for {@link Type#HITS} plans. Carried through to the response builder
+     *        {@code null} for {@link Type#HITS} and {@link Type#PIPELINE} plans. Carried
+     *        through to the response builder
      *        so granularity matching uses the walker's exact nesting-order group fields instead
      *        of re-deriving them from the plan (which loses nesting order).
      */
