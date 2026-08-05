@@ -14,6 +14,7 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 
@@ -36,8 +37,8 @@ public class RestIndicesListAction extends RestIndicesAction {
     private static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE = 5000;
     private static final int DEFAULT_LIST_INDICES_PAGE_SIZE = 500;
 
-    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings) {
-        super(responseLimitSettings);
+    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings, final SystemIndices systemIndices) {
+        super(responseLimitSettings, systemIndices);
     }
 
     @Override
