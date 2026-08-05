@@ -215,17 +215,17 @@ public final class ConcurrencyLimitSettings {
 
     static void validatePartitionConfig(List<String> partitions, Settings group) {
         double sum = 0.0;
-        for (String key : group.keySet()) {
-            if (key.endsWith(".percent")) {
-                double pct = group.getAsDouble(key, 0.0);
-                if (pct < 0.0 || pct > 1.0) {
-                    throw new IllegalArgumentException("partition percent [" + key + "] must be in [0.0, 1.0] but got " + pct);
-                }
-                sum += pct;
-            } else if (key.endsWith(".delay_ms")) {
-                if (group.getAsLong(key, 0L) < 0) {
-                    throw new IllegalArgumentException("partition [" + key + "] must be >= 0");
-                }
+        for (String partitionName : partitions) {
+            double pct = group.getAsDouble(partitionName + ".percent", 0.0);
+            if (pct < 0.0 || pct > 1.0) {
+                throw new IllegalArgumentException(
+                    "partition percent [" + partitionName + ".percent] must be in [0.0, 1.0] but got " + pct
+                );
+            }
+            sum += pct;
+            long delay = group.getAsLong(partitionName + ".delay_ms", 0L);
+            if (delay < 0) {
+                throw new IllegalArgumentException("partition [" + partitionName + ".delay_ms] must be >= 0");
             }
         }
         if (sum > 1.0 + 1e-6) {
