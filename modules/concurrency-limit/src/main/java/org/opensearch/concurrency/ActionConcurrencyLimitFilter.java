@@ -18,6 +18,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.tasks.Task;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import com.netflix.concurrency.limits.Limiter;
 
 /**
@@ -83,26 +85,29 @@ public class ActionConcurrencyLimitFilter implements ActionFilter {
         }
 
         Limiter.Listener limitToken = result.token();
+        AtomicBoolean released = new AtomicBoolean(false);
         try {
             chain.proceed(task, action, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
-                    limitToken.onSuccess();
+                    if (released.compareAndSet(false, true)) limitToken.onSuccess();
                     listener.onResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof OpenSearchRejectedExecutionException) {
-                        limitToken.onDropped();
-                    } else {
-                        limitToken.onIgnore();
+                    if (released.compareAndSet(false, true)) {
+                        if (e instanceof OpenSearchRejectedExecutionException) {
+                            limitToken.onDropped();
+                        } else {
+                            limitToken.onIgnore();
+                        }
                     }
                     listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            limitToken.onIgnore();
+            if (released.compareAndSet(false, true)) limitToken.onIgnore();
             throw e;
         }
     }

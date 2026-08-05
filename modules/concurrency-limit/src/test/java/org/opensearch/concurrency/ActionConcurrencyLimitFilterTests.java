@@ -149,6 +149,43 @@ public class ActionConcurrencyLimitFilterTests extends OpenSearchTestCase {
         assertEquals(1, new ActionConcurrencyLimitFilter(registry).order());
     }
 
+    public void testTokenReleasedExactlyOnceWhenListenerThrows() {
+        ActionConcurrencyLimiterRegistry registry = registryFor("search", SEARCH_ACTION, "enforced");
+        ActionConcurrencyLimitFilter filter = new ActionConcurrencyLimitFilter(registry);
+
+        // Use a downstream listener that throws after the filter's wrapped listener releases the token.
+        // Without the AtomicBoolean guard, the outer catch would call onIgnore() a second time,
+        // double-decrementing inFlight.
+        RuntimeException listenerBoom = new RuntimeException("downstream listener exploded");
+        ActionListener<SearchResponse> throwingListener = new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                throw listenerBoom;
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+
+        // chain.proceed calls onResponse immediately, which triggers the throwing listener
+        try {
+            filter.apply(
+                TASK,
+                SEARCH_ACTION,
+                new SearchRequest(),
+                null,
+                throwingListener,
+                (ActionFilterChain<SearchRequest, SearchResponse>) (t, a, req, listener) -> listener.onResponse(mock(SearchResponse.class))
+            );
+            fail("should have propagated the exception");
+        } catch (RuntimeException e) {
+            assertSame(listenerBoom, e);
+        }
+
+        // inFlight should be 0, not -1 (which would happen on double release)
+        assertEquals("token must be released exactly once", 0, registry.getStats().getSnapshots().get(0).getInFlight());
+    }
+
     // -------------------------------------------------------------------------
     // helpers
     // -------------------------------------------------------------------------
