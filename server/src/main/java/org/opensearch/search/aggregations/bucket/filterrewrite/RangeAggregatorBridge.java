@@ -34,11 +34,21 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     /**
-     * Request-level (segment-independent) predicate for whether the range filter-rewrite fast path can apply.
-     * Pure (no side effects) so it can be consulted upfront by the range aggregator factory to decide
-     * intra-segment eligibility: when this returns false the fast path is unavailable and the doc-by-doc
-     * fallback — which parallelizes under intra-segment search — will run instead. Kept in sync with the
-     * conditions {@link #canOptimize(ValuesSourceConfig, RangeAggregator.Range[])} enforces.
+     * Whether the range filter-rewrite fast path applies for this aggregation. Includes the
+     * {@code parent == null} requirement (the fast path only runs for a top-level agg), so the range
+     * aggregator factory can consult this alone to decide intra-segment eligibility: intra-segment search
+     * is used only when this returns false (the fast path is unavailable and the doc-by-doc fallback, which
+     * parallelizes under intra, runs instead).
+     */
+    public static boolean filterRewriteFastPathApplies(Object parent, ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
+        // The fast path (BKD point-tree precompute) only runs for a top-level agg; nested aggs collect
+        // doc-by-doc under their parent's buckets. Mirrors the parent check in FilterRewriteOptimizationContext.
+        return parent == null && filterRewriteFastPathApplies(config, ranges);
+    }
+
+    /**
+     * Field/ranges half of the fast-path check (segment-independent, no side effects). Shared by the runtime
+     * {@link #canOptimize(ValuesSourceConfig, RangeAggregator.Range[])} and the parent-aware overload above.
      */
     public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         MappedFieldType fieldType = config.fieldType();

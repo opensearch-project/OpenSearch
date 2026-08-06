@@ -39,12 +39,6 @@ public final class FilterRewriteOptimizationContext {
     private final boolean canOptimize;
     private boolean preparedAtShardLevel = false;
 
-    // Under intra-segment search a segment is split into partitions and tryOptimize runs once per
-    // partition. The BKD point-tree walk counts the whole segment, so running it per partition would
-    // multiply counts (#18016). When true we skip the optimization and fall back to the partition-safe
-    // doc-by-doc / skip-list path.
-    private final boolean intraSegmentSearchEnabled;
-
     private final AggregatorBridge aggregatorBridge;
     private String shardId;
 
@@ -67,7 +61,6 @@ public final class FilterRewriteOptimizationContext {
         SearchContext context
     ) throws IOException {
         this.aggregatorBridge = aggregatorBridge;
-        this.intraSegmentSearchEnabled = context.shouldUseIntraSegmentSearch();
         this.canOptimize = this.canOptimize(parent, subAggLength, context);
     }
 
@@ -119,11 +112,6 @@ public final class FilterRewriteOptimizationContext {
     ) throws IOException {
         segments.incrementAndGet();
         if (!canOptimize) {
-            return false;
-        }
-
-        // Skip under intra-segment search: the whole-segment count would run per partition (#18016).
-        if (intraSegmentSearchEnabled) {
             return false;
         }
 

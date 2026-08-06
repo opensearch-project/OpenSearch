@@ -39,11 +39,21 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     /**
-     * Request-level (segment-independent) predicate for whether the date-histogram filter-rewrite fast path
-     * can apply. Pure (no side effects) so it can be consulted upfront by aggregator factories to decide
-     * intra-segment eligibility: when this returns false the fast path is unavailable and the doc-by-doc
-     * fallback — which parallelizes under intra-segment search — will run instead. Kept in sync with the
-     * conditions {@link #canOptimize(ValuesSourceConfig, Rounding)} enforces.
+     * Whether the date-histogram filter-rewrite fast path applies for this aggregation. Includes the
+     * {@code parent == null} requirement (the fast path only runs for a top-level agg), so aggregator
+     * factories can consult this alone to decide intra-segment eligibility: intra-segment search is used
+     * only when this returns false (the fast path is unavailable and the doc-by-doc fallback, which
+     * parallelizes under intra, runs instead).
+     */
+    public static boolean filterRewriteFastPathApplies(Object parent, ValuesSourceConfig config, Rounding rounding) {
+        // The fast path (BKD point-tree precompute) only runs for a top-level agg; nested aggs collect
+        // doc-by-doc under their parent's buckets. Mirrors the parent check in FilterRewriteOptimizationContext.
+        return parent == null && filterRewriteFastPathApplies(config, rounding);
+    }
+
+    /**
+     * Field/rounding half of the fast-path check (segment-independent, no side effects). Shared by the
+     * runtime {@link #canOptimize(ValuesSourceConfig, Rounding)} and the parent-aware overload above.
      */
     public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, Rounding rounding) {
         // The filter rewrite optimized path does not support non-fixed bucket intervals, so exclude non-UTC.

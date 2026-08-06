@@ -157,12 +157,10 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Partition only when the filter-rewrite fast path will decline (non-UTC, script/missing, non-indexed
-        // field, or nested) and collection falls back to a doc-by-doc / skip-list scan that parallelizes safely.
-        // When the fast path applies its BKD point-tree walk is not partition-aware, so partitioning would
-        // duplicate the walk per partition and regress; stay sequential in that case.
-        boolean fastPathApplies = parent == null && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, rounding);
-        return fastPathApplies == false;
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (non-UTC, script/missing,
+        // non-indexed field, or nested). When it applies, its BKD point-tree walk is not partition-aware, so
+        // partitioning would duplicate the walk per partition and regress — stay sequential in that case.
+        return DateHistogramAggregatorBridge.filterRewriteFastPathApplies(parent, config, rounding) == false;
     }
 
     public Rounding.DateTimeUnit getRounding() {

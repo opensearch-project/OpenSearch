@@ -19,6 +19,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
@@ -58,9 +59,9 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
-            // Intra-segment partitioning: exercise the partition-aware filter-rewrite path so the same assertions
-            // must hold whether or not a segment is split into doc-id-range partitions (guards #18016).
+            // Concurrent search across the three partition strategies (the default is "balanced", covered
+            // explicitly below). The same assertions must hold whether or not a segment is split into
+            // doc-id-range partitions (guards #18016).
             new Object[] {
                 Settings.builder()
                     .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
@@ -179,15 +180,30 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
             .get();
 
         final Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(expected.size()));
+
         long total = 0;
         for (Histogram.Bucket bucket : histo.getBuckets()) {
-            Long expectedCount = expected.get(bucket.getKeyAsString());
+            // parent bucket doc count matches the indexed per-day frequency exactly (no per-partition duplication)
+            final Long expectedCount = expected.get(bucket.getKeyAsString());
+            assertNotNull("unexpected bucket " + bucket.getKeyAsString(), expectedCount);
             assertEquals(expectedCount, (Long) bucket.getDocCount());
-            assertNotNull(bucket.getAggregations().get("avg_ts"));
+
+            // inner sub-agg value: every doc in a day-bucket has that same day's timestamp, so avg(date)
+            // equals the bucket key's epoch-millis. A per-partition-duplicated collection would still average
+            // to the same value, but combined with the exact doc count above this pins the sub-agg down.
+            final Avg avg = bucket.getAggregations().get("avg_ts");
+            assertNotNull(avg);
+            assertThat(avg.getValue(), equalTo(bucketEpochMillis(bucket)));
             total += bucket.getDocCount();
         }
-        long expectedTotal = expected.values().stream().mapToLong(Long::longValue).sum();
+        final long expectedTotal = expected.values().stream().mapToLong(Long::longValue).sum();
         assertThat(total, equalTo(expectedTotal));
+    }
+
+    /** Epoch-millis of a date_histogram bucket key (the bucket's start instant). */
+    private static double bucketEpochMillis(Histogram.Bucket bucket) {
+        return ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
     }
 
     /**
@@ -202,16 +218,37 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
             .addAggregation(
                 dateHistogram("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
-                    .subAggregation(dateHistogram("inner").field("date").calendarInterval(DateHistogramInterval.DAY))
+                    .subAggregation(dateHistogram("inner").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(1))
             )
             .get();
 
+        final long expectedTotal = expected.values().stream().mapToLong(Long::longValue).sum();
+
+        // All indexed dates fall in January 2024, so the outer MONTH histogram has exactly one bucket whose
+        // doc count is the full total, and the inner DAY histogram's buckets map 1:1 to the per-day frequencies.
         final Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(1));
+
         long total = 0;
-        for (Histogram.Bucket bucket : histo.getBuckets()) {
-            total += bucket.getDocCount();
+        for (Histogram.Bucket monthBucket : histo.getBuckets()) {
+            // parent bucket doc count
+            assertThat(monthBucket.getDocCount(), equalTo(expectedTotal));
+            total += monthBucket.getDocCount();
+
+            // inner sub-agg: per-day bucket doc counts must match the indexed per-day frequencies exactly
+            final Histogram inner = monthBucket.getAggregations().get("inner");
+            assertNotNull(inner);
+            long innerTotal = 0;
+            for (Histogram.Bucket dayBucket : inner.getBuckets()) {
+                final Long expectedCount = expected.get(dayBucket.getKeyAsString());
+                assertNotNull("unexpected inner bucket " + dayBucket.getKeyAsString(), expectedCount);
+                assertEquals(expectedCount, (Long) dayBucket.getDocCount());
+                innerTotal += dayBucket.getDocCount();
+            }
+            // inner buckets cover every indexed day and sum to the parent bucket count
+            assertThat(inner.getBuckets().size(), equalTo(expected.size()));
+            assertThat(innerTotal, equalTo(expectedTotal));
         }
-        long expectedTotal = expected.values().stream().mapToLong(Long::longValue).sum();
         assertThat(total, equalTo(expectedTotal));
     }
 

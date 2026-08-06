@@ -133,10 +133,8 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Partition only when the filter-rewrite fast path declines (see DateHistogramAggregatorFactory);
-        // auto_date_histogram uses roundingInfos[0].rounding for the canOptimize check.
-        boolean fastPathApplies = parent == null
-            && DateHistogramAggregatorBridge.filterRewriteFastPathApplies(config, roundingInfos[0].rounding);
-        return fastPathApplies == false;
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (see
+        // DateHistogramAggregatorFactory); auto_date_histogram uses roundingInfos[0].rounding for the check.
+        return DateHistogramAggregatorBridge.filterRewriteFastPathApplies(parent, config, roundingInfos[0].rounding) == false;
     }
 }

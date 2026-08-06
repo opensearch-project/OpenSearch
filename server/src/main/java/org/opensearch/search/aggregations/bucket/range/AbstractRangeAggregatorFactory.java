@@ -132,9 +132,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        // Partition only when the filter-rewrite fast path declines (non-numeric/non-indexed field,
-        // script/missing, overlapping ranges, or nested) — see DateHistogramAggregatorFactory.
-        boolean fastPathApplies = parent == null && RangeAggregatorBridge.filterRewriteFastPathApplies(config, ranges);
-        return fastPathApplies == false;
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (non-numeric/non-indexed
+        // field, script/missing, overlapping ranges, or nested) — see DateHistogramAggregatorFactory.
+        return RangeAggregatorBridge.filterRewriteFastPathApplies(parent, config, ranges) == false;
     }
 }
