@@ -38,12 +38,18 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -507,4 +513,141 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         assertSettingDeprecationsAndWarnings(deprecatedSettings, expectedWarning);
     }
 
+    public void testVirtualThreadPerTaskExecutor() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("node1", "test-virtual", threadContext);
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean isVirtual = new AtomicBoolean();
+            executor.execute(() -> {
+                isVirtual.set(Thread.currentThread().isVirtual());
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue("task should run on a virtual thread", isVirtual.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorPreservesThreadContext() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("node1", "test-virtual-ctx", threadContext);
+        try {
+            threadContext.putHeader("test-header", "test-value");
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicBoolean contextPreserved = new AtomicBoolean();
+            executor.execute(() -> {
+                contextPreserved.set("test-value".equals(threadContext.getHeader("test-header")));
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue("thread context should be preserved on virtual thread", contextPreserved.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorThreadNaming() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("node1", "test-naming", threadContext);
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<String> threadName = new AtomicReference<>();
+            executor.execute(() -> {
+                threadName.set(Thread.currentThread().getName());
+                latch.countDown();
+            });
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            // threads follow the same opensearch[node][pool]#N convention used for platform threads
+            assertEquals("opensearch[node1][test-naming]#0", threadName.get());
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorPreservesThreadContextForCallable() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("node1", "test-virtual-callable", threadContext);
+        try {
+            threadContext.putHeader("test-header", "test-value");
+            assertEquals("test-value", executor.submit(() -> threadContext.getHeader("test-header")).get(10, TimeUnit.SECONDS));
+
+            List<Future<String>> futures = executor.invokeAll(
+                List.of(() -> threadContext.getHeader("test-header"), () -> threadContext.getHeader("test-header"))
+            );
+            for (Future<String> future : futures) {
+                assertEquals("test-value", future.get(10, TimeUnit.SECONDS));
+            }
+
+            assertEquals(
+                "test-value",
+                executor.invokeAny(List.of(() -> threadContext.getHeader("test-header"), () -> threadContext.getHeader("test-header")))
+            );
+        } finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorDoesNotLeakActiveCountOnRejection() throws Exception {
+        VirtualThreadPerTaskExecutorService executor = (VirtualThreadPerTaskExecutorService) OpenSearchExecutors
+            .newVirtualThreadPerTaskExecutor("node1", "test-virtual-reject", threadContext);
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+
+        // a thread-per-task executor rejects submissions once shut down; the task never runs, so it must not be
+        // counted as active or completed
+        expectThrows(RejectedExecutionException.class, () -> executor.execute(() -> {}));
+        assertEquals(0, executor.getActiveCount());
+        assertEquals(0L, executor.getCompletedTaskCount());
+    }
+
+    public void testVirtualThreadPerTaskExecutorCountsErrorsAsCompleted() throws Exception {
+        VirtualThreadPerTaskExecutorService executor = (VirtualThreadPerTaskExecutorService) OpenSearchExecutors
+            .newVirtualThreadPerTaskExecutor("node1", "test-virtual-error-count", threadContext);
+        final Thread.UncaughtExceptionHandler previousHandler = Thread.getDefaultUncaughtExceptionHandler();
+        try {
+            final CountDownLatch handlerCalled = new CountDownLatch(1);
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> handlerCalled.countDown());
+            executor.submit((Runnable) () -> { throw new Error("expected"); });
+            assertTrue(handlerCalled.await(10, TimeUnit.SECONDS));
+
+            // rethrowErrors throws past the task body, so only a finally block keeps the counters consistent
+            assertBusy(() -> {
+                assertEquals("a task that dies with an Error must not leak the active count", 0, executor.getActiveCount());
+                assertEquals("a task that dies with an Error still counts as completed", 1L, executor.getCompletedTaskCount());
+            });
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previousHandler);
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testVirtualThreadPerTaskExecutorRethrowsErrors() throws Exception {
+        ExecutorService executor = OpenSearchExecutors.newVirtualThreadPerTaskExecutor("node1", "test-virtual-error", threadContext);
+        final Thread.UncaughtExceptionHandler previousHandler = Thread.getDefaultUncaughtExceptionHandler();
+        try {
+            final AtomicReference<Throwable> uncaught = new AtomicReference<>();
+            final CountDownLatch handlerCalled = new CountDownLatch(1);
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                uncaught.set(e);
+                handlerCalled.countDown();
+            });
+
+            final Error error = new Error("expected");
+            // A submitted task captures the Error in its Future, so it is only visible to the uncaught exception
+            // handler if the executor rethrows it on the executing thread.
+            final Future<?> future = executor.submit((Runnable) () -> { throw error; });
+
+            assertTrue("uncaught exception handler should have been called", handlerCalled.await(10, TimeUnit.SECONDS));
+            assertSame(error, uncaught.get());
+            ExecutionException e = expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
+            assertSame(error, e.getCause());
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previousHandler);
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
 }
