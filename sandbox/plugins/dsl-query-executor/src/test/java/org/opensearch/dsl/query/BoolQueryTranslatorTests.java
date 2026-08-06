@@ -73,11 +73,15 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.AND, call.getKind());
-        // Conjoined form: AND(OR(a, b, c), GTE(PLUS(CASE...), 2))
-        assertEquals(2, call.getOperands().size());
-        assertEquals(SqlKind.OR, ((RexCall) call.getOperands().get(0)).getKind());
-        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, ((RexCall) call.getOperands().get(1)).getKind());
+        // Enumerated form: OR(AND(c0,c1), AND(c0,c2), AND(c1,c2)) — C(3,2)=3 subsets
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(3, call.getOperands().size());
+        // Each operand is an AND of 2
+        for (RexNode operand : call.getOperands()) {
+            assertTrue(operand instanceof RexCall);
+            assertEquals(SqlKind.AND, ((RexCall) operand).getKind());
+            assertEquals(2, ((RexCall) operand).getOperands().size());
+        }
     }
 
     public void testMinimumShouldMatchInteger1() throws ConversionException {
@@ -109,11 +113,14 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // -1 means total - 1 = 3 - 1 = 2 required → conjoined form
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
-        assertEquals(SqlKind.OR, ((RexCall) call.getOperands().get(0)).getKind());
-        assertEquals(3, ((RexCall) call.getOperands().get(0)).getOperands().size());
+        // -1 means total - 1 = 3 - 1 = 2 required → enumerated form: OR of C(3,2)=3 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(3, call.getOperands().size());
+        for (RexNode operand : call.getOperands()) {
+            assertTrue(operand instanceof RexCall);
+            assertEquals(SqlKind.AND, ((RexCall) operand).getKind());
+            assertEquals(2, ((RexCall) operand).getOperands().size());
+        }
     }
 
     // minimum_should_match: Non-negative percentage
@@ -131,9 +138,9 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // 70% of 4 = 2.8, floor = 2 required → conjoined form AND(OR, GTE)
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // 70% of 4 = 2.8, floor = 2 required → enumerated form: OR of C(4,2)=6 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(6, call.getOperands().size());
     }
 
     public void testMinimumShouldMatchPercentage50() throws ConversionException {
@@ -149,9 +156,9 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // 50% of 4 = 2 required → conjoined form AND(OR, GTE)
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // 50% of 4 = 2 required → enumerated form: OR of C(4,2)=6 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(6, call.getOperands().size());
     }
 
     // minimum_should_match: Negative percentage
@@ -169,9 +176,14 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // -30% means can miss 30% = 1.2, floor = 1, so 4 - 1 = 3 required → conjoined form
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // -30% means can miss 30% = 1.2, floor = 1, so 4 - 1 = 3 required → enumerated form: OR of C(4,3)=4 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(4, call.getOperands().size());
+        for (RexNode operand : call.getOperands()) {
+            assertTrue(operand instanceof RexCall);
+            assertEquals(SqlKind.AND, ((RexCall) operand).getKind());
+            assertEquals(3, ((RexCall) operand).getOperands().size());
+        }
     }
 
     // minimum_should_match: Single combination
@@ -188,7 +200,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // total = 2, so should match all (2)
+        // total = 2, so should match all (2) → AND
         assertEquals(SqlKind.AND, call.getKind());
     }
 
@@ -205,9 +217,9 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // total = 4 > 2, so 75% of 4 = 3 required → conjoined form
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // total = 4 > 2, so 75% of 4 = 3 required → enumerated form: OR of C(4,3)=4 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(4, call.getOperands().size());
     }
 
     // minimum_should_match: Multiple combinations
@@ -229,9 +241,9 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // total = 4, which is 3 < 4 <= 5, so -1 = 4 - 1 = 3 required → conjoined form
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // total = 4, which is 3 < 4 <= 5, so -1 = 4 - 1 = 3 required → enumerated form: OR of C(4,3)=4 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(4, call.getOperands().size());
     }
 
     public void testMinimumShouldMatchMultipleCombinationsWithSixClauses() throws ConversionException {
@@ -249,9 +261,9 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
-        // total = 6 > 5, so 50% of 6 = 3 required → conjoined form
-        assertEquals(SqlKind.AND, call.getKind());
-        assertEquals(2, call.getOperands().size());
+        // total = 6 > 5, so 50% of 6 = 3 required → enumerated form: OR of C(6,3)=20 ANDs
+        assertEquals(SqlKind.OR, call.getKind());
+        assertEquals(20, call.getOperands().size());
     }
 
     // Edge cases
@@ -448,65 +460,63 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
     // --- Combination cap tests ---
 
-    public void testLargeClauseCountConvertsWithConjoinedForm() throws ConversionException {
-        // 20 should clauses with MSM="10" — previously rejected by combination cap.
-        // Must now succeed and emit AND(OR(all), GTE(PLUS chain of CASE, k)).
+    public void testCombinationCapExceededThrowsConversionException() {
+        // C(20,10) = 184756, far exceeds MAX_COMBINATIONS=1024 → must throw ConversionException.
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         for (int i = 0; i < 20; i++) {
             query.should(QueryBuilders.termQuery("name", "val" + i));
         }
         query.minimumShouldMatch("10");
 
-        RexNode result = translator.convert(query, ctx);
-        assertTrue("Must produce AND", result instanceof RexCall);
-        RexCall and = (RexCall) result;
-        assertEquals(SqlKind.AND, and.getKind());
-        assertEquals("AND must have exactly 2 children (OR pruning hint + GTE counting)", 2, and.getOperands().size());
-
-        // First child: OR of all 20 conditions
-        RexNode orChild = and.getOperands().get(0);
-        assertTrue("First conjunct must be OR", orChild instanceof RexCall);
-        assertEquals(SqlKind.OR, ((RexCall) orChild).getKind());
-        assertEquals(20, ((RexCall) orChild).getOperands().size());
-
-        // Second child: GTE comparison
-        RexNode gteChild = and.getOperands().get(1);
-        assertTrue("Second conjunct must be GTE", gteChild instanceof RexCall);
-        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, ((RexCall) gteChild).getKind());
-
-        // CASE leaf count must be linear in clause count (exactly 20 CASE nodes)
-        int caseCount = countNodes(gteChild, SqlKind.CASE);
-        assertEquals("CASE leaf count must equal clause count", 20, caseCount);
+        ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
+        assertTrue("Message must mention clause count", ex.getMessage().contains("20"));
+        assertTrue("Message must mention required count", ex.getMessage().contains("10"));
+        assertTrue("Message must mention exceeds limit", ex.getMessage().toLowerCase().contains("exceed"));
     }
 
-    public void testVeryLargeClauseCountConvertsWithConjoinedForm() throws ConversionException {
-        // C(15,7) = 6435 — previously rejected. Must now convert with linear expression.
+    public void testVeryLargeCombinationCapExceededThrowsConversionException() {
+        // C(15,7) = 6435 > 1024 → must throw ConversionException.
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         for (int i = 0; i < 15; i++) {
             query.should(QueryBuilders.termQuery("name", "val" + i));
         }
         query.minimumShouldMatch("7");
 
-        RexNode result = translator.convert(query, ctx);
-        assertTrue("Must produce AND", result instanceof RexCall);
-        RexCall and = (RexCall) result;
-        assertEquals(SqlKind.AND, and.getKind());
-        assertEquals(2, and.getOperands().size());
-
-        // OR child has 15 predicates
-        RexNode orChild = and.getOperands().get(0);
-        assertTrue(orChild instanceof RexCall);
-        assertEquals(SqlKind.OR, ((RexCall) orChild).getKind());
-        assertEquals(15, ((RexCall) orChild).getOperands().size());
-
-        // GTE child with 15 CASE leaves
-        RexNode gteChild = and.getOperands().get(1);
-        assertTrue(gteChild instanceof RexCall);
-        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, ((RexCall) gteChild).getKind());
-        assertEquals(15, countNodes(gteChild, SqlKind.CASE));
+        ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
+        assertTrue("Message must mention clause count", ex.getMessage().contains("15"));
+        assertTrue("Message must mention required count", ex.getMessage().contains("7"));
     }
 
-    public void testConjoinedFormTruthTableEquivalence() throws ConversionException {
+    public void testCombinationCapBoundaryJustBelowConvertsSuccessfully() throws ConversionException {
+        // C(32,2) = 496 <= 1024 → must convert successfully with enumerated form.
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (int i = 0; i < 32; i++) {
+            query.should(QueryBuilders.termQuery("name", "val" + i));
+        }
+        query.minimumShouldMatch("2");
+
+        RexNode result = translator.convert(query, ctx);
+        assertTrue("Must produce OR", result instanceof RexCall);
+        RexCall or = (RexCall) result;
+        assertEquals(SqlKind.OR, or.getKind());
+        // C(32,2) = 496 subsets
+        assertEquals(496, or.getOperands().size());
+    }
+
+    public void testCombinationCapBoundaryJustAboveThrows() {
+        // C(46,2) = 1035 > 1024 → must throw ConversionException.
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (int i = 0; i < 46; i++) {
+            query.should(QueryBuilders.termQuery("name", "val" + i));
+        }
+        query.minimumShouldMatch("2");
+
+        ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
+        assertTrue("Message must mention clause count", ex.getMessage().contains("46"));
+        assertTrue("Message must mention required count", ex.getMessage().contains("2"));
+    }
+
+    public void testEnumeratedFormTruthTableEquivalence() throws ConversionException {
         // For n=4 clauses, verify every truth assignment for k in [2, 3]:
         // the expression is true iff at least k predicates are true.
         for (int required = 2; required <= 3; required++) {
@@ -517,53 +527,23 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
             query.minimumShouldMatch(String.valueOf(required));
 
             RexNode result = translator.convert(query, ctx);
-            assertTrue("Must produce AND for k=" + required, result instanceof RexCall);
-            RexCall and = (RexCall) result;
-            assertEquals(SqlKind.AND, and.getKind());
+            assertTrue("Must produce OR for k=" + required, result instanceof RexCall);
+            RexCall or = (RexCall) result;
+            assertEquals(SqlKind.OR, or.getKind());
 
             // Evaluate against all 2^4 = 16 truth assignments
             for (int mask = 0; mask < 16; mask++) {
                 int trueCount = Integer.bitCount(mask);
                 boolean expected = trueCount >= required;
-                boolean actual = evaluateConjoinedForm(and, mask, 4);
+                boolean actual = evaluateEnumeratedForm(or, mask, 4);
                 assertEquals("k=" + required + " mask=" + Integer.toBinaryString(mask) + " trueCount=" + trueCount, expected, actual);
             }
         }
     }
 
-    public void testConjoinedFormNullConditionContributesZero() throws ConversionException {
-        // When a should clause converts to null (e.g. unsupported inner query),
-        // it should not count toward the required matches.
-        // With 3 clauses where one is effectively null after conversion,
-        // and required=2, only 2 non-null conditions remain — which equals required,
-        // so it should produce AND (all-must-match) for the non-null clauses.
-        BoolQueryBuilder query = QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery("name", "a"))
-            .should(QueryBuilders.termQuery("name", "b"))
-            .should(QueryBuilders.termQuery("name", "c"))
-            .minimumShouldMatch("2");
-
-        // This exercises the path where all 3 convert successfully and required < size.
-        // The null-condition behavior is tested by verifying that CASE WHEN null THEN 1 ELSE 0
-        // evaluates to 0 via the truth-table test (mask with bit=0 means predicate is false/null).
-        RexNode result = translator.convert(query, ctx);
-        assertTrue(result instanceof RexCall);
-        RexCall and = (RexCall) result;
-        assertEquals(SqlKind.AND, and.getKind());
-
-        // The GTE child's CASE uses the predicate as condition — null predicate → ELSE 0
-        RexNode gteChild = and.getOperands().get(1);
-        assertTrue(gteChild instanceof RexCall);
-        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, ((RexCall) gteChild).getKind());
-        // k literal must be INTEGER 2
-        RexNode kLiteral = ((RexCall) gteChild).getOperands().get(1);
-        assertTrue("k must be a literal", kLiteral instanceof RexLiteral);
-        assertEquals("k must be INTEGER typed", SqlTypeName.INTEGER, ((RexLiteral) kLiteral).getType().getSqlTypeName());
-    }
-
-    public void testConjoinedFormOrConjunctSurvivesPlanning() throws ConversionException {
-        // Safeguard: the OR conjunct must be present in the AND. If a future Calcite
-        // simplification removes it (detecting the implication), this test fails loudly.
+    public void testEnumeratedFormNullConditionContributesZero() throws ConversionException {
+        // With 3 clauses where required=2, the enumerated form produces OR of C(3,2)=3 ANDs.
+        // Each AND has 2 children. Verify structure.
         BoolQueryBuilder query = QueryBuilders.boolQuery()
             .should(QueryBuilders.termQuery("name", "a"))
             .should(QueryBuilders.termQuery("name", "b"))
@@ -572,17 +552,21 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
         RexNode result = translator.convert(query, ctx);
         assertTrue(result instanceof RexCall);
-        RexCall and = (RexCall) result;
-        assertEquals(SqlKind.AND, and.getKind());
+        RexCall or = (RexCall) result;
+        assertEquals(SqlKind.OR, or.getKind());
+        assertEquals(3, or.getOperands().size());
 
-        // Assert the OR conjunct is the first operand and has the right shape
-        RexNode firstChild = and.getOperands().get(0);
-        assertTrue("OR pruning hint must survive as first AND child", firstChild instanceof RexCall);
-        assertEquals("First child must be OR", SqlKind.OR, ((RexCall) firstChild).getKind());
-        assertEquals("OR must contain all should conditions", 3, ((RexCall) firstChild).getOperands().size());
-
-        // Assert flatness of the outer AND
-        assertTrue("Outer expression must be flat", RexUtil.isFlat(result));
+        // Each OR operand is AND with 2 EQUALS children
+        for (RexNode operand : or.getOperands()) {
+            assertTrue(operand instanceof RexCall);
+            RexCall andCall = (RexCall) operand;
+            assertEquals(SqlKind.AND, andCall.getKind());
+            assertEquals(2, andCall.getOperands().size());
+            for (RexNode child : andCall.getOperands()) {
+                assertTrue(child instanceof RexCall);
+                assertEquals(SqlKind.EQUALS, ((RexCall) child).getKind());
+            }
+        }
     }
 
     // --- MSM exceeding should-count: legacy matches nothing (witnessed via
@@ -951,11 +935,10 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         assertFalse("Boolean literal must be FALSE", lit2.getValueAs(Boolean.class));
     }
 
-    public void testBoolMinimumShouldMatchMixedTypesConjoinedFormPreservesTypes() throws ConversionException {
+    public void testBoolMinimumShouldMatchMixedTypesEnumeratedFormPreservesTypes() throws ConversionException {
         // Mixed should clauses (string + numeric + boolean) under minimum_should_match=2
         // with 3 clauses. Required count (2) is strictly between 1 and clause count (3).
-        // Asserts: AND(OR(...), GTE(...)) form, CASE leaf count == 3, and each clause's
-        // typed literal survives in the OR conjunct.
+        // Asserts: OR of C(3,2)=3 ANDs, each AND has 2 children preserving typed literals.
         RexNode result = translator.convert(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.termQuery("name", "tablet"))
@@ -966,81 +949,127 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         );
 
         assertTrue(result instanceof RexCall);
-        RexCall and = (RexCall) result;
-        assertEquals(SqlKind.AND, and.getKind());
-        assertEquals("Conjoined form must have exactly 2 conjuncts", 2, and.getOperands().size());
-
-        // First conjunct: OR of all 3 typed conditions
-        RexCall or = (RexCall) and.getOperands().get(0);
+        RexCall or = (RexCall) result;
         assertEquals(SqlKind.OR, or.getKind());
-        assertEquals(3, or.getOperands().size());
+        assertEquals("Enumerated form must have C(3,2)=3 subsets", 3, or.getOperands().size());
 
-        // Verify each OR operand preserves its typed literal value
-        // OR operand 0: name = 'tablet' (VARCHAR)
-        RexCall shouldEq0 = (RexCall) or.getOperands().get(0);
-        assertEquals(SqlKind.EQUALS, shouldEq0.getKind());
-        assertEquals(0, ((RexInputRef) shouldEq0.getOperands().get(0)).getIndex());
-        RexLiteral shouldLit0 = (RexLiteral) ((RexCall) shouldEq0.getOperands().get(1)).getOperands().get(0);
-        assertEquals("tablet", shouldLit0.getValueAs(String.class));
+        // Each OR operand is an AND of 2 typed conditions
+        for (RexNode operand : or.getOperands()) {
+            assertTrue(operand instanceof RexCall);
+            RexCall andCall = (RexCall) operand;
+            assertEquals(SqlKind.AND, andCall.getKind());
+            assertEquals(2, andCall.getOperands().size());
+        }
 
-        // OR operand 1: price = 500 (INTEGER)
-        RexCall shouldEq1 = (RexCall) or.getOperands().get(1);
-        assertEquals(SqlKind.EQUALS, shouldEq1.getKind());
-        assertEquals(1, ((RexInputRef) shouldEq1.getOperands().get(0)).getIndex());
-        RexLiteral shouldLit1 = (RexLiteral) ((RexCall) shouldEq1.getOperands().get(1)).getOperands().get(0);
-        assertEquals(Integer.valueOf(500), shouldLit1.getValueAs(Integer.class));
+        // First subset: AND(name='tablet', price=500) — indices 0,1
+        RexCall and0 = (RexCall) or.getOperands().get(0);
+        RexCall subEq0 = (RexCall) and0.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, subEq0.getKind());
+        assertEquals(0, ((RexInputRef) subEq0.getOperands().get(0)).getIndex());
+        RexLiteral subLit0 = (RexLiteral) ((RexCall) subEq0.getOperands().get(1)).getOperands().get(0);
+        assertEquals("tablet", subLit0.getValueAs(String.class));
 
-        // OR operand 2: is_active = true (BOOLEAN)
-        RexCall shouldEq2 = (RexCall) or.getOperands().get(2);
-        assertEquals(SqlKind.EQUALS, shouldEq2.getKind());
-        assertEquals(5, ((RexInputRef) shouldEq2.getOperands().get(0)).getIndex());
-        RexLiteral shouldLit2 = (RexLiteral) ((RexCall) shouldEq2.getOperands().get(1)).getOperands().get(0);
-        assertTrue("Boolean literal must be TRUE", shouldLit2.getValueAs(Boolean.class));
+        RexCall subEq1 = (RexCall) and0.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, subEq1.getKind());
+        assertEquals(1, ((RexInputRef) subEq1.getOperands().get(0)).getIndex());
+        RexLiteral subLit1 = (RexLiteral) ((RexCall) subEq1.getOperands().get(1)).getOperands().get(0);
+        assertEquals(Integer.valueOf(500), subLit1.getValueAs(Integer.class));
 
-        // Second conjunct: GTE with CASE leaf count == clause count (3)
-        RexCall gte = (RexCall) and.getOperands().get(1);
-        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, gte.getKind());
-        int caseCount = countNodes(gte, SqlKind.CASE);
-        assertEquals("CASE leaf count must equal clause count (type-agnostic conjoined form)", 3, caseCount);
+        // Last subset: AND(price=500, is_active=true) — indices 1,5
+        RexCall and2 = (RexCall) or.getOperands().get(2);
+        RexCall subEq2 = (RexCall) and2.getOperands().get(0);
+        assertEquals(SqlKind.EQUALS, subEq2.getKind());
+        assertEquals(1, ((RexInputRef) subEq2.getOperands().get(0)).getIndex());
+
+        RexCall subEq3 = (RexCall) and2.getOperands().get(1);
+        assertEquals(SqlKind.EQUALS, subEq3.getKind());
+        assertEquals(5, ((RexInputRef) subEq3.getOperands().get(0)).getIndex());
+        RexLiteral subLit3 = (RexLiteral) ((RexCall) subEq3.getOperands().get(1)).getOperands().get(0);
+        assertTrue("Boolean literal must be TRUE", subLit3.getValueAs(Boolean.class));
     }
 
-    // --- Helper methods for conjoined-form tests ---
+    // --- Enumerated form flattening: nested bool children must not produce nested AND ---
 
-    /** Counts nodes of a given SqlKind in the expression tree recursively. */
-    private int countNodes(RexNode node, SqlKind kind) {
-        int count = 0;
-        if (node instanceof RexCall) {
-            RexCall call = (RexCall) node;
-            if (call.getKind() == kind) {
-                count++;
-            }
-            for (RexNode operand : call.getOperands()) {
-                count += countNodes(operand, kind);
+    public void testEnumeratedFormFlattensNestedBoolChildren() throws ConversionException {
+        // A should-child that is itself a bool with two must-clauses converts to an AND node.
+        // When that child appears in a k-subset AND, the result must be flat — no AND operand
+        // is itself an AND call.
+        // Setup: 3 should-children, required=2, one child is bool(must:[term,term]) → AND node.
+        RexNode result = translator.convert(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("name", "a")).must(QueryBuilders.termQuery("brand", "b")))
+                .should(QueryBuilders.termQuery("name", "c"))
+                .should(QueryBuilders.termQuery("name", "d"))
+                .minimumShouldMatch("2"),
+            ctx
+        );
+
+        assertTrue(result instanceof RexCall);
+        RexCall or = (RexCall) result;
+        assertEquals(SqlKind.OR, or.getKind());
+        // C(3,2) = 3 subsets
+        assertEquals(3, or.getOperands().size());
+
+        // Every subset AND must be flat: no operand is itself an AND
+        for (RexNode subset : or.getOperands()) {
+            assertTrue("Each subset must be an AND or a leaf", subset instanceof RexCall);
+            RexCall subsetCall = (RexCall) subset;
+            if (subsetCall.getKind() == SqlKind.AND) {
+                for (RexNode operand : subsetCall.getOperands()) {
+                    if (operand instanceof RexCall) {
+                        assertNotEquals(
+                            "AND operand must not be a nested AND (flat invariant violated)",
+                            SqlKind.AND,
+                            ((RexCall) operand).getKind()
+                        );
+                    }
+                }
             }
         }
-        return count;
+        // Additionally, the entire expression must satisfy Calcite's isFlat check
+        assertTrue("Enumerated form with nested bool children must be flat", RexUtil.isFlat(result));
+    }
+
+    // --- Helper methods for enumerated-form tests ---
+
+    /**
+     * Evaluates the enumerated form OR(AND(subset1), AND(subset2), ...) against a truth mask.
+     * Bit i of mask indicates whether predicate i is true.
+     * An AND-subset is true iff all its members are true.
+     * The OR is true iff any AND-subset is true.
+     */
+    private boolean evaluateEnumeratedForm(RexCall or, int mask, int n) {
+        for (RexNode operand : or.getOperands()) {
+            RexCall andCall = (RexCall) operand;
+            boolean allTrue = true;
+            for (RexNode child : andCall.getOperands()) {
+                // Each child is an EQUALS on an input ref — the ref index identifies the predicate
+                int idx = getPredicateIndex(child, n);
+                if ((mask & (1 << idx)) == 0) {
+                    allTrue = false;
+                    break;
+                }
+            }
+            if (allTrue) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
-     * Evaluates the conjoined form AND(OR(p1..pn), GTE(PLUS(CASE...), k)) against a truth mask.
-     * Bit i of mask indicates whether predicate i is true. Uses structural reduction.
+     * Extracts the predicate index from an EQUALS node by looking at the RexLiteral value.
+     * Test predicates are termQuery("name", "val0"), termQuery("name", "val1"), etc.
+     * Since all use the same field, we identify them by their literal value suffix.
      */
-    private boolean evaluateConjoinedForm(RexCall and, int mask, int n) {
-        // OR child: true iff any bit is set
-        boolean orResult = false;
-        for (int i = 0; i < n; i++) {
-            if ((mask & (1 << i)) != 0) {
-                orResult = true;
-                break;
-            }
-        }
-
-        // GTE child: count of true predicates >= k
-        RexCall gte = (RexCall) and.getOperands().get(1);
-        RexLiteral kLiteral = (RexLiteral) gte.getOperands().get(1);
-        int k = ((Number) kLiteral.getValue()).intValue();
-        int trueCount = Integer.bitCount(mask);
-
-        return orResult && trueCount >= k;
+    private int getPredicateIndex(RexNode node, int n) {
+        // All predicates are EQUALS(field_ref, CAST(literal)) on the same field "name" (index 0).
+        // The literal values are "val0", "val1", ..., "val(n-1)".
+        RexCall eq = (RexCall) node;
+        RexCall cast = (RexCall) eq.getOperands().get(1);
+        RexLiteral literal = (RexLiteral) cast.getOperands().get(0);
+        String val = literal.getValueAs(String.class);
+        // Extract numeric suffix from "valN"
+        return Integer.parseInt(val.substring(3));
     }
 }

@@ -21,7 +21,7 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(OR(=($0, CAST('laptop':VARCHAR):VARCHAR), =($2, CAST('BrandA':VARCHAR):VARCHAR), IS NOT NULL($3)), >=(+(+(CASE(=($0, CAST('laptop':VARCHAR):VARCHAR), 1, 0), CASE(=($2, CAST('BrandA':VARCHAR):VARCHAR), 1, 0)), CASE(IS NOT NULL($3), 1, 0)), 2))])",
+    "LogicalFilter(condition=[OR(AND(=($0, CAST('laptop':VARCHAR):VARCHAR), =($2, CAST('BrandA':VARCHAR):VARCHAR)), AND(=($0, CAST('laptop':VARCHAR):VARCHAR), IS NOT NULL($3)), AND(=($2, CAST('BrandA':VARCHAR):VARCHAR), IS NOT NULL($3)))])",
     "  LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price", "brand", "rating"],

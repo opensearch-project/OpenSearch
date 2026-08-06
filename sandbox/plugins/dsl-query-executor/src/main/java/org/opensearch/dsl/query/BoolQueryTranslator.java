@@ -11,7 +11,6 @@ package org.opensearch.dsl.query;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -28,15 +27,25 @@ import java.util.List;
  * must_not (IS_NOT_TRUE with double-negation elimination). Flattens nested AND/OR to satisfy
  * Calcite's RexUtil.isFlat requirement.
  *
- * <p>For minimum_should_match with 1 less-than k less-than n, emits the conjoined form
- * AND(OR(p1..pn), GTE(left-deep PLUS chain of CASE(pi, 1, 0), k)) which provides
- * linear expression size and preserves page pruning via the OR conjunct.
+ * <p>For minimum_should_match with 1 less-than k less-than n, emits the enumerated form:
+ * OR over every k-sized subset of the should-children, where each subset is an AND of its
+ * members. This keeps every child in its own AND/OR-delimited leaf so mixed native and
+ * Lucene-delegated children both resolve a backend in OpenSearchFilterRule.
  *
  * <p>Rejects non-default boost (AbstractQueryBuilder.toQuery wraps in BoostQuery),
  * non-null _name (AbstractQueryBuilder.toQuery registers for matched_queries), and
  * returns FALSE literal for pure-negative bools with adjust_pure_negative=false (legacy match-none).
  */
 public class BoolQueryTranslator implements QueryTranslator {
+
+    /**
+     * Maximum number of k-sized subsets allowed before throwing ConversionException.
+     * Exceeding this cap signals that the request should fall back to the codec path
+     * (PR #22597 catches ConversionException to trigger that fallback).
+     * Note: total expression node count scales as C(n,k) × k × child-size, so a large nested
+     * child can still produce a big expression even when the combination count is under the cap.
+     */
+    private static final int MAX_COMBINATIONS = 1024;
 
     private final QueryRegistry queryRegistry;
 
@@ -204,45 +213,94 @@ public class BoolQueryTranslator implements QueryTranslator {
     }
 
     /**
-     * Creates the conjoined form for minimum_should_match when 1 less-than required less-than n.
-     * Emits AND(OR(p1..pn), GTE(left-deep PLUS chain of CASE(pi, 1, 0), k)).
+     * Creates the enumerated form for minimum_should_match when 1 less-than required less-than n.
+     * Emits OR over every k-sized subset of the should-children, where each subset is AND of its members.
      *
-     * <p>The OR conjunct is logically redundant (implied by GTE when k is at least 1) but exists
-     * so the analytics backend page pruner sees column-vs-constant comparison leaves. AND
-     * intersects per-child pruning bitmaps, so the opaque counting sibling contributes all-true
-     * and does not disable the OR child's pruning.
+     * @throws ConversionException if the combination count C(n,k) exceeds MAX_COMBINATIONS
      */
-    private RexNode createMinimumMatchCondition(List<RexNode> conditions, int required, ConversionContext ctx) {
-        var rexBuilder = ctx.getRexBuilder();
-        var typeFactory = rexBuilder.getTypeFactory();
-        var intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+    private RexNode createMinimumMatchCondition(List<RexNode> conditions, int required, ConversionContext ctx) throws ConversionException {
+        int n = conditions.size();
+        int k = required;
 
-        RexNode one = rexBuilder.makeLiteral(1, intType);
-        RexNode zero = rexBuilder.makeLiteral(0, intType);
-        RexNode kLiteral = rexBuilder.makeLiteral(required, intType);
-
-        // Build left-deep PLUS chain of CASE(pi, 1, 0)
-        RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.CASE, conditions.get(0), one, zero);
-        for (int i = 1; i < conditions.size(); i++) {
-            RexNode caseExpr = rexBuilder.makeCall(SqlStdOperatorTable.CASE, conditions.get(i), one, zero);
-            sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, sum, caseExpr);
+        // Check combination cap before building
+        long combinations = computeCombinationsCapped(n, k);
+        if (combinations > MAX_COMBINATIONS) {
+            throw new ConversionException(
+                "minimum_should_match combination count exceeds limit: C(" + n + ", " + k + ") exceeds maximum " + MAX_COMBINATIONS
+            );
         }
 
-        // GTE comparison: sum >= k
-        RexNode gteExpr = rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, sum, kLiteral);
+        var rexBuilder = ctx.getRexBuilder();
 
-        // OR pruning hint — redundant but enables page pruning via column-vs-constant leaves.
-        // WHY: AND intersects per-child pruning bitmaps in the analytics backend page pruner
-        // (page_pruner.rs:704-711). The counting child becomes an opaque all-true vector, so
-        // only the OR child's leaf predicates drive pruning. Without the OR, no pruning occurs.
-        List<RexNode> flatOr = flattenConditions(conditions, SqlStdOperatorTable.OR);
-        RexNode orConjunct = flatOr.size() == 1 ? flatOr.get(0) : rexBuilder.makeCall(SqlStdOperatorTable.OR, flatOr);
+        // Enumerate all k-sized subsets in lexicographic order by index
+        List<RexNode> subsets = new ArrayList<>((int) combinations);
+        int[] indices = new int[k];
+        for (int i = 0; i < k; i++) {
+            indices[i] = i;
+        }
 
-        // Outer AND must be flat (no nested AND children)
-        List<RexNode> andChildren = new ArrayList<>(2);
-        andChildren.add(orConjunct);
-        andChildren.add(gteExpr);
-        List<RexNode> flatAnd = flattenConditions(andChildren, SqlStdOperatorTable.AND);
-        return rexBuilder.makeCall(SqlStdOperatorTable.AND, flatAnd);
+        while (true) {
+            // Build AND of the current subset, flattening any child that is itself an AND
+            List<RexNode> andChildren = new ArrayList<>(k);
+            for (int idx : indices) {
+                andChildren.add(conditions.get(idx));
+            }
+            List<RexNode> flatAnd = flattenConditions(andChildren, SqlStdOperatorTable.AND);
+            RexNode andNode = flatAnd.size() == 1 ? flatAnd.get(0) : rexBuilder.makeCall(SqlStdOperatorTable.AND, flatAnd);
+            subsets.add(andNode);
+
+            // Advance to next k-subset in lexicographic order
+            if (!nextCombination(indices, n)) {
+                break;
+            }
+        }
+
+        // Flatten nested ORs to satisfy Calcite's RexUtil.isFlat requirement
+        List<RexNode> flatOr = flattenConditions(subsets, SqlStdOperatorTable.OR);
+        return flatOr.size() == 1 ? flatOr.get(0) : rexBuilder.makeCall(SqlStdOperatorTable.OR, flatOr);
+    }
+
+    /**
+     * Advances the combination indices to the next k-subset in lexicographic order.
+     *
+     * @return true if advanced successfully, false if exhausted
+     */
+    private boolean nextCombination(int[] indices, int n) {
+        int k = indices.length;
+        // Find the rightmost index that can be incremented
+        int i = k - 1;
+        while (i >= 0 && indices[i] == n - k + i) {
+            i--;
+        }
+        if (i < 0) {
+            return false;
+        }
+        indices[i]++;
+        for (int j = i + 1; j < k; j++) {
+            indices[j] = indices[j - 1] + 1;
+        }
+        return true;
+    }
+
+    /**
+     * Computes C(n,k) using an overflow-safe incremental algorithm that bails out early
+     * if the running value exceeds MAX_COMBINATIONS. Never computes a full binomial that
+     * could overflow long.
+     *
+     * @return the exact value if within range, or a value exceeding MAX_COMBINATIONS if the cap is exceeded
+     */
+    private long computeCombinationsCapped(int n, int k) {
+        // Use symmetry: C(n,k) = C(n, n-k)
+        if (k > n - k) {
+            k = n - k;
+        }
+        long result = 1;
+        for (int i = 0; i < k; i++) {
+            result = result * (n - i) / (i + 1);
+            if (result > MAX_COMBINATIONS) {
+                return result; // Early bail — already exceeds cap
+            }
+        }
+        return result;
     }
 }
