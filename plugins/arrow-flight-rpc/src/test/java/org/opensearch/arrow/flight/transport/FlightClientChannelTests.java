@@ -263,7 +263,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         CountDownLatch consumerHoldingStream = new CountDownLatch(1);
         CountDownLatch releaseConsumer = new CountDownLatch(1);
-        AtomicBoolean consumerClosedStream = new AtomicBoolean();
+        CountDownLatch consumerDone = new CountDownLatch(1);
 
         // A long timeout: if the wait ever expires, that is a failure rather than a slow pass.
         FlightTransportConfig config = new FlightTransportConfig();
@@ -274,7 +274,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             consumerHoldingStream.countDown();
             assertTrue("test must release the consumer", releaseConsumer.await(TIMEOUT_SEC, TimeUnit.SECONDS));
             streamResponse.close();
-            consumerClosedStream.set(true);
+            consumerDone.countDown();
         }));
 
         assertTrue("consumer must take the stream", consumerHoldingStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
@@ -290,7 +290,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         releaseConsumer.countDown();
         closer.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC));
         assertFalse("close must return once the stream is released", closer.isAlive());
-        assertTrue(consumerClosedStream.get());
+        assertTrue("consumer must finish", consumerDone.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         verify(stream, times(1)).close();
     }
 
