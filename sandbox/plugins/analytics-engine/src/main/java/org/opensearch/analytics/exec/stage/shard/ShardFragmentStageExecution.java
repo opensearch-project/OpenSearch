@@ -115,7 +115,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         try {
             filterBytes = hasFilters ? CanMatchFilterSerializer.serialize(filters) : null;
         } catch (Exception e) {
-            logger.debug("can-match: filter serialization failed, skipping prune: {}", e.getMessage());
+            logger.error("can-match: filter serialization failed, skipping prune:", e);
             listener.onResponse(buildTasks(resolved));
             return;
         }

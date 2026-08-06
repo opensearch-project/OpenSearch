@@ -121,14 +121,14 @@ final class ParquetRangeEvaluator {
                 try {
                     bounds = NativeBridge.shardSortBounds(runtimePtr, shardViewPtr, sortColumn);
                 } catch (Exception e) {
-                    logger.debug("can-match: sort-bounds fold failed for column {} (fail-open): {}", sortColumn, e.getMessage());
+                    logger.error("can-match: sort-bounds fold failed for column {} (fail-open):", sortColumn, e);
                     return CanMatchResult.unavailable();
                 }
                 // null means the column has no usable range — a real answer, not a failure.
                 return CanMatchResult.matched(bounds);
             }
         } catch (Exception e) {
-            logger.debug("can-match evaluation failed, returning true (fail-open): {}", e.getMessage());
+            logger.error("can-match evaluation failed, returning true (fail-open):", e);
             return CanMatchResult.unavailable();
         }
     }
