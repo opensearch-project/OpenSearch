@@ -37,10 +37,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -322,6 +325,30 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         nss.applySettings(newSettings);
 
         assertFalse(diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled());
+    }
+
+    public void testIndexReadBlockAutoReleaseExcludePatternsDefault() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        List<String> patterns = diskThresholdSettings.getIndexReadBlockAutoReleaseExcludePatterns();
+        assertThat(patterns, hasSize(1));
+        assertThat(patterns.get(0), equalTo(".*"));
+    }
+
+    public void testIndexReadBlockAutoReleaseExcludePatternsUpdate() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        Settings newSettings = Settings.builder()
+            .putList(DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE_EXCLUDE_PATTERNS.getKey(), ".*", ".opensearch-*")
+            .build();
+        nss.applySettings(newSettings);
+
+        List<String> patterns = diskThresholdSettings.getIndexReadBlockAutoReleaseExcludePatterns();
+        assertThat(patterns, hasSize(2));
+        assertThat(patterns, hasItem(".*"));
+        assertThat(patterns, hasItem(".opensearch-*"));
     }
 
 }

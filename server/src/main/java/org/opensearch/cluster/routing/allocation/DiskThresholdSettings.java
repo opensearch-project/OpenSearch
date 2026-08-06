@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
@@ -126,6 +127,20 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /**
+     * A list of index name patterns for which read blocks are always auto-released,
+     * even when {@link #INDEX_READ_BLOCK_AUTO_RELEASE} is set to {@code false}.
+     * This protects system indices from getting stuck in read-only state when operators
+     * disable auto-release for user indices. Uses OpenSearch simple wildcard matching.
+     * Defaults to {@code [".*"]} (all dot-prefixed indices).
+     */
+    public static final Setting<List<String>> INDEX_READ_BLOCK_AUTO_RELEASE_EXCLUDE_PATTERNS = Setting.listSetting(
+        "cluster.blocks.read.auto_release.exclude_patterns",
+        List.of(".*"),
+        Function.identity(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -136,6 +151,7 @@ public class DiskThresholdSettings {
     private volatile boolean includeRelocations;
     private volatile boolean createIndexBlockAutoReleaseEnabled;
     private volatile boolean indexReadBlockAutoReleaseEnabled;
+    private volatile List<String> indexReadBlockAutoReleaseExcludePatterns;
     private volatile boolean enabled;
     private volatile boolean warmThresholdEnabled;
     private volatile TimeValue rerouteInterval;
@@ -167,6 +183,7 @@ public class DiskThresholdSettings {
         this.warmThresholdEnabled = CLUSTER_ROUTING_ALLOCATION_WARM_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.createIndexBlockAutoReleaseEnabled = CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.get(settings);
         this.indexReadBlockAutoReleaseEnabled = INDEX_READ_BLOCK_AUTO_RELEASE.get(settings);
+        this.indexReadBlockAutoReleaseExcludePatterns = INDEX_READ_BLOCK_AUTO_RELEASE_EXCLUDE_PATTERNS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
@@ -179,6 +196,10 @@ public class DiskThresholdSettings {
         );
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE, this::setCreateIndexBlockAutoReleaseEnabled);
         clusterSettings.addSettingsUpdateConsumer(INDEX_READ_BLOCK_AUTO_RELEASE, this::setIndexReadBlockAutoReleaseEnabled);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDEX_READ_BLOCK_AUTO_RELEASE_EXCLUDE_PATTERNS,
+            this::setIndexReadBlockAutoReleaseExcludePatterns
+        );
     }
 
     /**
@@ -384,6 +405,10 @@ public class DiskThresholdSettings {
         this.indexReadBlockAutoReleaseEnabled = indexReadBlockAutoReleaseEnabled;
     }
 
+    private void setIndexReadBlockAutoReleaseExcludePatterns(List<String> patterns) {
+        this.indexReadBlockAutoReleaseExcludePatterns = patterns;
+    }
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -449,6 +474,15 @@ public class DiskThresholdSettings {
      */
     public boolean isIndexReadBlockAutoReleaseEnabled() {
         return indexReadBlockAutoReleaseEnabled;
+    }
+
+    /**
+     * Returns the list of index name patterns that are excluded from read block auto-release disablement.
+     * Indices matching any of these patterns will always have their read blocks auto-released,
+     * even when {@link #isIndexReadBlockAutoReleaseEnabled()} returns {@code false}.
+     */
+    public List<String> getIndexReadBlockAutoReleaseExcludePatterns() {
+        return indexReadBlockAutoReleaseExcludePatterns;
     }
 
     String describeLowThreshold() {
