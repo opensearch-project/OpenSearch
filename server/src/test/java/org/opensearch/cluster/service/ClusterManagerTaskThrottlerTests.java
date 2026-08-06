@@ -637,34 +637,64 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that every ClusterManagerTask enum value can be registered without error.
-     * This guards against the scenario where a task key exists in the enum (and may be
-     * persisted in cluster state) but is never registered at runtime — causing
-     * validateSetting() to throw IllegalArgumentException during cluster state restoration.
+     * Verifies that validateSetting() gracefully handles a key that exists in the ClusterManagerTask
+     * enum but is not registered in THROTTLING_TASK_KEYS. This simulates the scenario where a
+     * refactor removes a registerClusterManagerTask() call but the key remains persisted in cluster
+     * state from prior versions. Instead of a fatal IllegalArgumentException, the method should
+     * log a warning and skip validation for that key.
      */
-    public void testAllEnumTasksCanBeRegistered() {
+    public void testValidateSettingGracefullyHandlesUnregisteredEnumKey() {
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode })
+        );
+
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
             return clusterService.getClusterManagerService().getMinNodeVersion();
         }, new ClusterManagerThrottlingStats());
 
-        for (ClusterManagerTask task : ClusterManagerTask.values()) {
-            throttler.registerClusterManagerTask(task, true);
-        }
+        // Only register PUT_MAPPING — leave CREATE_INDEX unregistered to simulate a removed registration
+        throttler.registerClusterManagerTask(PUT_MAPPING, true);
 
-        // After registering all tasks, THROTTLING_TASK_KEYS should contain every enum key
-        for (ClusterManagerTask task : ClusterManagerTask.values()) {
-            assertTrue(
-                "ClusterManagerTask."
-                    + task.name()
-                    + " (key='"
-                    + task.getKey()
-                    + "') was not found in "
-                    + "THROTTLING_TASK_KEYS after registration. If this task's registerClusterManagerTask() "
-                    + "call is removed, persisted cluster state containing its throttling threshold will cause "
-                    + "a fatal node startup failure during upgrades.",
-                throttler.THROTTLING_TASK_KEYS.containsKey(task.getKey())
+        // Validate a setting for the unregistered-but-enum-present key CREATE_INDEX.
+        // This should NOT throw — it should log a warning and skip, because the key
+        // exists in the ClusterManagerTask enum (indicating it was once valid).
+        Settings settingsWithUnregisteredKey = Settings.builder()
+            .put("cluster_manager.throttling.thresholds.create-index.value", 50)
+            .build();
+        try {
+            throttler.validateSetting(THRESHOLD_SETTINGS.get(settingsWithUnregisteredKey));
+        } catch (IllegalArgumentException e) {
+            fail(
+                "validateSetting() should not throw for a key that exists in ClusterManagerTask enum "
+                    + "but is not registered. This would cause fatal node startup failures during upgrades "
+                    + "when cluster state contains persisted throttling settings for that key. Got: "
+                    + e.getMessage()
             );
         }
+    }
+
+    /**
+     * Verifies that validateSetting() still rejects truly unknown keys that are neither
+     * registered nor present in the ClusterManagerTask enum.
+     */
+    public void testValidateSettingStillRejectsGenuinelyUnknownKeys() {
+        DiscoveryNode clusterManagerNode = getClusterManagerNode(Version.V_2_5_0);
+        setState(
+            clusterService,
+            ClusterStateCreationUtils.state(clusterManagerNode, clusterManagerNode, new DiscoveryNode[] { clusterManagerNode })
+        );
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getClusterManagerService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
+        throttler.registerClusterManagerTask(PUT_MAPPING, true);
+
+        // A truly unknown key (not in enum, not registered) should still throw
+        Settings unknownSettings = Settings.builder().put("cluster_manager.throttling.thresholds.completely-fake-task.value", 10).build();
+        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(THRESHOLD_SETTINGS.get(unknownSettings)));
     }
 }
