@@ -185,6 +185,76 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
         assertThat(explanation.getValue(), equalTo(2.0f));
     }
 
+    public void testExplainWhenSubQueryScorerIsNull() throws IOException {
+        Script script = new Script("script using explain");
+        ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> {
+            throw new AssertionError("the script must not run when the sub-query has no scorer");
+        });
+
+        ScriptScoreQuery query = new ScriptScoreQuery(
+            new MatchingExplanationNullScorerQuery(),
+            script,
+            factory,
+            null,
+            "index",
+            0,
+            Version.CURRENT
+        );
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        Explanation explanation = weight.explain(leafReaderContext, 0);
+        assertNotNull(explanation);
+        assertFalse(explanation.isMatch());
+        assertThat(explanation.getDescription(), containsString("sub-query produced no scorer for this segment"));
+    }
+
+    /**
+     * A query whose weight explains every document as a match but never produces a scorer, which is the
+     * scorer/explain mismatch that used to make {@link ScriptScoreQuery} throw a NullPointerException.
+     */
+    private static class MatchingExplanationNullScorerQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return Explanation.match(1.0f, "matches");
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+    }
+
     public void testScriptScoreErrorOnNegativeScore() {
         Script script = new Script("script that returns a negative score");
         ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> -1000.0);
