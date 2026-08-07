@@ -15,6 +15,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.AbstractFieldDataTestCase;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
 
@@ -95,6 +97,57 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         IndexFieldData<?> valueFieldData = getForField("field._value");
         List<LeafReaderContext> valueReaders = refreshReader();
         assertEquals(1, valueReaders.size());
+    }
+
+    public void testSubfieldDocValue() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", FIELD_TYPE)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
+
+        XContentBuilder json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .startObject("detail")
+            .field("name", "foo")
+            .field("age", 25)
+            .endObject()
+            .field("other", "bar")
+            .endObject()
+            .endObject();
+
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(json), MediaTypeRegistry.JSON));
+        writer.addDocument(d.rootDoc());
+        writer.commit();
+
+        List<LeafReaderContext> readers = refreshReader();
+        assertEquals(1, readers.size());
+
+        IndexFieldData<?> detailNameFieldData = getForField("field.detail.name");
+        LeafOrdinalsFieldData detailNameLeafData = (LeafOrdinalsFieldData) detailNameFieldData.load(readers.get(0));
+
+        ScriptDocValues<?> scriptValues = detailNameLeafData.getScriptValues();
+        scriptValues.setNextDocId(0);
+
+        assertEquals(1, scriptValues.size());
+        assertEquals("foo", scriptValues.get(0));
+
+        IndexFieldData<?> detailAgeFieldData = getForField("field.detail.age");
+        LeafOrdinalsFieldData detailAgeLeafData = (LeafOrdinalsFieldData) detailAgeFieldData.load(readers.get(0));
+
+        scriptValues = detailAgeLeafData.getScriptValues();
+        scriptValues.setNextDocId(0);
+
+        assertEquals(1, scriptValues.size());
+        assertEquals("25", scriptValues.get(0));
     }
 
     @Override
