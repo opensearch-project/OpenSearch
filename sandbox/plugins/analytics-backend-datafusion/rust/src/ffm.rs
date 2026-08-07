@@ -1603,6 +1603,18 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// Shard provably holds no matching row — the only status that prunes.
+pub const CAN_MATCH_NO: i64 = 0;
+/// Shard may hold a matching row.
+pub const CAN_MATCH_YES: i64 = 1;
+/// Could not tell (no statistics, unreadable footer, unsupported stats type) — keep the shard.
+///
+/// Deliberately 2, not -1: `#[ffm_safe]` returns `Err` as a *negated error pointer*, so Java's
+/// `NativeLibraryLoader.checkResult` treats every negative return as an address to read a message
+/// from. A negative status here is dereferenced as that address and segfaults the node. Every
+/// status crossing this boundary must be non-negative.
+pub const CAN_MATCH_UNKNOWN: i64 = 2;
+
 /// Can-match evaluation via FFM. Iterates ALL parquet files in the shard view
 /// and checks row-group statistics against the range [filter_min, filter_max]
 /// on the named column.
@@ -1610,7 +1622,7 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
 /// For each file: tries the metadata cache first (zero I/O), falls back to
 /// reading the footer via the shard's ObjectStore (local disk or S3).
 ///
-/// Returns: 1 = Yes (any file overlaps), 0 = No (all files disjoint), -1 = Unknown.
+/// Returns one of the `CAN_MATCH_*` statuses below.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_can_match(
@@ -1624,12 +1636,12 @@ pub unsafe extern "C" fn df_can_match(
     let column_name = str_from_raw(column_name_ptr, column_name_len)?;
 
     if shard_view_ptr == 0 {
-        return Ok(-1);
+        return Ok(CAN_MATCH_UNKNOWN);
     }
     let shard_view = &*(shard_view_ptr as *const api::ShardView);
     let files = &shard_view.object_metas;
     if files.is_empty() {
-        return Ok(-1);
+        return Ok(CAN_MATCH_UNKNOWN);
     }
 
     for file_meta in files.iter() {
@@ -1644,12 +1656,12 @@ pub unsafe extern "C" fn df_can_match(
             });
 
         match result {
-            crate::can_match::CanMatchResult::Yes => return Ok(1),
-            crate::can_match::CanMatchResult::Unknown => return Ok(-1),
+            crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
+            crate::can_match::CanMatchResult::Unknown => return Ok(CAN_MATCH_UNKNOWN),
             crate::can_match::CanMatchResult::No => continue,
         }
     }
-    Ok(0)
+    Ok(CAN_MATCH_NO)
 }
 
 /// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
@@ -1923,5 +1935,21 @@ mod tests {
 
         // ── Cleanup ──
         shutdown_test_runtime();
+    }
+
+    /// `#[ffm_safe]` reserves negative returns for negated error pointers, so every status
+    /// `df_can_match` reports has to be non-negative. A negative one is read by Java as an
+    /// error address and dereferenced, which segfaults the whole node rather than failing
+    /// the query. A null shard view is the cheapest way to reach a non-match status without
+    /// a runtime or any parquet on disk.
+    #[test]
+    fn can_match_status_codes_are_non_negative() {
+        let column = "@timestamp";
+        let rc = unsafe { df_can_match(0, 0, column.as_ptr(), column.len() as i64, 0, 100) };
+        assert!(
+            rc >= 0,
+            "df_can_match returned {rc}; negative values are error pointers to Java, not statuses"
+        );
+        assert_eq!(rc, CAN_MATCH_UNKNOWN);
     }
 }

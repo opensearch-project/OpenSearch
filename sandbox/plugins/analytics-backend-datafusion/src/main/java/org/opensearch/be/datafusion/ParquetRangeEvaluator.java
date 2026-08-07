@@ -106,7 +106,8 @@ final class ParquetRangeEvaluator {
                 for (CanMatchFilter filter : filters) {
                     if (filter instanceof LongRange range) {
                         long result = NativeBridge.canMatch(runtimePtr, shardViewPtr, range.column(), range.min(), range.max());
-                        if (result == 0L) {
+                        // Only a definite NO prunes; YES and UNKNOWN both keep the shard.
+                        if (result == NativeBridge.CAN_MATCH_NO) {
                             // Pruned, so nobody will read this shard's bounds — skip the fold.
                             return CanMatchResult.pruned();
                         }

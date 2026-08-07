@@ -1799,11 +1799,21 @@ public final class NativeBridge {
         }
     }
 
+    /** {@link #canMatch} status: shard provably holds no matching row. The only value that prunes. */
+    public static final long CAN_MATCH_NO = 0L;
+    /** {@link #canMatch} status: shard may hold a matching row. */
+    public static final long CAN_MATCH_YES = 1L;
+    /** {@link #canMatch} status: undeterminable (no statistics, unreadable footer) — keep the shard. */
+    public static final long CAN_MATCH_UNKNOWN = 2L;
+
     /**
      * Evaluates whether any parquet file in the shard has row-group statistics
      * overlapping the range [filterMin, filterMax] on the named column.
      * Iterates all files in the shard view internally (Rust side).
-     * Returns 1 (Yes/may match), 0 (No/all disjoint), or -1 (Unknown/fail-open).
+     *
+     * <p>Returns one of {@link #CAN_MATCH_NO}, {@link #CAN_MATCH_YES}, {@link #CAN_MATCH_UNKNOWN} —
+     * all non-negative, because {@link NativeCall#invoke} routes negatives to
+     * {@code NativeLibraryLoader.checkResult}, which reads them as negated error pointers.
      */
     public static long canMatch(long runtimePtr, long shardViewPtr, String columnName, long filterMin, long filterMax) {
         try (var call = new NativeCall()) {
