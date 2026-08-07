@@ -153,6 +153,38 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    public void testCheckedLongSumOverRewrittenBeforeMarking_2shard() {
+        RelOptTable table = mockNullableTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RexBuilder rb = scan.getCluster().getRexBuilder();
+        RexNode checkedSumOver = makeOver(
+            rb,
+            scan,
+            checkedLongSumOperator(),
+            List.of(rb.makeInputRef(scan, 1)),
+            SqlTypeName.BIGINT,
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.CURRENT_ROW
+        );
+        RelNode plan = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), checkedSumOver),
+            List.of("status", "size", "running_sum")
+        );
+
+        RelNode result = runPlanner(plan, multiShardContext());
+
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], running_sum=[SUM($1) OVER (ROWS UNBOUNDED PRECEDING)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     /**
      * Window after a shard-side Filter (multi-shard). Filter is single-input passthrough,
      * stays at SHARD; the RexOver Project's cost gate forces COORDINATOR input, so an ER

@@ -42,6 +42,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -498,6 +500,8 @@ public class PlannerImpl {
      * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
      * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
      * <ul>
+     *   <li>{@link OpenSearchCheckedLongSumRule} and {@link OpenSearchCheckedLongSumWindowRule} —
+     *       PPL's reflective {@code CHECKED_LONG_SUM} marker → Calcite's canonical {@code SUM}.</li>
      *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
      *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
      *       HLL sketch merge instead of additive SUM-of-counts.</li>
@@ -509,6 +513,8 @@ public class PlannerImpl {
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("aggregate-decompose")
             .bottomUp()
+            .addRuleInstance(new OpenSearchCheckedLongSumRule())
+            .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
             .run(input, listener);

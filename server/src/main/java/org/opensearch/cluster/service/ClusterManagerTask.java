@@ -19,11 +19,13 @@ public enum ClusterManagerTask {
     // Tasks with default threshold (50)
     CREATE_INDEX("create-index", 50),
     UPDATE_SETTINGS("update-settings", 50),
+    PUT_INDEX_FIELD_DOMAINS("put-index-field-domains", 50),
     CLUSTER_UPDATE_SETTINGS("cluster-update-settings", 50),
     DELETE_INDEX("delete-index", 50),
     DELETE_DANGLING_INDEX("delete-dangling-index", 50),
     CREATE_DATA_STREAM("create-data-stream", 50),
     REMOVE_DATA_STREAM("remove-data-stream", 50),
+    MODIFY_DATA_STREAM("modify-data-stream", 50),
     CREATE_INDEX_TEMPLATE("create-index-template", 50),
     REMOVE_INDEX_TEMPLATE("remove-index-template", 50),
     CREATE_COMPONENT_TEMPLATE("create-component-template", 50),

@@ -119,6 +119,52 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    public void testCheckedLongSumRewrittenBeforeMarking_1shard() {
+        RelNode scan = stubScan(mockNullableTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, checkedLongSumCall(scan));
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], checked_total_size=[ANNOTATED_PROJECT_EXPR(id=1, backends=[mock-parquet], CAST($1):BIGINT)], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], checked_total_size=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    public void testCheckedLongSumRewrittenBeforeSplit_2shard() {
+        RelNode scan = stubScan(mockNullableTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, checkedLongSumCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], checked_total_size=[ANNOTATED_PROJECT_EXPR(id=1, backends=[mock-parquet], CAST($1):BIGINT)], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], checked_total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchAggregate(group=[{0}], checked_total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    public void testNativeAndCheckedLongSumOnSameField_2shard() {
+        RelNode scan = stubScan(mockNullableTable("test_index", "status", "size"));
+        RelNode plan = makeAggregate(scan, ImmutableBitSet.of(0), sumCall(scan), checkedLongSumCall(scan));
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], total_size=[$1], checked_total_size=[ANNOTATED_PROJECT_EXPR(id=2, backends=[mock-parquet], CAST($2):BIGINT)], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], checked_total_size=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                      OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], checked_total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
     public void testStatsAvgByKey_1shard() {
         // AVG → SUM/COUNT primitives plus a Project for the quotient; SINGLE only.
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));

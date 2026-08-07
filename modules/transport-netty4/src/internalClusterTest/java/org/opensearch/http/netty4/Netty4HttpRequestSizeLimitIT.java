@@ -94,7 +94,9 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         }
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
-        for (int i = 0; i < 150; i++) {
+        // See please https://github.com/netty/netty/pull/17068 why 128 is the cap, we should be able to
+        // make it configurable in the Netty next release.
+        for (int i = 0; i < 128; i++) {
             requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 

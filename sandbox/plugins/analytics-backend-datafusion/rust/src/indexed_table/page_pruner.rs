@@ -59,13 +59,21 @@ use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistic
 pub struct PagePruner {
     schema: SchemaRef,
     metadata: Arc<ParquetMetaData>,
+    /// Per-segment arrow schema derived from parquet footer, used for
+    /// positional column resolution in statistics-based pruning.
+    seg_arrow_schema: SchemaRef,
 }
 
 impl PagePruner {
-    pub fn new(schema: &SchemaRef, metadata: Arc<ParquetMetaData>) -> Self {
+    pub fn new(
+        schema: &SchemaRef,
+        metadata: Arc<ParquetMetaData>,
+        seg_arrow_schema: SchemaRef,
+    ) -> Self {
         Self {
             schema: schema.clone(),
             metadata,
+            seg_arrow_schema,
         }
     }
 
@@ -119,13 +127,7 @@ impl PagePruner {
         // schema misaligns StatisticsConverter's positional column lookup under
         // dynamic-mapping schema drift.
         let descr = self.metadata.file_metadata().schema_descr();
-        let seg_arrow_schema = match datafusion::parquet::arrow::parquet_to_arrow_schema(
-            descr,
-            self.metadata.file_metadata().key_value_metadata(),
-        ) {
-            Ok(s) => Arc::new(s),
-            Err(_) => Arc::clone(&self.schema),
-        };
+        let seg_arrow_schema = Arc::clone(&self.seg_arrow_schema);
 
         for col in &columns {
             let converter = match StatisticsConverter::try_new(col.name(), &seg_arrow_schema, descr)
@@ -531,6 +533,7 @@ fn eval_leaf(
     metadata: &ParquetMetaData,
     schema: &SchemaRef,
     rg_indices: &[usize],
+    seg_arrow_schema: &SchemaRef,
 ) -> Vec<bool> {
     let num = rg_indices.len();
     if num == 0 {
@@ -546,13 +549,7 @@ fn eval_leaf(
     // no column when the segment's schema is narrower or reordered (dynamic-mapping
     // schema drift) — yielding null stats that prune RGs that actually match.
     let descr = metadata.file_metadata().schema_descr();
-    let seg_arrow_schema = match datafusion::parquet::arrow::parquet_to_arrow_schema(
-        descr,
-        metadata.file_metadata().key_value_metadata(),
-    ) {
-        Ok(s) => Arc::new(s),
-        Err(_) => Arc::clone(schema),
-    };
+    let seg_arrow_schema = Arc::clone(seg_arrow_schema);
     let arrow_schema = seg_arrow_schema.as_ref();
     let rg_metas: Vec<_> = rg_indices
         .iter()
@@ -685,6 +682,7 @@ impl StatsPruneTree {
         metadata: &ParquetMetaData,
         schema: &SchemaRef,
         rg_indices: &[usize],
+        seg_arrow_schema: &SchemaRef,
     ) -> Self {
         use super::bool_tree::BoolNode;
         let num = rg_indices.len();
@@ -693,7 +691,14 @@ impl StatsPruneTree {
                 let annotated_children: Vec<_> = children
                     .iter()
                     .map(|c| {
-                        Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices)
+                        Self::build_from_bool_node(
+                            c,
+                            leaf_predicates,
+                            metadata,
+                            schema,
+                            rg_indices,
+                            seg_arrow_schema,
+                        )
                     })
                     .collect();
                 let mut rg_can_match = vec![true; num];
@@ -711,7 +716,14 @@ impl StatsPruneTree {
                 let annotated_children: Vec<_> = children
                     .iter()
                     .map(|c| {
-                        Self::build_from_bool_node(c, leaf_predicates, metadata, schema, rg_indices)
+                        Self::build_from_bool_node(
+                            c,
+                            leaf_predicates,
+                            metadata,
+                            schema,
+                            rg_indices,
+                            seg_arrow_schema,
+                        )
                     })
                     .collect();
                 let mut rg_can_match = vec![false; num];
@@ -732,6 +744,7 @@ impl StatsPruneTree {
                     metadata,
                     schema,
                     rg_indices,
+                    seg_arrow_schema,
                 );
                 // NOT is conservatively all-true: negating stats-based pruning is unsound
                 // because stats give a superset, and inverting a superset is a subset.
@@ -744,7 +757,7 @@ impl StatsPruneTree {
             BoolNode::Predicate(expr) => {
                 let key = Arc::as_ptr(expr) as *const () as usize;
                 let rg_can_match = match leaf_predicates.get(&key) {
-                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
+                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices, seg_arrow_schema),
                     None => vec![true; num],
                 };
                 Self {
@@ -755,7 +768,7 @@ impl StatsPruneTree {
             BoolNode::DelegationPossible { original_expr, .. } => {
                 let key = Arc::as_ptr(original_expr) as *const () as usize;
                 let rg_can_match = match leaf_predicates.get(&key) {
-                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices),
+                    Some(pp) => eval_leaf(pp, metadata, schema, rg_indices, seg_arrow_schema),
                     None => vec![true; num],
                 };
                 Self {
@@ -825,7 +838,7 @@ mod tests {
         )
         .unwrap();
         let arc_meta = meta.metadata().clone();
-        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta));
+        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta), schema.clone());
         (pruner, schema, arc_meta)
     }
 
@@ -1159,7 +1172,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(meta.metadata().num_row_groups(), 2);
-        let pruner = PagePruner::new(&schema, meta.metadata().clone());
+        let pruner = PagePruner::new(&schema, meta.metadata().clone(), schema.clone());
         // price > 50: RG0 (0..31) → nothing, RG1 (100..131) → all.
         let expr = bin(col("price", 0), Operator::Gt, lit_int(50));
         let pp = build_pruning_predicate(&expr, schema).unwrap();
@@ -1237,7 +1250,7 @@ mod tests {
             tag_pages
         );
 
-        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta));
+        let pruner = PagePruner::new(&schema, Arc::clone(&arc_meta), schema.clone());
 
         // `price > 100` is definitively false for all rows; every grid
         // cell inherits stats from the single price page (min=0, max=31)
@@ -1304,7 +1317,7 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        let pruner = PagePruner::new(&schema, meta.metadata().clone());
+        let pruner = PagePruner::new(&schema, meta.metadata().clone(), schema.clone());
 
         // IS NOT NULL: page 1 (all-null) should be pruned → 24 rows kept.
         use datafusion::physical_expr::expressions::IsNotNullExpr;
@@ -1371,7 +1384,11 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        let pruner = PagePruner::new(&predicate_schema, meta.metadata().clone());
+        let pruner = PagePruner::new(
+            &predicate_schema,
+            meta.metadata().clone(),
+            predicate_schema.clone(),
+        );
 
         // `price < 5 AND extra = 10`. Only page 0 (0..7) can contain
         // price < 5. The `extra = 10` clause evaluates to unknown for
@@ -1454,7 +1471,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(meta.metadata().num_row_groups(), 2);
-        let pruner = PagePruner::new(&schema, meta.metadata().clone());
+        let pruner = PagePruner::new(&schema, meta.metadata().clone(), schema.clone());
 
         // Verify page_row_counts returns a valid layout for each RG.
         let rc0 = pruner.page_row_counts(0).unwrap();
@@ -1568,6 +1585,7 @@ mod tests {
             &arc_meta,
             &schema,
             &rg_indices,
+            &schema,
         );
 
         // Verify bottom-up:
@@ -1676,8 +1694,15 @@ mod tests {
 
         let expr = bin(col("severity", 1), Operator::GtEq, lit_int(0));
         let pp = build_pruning_predicate(&expr, table_schema.clone()).unwrap();
+        let file_arrow_schema: SchemaRef = Arc::new(
+            datafusion::parquet::arrow::parquet_to_arrow_schema(
+                md.file_metadata().schema_descr(),
+                md.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
         assert_eq!(
-            eval_leaf(&pp, &md, &table_schema, &[0]),
+            eval_leaf(&pp, &md, &table_schema, &[0], &file_arrow_schema),
             vec![true],
             "severity >= 0 is always true; eval_leaf must not prune under schema drift"
         );
@@ -1744,6 +1769,7 @@ mod tests {
             &arc_meta,
             &schema,
             &rg_indices,
+            &schema,
         );
 
         // rg_can_match is 3 elements (one per chunk RG), relative indexing.
