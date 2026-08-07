@@ -1,5 +1,5 @@
 {
-  "testName": "terms_with_avg_aggregation",
+  "testName": "terms_with_stats_aggregation",
   "indexName": "test-index",
   "indexMapping": {
     "name": "VARCHAR",
@@ -16,8 +16,8 @@
           "field": "brand"
         },
         "aggregations": {
-          "avg_price": {
-            "avg": {
+          "price_stats": {
+            "stats": {
               "field": "price"
             }
           }
@@ -26,14 +26,14 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
-    "  LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])",
+    "LogicalSort(sort0=[$5], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], price_stats_count=[COUNT($1)], price_stats_min=[MIN($1)], price_stats_max=[MAX($1)], price_stats_sum=[SUM($1)], _count=[COUNT()])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["brand", "avg_price", "_count"],
+  "mockResultFieldNames": ["brand", "price_stats_count", "price_stats_min", "price_stats_max", "price_stats_sum", "_count"],
   "mockResultRows": [
-    ["BrandA", 850.0, 3],
-    ["BrandB", 1100.0, 2]
+    ["BrandA", 3, 100, 600, 900, 3],
+    ["BrandB", 2, 1000, 1200, 2200, 2]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -53,15 +53,23 @@
           {
             "key": "BrandA",
             "doc_count": 3,
-            "avg_price": {
-              "value": 850.0
+            "price_stats": {
+              "count": 3,
+              "min": 100.0,
+              "max": 600.0,
+              "avg": 300.0,
+              "sum": 900.0
             }
           },
           {
             "key": "BrandB",
             "doc_count": 2,
-            "avg_price": {
-              "value": 1100.0
+            "price_stats": {
+              "count": 2,
+              "min": 1000.0,
+              "max": 1200.0,
+              "avg": 1100.0,
+              "sum": 2200.0
             }
           }
         ]

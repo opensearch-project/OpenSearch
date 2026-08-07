@@ -44,17 +44,17 @@ import java.util.List;
  * in the coordinator fragment; the unpinned lower copy narrows the scan. {@code argList} is untouched.
  *
  * <p>Runs after marking, before CBO — {@code PROJECT_MERGE} (pre-marking) can't re-fuse the copies, and the
- * ER lands between them. Scope = {@code PERCENTILE_APPROX} and {@code TAKE}, the only aggregates that
- * materialize a literal config arg as a Project column (FIRST/LAST drop their optional N; others carry no
- * literal). Fires only when such a call references a literal column and the Project also has a non-literal
- * column to push down.
+ * ER lands between them. Scope = {@code PERCENTILE_APPROX} / {@code PERCENTILE_APPROX_N} and {@code TAKE},
+ * the only aggregates that materialize literal config args as Project columns (FIRST/LAST drop their
+ * optional N; others carry no literal). Fires only when such a call references a literal column and the
+ * Project also has a non-literal column to push down.
  *
  * @opensearch.internal
  */
 public class OpenSearchAggLiteralArgProjectSplitRule extends RelOptRule {
 
-    // Aggregates whose literal config arg the DataFusion converter re-inlines from the attached Project.
-    private static final java.util.Set<String> LITERAL_ARG_AGGS = java.util.Set.of("PERCENTILE_APPROX", "TAKE");
+    // Aggregates whose literal config args the DataFusion converter re-inlines from the attached Project.
+    private static final java.util.Set<String> LITERAL_ARG_AGGS = java.util.Set.of("PERCENTILE_APPROX", "PERCENTILE_APPROX_N", "TAKE");
 
     public OpenSearchAggLiteralArgProjectSplitRule() {
         super(operand(OpenSearchAggregate.class, operand(OpenSearchProject.class, none())), "OpenSearchAggLiteralArgProjectSplitRule");

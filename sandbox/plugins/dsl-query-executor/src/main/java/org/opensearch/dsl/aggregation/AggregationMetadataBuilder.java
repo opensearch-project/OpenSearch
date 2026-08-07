@@ -13,6 +13,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -37,6 +38,7 @@ public class AggregationMetadataBuilder {
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private final List<BucketOrder> bucketOrders = new ArrayList<>();
+    private final List<LiteralColumn> literalColumns = new ArrayList<>();
     private boolean implicitCountRequested = false;
 
     /** Creates a new empty builder. */
@@ -85,6 +87,41 @@ public class AggregationMetadataBuilder {
         this.implicitCountRequested = true;
     }
 
+    /**
+     * Returns a literal-column allocator. Allocated columns are appended after the
+     * {@code baseFieldCount} input fields (deduplicated) and materialized by the converter
+     * in a pre-aggregate project.
+     *
+     * @param baseFieldCount the field count of the aggregate's un-projected input
+     */
+    public LiteralColumnAllocator literalColumnAllocator(int baseFieldCount) {
+        return new LiteralColumnAllocator() {
+            @Override
+            public int columnFor(double value) {
+                return indexFor(LiteralColumn.constant(value));
+            }
+
+            @Override
+            public int integerColumnFor(long value) {
+                return indexFor(LiteralColumn.integerConstant(value));
+            }
+
+            @Override
+            public int coalescedColumnFor(int fieldIndex, double missingValue) {
+                return indexFor(LiteralColumn.coalesced(fieldIndex, missingValue));
+            }
+
+            private int indexFor(LiteralColumn column) {
+                int existing = literalColumns.indexOf(column);
+                if (existing >= 0) {
+                    return baseFieldCount + existing;
+                }
+                literalColumns.add(column);
+                return baseFieldCount + literalColumns.size() - 1;
+            }
+        };
+    }
+
     /** Returns true if this builder has at least one aggregate call or implicit count. */
     public boolean hasAggregateCalls() {
         return !aggregateCalls.isEmpty() || implicitCountRequested;
@@ -113,8 +150,24 @@ public class AggregationMetadataBuilder {
         boolean noGroupBy = groupings.isEmpty();
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
-            if (noGroupBy) {
-                RelDataType nullableType = typeFactory.createTypeWithNullability(call.getType(), true);
+            boolean isCount = call.getAggregation().getKind() == SqlKind.COUNT;
+            String functionName = call.getAggregation().getName();
+            // Percentile results are nullable even under GROUP BY (engine may emit NULL per group).
+            boolean forcedNullable = "PERCENTILE_APPROX".equals(functionName) || "PERCENTILE_APPROX_N".equals(functionName);
+            RelDataType targetType;
+            if (isCount) {
+                // COUNT is always BIGINT NOT NULL regardless of the input field's type; normalize here
+                // (translators have no type factory) — LogicalAggregate.create asserts the type matches.
+                targetType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), false);
+            } else if (noGroupBy || forcedNullable) {
+                // AVG, MIN, MAX, SUM return null for empty sets when there's no GROUP BY.
+                targetType = typeFactory.createTypeWithNullability(call.getType(), true);
+            } else {
+                targetType = call.getType();
+            }
+            if (targetType.equals(call.getType())) {
+                allCalls.add(call);
+            } else {
                 allCalls.add(
                     AggregateCall.create(
                         call.getAggregation(),
@@ -124,12 +177,10 @@ public class AggregationMetadataBuilder {
                         call.getArgList(),
                         call.filterArg,
                         call.getCollation(),
-                        nullableType,
+                        targetType,
                         call.getName()
                     )
                 );
-            } else {
-                allCalls.add(call);
             }
         }
         List<String> allFieldNames = new ArrayList<>(aggregateFieldNames);
@@ -144,14 +195,21 @@ public class AggregationMetadataBuilder {
                     List.of(),
                     -1,
                     RelCollations.EMPTY,
-                    typeFactory.createSqlType(SqlTypeName.BIGINT),
+                    typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), false),
                     IMPLICIT_COUNT_NAME
                 )
             );
             allFieldNames.add(IMPLICIT_COUNT_NAME);
         }
 
-        return new AggregationMetadata(ImmutableBitSet.of(allGroupIndices), allGroupFieldNames, allCalls, allFieldNames, bucketOrders);
+        return new AggregationMetadata(
+            ImmutableBitSet.of(allGroupIndices),
+            allGroupFieldNames,
+            allCalls,
+            allFieldNames,
+            bucketOrders,
+            literalColumns
+        );
     }
 
     /**
