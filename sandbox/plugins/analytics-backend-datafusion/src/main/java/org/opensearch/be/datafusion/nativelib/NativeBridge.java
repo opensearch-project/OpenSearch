@@ -119,6 +119,7 @@ public final class NativeBridge {
     private static final MethodHandle REGISTER_PARTITION_STREAM;
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
     private static final MethodHandle SENDER_SEND;
+    private static final MethodHandle SENDER_TERMINATE_EARLY;
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
@@ -359,6 +360,12 @@ public final class NativeBridge {
         SENDER_SEND = linker.downcallHandle(
             lib.find("df_sender_send").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        // void df_sender_terminate_early(sender_ptr)
+        SENDER_TERMINATE_EARLY = linker.downcallHandle(
+            lib.find("df_sender_terminate_early").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
         // void df_sender_close(sender_ptr)
@@ -1338,6 +1345,16 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             return call.invoke(SENDER_SEND, senderPtr, arrayPtr, schemaPtr);
         }
+    }
+
+    /**
+     * Gracefully terminates one partition stream without cancelling the query. Any blocked sender
+     * is released, buffered batches remain available to the receiver, and the receiver observes
+     * EOF after it drains them.
+     */
+    public static void senderTerminateEarly(long senderPtr) {
+        NativeHandle.validatePointer(senderPtr, "sender");
+        NativeCall.invokeVoid(SENDER_TERMINATE_EARLY, senderPtr);
     }
 
     /** Closes the sender, signalling end-of-input. Tolerates a zero pointer. */

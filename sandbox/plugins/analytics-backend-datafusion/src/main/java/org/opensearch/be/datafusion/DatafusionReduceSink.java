@@ -379,27 +379,16 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             // keys with fetched columns returned 0 rows when this branch cancelled).
             // fireCancelQuery remains the mechanism for genuine aborts via cancel().
             //
-            // MUST be tryClose, not close(): a feeder thread parked inside send()
-            // (bounded channel full) holds the sender READ lock; a blocking close()
-            // here would wait forever on the WRITE lock — the exact deadlock covered
-            // by testCloseWhileFeederParkedOnFullChannelDoesNotDeadlock. When
-            // tryClose fails, cancel instead: cancel drops the native receiver,
-            // which pops the parked send with ReceiverDropped, releasing the lock.
-            boolean allClosed = true;
+            // Signal EOF for every input without cancelling the query. A sender with no active
+            // feed closes immediately; a sender parked on a full channel closes its receiver
+            // first, which unblocks the feed and defers native-sender reclamation until its read
+            // lock is released. This preserves buffered input for the reducer to drain.
             for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
                 try {
-                    allClosed &= sender.tryClose();
+                    sender.requestEarlyTermination();
                 } catch (Exception e) {
-                    logger.warn("[reduce-sink] error closing input sender for EOF: taskId={}", ctx.taskId(), e);
+                    logger.warn("[reduce-sink] error signalling input EOF: taskId={}", ctx.taskId(), e);
                 }
-            }
-            if (allClosed == false) {
-                // A producer is parked mid-send: rows are still streaming in, so this
-                // close is racing a live producer (not the clean drained-early case).
-                // Cancel is the only lock-free way to unblock it; dropped rows are
-                // acceptable here because the consumer already stopped listening.
-                logger.debug("[reduce-sink] input sender busy at close; cancelling to unblock: taskId={}", ctx.taskId());
-                fireCancelQuery();
             }
             try {
                 if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {

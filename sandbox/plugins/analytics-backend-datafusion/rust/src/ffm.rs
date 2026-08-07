@@ -769,6 +769,11 @@ fn send_outcome_to_code(outcome: crate::partition_stream::SendOutcome) -> i64 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn df_sender_terminate_early(sender_ptr: i64) {
+    api::sender_terminate_early(sender_ptr);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
 }

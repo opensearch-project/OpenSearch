@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
@@ -304,6 +305,12 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         Stitcher s = this.stitcher;
         if (s != null) {
             s.close();
+        }
+        if ((terminal == State.CANCELLED || terminal == State.FAILED) && parentSink instanceof CancellableExchangeSink cancellable) {
+            // Fetch failure is terminal for the QTF query. The parent reduce stream may otherwise
+            // observe its inputs as ordinary EOF and complete the top-level PPL request before
+            // this asynchronous failure reaches the query listener.
+            cancellable.cancel();
         }
     }
 
