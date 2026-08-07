@@ -204,11 +204,12 @@ if (project != rootProject) {
   apply plugin: 'opensearch.build'
   apply plugin: 'opensearch.publish'
 
-  allprojects {
-    java {
-        targetCompatibility = JavaVersion.VERSION_21
-        sourceCompatibility = JavaVersion.VERSION_21
-    }
+  // Not allprojects: :build-tools:reaper applies the java plugin in its own build script and sets the
+  // same compatibility there, so reaching into it from here is an implicit lookup of a parent
+  // project's method, which is deprecated and fails in Gradle 10.
+  java {
+    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_21
   }
 
   // groovydoc succeeds, but has some weird internal exception...
