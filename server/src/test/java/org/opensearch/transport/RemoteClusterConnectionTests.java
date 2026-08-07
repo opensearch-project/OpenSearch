@@ -44,6 +44,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchShardInfo;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
@@ -100,6 +101,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RemoteClusterConnectionTests extends OpenSearchTestCase {
+
+    /**
+     * The cluster alias the mock search handler below stamps onto the shard_info entries it returns, standing in for
+     * the alias a real remote coordinator applies from its local cluster alias. It is deliberately not one of the
+     * aliases callers register their remotes under, so a test can tell whether attribution came from the remote.
+     */
+    public static final String REMOTE_STAMPED_CLUSTER_ALIAS = "stamped_by_remote";
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
@@ -167,6 +175,25 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
                     null,
                     1
                 );
+                // Answer the way a real remote coordinator does, whose entries already carry the alias it was addressed
+                // by. A distinctive marker is used rather than the real alias, which is not reachable from this
+                // package, so a caller can tell attribution that survived from the remote apart from attribution a
+                // coordinator applied afterwards. Nothing simulates an older remote here, because nothing needs to:
+                // the request flag is version gated on the wire, so a service started below 3.8 never sees it and
+                // this returns null on its own.
+                SearchShardInfo shardInfo = Boolean.TRUE.equals(request.shardInfo())
+                    ? new SearchShardInfo(
+                        Collections.singletonList(
+                            new SearchShardInfo.Entry.Builder("index", 0).nodeId("remote_node")
+                                .primary(true)
+                                .state("STARTED")
+                                .cluster(REMOTE_STAMPED_CLUSTER_ALIAS)
+                                .build()
+                        ),
+                        Collections.emptyList(),
+                        Collections.emptyList()
+                    )
+                    : null;
                 SearchResponse searchResponse = new SearchResponse(
                     response,
                     null,
@@ -174,8 +201,11 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
                     1,
                     0,
                     100,
+                    null,
                     ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
+                    SearchResponse.Clusters.EMPTY,
+                    null,
+                    shardInfo
                 );
                 channel.sendResponse(searchResponse);
             });

@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -155,6 +156,70 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
             }
 
             assertTrue(executedMultiSearch.get());
+        }
+    }
+
+    public void testShardInfoIsNotRequestedForExpandSubSearches() throws IOException {
+        AtomicReference<MultiSearchRequest> capturedRequest = new AtomicReference<>();
+
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        mockSearchPhaseContext.getRequest()
+            .shardInfo(true)
+            .source(
+                new SearchSourceBuilder().collapse(
+                    new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))
+                )
+            );
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                capturedRequest.set(request);
+                SearchHits emptyHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                SearchResponse searchResponse = new SearchResponse(
+                    new InternalSearchResponse(emptyHits, null, null, null, false, null, 1),
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                );
+                listener.onResponse(
+                    new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(searchResponse, null) },
+                        randomIntBetween(1, 10000)
+                    )
+                );
+            }
+        };
+
+        SearchHits hits = new SearchHits(
+            new SearchHit[] {
+                new SearchHit(
+                    1,
+                    "ID",
+                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList("foo"))),
+                    Collections.emptyMap()
+                ) },
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            1.0F
+        );
+        ExpandSearchPhase phase = new ExpandSearchPhase(
+            mockSearchPhaseContext,
+            new InternalSearchResponse(hits, null, null, null, false, null, 1),
+            null
+        );
+        phase.run();
+        mockSearchPhaseContext.assertNoFailure();
+
+        // the outer request still asked for the section
+        assertEquals(Boolean.TRUE, mockSearchPhaseContext.getRequest().shardInfo());
+        assertNotNull(capturedRequest.get());
+        assertFalse(capturedRequest.get().requests().isEmpty());
+        for (SearchRequest groupRequest : capturedRequest.get().requests()) {
+            // only the hits of these sub-searches are read, so building a section per hit would be pure waste
+            assertNull("expand sub-searches must not request shard_info", groupRequest.shardInfo());
         }
     }
 
