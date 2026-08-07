@@ -8,12 +8,19 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
+import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
@@ -103,7 +110,118 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertTrue(InternalOrder.isKeyAsc(compound.orderElements().get(1)));
     }
 
-    public void testToBucketAggregationNotYetImplemented() {
-        expectThrows(UnsupportedOperationException.class, () -> translator.toBucketAggregation(brandAgg, List.of()));
+    public void testToBucketAggregationBuildsStringTerms() {
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of("BrandA"), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY)
+        );
+
+        InternalAggregation agg = translator.toBucketAggregation(brandAgg, entries);
+
+        assertTrue(agg instanceof StringTerms);
+        StringTerms terms = (StringTerms) agg;
+        assertEquals(brandAgg.getName(), terms.getName());
+        assertEquals(2, terms.getBuckets().size());
+        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(3, terms.getBuckets().get(0).getDocCount());
+        assertEquals("BrandB", terms.getBuckets().get(1).getKeyAsString());
+        assertEquals(2, terms.getBuckets().get(1).getDocCount());
+    }
+
+    /** Legacy parity: docs with a missing field form no bucket — a SQL NULL group is dropped. */
+    public void testNullKeyBucketExcluded() {
+        List<BucketEntry> entries = new ArrayList<>();
+        entries.add(new BucketEntry(java.util.Collections.singletonList(null), 4L, InternalAggregations.EMPTY));
+        entries.add(new BucketEntry(List.of("BrandA"), 3L, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries);
+
+        assertEquals(1, terms.getBuckets().size());
+        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
+    }
+
+    public void testToBucketAggregationEmptyBuckets() {
+        InternalAggregation agg = translator.toBucketAggregation(brandAgg, List.of());
+        assertTrue(agg instanceof StringTerms);
+        assertTrue(((StringTerms) agg).getBuckets().isEmpty());
+    }
+
+    public void testIntegralKeysProduceLongTermsWithNumericKeys() {
+        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(42L), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(7), 2, InternalAggregations.EMPTY)
+        );
+
+        InternalAggregation agg = translator.toBucketAggregation(priceAgg, entries);
+
+        assertTrue(agg instanceof LongTerms);
+        LongTerms terms = (LongTerms) agg;
+        assertEquals(42L, terms.getBuckets().get(0).getKey());
+        assertEquals("42", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(7L, terms.getBuckets().get(1).getKey());
+    }
+
+    public void testFloatingKeysProduceDoubleTerms() {
+        TermsAggregationBuilder ratingAgg = new TermsAggregationBuilder("by_rating").field("rating");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(1.5), 3, InternalAggregations.EMPTY));
+
+        InternalAggregation agg = translator.toBucketAggregation(ratingAgg, entries);
+
+        assertTrue(agg instanceof DoubleTerms);
+        assertEquals(1.5, ((DoubleTerms) agg).getBuckets().get(0).getKey());
+    }
+
+    public void testBooleanKeysRenderLikeClassicBooleanTerms() {
+        TermsAggregationBuilder boolAgg = new TermsAggregationBuilder("by_flag").field("flag");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(true), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(false), 2, InternalAggregations.EMPTY)
+        );
+
+        LongTerms terms = (LongTerms) translator.toBucketAggregation(boolAgg, entries);
+
+        assertEquals(1L, terms.getBuckets().get(0).getKey());
+        assertEquals("true", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(0L, terms.getBuckets().get(1).getKey());
+        assertEquals("false", terms.getBuckets().get(1).getKeyAsString());
+    }
+
+    public void testBinaryKeysDecodeToIpAddressStrings() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(new byte[] { 10, 0, 0, 1 }), 3, InternalAggregations.EMPTY),
+            new BucketEntry(
+                List.of(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 10, 0, 0, 2 }),
+                2,
+                InternalAggregations.EMPTY
+            )
+        );
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+
+        assertEquals("10.0.0.1", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals("10.0.0.2", terms.getBuckets().get(1).getKeyAsString());
+    }
+
+    /** IPv6 keys must render in RFC 5952 canonical form like classic ip terms, not the uncompressed form. */
+    public void testIpv6KeyRendersCanonicalForm() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        // 2001:db8::1
+        byte[] ipv6 = { 0x20, 0x01, 0x0d, (byte) 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(ipv6), 1, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+
+        assertEquals("2001:db8::1", terms.getBuckets().get(0).getKeyAsString());
+    }
+
+    public void testUndecodableBinaryKeyFallsBackToBase64() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(new byte[] { 1, 2, 3 }), 1, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+
+        assertEquals("AQID", terms.getBuckets().get(0).getKeyAsString());
     }
 }
