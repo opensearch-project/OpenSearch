@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
@@ -227,6 +228,7 @@ import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ConcurrencyLimiterStatsPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.DefaultPluginComponentRegistry;
@@ -1709,7 +1711,8 @@ public class Node implements Closeable {
                 repositoryService,
                 admissionControlService,
                 cacheService,
-                nativeAllocatorStatsSupplier
+                nativeAllocatorStatsSupplier,
+                buildConcurrencyLimiterStatsSupplier(pluginsService)
             );
 
             final SearchService searchService = newSearchService(
@@ -2468,6 +2471,15 @@ public class Node implements Closeable {
      */
     PageCacheRecycler createPageCacheRecycler(Settings settings) {
         return new PageCacheRecycler(settings);
+    }
+
+    private static Supplier<ActionConcurrencyLimiterStats> buildConcurrencyLimiterStatsSupplier(PluginsService pluginsService) {
+        List<ConcurrencyLimiterStatsPlugin> providers = pluginsService.filterPlugins(ConcurrencyLimiterStatsPlugin.class);
+        if (providers.isEmpty()) {
+            return () -> null;
+        }
+        ConcurrencyLimiterStatsPlugin provider = providers.getFirst();
+        return provider::getConcurrencyLimiterStats;
     }
 
     /**
