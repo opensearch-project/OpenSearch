@@ -377,10 +377,11 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * also covers a reset-to-default that would lower the limit, not just an explicit smaller value.
      */
     private void validateScriptMaxSizeInBytes(ClusterUpdateSettingsRequest request, ClusterState updatedState) {
-        // Only validate when the request actually touches the setting (including an explicit reset-to-default), matching
-        // the pattern used for other cross-state settings validated here.
-        if (request.transientSettings().hasValue(SCRIPT_MAX_SIZE_IN_BYTES.getKey()) == false
-            && request.persistentSettings().hasValue(SCRIPT_MAX_SIZE_IN_BYTES.getKey()) == false) {
+        // Only validate when the request actually touches the setting. keySet() (not hasValue()) is used so that an
+        // explicit reset-to-default — stored as a null-valued key, for which hasValue() is false — is still validated,
+        // since a reset can lower the effective limit below an already stored script.
+        String key = SCRIPT_MAX_SIZE_IN_BYTES.getKey();
+        if (request.transientSettings().keySet().contains(key) == false && request.persistentSettings().keySet().contains(key) == false) {
             return;
         }
         // Resolve the effective value the same way it is resolved at apply time: node settings (e.g. opensearch.yml)
