@@ -11,13 +11,17 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttle;
+import org.apache.calcite.rel.RelVisitor;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
@@ -125,6 +129,7 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
+        modifiedRelNode = lowerFrontendPrivateNodes(modifiedRelNode);
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
@@ -166,6 +171,51 @@ public class PlannerImpl {
             LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Phase -1: lower frontend-private rel nodes into standard Calcite shapes.
+     *
+     * <p>The PPL frontend (unified-query library) plans some commands into rel classes that
+     * exist only in that library — e.g. {@code dedup} becomes a {@code LogicalDedup}. The
+     * marking phase covers the standard logical nodes and rejects anything else as an
+     * "unmarked child", so those nodes must be rewritten into standard shapes first. Rather
+     * than hard-linking this module against the frontend jar (a dependency inversion — the
+     * engine is frontend-agnostic), ask each foreign node itself via
+     * {@link RelNode#register(org.apache.calcite.plan.RelOptPlanner)}: custom rels register
+     * the library's own converter rules there (Calcite's standard extension hook; for
+     * LogicalDedup that's PPLDedupConvertRule, which lowers to ROW_NUMBER() OVER
+     * (PARTITION BY keys) + Filter — shapes the marking phase and backends already handle).
+     *
+     * <p>Standard Logical* nodes register optimization rules we don't want at this stage, so
+     * only nodes outside Calcite's namespace are asked. No foreign nodes → no HEP pass at all.
+     */
+    private static RelNode lowerFrontendPrivateNodes(RelNode input) {
+        List<RelOptRule> foreignRules = collectForeignNodeRules(input);
+        if (foreignRules.isEmpty()) {
+            return input;
+        }
+        HepProgramBuilder program = new HepProgramBuilder();
+        foreignRules.forEach(program::addRuleInstance);
+        HepPlanner hepPlanner = new HepPlanner(program.build());
+        hepPlanner.setRoot(input);
+        return hepPlanner.findBestExp();
+    }
+
+    /** Collects converter rules self-registered by non-Calcite rel nodes in the tree. */
+    private static List<RelOptRule> collectForeignNodeRules(RelNode input) {
+        // Throwaway planner used purely as a rule sink for RelNode.register().
+        HepPlanner ruleSink = new HepPlanner(new HepProgramBuilder().build());
+        new RelVisitor() {
+            @Override
+            public void visit(RelNode node, int ordinal, RelNode parent) {
+                if (node.getClass().getName().startsWith("org.apache.calcite.") == false) {
+                    node.register(ruleSink);
+                }
+                super.visit(node, ordinal, parent);
+            }
+        }.go(input);
+        return List.copyOf(ruleSink.getRules());
     }
 
     /**
