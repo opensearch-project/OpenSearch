@@ -113,8 +113,6 @@ public class SortEarlyTerminationMeasurementIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
-            // The sweep needs more than the 50-shard default at its widest point.
-            .put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), 500)
             .build();
     }
 

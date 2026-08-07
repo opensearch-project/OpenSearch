@@ -58,14 +58,6 @@ public final class AnalyticsQuerySettings {
         )
     );
 
-    public static final Setting<Integer> MAX_SHARDS_PER_QUERY = Setting.intSetting(
-        "analytics.query.max_shards_per_query",
-        50,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /**
      * Fan-out above which a query runs the can-match pre-filter phase before dispatching fragments.
      * Mirrors vanilla's {@code pre_filter_shard_size} ({@code TransportSearchAction
@@ -100,12 +92,7 @@ public final class AnalyticsQuerySettings {
     );
 
     public static List<Setting<?>> all() {
-        return List.of(
-            DELEGATION_BLOCKED_PREDICATES,
-            MAX_SHARDS_PER_QUERY,
-            PRE_FILTER_SHARD_SIZE,
-            MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
-        );
+        return List.of(DELEGATION_BLOCKED_PREDICATES, PRE_FILTER_SHARD_SIZE, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
     }
 
     private AnalyticsQuerySettings() {}

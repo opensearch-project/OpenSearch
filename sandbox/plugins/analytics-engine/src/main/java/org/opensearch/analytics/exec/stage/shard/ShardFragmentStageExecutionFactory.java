@@ -48,11 +48,6 @@ public final class ShardFragmentStageExecutionFactory implements StageExecutionF
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
-        // Inject the per-query max-shards limit (snapshotted from the dynamic cluster setting by
-        // DefaultPlanExecutor into the QueryContext) into the resolver, which enforces it at resolve().
-        if (stage.getTargetResolver() instanceof ShardTargetResolver shardResolver) {
-            shardResolver.setMaxShardsPerQuery(config.maxShardsPerQuery());
-        }
         List<FragmentExecutionRequest.PlanAlternative> planAlternatives = buildPlanAlternatives(stage);
         final String queryId = config.queryId();
         final int stageId = stage.getStageId();

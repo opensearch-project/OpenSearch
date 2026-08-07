@@ -37,14 +37,12 @@ public class QueryContext {
     /** Setting defaults for {@code analytics.query.*}; used by test contexts and as the baseline. */
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
         .get(Settings.EMPTY);
-    private static final int DEFAULT_MAX_SHARDS_PER_QUERY = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(Settings.EMPTY);
     private static final int DEFAULT_PRE_FILTER_SHARD_SIZE = AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.get(Settings.EMPTY);
 
     private final QueryDAG dag;
     private final ThreadPool threadPool;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequestsPerNode;
-    private final int maxShardsPerQuery;
     private final int preFilterShardSize;
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
@@ -76,7 +74,6 @@ public class QueryContext {
         ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequestsPerNode,
-        int maxShardsPerQuery,
         int preFilterShardSize,
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
@@ -87,7 +84,6 @@ public class QueryContext {
         this.threadPool = threadPool;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequestsPerNode = maxConcurrentShardRequestsPerNode;
-        this.maxShardsPerQuery = maxShardsPerQuery;
         this.preFilterShardSize = preFilterShardSize;
         this.operationListeners = operationListeners;
         this.allocator = allocator;
@@ -127,16 +123,6 @@ public class QueryContext {
     /** Max in-flight shard fragment requests the coordinator dispatches to any single data node. */
     public int maxConcurrentShardRequestsPerNode() {
         return maxConcurrentShardRequestsPerNode;
-    }
-
-    /**
-     * Max shards a multi-index (alias / pattern / comma-list) query may fan out to before it is
-     * rejected. Snapshotted from {@code analytics.query.max_shards_per_query} at query start by
-     * {@link DefaultPlanExecutor} (which owns the settings-update consumer), so the value is
-     * stable for this query and readable from any stage via the context.
-     */
-    public int maxShardsPerQuery() {
-        return maxShardsPerQuery;
     }
 
     /**
@@ -248,7 +234,6 @@ public class QueryContext {
             null,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
-            DEFAULT_MAX_SHARDS_PER_QUERY,
             DEFAULT_PRE_FILTER_SHARD_SIZE,
             operationListeners,
             testAllocator,

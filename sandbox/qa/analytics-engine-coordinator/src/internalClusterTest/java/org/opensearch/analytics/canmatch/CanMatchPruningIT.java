@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
@@ -124,6 +125,11 @@ public class CanMatchPruningIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
+            // These cases prune on filters alone, and a week of daily indices is far below the
+            // production trigger, so force the phase on. What is under test is the pruning itself,
+            // not the fan-out heuristic that decides when to pay for it — that lives in
+            // CanMatchTriggerTests.
+            .put(AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.getKey(), 1)
             .build();
     }
 
