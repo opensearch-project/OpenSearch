@@ -43,7 +43,8 @@ public class RustBridge {
     private static final MethodHandle FINALIZE_WRITER;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_COLUMN_METADATA;
-    private static final MethodHandle GET_FILTERED_BYTES;
+    private static final MethodHandle GET_WRITER_MEMORY_USAGE;
+    private static final MethodHandle FREE_WRITER;
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
@@ -83,18 +84,16 @@ public class RustBridge {
             lib.find("parquet_write").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,   // handle
+                ValueLayout.JAVA_LONG,   // array_address
+                ValueLayout.JAVA_LONG    // schema_address
             )
         );
         FINALIZE_WRITER = linker.downcallHandle(
             lib.find("parquet_finalize_writer").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,   // handle
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
@@ -120,9 +119,13 @@ public class RustBridge {
                 ValueLayout.ADDRESS   // num_row_groups_out
             )
         );
-        GET_FILTERED_BYTES = linker.downcallHandle(
-            lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        GET_WRITER_MEMORY_USAGE = linker.downcallHandle(
+            lib.find("parquet_get_writer_memory_usage").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        FREE_WRITER = linker.downcallHandle(
+            lib.find("parquet_free_writer").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
         GET_COLUMN_METADATA = linker.downcallHandle(
             lib.find("parquet_get_column_metadata").orElseThrow(),
@@ -292,7 +295,7 @@ public class RustBridge {
 
     public static void initLogger() {}
 
-    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
+    static long createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
         throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
@@ -300,7 +303,7 @@ public class RustBridge {
             var sorts = call.strArray(sortConfig.sortColumns().toArray(new String[0]));
             var reverseArray = marshalBoolList(call, sortConfig.reverseSorts());
             var nullsFirstArray = marshalBoolList(call, sortConfig.nullsFirst());
-            call.invokeIO(
+            return call.invokeIO(
                 CREATE_WRITER,
                 f.segment(),
                 f.len(),
@@ -319,10 +322,9 @@ public class RustBridge {
         }
     }
 
-    static void write(String file, long arrayAddress, long schemaAddress) throws IOException {
+    static void write(long handle, long arrayAddress, long schemaAddress) throws IOException {
         try (var call = new NativeCall()) {
-            var f = call.str(file);
-            call.invokeIO(WRITE, f.segment(), f.len(), arrayAddress, schemaAddress);
+            call.invokeIO(WRITE, handle, arrayAddress, schemaAddress);
         }
     }
 
@@ -332,9 +334,8 @@ public class RustBridge {
     record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {
     }
 
-    static WriterFinalizeResult finalizeWriter(String file) throws IOException {
+    static WriterFinalizeResult finalizeWriter(long handle) throws IOException {
         try (var call = new NativeCall()) {
-            var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var crc32Out = call.longOut();
@@ -344,8 +345,7 @@ public class RustBridge {
             var sortPermLenOut = call.longOut();
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
-                f.segment(),
-                f.len(),
+                handle,
                 versionOut,
                 numRowsOut,
                 out.data(),
@@ -433,11 +433,14 @@ public class RustBridge {
         }
     }
 
-    public static long getFilteredNativeBytesUsed(String pathPrefix) {
+    public static long getWriterMemoryUsage(long handle) {
         try (var call = new NativeCall()) {
-            var p = call.str(pathPrefix);
-            return call.invoke(GET_FILTERED_BYTES, p.segment(), p.len());
+            return call.invoke(GET_WRITER_MEMORY_USAGE, handle);
         }
+    }
+
+    public static void freeWriter(long handle) {
+        NativeCall.invokeVoid(FREE_WRITER, handle);
     }
 
     public static void onSettingsUpdate(NativeSettings nativeSettings) throws IOException {
