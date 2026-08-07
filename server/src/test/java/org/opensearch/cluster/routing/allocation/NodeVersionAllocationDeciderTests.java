@@ -951,12 +951,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(Settings.EMPTY);
         Decision decision = allocationDecider.canAllocate(replicaShard, targetNode, routingAllocation);
         assertThat(
-            "primary on "
-                + primaryNodeVersion
-                + ", target "
-                + targetNodeVersion
-                + ": "
-                + decision.getExplanation(),
+            "primary on " + primaryNodeVersion + ", target " + targetNodeVersion + ": " + decision.getExplanation(),
             decision.type(),
             is(expected)
         );
