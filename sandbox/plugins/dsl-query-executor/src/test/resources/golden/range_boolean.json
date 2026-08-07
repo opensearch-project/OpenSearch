@@ -1,0 +1,38 @@
+{
+  "testName": "range_boolean",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "is_active": "BOOLEAN"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "is_active": {
+          "gte": true,
+          "lte": true
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, CAST(true):BOOLEAN), <=($1, CAST(true):BOOLEAN))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "is_active"],
+  "mockResultRows": [
+    ["product1", true]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

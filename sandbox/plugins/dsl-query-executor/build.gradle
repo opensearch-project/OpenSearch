@@ -46,3 +46,8 @@ dependencies {
   internalClusterTestImplementation project(':server')
   internalClusterTestImplementation project(':test:framework')
 }
+
+tasks.withType(JavaCompile).configureEach {
+  // Calcite's TimestampString references Jackson @JsonProperty not on compile classpath — suppress classfile warning
+  options.compilerArgs -= '-Xlint:classfile'
+}
