@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -47,10 +48,13 @@ import java.util.stream.Collectors;
 
 /**
  * An allocation decider that prevents relocation or allocation from nodes
- * that might not be version compatible. If we relocate from a node that runs
- * a newer version than the node we relocate to this might cause {@link org.apache.lucene.index.IndexFormatTooNewException}
- * on the lowest level since it might have already written segments that use a new postings format or codec that is not
- * available on the target node.
+ * that might not be Lucene format compatible. If we relocate from a node that writes
+ * segments in a newer Lucene major/minor version than the node we relocate to understands,
+ * this might cause {@link org.apache.lucene.index.IndexFormatTooNewException} on the lowest
+ * level since it might have already written segments that use a new postings format or codec
+ * that is not available on the target node. Nodes on the same Lucene major/minor version (e.g.
+ * differing only by an OpenSearch patch release) are always considered compatible, since a
+ * Lucene patch release does not change the on-disk segment/codec format.
  *
  * @opensearch.internal
  */
@@ -64,6 +68,21 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
     }
 
+    /**
+     * Returns true if a node running {@code target} can read segments written by a node running
+     * {@code source}, based on the actual Lucene version of each (rather than the raw OpenSearch
+     * version id). This is the case when {@code target}'s Lucene major.minor is the same as or
+     * newer than {@code source}'s -- in particular this allows OpenSearch patch-level differences
+     * that share the same Lucene major.minor, since Lucene patch releases do not change the
+     * segment/codec format.
+     */
+    private static boolean isLuceneVersionCompatible(Version target, Version source) {
+        org.apache.lucene.util.Version targetLucene = target.luceneVersion;
+        org.apache.lucene.util.Version sourceLucene = source.luceneVersion;
+        return targetLucene.major > sourceLucene.major
+            || (targetLucene.major == sourceLucene.major && targetLucene.minor >= sourceLucene.minor);
+    }
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
@@ -74,13 +93,17 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                     .filter(shr -> !shr.primary() && shr.active())
                     .collect(Collectors.toList());
                 for (ShardRouting replica : replicas) {
-                    // can not allocate if target node version > any existing replica version
+                    // With segment replication the replica continuously reads segments written by the primary,
+                    // so the replica's Lucene version must be able to read the primary's for the life of the
+                    // shard. Block a newer target unless the replica can still read what it would write (e.g.
+                    // an OpenSearch patch-level difference that shares the same Lucene major.minor).
                     RoutingNode replicaNode = allocation.routingNodes().node(replica.currentNodeId());
-                    if (node.node().getVersion().after(replicaNode.node().getVersion())) {
+                    if (node.node().getVersion().after(replicaNode.node().getVersion())
+                        && isLuceneVersionCompatible(replicaNode.node().getVersion(), node.node().getVersion()) == false) {
                         return allocation.decision(
                             Decision.NO,
                             NAME,
-                            "When segment replication is enabled, cannot relocate primary shard to a node with version [%s] if it has a replica on older version [%s]",
+                            "When segment replication is enabled, cannot relocate primary shard to a node with version [%s] if it has a replica on older, Lucene-incompatible version [%s]",
                             node.node().getVersion(),
                             replicaNode.node().getVersion()
                         );
@@ -118,11 +141,12 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingAllocation allocation
     ) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
+        if (target.node().getVersion().onOrAfter(source.node().getVersion())
+            || isLuceneVersionCompatible(target.node().getVersion(), source.node().getVersion())) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can relocate primary shard from a node with version [%s] to a node with equal-or-newer version [%s]",
+                "can relocate primary shard from a node with version [%s] to a node with equal-or-newer, Lucene-compatible version [%s]",
                 source.node().getVersion(),
                 target.node().getVersion()
             );
@@ -130,7 +154,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot relocate primary shard from a node with version [%s] to a node with older version [%s]",
+                "cannot relocate primary shard from a node with version [%s] to a node with older, Lucene-incompatible version [%s]",
                 source.node().getVersion(),
                 target.node().getVersion()
             );
@@ -144,14 +168,16 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingAllocation allocation
     ) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
-            /* we can allocate if we can recover from a node that is younger or on the same version
-             * if the primary is already running on a newer version that won't work due to possible
-             * differences in the lucene index format etc.*/
+        if (target.node().getVersion().onOrAfter(source.node().getVersion())
+            || isLuceneVersionCompatible(target.node().getVersion(), source.node().getVersion())) {
+            /* we can allocate if we can recover from a node that is younger or on the same version, or if the
+             * target's Lucene version can still read the source's segments (e.g. an OpenSearch patch-level
+             * difference that shares the same Lucene major.minor). If the primary is already running a newer
+             * Lucene major/minor that won't work due to possible differences in the lucene index format etc. */
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can allocate replica shard to a node with version [%s] since this is equal-or-newer than the primary version [%s]",
+                "can allocate replica shard to a node with version [%s] since this is equal-or-newer than, or Lucene-compatible with, the primary version [%s]",
                 target.node().getVersion(),
                 source.node().getVersion()
             );
@@ -159,7 +185,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot allocate replica shard to a node with version [%s] since this is older than the primary version [%s]",
+                "cannot allocate replica shard to a node with version [%s] since this is older than, and Lucene-incompatible with, the primary version [%s]",
                 target.node().getVersion(),
                 source.node().getVersion()
             );
@@ -171,12 +197,14 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingNode target,
         final RoutingAllocation allocation
     ) {
-        if (target.node().getVersion().onOrAfter(recoverySource.version())) {
-            /* we can allocate if we can restore from a snapshot that is older or on the same version */
+        if (target.node().getVersion().onOrAfter(recoverySource.version())
+            || isLuceneVersionCompatible(target.node().getVersion(), recoverySource.version())) {
+            /* we can allocate if we can restore from a snapshot that is older or on the same version, or if the
+             * target's Lucene version can still read the snapshot's segments. */
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "node version [%s] is the same or newer than snapshot version [%s]",
+                "node version [%s] is the same or newer than, or Lucene-compatible with, snapshot version [%s]",
                 target.node().getVersion(),
                 recoverySource.version()
             );
@@ -184,7 +212,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "node version [%s] is older than the snapshot version [%s]",
+                "node version [%s] is older than, and Lucene-incompatible with, the snapshot version [%s]",
                 target.node().getVersion(),
                 recoverySource.version()
             );
