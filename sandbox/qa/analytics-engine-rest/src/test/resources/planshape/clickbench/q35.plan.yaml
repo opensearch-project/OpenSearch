@@ -28,12 +28,22 @@ plans:
             OpenSearchAggregate(group=[{0, 1}], c=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
               OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
-    shard_physical: |
+    shard_physical_1seg: |
       ProjectionExec: expr=[Int32(1)@0 as const, URL@1 as URL, count(Int64(1))[count]@2 as c]
         SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
-            AggregateExec: mode=Partial, gby=[Int32(1)@0 as Int32(1), URL@1 as URL], aggr=[count(Int64(1))], ordering_mode=PartiallySorted([0])
-              DataSourceExec: file_groups={<scrubbed>}, projection=[1 as Int32(1), URL], file_type=parquet
+            AggregateExec: mode=PartialReduce, gby=[Int32(1)@0 as Int32(1), URL@1 as URL], aggr=[count(Int64(1))], ordering_mode=PartiallySorted([0])
+              RepartitionExec: partitioning=Hash([Int32(1)@0, URL@1], 4), input_partitions=1
+                AggregateExec: mode=Partial, gby=[Int32(1)@0 as Int32(1), URL@1 as URL], aggr=[count(Int64(1))], ordering_mode=PartiallySorted([0])
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[1 as Int32(1), URL], file_type=parquet
+    shard_physical_nseg: |
+      ProjectionExec: expr=[Int32(1)@0 as const, URL@1 as URL, count(Int64(1))[count]@2 as c]
+        SortPreservingMergeExec: [count(Int64(1))@2 DESC NULLS LAST], fetch=30
+          SortExec: TopK(fetch=30), expr=[count(Int64(1))@2 DESC NULLS LAST], preserve_partitioning=[true]
+            AggregateExec: mode=PartialReduce, gby=[Int32(1)@0 as Int32(1), URL@1 as URL], aggr=[count(Int64(1))], ordering_mode=PartiallySorted([0])
+              RepartitionExec: partitioning=Hash([Int32(1)@0, URL@1], 4), input_partitions=2
+                AggregateExec: mode=Partial, gby=[Int32(1)@0 as Int32(1), URL@1 as URL], aggr=[count(Int64(1))], ordering_mode=PartiallySorted([0])
+                  DataSourceExec: file_groups={<scrubbed>}, projection=[1 as Int32(1), URL], file_type=parquet
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.c)@0 as c, Int32(1)@1 as const, URL@2 as URL]
         SortPreservingMergeExec: [sum(input-0.c)@0 DESC NULLS LAST], fetch=10

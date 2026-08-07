@@ -70,9 +70,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
+    public static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMinutes(1);
+
+    public static final Setting<TimeValue> CLUSTER_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "cluster.routing.allocation.unassigned.node_left.delayed_timeout",
+        DEFAULT_DELAYED_NODE_LEFT_TIMEOUT,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "index.unassigned.node_left.delayed_timeout",
-        TimeValue.timeValueMinutes(1),
+        DEFAULT_DELAYED_NODE_LEFT_TIMEOUT,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -245,7 +254,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     private final Reason reason;
     private final long unassignedTimeMillis; // used for display and log messages, in milliseconds
     private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
-    private final boolean delayed; // if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING
+    private final boolean delayed; // if allocation of this shard is delayed due to delayed node-left timeout settings
     private final String message;
     private final Exception failure;
     private final int failedAllocations;
@@ -278,7 +287,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
      * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
      * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
-     * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
+     * @param delayed              if allocation of this shard is delayed due to delayed node-left timeout settings.
      * @param lastAllocationStatus the result of the last allocation attempt for this shard
      * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
      */
@@ -344,7 +353,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns true if allocation of this shard is delayed due to {@link #INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
+     * Returns true if allocation of this shard is delayed due to delayed node-left timeout settings.
      */
     public boolean isDelayed() {
         return delayed;
@@ -422,14 +431,40 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings.
+     * Returns the node-left delayed allocation timeout from the index settings if explicitly configured,
+     * otherwise returns the cluster-level delayed allocation timeout.
+     */
+    public static TimeValue getNodeLeftDelayedTimeout(final Settings indexSettings, final Settings clusterSettings) {
+        if (INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.exists(indexSettings)) {
+            return INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings);
+        }
+        return CLUSTER_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(clusterSettings);
+    }
+
+    /**
+     * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings,
+     * or the built-in cluster default if the index setting is not set.
+     * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
+     * Returns 0 if delay is negative
+     *
+     * @return calculated delay in nanoseconds
+     * @deprecated use {@link #getRemainingDelay(long, Settings, Settings)} with effective cluster settings.
+     */
+    @Deprecated
+    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
+        return getRemainingDelay(nanoTimeNow, indexSettings, Settings.EMPTY);
+    }
+
+    /**
+     * Calculates the delay left based on current time (in nanoseconds) and the effective delay defined by
+     * the index settings or the cluster-level default.
      * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
      * Returns 0 if delay is negative
      *
      * @return calculated delay in nanoseconds
      */
-    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
-        long delayTimeoutNanos = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
+    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings, final Settings clusterSettings) {
+        long delayTimeoutNanos = getNodeLeftDelayedTimeout(indexSettings, clusterSettings).nanos();
         assert nanoTimeNow >= unassignedTimeNanos;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
@@ -446,8 +481,21 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Finds the next (closest) delay expiration of an delayed shard in nanoseconds based on current time.
      * Returns 0 if delay is negative.
      * Returns -1 if no delayed shard is found.
+     *
+     * @deprecated use {@link #findNextDelayedAllocation(long, ClusterState, Settings)} with effective cluster settings.
      */
+    @Deprecated
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
+        return findNextDelayedAllocation(currentNanoTime, state, state.metadata().settings());
+    }
+
+    /**
+     * Finds the next (closest) delay expiration of a delayed shard in nanoseconds based on current time
+     * and the supplied effective cluster settings.
+     * Returns 0 if delay is negative.
+     * Returns -1 if no delayed shard is found.
+     */
+    public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state, Settings clusterSettings) {
         Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
@@ -456,7 +504,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             if (unassignedInfo.isDelayed()) {
                 Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
+                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings, clusterSettings);
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
                     nextDelayNanos = newComputedLeftDelayNanos;
                 }

@@ -62,7 +62,10 @@ pub fn plan_requests_row_ids(plan: &LogicalPlan) -> bool {
             Expr::Column(col) => col.name() == crate::ROW_ID_COLUMN_NAME,
             _ => false,
         }),
-        _ => plan.inputs().iter().any(|child| plan_requests_row_ids(child)),
+        _ => plan
+            .inputs()
+            .iter()
+            .any(|child| plan_requests_row_ids(child)),
     }
 }
 
@@ -149,7 +152,9 @@ pub fn expr_to_bool_tree(
     } else {
         tree
     };
-    Ok(ExtractionResult { tree: Arc::new(tree) })
+    Ok(ExtractionResult {
+        tree: Arc::new(tree),
+    })
 }
 
 fn convert_expr(
@@ -238,10 +243,18 @@ fn convert_delegation_possible_function(
     let unqualified = strip_column_qualifiers(&args[0]);
     let original_expr = state
         .create_physical_expr(unqualified, df_schema)
-        .map_err(|e| format!("create_physical_expr for {} arg 0: {}", DELEGATION_POSSIBLE_FUNCTION_NAME, e))?;
-    let return_type = original_expr
-        .data_type(schema)
-        .map_err(|e| format!("data_type for {} arg 0: {}", DELEGATION_POSSIBLE_FUNCTION_NAME, e))?;
+        .map_err(|e| {
+            format!(
+                "create_physical_expr for {} arg 0: {}",
+                DELEGATION_POSSIBLE_FUNCTION_NAME, e
+            )
+        })?;
+    let return_type = original_expr.data_type(schema).map_err(|e| {
+        format!(
+            "data_type for {} arg 0: {}",
+            DELEGATION_POSSIBLE_FUNCTION_NAME, e
+        )
+    })?;
     if return_type != DataType::Boolean {
         return Err(format!(
             "{} arg 0 must be boolean-valued, got {:?}",
@@ -321,7 +334,9 @@ fn is_and_only_collector_tree(tree: &BoolNode) -> bool {
     match tree {
         BoolNode::And(children) => children.iter().all(is_and_only_collector_tree),
         // Leaves are trivially fine (no Collector or DelegationPossible below them).
-        BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => true,
+        BoolNode::Collector { .. }
+        | BoolNode::Predicate(_)
+        | BoolNode::DelegationPossible { .. } => true,
         // OR/NOT containing any Collector OR any DelegationPossible → Tree path.
         // For DelegationPossible under OR/NOT specifically, Tree path currently
         // routes to the Phase 3/7 unimplemented stubs — failing loud is preferred
@@ -366,9 +381,7 @@ impl IndexFilterUdf {
     fn new() -> Self {
         Self {
             signature: Signature::one_of(
-                vec![
-                    TypeSignature::Exact(vec![DataType::Int32]),
-                ],
+                vec![TypeSignature::Exact(vec![DataType::Int32])],
                 Volatility::Immutable,
             ),
         }
@@ -427,7 +440,10 @@ impl DelegationPossibleUdf {
         Self {
             // Args: (originalPredicate: Boolean, annotationId: Int32).
             signature: Signature::one_of(
-                vec![TypeSignature::Exact(vec![DataType::Boolean, DataType::Int32])],
+                vec![TypeSignature::Exact(vec![
+                    DataType::Boolean,
+                    DataType::Int32,
+                ])],
                 Volatility::Immutable,
             ),
         }
@@ -627,9 +643,7 @@ mod tests {
     // ── classify_filter ──────────────────────────────────────────────
 
     fn collector(id: i32) -> BoolNode {
-        BoolNode::Collector {
-            annotation_id: id,
-        }
+        BoolNode::Collector { annotation_id: id }
     }
     fn dummy_predicate() -> BoolNode {
         // A stand-in Predicate leaf — classify only cares about shape,

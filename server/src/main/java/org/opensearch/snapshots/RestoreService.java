@@ -57,6 +57,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -171,6 +172,98 @@ public class RestoreService implements ClusterStateApplier {
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         unremovable.add(SETTING_VERSION_UPGRADED);
         USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+    }
+
+    /**
+     * Creates a settings filter predicate that separates internal ignore patterns from user ignore patterns.
+     * Internal ignore patterns override protection and can filter any setting.
+     * User ignore patterns respect protected settings and cannot filter them.
+     *
+     * @param userIgnoreSettings array of user-provided settings to ignore
+     * @param internalIgnoreSettings array of internal settings to ignore (override protection)
+     * @param protectedSettings set of settings that user cannot remove
+     * @return a predicate that returns true if the setting should be kept, false if it should be filtered out
+     */
+    static Predicate<String> createSettingsFilterPredicate(
+        String[] userIgnoreSettings,
+        String[] internalIgnoreSettings,
+        Set<String> protectedSettings
+    ) {
+        Set<String> userKeyFilters = new HashSet<>();
+        List<String> userSimpleMatchPatterns = new ArrayList<>();
+        Set<String> internalKeyFilters = new HashSet<>();
+        List<String> internalSimpleMatchPatterns = new ArrayList<>();
+
+        // Process user ignore settings
+        for (String ignoredSetting : userIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                userKeyFilters.add(ignoredSetting);
+            } else {
+                userSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        // Process internal ignore settings
+        for (String ignoredSetting : internalIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                internalKeyFilters.add(ignoredSetting);
+            } else {
+                internalSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        return k -> {
+            // Check internal ignore patterns first (they override protection)
+            if (internalKeyFilters.contains(k)) {
+                return false;
+            }
+            for (String pattern : internalSimpleMatchPatterns) {
+                if (Regex.simpleMatch(pattern, k)) {
+                    return false;
+                }
+            }
+
+            // Check user ignore patterns only for non-protected settings
+            if (!protectedSettings.contains(k)) {
+                if (userKeyFilters.contains(k)) {
+                    return false;
+                }
+                for (String pattern : userSimpleMatchPatterns) {
+                    if (Regex.simpleMatch(pattern, k)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+    }
+
+    /**
+     * Returns the set of settings that users cannot remove during restore.
+     * Exposed for testing purposes.
+     */
+    static Set<String> getUserUnremovableSettings() {
+        return USER_UNREMOVABLE_SETTINGS;
+    }
+
+    /**
+     * Returns the internal index settings to be ignored (stripped) when restoring a snapshot
+     * onto a cluster that does not store index data remotely.
+     * <p>
+     * The remote data attribute check (segment/translog repositories) is used rather than the
+     * broader remote store attribute check, because clusters with only remote cluster state or
+     * routing table publication enabled do not store index data remotely and must still have
+     * {@code index.remote_store.*} settings stripped on restore.
+     *
+     * @param nodeSettings the node settings of the cluster performing the restore
+     * @return array of index setting patterns to ignore during restore
+     */
+    static String[] getIgnoreSettingsInternal(Settings nodeSettings) {
+        String[] indexSettingsToBeIgnored = new String[] {};
+        if (false == RemoteStoreNodeAttribute.isRemoteDataAttributePresent(nodeSettings)) {
+            indexSettingsToBeIgnored = ArrayUtils.concat(indexSettingsToBeIgnored, new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX });
+        }
+        return indexSettingsToBeIgnored;
     }
 
     private final ClusterService clusterService;
@@ -595,6 +688,9 @@ public class RestoreService implements ClusterStateApplier {
                                 .map(ds -> updateDataStream(ds, mdBuilder, request))
                                 .collect(Collectors.toMap(DataStream::getName, Function.identity()))
                         );
+                        if (request.attachToDataStream()) {
+                            attachRestoredBackingIndices(indices.keySet(), mdBuilder, updatedDataStreams);
+                        }
                         mdBuilder.dataStreams(updatedDataStreams);
 
                         // Restore global state if needed
@@ -686,16 +782,9 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private String[] getIgnoreSettingsInternal() {
-                        // for non-remote store enabled domain, we will remove all the remote store
-                        // related index settings present in the snapshot.
-                        String[] indexSettingsToBeIgnored = new String[] {};
-                        if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
-                            indexSettingsToBeIgnored = ArrayUtils.concat(
-                                indexSettingsToBeIgnored,
-                                new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX }
-                            );
-                        }
-                        return indexSettingsToBeIgnored;
+                        // for a domain that does not store index data remotely, we will remove all the
+                        // remote store related index settings present in the snapshot.
+                        return RestoreService.getIgnoreSettingsInternal(clusterService.getSettings());
                     }
 
                     private Settings getOverrideSettingsInternal() {
@@ -818,8 +907,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
                         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                         Settings settings = indexMetadata.getSettings();
-                        Set<String> keyFilters = new HashSet<>();
-                        List<String> simpleMatchPatterns = new ArrayList<>();
+
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
                                 if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
@@ -832,38 +920,24 @@ public class RestoreService implements ClusterStateApplier {
                                         snapshot,
                                         "cannot remove UnmodifiableOnRestore setting [" + ignoredSetting + "] on restore"
                                     );
-                                } else {
-                                    keyFilters.add(ignoredSetting);
                                 }
-                            } else {
-                                simpleMatchPatterns.add(ignoredSetting);
                             }
                         }
 
-                        // add internal settings to ignore settings list
-                        for (String ignoredSetting : ignoreSettingsInternal) {
-                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                keyFilters.add(ignoredSetting);
-                            } else {
-                                simpleMatchPatterns.add(ignoredSetting);
+                        // Build combined protected settings set including dynamic unmodifiable settings
+                        Set<String> protectedSettings = new HashSet<>(USER_UNREMOVABLE_SETTINGS);
+                        for (String key : settings.keySet()) {
+                            if (indexScopedSettings.isUnmodifiableOnRestoreSetting(key)) {
+                                protectedSettings.add(key);
                             }
                         }
 
-                        Predicate<String> settingsFilter = k -> {
-                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false && !indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
-                                for (String filterKey : keyFilters) {
-                                    if (k.equals(filterKey)) {
-                                        return false;
-                                    }
-                                }
-                                for (String pattern : simpleMatchPatterns) {
-                                    if (Regex.simpleMatch(pattern, k)) {
-                                        return false;
-                                    }
-                                }
-                            }
-                            return true;
-                        };
+                        Predicate<String> settingsFilter = createSettingsFilterPredicate(
+                            ignoreSettings,
+                            ignoreSettingsInternal,
+                            protectedSettings
+                        );
+
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
@@ -965,6 +1039,36 @@ public class RestoreService implements ClusterStateApplier {
                 e
             );
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Attaches each restored {@code .ds-<streamName>-NNNNNN} index to a pre-existing data stream of the same name, in
+     * the same cluster-state update as the restore. Adding the index and advancing the generation together avoids the
+     * transient state {@link Metadata.Builder} validation rejects (a convention-named index above the generation).
+     * Updates {@code updatedDataStreams} in place. Visible for testing.
+     */
+    static void attachRestoredBackingIndices(
+        Set<String> restoredIndexNames,
+        Metadata.Builder metadata,
+        Map<String, DataStream> updatedDataStreams
+    ) {
+        for (String restoredIndexName : restoredIndexNames) {
+            String streamName = DataStream.parseDataStreamName(restoredIndexName);
+            if (streamName == null) {
+                continue;
+            }
+            DataStream currentDs = updatedDataStreams.get(streamName);
+            IndexMetadata restoredIndexMetadata = metadata.get(restoredIndexName);
+            if (currentDs == null || restoredIndexMetadata == null) {
+                continue;
+            }
+            if (currentDs.getIndices().contains(restoredIndexMetadata.getIndex())) {
+                continue;
+            }
+            // A backing index must map the timestamp field as a date, or data stream search breaks.
+            MetadataDataStreamsService.validateTimestampFieldMapping(restoredIndexMetadata, currentDs.getTimeStampField().getName());
+            updatedDataStreams.put(streamName, currentDs.addBackingIndex(restoredIndexMetadata.getIndex()));
         }
     }
 
@@ -1317,6 +1421,12 @@ public class RestoreService implements ClusterStateApplier {
             throw new SnapshotRestoreException(
                 new Snapshot(repository, snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
+            );
+        }
+        if (snapshotInfo.version() == null) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository, snapshotInfo.snapshotId()),
+                "the snapshot has an unknown or unsupported version and cannot be restored"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {

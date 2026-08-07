@@ -71,7 +71,9 @@ impl ScalarUDFImpl for OsWeekUdf {
             | DataType::Utf8
             | DataType::LargeUtf8
             | DataType::Utf8View => out.push(DataType::Date32),
-            other => return plan_err!("os_week: arg 0 expected date/timestamp/string, got {other:?}"),
+            other => {
+                return plan_err!("os_week: arg 0 expected date/timestamp/string, got {other:?}")
+            }
         }
         if arg_types.len() == 2 {
             match &arg_types[1] {
@@ -100,9 +102,11 @@ impl ScalarUDFImpl for OsWeekUdf {
         let dates = date_arg
             .as_any()
             .downcast_ref::<datafusion::arrow::array::Date32Array>()
-            .ok_or_else(|| datafusion::error::DataFusionError::Internal(
-                "os_week: arg 0 not coerced to Date32".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                datafusion::error::DataFusionError::Internal(
+                    "os_week: arg 0 not coerced to Date32".to_string(),
+                )
+            })?;
         let mut builder = Int32Builder::with_capacity(n);
         for i in 0..n {
             if dates.is_null(i) {
@@ -111,14 +115,17 @@ impl ScalarUDFImpl for OsWeekUdf {
             }
             let mode = match &mode_arg {
                 Some(arr) if arr.is_null(i) => 0,
-                Some(arr) => arr.as_primitive::<datafusion::arrow::datatypes::Int32Type>().value(i),
+                Some(arr) => arr
+                    .as_primitive::<datafusion::arrow::datatypes::Int32Type>()
+                    .value(i),
                 None => 0,
             };
             let days = dates.value(i);
-            let date = NaiveDate::from_num_days_from_ce_opt(days + 719_163)
-                .ok_or_else(|| datafusion::error::DataFusionError::Execution(
-                    format!("os_week: invalid Date32 day count {days}"),
-                ))?;
+            let date = NaiveDate::from_num_days_from_ce_opt(days + 719_163).ok_or_else(|| {
+                datafusion::error::DataFusionError::Execution(format!(
+                    "os_week: invalid Date32 day count {days}"
+                ))
+            })?;
             builder.append_value(os_week_number(date, mode) as i32);
         }
         Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
@@ -149,13 +156,19 @@ impl ScalarUDFImpl for OsYearweekUdf {
     }
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         if arg_types.is_empty() || arg_types.len() > 2 {
-            return plan_err!("os_yearweek expects 1 or 2 arguments, got {}", arg_types.len());
+            return plan_err!(
+                "os_yearweek expects 1 or 2 arguments, got {}",
+                arg_types.len()
+            );
         }
         Ok(DataType::Int32)
     }
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
         if arg_types.is_empty() || arg_types.len() > 2 {
-            return plan_err!("os_yearweek expects 1 or 2 arguments, got {}", arg_types.len());
+            return plan_err!(
+                "os_yearweek expects 1 or 2 arguments, got {}",
+                arg_types.len()
+            );
         }
         let mut out = Vec::with_capacity(arg_types.len());
         match &arg_types[0] {
@@ -165,7 +178,11 @@ impl ScalarUDFImpl for OsYearweekUdf {
             | DataType::Utf8
             | DataType::LargeUtf8
             | DataType::Utf8View => out.push(DataType::Date32),
-            other => return plan_err!("os_yearweek: arg 0 expected date/timestamp/string, got {other:?}"),
+            other => {
+                return plan_err!(
+                    "os_yearweek: arg 0 expected date/timestamp/string, got {other:?}"
+                )
+            }
         }
         if arg_types.len() == 2 {
             match &arg_types[1] {
@@ -177,7 +194,9 @@ impl ScalarUDFImpl for OsYearweekUdf {
                 | DataType::UInt16
                 | DataType::UInt32
                 | DataType::UInt64 => out.push(DataType::Int32),
-                other => return plan_err!("os_yearweek: arg 1 expected integer mode, got {other:?}"),
+                other => {
+                    return plan_err!("os_yearweek: arg 1 expected integer mode, got {other:?}")
+                }
             }
         }
         Ok(out)
@@ -194,9 +213,11 @@ impl ScalarUDFImpl for OsYearweekUdf {
         let dates = date_arg
             .as_any()
             .downcast_ref::<datafusion::arrow::array::Date32Array>()
-            .ok_or_else(|| datafusion::error::DataFusionError::Internal(
-                "os_yearweek: arg 0 not coerced to Date32".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                datafusion::error::DataFusionError::Internal(
+                    "os_yearweek: arg 0 not coerced to Date32".to_string(),
+                )
+            })?;
         let mut builder = Int32Builder::with_capacity(n);
         for i in 0..n {
             if dates.is_null(i) {
@@ -205,14 +226,17 @@ impl ScalarUDFImpl for OsYearweekUdf {
             }
             let mode = match &mode_arg {
                 Some(arr) if arr.is_null(i) => 0,
-                Some(arr) => arr.as_primitive::<datafusion::arrow::datatypes::Int32Type>().value(i),
+                Some(arr) => arr
+                    .as_primitive::<datafusion::arrow::datatypes::Int32Type>()
+                    .value(i),
                 None => 0,
             };
             let days = dates.value(i);
-            let date = NaiveDate::from_num_days_from_ce_opt(days + 719_163)
-                .ok_or_else(|| datafusion::error::DataFusionError::Execution(
-                    format!("os_yearweek: invalid Date32 day count {days}"),
-                ))?;
+            let date = NaiveDate::from_num_days_from_ce_opt(days + 719_163).ok_or_else(|| {
+                datafusion::error::DataFusionError::Execution(format!(
+                    "os_yearweek: invalid Date32 day count {days}"
+                ))
+            })?;
             builder.append_value(os_yearweek_number(date, mode));
         }
         Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
@@ -260,7 +284,11 @@ fn os_year_number(date: NaiveDate, mode: i32) -> i32 {
 
 /// `(firstDayOfWeek, minimalDaysInFirstWeek)` for MySQL modes 0..7.
 fn week_params(mode: u32) -> (Weekday, u32) {
-    let first = if mode % 2 == 0 { Weekday::Sun } else { Weekday::Mon };
+    let first = if mode % 2 == 0 {
+        Weekday::Sun
+    } else {
+        Weekday::Mon
+    };
     let min_days = match mode {
         1 | 3 => 5,
         4 | 6 => 4,
@@ -373,8 +401,14 @@ mod tests {
     fn os_yearweek_jan1_1900_all_modes() {
         let d = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap();
         let expected: [(i32, i32); 8] = [
-            (0, 189953), (1, 190001), (2, 189953), (3, 190001),
-            (4, 190001), (5, 190001), (6, 190001), (7, 190001),
+            (0, 189953),
+            (1, 190001),
+            (2, 189953),
+            (3, 190001),
+            (4, 190001),
+            (5, 190001),
+            (6, 190001),
+            (7, 190001),
         ];
         for (mode, want) in expected {
             assert_eq!(os_yearweek_number(d, mode), want, "mode={mode}");

@@ -39,19 +39,23 @@ plans:
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
             ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@2) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: MobilePhoneModel@1 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhone, MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
+              AggregateExec: mode=PartialReduce, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([MobilePhone@0, MobilePhoneModel@1], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: MobilePhoneModel@1 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhone, MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
     shard_physical_nseg: |
       ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)@2 as u]
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@3 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
             ProjectionExec: expr=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@2 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@2) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: MobilePhoneModel@1 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhone, MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
+              AggregateExec: mode=PartialReduce, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([MobilePhone@0, MobilePhoneModel@1], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: MobilePhoneModel@1 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhone, MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])

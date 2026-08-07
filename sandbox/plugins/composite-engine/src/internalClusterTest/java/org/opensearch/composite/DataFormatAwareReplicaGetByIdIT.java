@@ -26,9 +26,11 @@ import java.util.List;
 public class DataFormatAwareReplicaGetByIdIT extends DataFormatAwareReplicationBaseIT {
 
     public void testGetByIdFromReplica() throws Exception {
-        int maxDocs = randomInt(20);
+        // At least one doc: assertCatalogSnapshotsConverged asserts the lucene index/ has segment
+        // data files beyond segments_N, which an empty index never produces (randomInt(20) can be 0).
+        int maxDocs = randomIntBetween(1, 20);
         createDfaIndex(1); // 1 replica, 2 data nodes (from base)
-        List<String> ids = indexDocs(maxDocs);     // ids 0..19, RefreshPolicy.NONE
+        List<String> ids = indexDocs(maxDocs);     // ids 1..20, RefreshPolicy.NONE
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         // Ensure the replica's catalog has converged with the primary (segments replicated).
         assertCatalogSnapshotsConverged(INDEX_NAME);

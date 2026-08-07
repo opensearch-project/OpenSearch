@@ -6,26 +6,26 @@
  * compatible open source license.
  */
 
-use crate::eviction_policy::{
-    create_policy, CacheError, CachePolicy, CacheResult, PolicyType,
-};
+use crate::eviction_policy::{create_policy, CacheError, CachePolicy, CacheResult, PolicyType};
 use arrow_array::Array;
+use dashmap::DashMap;
 use datafusion::common::stats::{ColumnStatistics, Precision};
 use datafusion::common::ScalarValue;
-use dashmap::DashMap;
-use datafusion::execution::cache::CacheAccessor;
-use datafusion::execution::cache::cache_manager::{CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry};
-use datafusion::execution::cache::TableScopedPath;
 use datafusion::common::TableReference;
+use datafusion::execution::cache::cache_manager::{
+    CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry,
+};
+use datafusion::execution::cache::CacheAccessor;
+use datafusion::execution::cache::TableScopedPath;
 use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
-use std::fs::File;
 use arrow_schema::SchemaRef;
 use parquet::file::metadata::ParquetMetaData;
+use std::fs::File;
 
 /// Trait to calculate heap memory size for statistics objects
 trait HeapSize {
@@ -42,7 +42,7 @@ impl HeapSize for Statistics {
 }
 
 impl<T: HeapSize + std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd> HeapSize
-for Precision<T>
+    for Precision<T>
 {
     fn heap_size(&self) -> usize {
         match self {
@@ -148,7 +148,9 @@ impl CustomStatisticsCache {
     pub fn new(policy_type: PolicyType, size_limit: usize, eviction_threshold: f64) -> Self {
         Self {
             inner_cache: DashMap::new(),
-            policy: Mutex::new(create_policy(policy_type).expect("statistics cache requires Lru or Lfu")),
+            policy: Mutex::new(
+                create_policy(policy_type).expect("statistics cache requires Lru or Lfu"),
+            ),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
             memory_state: Arc::new(Mutex::new(MemoryState {
@@ -172,7 +174,10 @@ impl CustomStatisticsCache {
 
     /// Get total memory consumed by all cached statistics
     pub fn memory_consumed(&self) -> usize {
-        self.memory_state.lock().map(|guard| guard.total).unwrap_or(0)
+        self.memory_state
+            .lock()
+            .map(|guard| guard.total)
+            .unwrap_or(0)
     }
 
     /// Get cache hit count
@@ -190,7 +195,11 @@ impl CustomStatisticsCache {
         let hits = self.hit_count();
         let misses = self.miss_count();
         let total = hits + misses;
-        if total == 0 { 0.0 } else { hits as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            hits as f64 / total as f64
+        }
     }
 
     /// Reset hit and miss counters
@@ -202,7 +211,10 @@ impl CustomStatisticsCache {
     /// Clone the policy Arc without holding the Mutex. Hot-path callers use this
     /// so they don't hold the lock while calling policy methods.
     fn policy(&self) -> Arc<dyn CachePolicy> {
-        self.policy.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.policy
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Update the cache size limit
@@ -210,7 +222,8 @@ impl CustomStatisticsCache {
         self.size_limit.store(new_limit, Ordering::Relaxed);
         let current_size = self.current_size()?;
         if current_size > new_limit {
-            let target_eviction = current_size - (new_limit as f64 * self.eviction_threshold) as usize;
+            let target_eviction =
+                current_size - (new_limit as f64 * self.eviction_threshold) as usize;
             let candidates = self.policy().select_for_eviction(target_eviction);
             for candidate_key in candidates {
                 if let Ok(path) = self.parse_key_to_path(&candidate_key) {
@@ -224,18 +237,24 @@ impl CustomStatisticsCache {
     /// Switch to a different eviction policy, rebuilding state from current entries.
     pub fn set_policy(&self, policy_type: PolicyType) -> CacheResult<()> {
         let entries: Vec<(String, usize)> = {
-            let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
-                reason: format!("Failed to acquire memory_state lock: {}", e),
-            })?;
+            let state = self
+                .memory_state
+                .lock()
+                .map_err(|e| CacheError::PolicyLockError {
+                    reason: format!("Failed to acquire memory_state lock: {}", e),
+                })?;
             state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
         };
         let new_policy = create_policy(policy_type).expect("statistics cache requires Lru or Lfu");
         for (key, size) in entries {
             new_policy.on_insert(&key, size);
         }
-        let mut guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
-            reason: format!("Failed to acquire policy lock: {}", e),
-        })?;
+        let mut guard = self
+            .policy
+            .lock()
+            .map_err(|e| CacheError::PolicyLockError {
+                reason: format!("Failed to acquire policy lock: {}", e),
+            })?;
         *guard = new_policy;
         Ok(())
     }
@@ -257,15 +276,20 @@ impl CustomStatisticsCache {
 
     /// Manually trigger eviction.
     pub fn evict(&mut self, target_size: usize) -> CacheResult<usize> {
-        if target_size == 0 { return Ok(0); }
+        if target_size == 0 {
+            return Ok(0);
+        }
         let candidates = self.policy().select_for_eviction(target_size);
 
         let mut freed_size = 0;
         for key in candidates {
             let entry_size = {
-                let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
-                    reason: format!("Failed to acquire memory_state lock: {}", e),
-                })?;
+                let state = self
+                    .memory_state
+                    .lock()
+                    .map_err(|e| CacheError::PolicyLockError {
+                        reason: format!("Failed to acquire memory_state lock: {}", e),
+                    })?;
                 state.tracker.get(&key).copied().unwrap_or(0)
             };
 
@@ -279,7 +303,9 @@ impl CustomStatisticsCache {
                         self.policy().on_remove(&key);
                         freed_size += entry_size;
                     }
-                    if freed_size >= target_size { break; }
+                    if freed_size >= target_size {
+                        break;
+                    }
                 }
             }
         }
@@ -338,7 +364,9 @@ impl CustomStatisticsCache {
             let key = k.to_string();
             let memory_size = {
                 let state = self.memory_state.lock();
-                state.map(|s| s.tracker.get(&key).copied().unwrap_or(0)).unwrap_or(0)
+                state
+                    .map(|s| s.tracker.get(&key).copied().unwrap_or(0))
+                    .unwrap_or(0)
             };
             self.policy().on_access(&key, memory_size);
         } else {
@@ -352,17 +380,18 @@ impl CustomStatisticsCache {
         let key = k.to_string();
         let memory_size = v.statistics.memory_size();
 
-        let current_size = self.memory_state.lock()
-            .map(|s| s.total)
-            .unwrap_or(0);
+        let current_size = self.memory_state.lock().map(|s| s.total).unwrap_or(0);
 
         let eviction_candidates = {
             let size_limit = self.size_limit.load(Ordering::Relaxed);
             let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
             if current_size + memory_size > threshold {
-                let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
+                let target_eviction =
+                    (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
                 self.policy().select_for_eviction(target_eviction)
-            } else { vec![] }
+            } else {
+                vec![]
+            }
         };
 
         for candidate_key in eviction_candidates {
@@ -404,7 +433,10 @@ impl CustomStatisticsCache {
     }
 
     pub fn len(&self) -> usize {
-        self.memory_state.lock().map(|s| s.tracker.len()).unwrap_or(0)
+        self.memory_state
+            .lock()
+            .map(|s| s.tracker.len())
+            .unwrap_or(0)
     }
 
     pub fn clear(&self) {
@@ -501,9 +533,11 @@ pub fn compute_parquet_statistics_from_metadata(
 }
 
 /// Compute statistics from a parquet file using DataFusion's built-in functionality
-pub fn compute_parquet_statistics(file_path: &str) -> Result<Statistics, Box<dyn std::error::Error>> {
-    use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+pub fn compute_parquet_statistics(
+    file_path: &str,
+) -> Result<Statistics, Box<dyn std::error::Error>> {
     use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
+    use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use object_store::local::LocalFileSystem;
     use object_store::path::Path;
 
@@ -763,7 +797,9 @@ mod tests {
             handles.push(handle);
         }
 
-        for handle in handles { handle.join().unwrap(); }
+        for handle in handles {
+            handle.join().unwrap();
+        }
         assert!(cache.len() > 0);
     }
 

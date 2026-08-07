@@ -14,7 +14,9 @@ use std::sync::Arc;
 use super::udf_identity;
 
 use chrono::{TimeZone, Utc};
-use datafusion::arrow::array::{Array, ArrayRef, AsArray, StringBuilder, TimestampMicrosecondArray};
+use datafusion::arrow::array::{
+    Array, ArrayRef, AsArray, StringBuilder, TimestampMicrosecondArray,
+};
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{exec_err, plan_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
@@ -67,7 +69,11 @@ impl ScalarUDFImpl for DateFormatUdf {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
                 DataType::Timestamp(TimeUnit::Microsecond, None)
             }
-            other => return plan_err!("date_format: arg 0 expected timestamp/date/string, got {other:?}"),
+            other => {
+                return plan_err!(
+                    "date_format: arg 0 expected timestamp/date/string, got {other:?}"
+                )
+            }
         };
         let fmt = match &arg_types[1] {
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
@@ -127,11 +133,19 @@ pub(crate) fn format_dispatch(
         let fmt_opt = match f_arr.data_type() {
             DataType::Utf8 => {
                 let a = f_arr.as_string::<i32>();
-                if a.is_null(i) { None } else { Some(a.value(i).to_string()) }
+                if a.is_null(i) {
+                    None
+                } else {
+                    Some(a.value(i).to_string())
+                }
             }
             DataType::LargeUtf8 => {
                 let a = f_arr.as_string::<i64>();
-                if a.is_null(i) { None } else { Some(a.value(i).to_string()) }
+                if a.is_null(i) {
+                    None
+                } else {
+                    Some(a.value(i).to_string())
+                }
             }
             other => return exec_err!("{udf}: format array has unexpected type {other:?}"),
         };

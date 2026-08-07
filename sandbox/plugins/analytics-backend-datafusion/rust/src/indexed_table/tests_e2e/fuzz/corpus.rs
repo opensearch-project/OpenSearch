@@ -403,15 +403,13 @@ fn write_parquet(
         // the flush trigger. Utf8 columns (many bytes/value) flush
         // faster than Int32/Boolean columns, yielding genuinely
         // different per-column page counts.
-        builder = builder.set_dictionary_enabled(false).set_data_page_size_limit(512);
+        builder = builder
+            .set_dictionary_enabled(false)
+            .set_data_page_size_limit(512);
     }
     let props = builder.build();
-    let mut w = ArrowWriter::try_new(
-        tmp.reopen().expect("reopen"),
-        batch.schema(),
-        Some(props),
-    )
-    .expect("arrow writer");
+    let mut w = ArrowWriter::try_new(tmp.reopen().expect("reopen"), batch.schema(), Some(props))
+        .expect("arrow writer");
     w.write(batch).expect("write");
     w.close().expect("close");
     tmp

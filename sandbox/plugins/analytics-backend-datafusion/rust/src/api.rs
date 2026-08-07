@@ -46,10 +46,10 @@ use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess};
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::{MemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::physical_plan::execute_stream;
@@ -101,9 +101,10 @@ pub struct QueryStreamHandle {
 
 impl QueryStreamHandle {
     fn schema_has_views(schema: &arrow_schema::SchemaRef) -> bool {
-        schema.fields().iter().any(|f| {
-            matches!(f.data_type(), DataType::Utf8View | DataType::BinaryView)
-        })
+        schema
+            .fields()
+            .iter()
+            .any(|f| matches!(f.data_type(), DataType::Utf8View | DataType::BinaryView))
     }
 
     pub fn new(
@@ -191,41 +192,82 @@ impl QueryStreamHandle {
         let mut map = serde_json::Map::new();
         Self::collect_metrics(plan.as_ref(), &mut map);
         // Include the physical plan display text
-        let plan_text = datafusion::physical_plan::displayable(plan.as_ref()).indent(true).to_string();
-        map.insert("physical_plan".to_string(), serde_json::Value::String(plan_text));
+        let plan_text = datafusion::physical_plan::displayable(plan.as_ref())
+            .indent(true)
+            .to_string();
+        map.insert(
+            "physical_plan".to_string(),
+            serde_json::Value::String(plan_text),
+        );
         serde_json::to_vec(&map).ok()
     }
 
-    fn collect_metrics(plan: &dyn datafusion::physical_plan::ExecutionPlan, map: &mut serde_json::Map<String, serde_json::Value>) {
+    fn collect_metrics(
+        plan: &dyn datafusion::physical_plan::ExecutionPlan,
+        map: &mut serde_json::Map<String, serde_json::Value>,
+    ) {
         if let Some(metrics) = plan.metrics() {
             for m in metrics.iter() {
-                let add = |map: &mut serde_json::Map<String, serde_json::Value>, key: String, delta: i64| {
+                let add = |map: &mut serde_json::Map<String, serde_json::Value>,
+                           key: String,
+                           delta: i64| {
                     let prev = map.get(&key).and_then(|v| v.as_i64()).unwrap_or(0);
-                    map.insert(key, serde_json::Value::Number(serde_json::Number::from(prev + delta)));
+                    map.insert(
+                        key,
+                        serde_json::Value::Number(serde_json::Number::from(prev + delta)),
+                    );
                 };
                 match m.value() {
-                    MetricValue::PruningMetrics { name, pruning_metrics } => {
-                        add(map, format!("{}_pruned", name), pruning_metrics.pruned() as i64);
-                        add(map, format!("{}_matched", name), pruning_metrics.matched() as i64);
+                    MetricValue::PruningMetrics {
+                        name,
+                        pruning_metrics,
+                    } => {
+                        add(
+                            map,
+                            format!("{}_pruned", name),
+                            pruning_metrics.pruned() as i64,
+                        );
+                        add(
+                            map,
+                            format!("{}_matched", name),
+                            pruning_metrics.matched() as i64,
+                        );
                     }
                     MetricValue::StartTimestamp(_) => {
                         let v = m.value().as_usize() as i64;
-                        let prev = map.get("start_timestamp").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+                        let prev = map
+                            .get("start_timestamp")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(i64::MAX);
                         if v > 0 && v < prev {
-                            map.insert("start_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                            map.insert(
+                                "start_timestamp".to_string(),
+                                serde_json::Value::Number(serde_json::Number::from(v)),
+                            );
                         }
                     }
                     MetricValue::EndTimestamp(_) => {
                         let v = m.value().as_usize() as i64;
-                        let prev = map.get("end_timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
+                        let prev = map
+                            .get("end_timestamp")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
                         if v > prev {
-                            map.insert("end_timestamp".to_string(), serde_json::Value::Number(serde_json::Number::from(v)));
+                            map.insert(
+                                "end_timestamp".to_string(),
+                                serde_json::Value::Number(serde_json::Number::from(v)),
+                            );
                         }
                     }
-                    MetricValue::Ratio { .. } | MetricValue::Gauge { .. } | MetricValue::CurrentMemoryUsage(_) => {
+                    MetricValue::Ratio { .. }
+                    | MetricValue::Gauge { .. }
+                    | MetricValue::CurrentMemoryUsage(_) => {
                         let name = m.value().name().to_string();
                         let value = m.value().as_usize() as i64;
-                        map.insert(name, serde_json::Value::Number(serde_json::Number::from(value)));
+                        map.insert(
+                            name,
+                            serde_json::Value::Number(serde_json::Number::from(value)),
+                        );
                     }
                     other => {
                         add(map, other.name().to_string(), other.as_usize() as i64);
@@ -519,7 +561,9 @@ pub fn create_global_runtime(
                 let msg = format!(
                     "Failed to enumerate spill directory {} (io kind={:?}): {}. \
                      Verify the process owns the spill directory before restarting.",
-                    spill_dir, e.kind(), e
+                    spill_dir,
+                    e.kind(),
+                    e
                 );
                 log::error!("{}", msg);
                 DataFusionError::Configuration(msg)
@@ -528,7 +572,9 @@ pub fn create_global_runtime(
                 let entry = entry.map_err(|e| {
                     let msg = format!(
                         "Failed to read spill directory entry in {} (io kind={:?}): {}",
-                        spill_dir, e.kind(), e
+                        spill_dir,
+                        e.kind(),
+                        e
                     );
                     log::error!("{}", msg);
                     DataFusionError::Configuration(msg)
@@ -553,7 +599,10 @@ pub fn create_global_runtime(
                     let msg = format!(
                         "Failed to rename leaked spill entry {} -> {} (io kind={:?}): {}. \
                          Verify the process owns the spill directory before restarting.",
-                        path.display(), stale.display(), e.kind(), e
+                        path.display(),
+                        stale.display(),
+                        e.kind(),
+                        e
                     );
                     log::error!("{}", msg);
                     return Err(DataFusionError::Configuration(msg));
@@ -663,7 +712,11 @@ pub fn create_global_runtime(
         .with_cache_manager(cache_manager_config)
         .build()?;
 
-    let runtime = DataFusionRuntime { runtime_env, custom_cache_manager, dynamic_limit_handle };
+    let runtime = DataFusionRuntime {
+        runtime_env,
+        custom_cache_manager,
+        dynamic_limit_handle,
+    };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -716,7 +769,10 @@ pub unsafe fn get_memory_pool_stats(ptr: i64, out_ptr: *mut i64) {
 /// `ptr` must be a valid pointer returned by `create_global_runtime`.
 pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), String> {
     if new_limit < 0 {
-        return Err(format!("Memory pool limit must be non-negative, got {}", new_limit));
+        return Err(format!(
+            "Memory pool limit must be non-negative, got {}",
+            new_limit
+        ));
     }
     let runtime = &*(ptr as *const DataFusionRuntime);
     runtime.dynamic_limit_handle.set_limit(new_limit as usize);
@@ -736,7 +792,10 @@ static REDUCE_TARGET_PARTITIONS: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(4);
 
 pub fn set_reduce_target_partitions(value: i64) {
-    REDUCE_TARGET_PARTITIONS.store(value.max(1).min(32) as usize, std::sync::atomic::Ordering::Release);
+    REDUCE_TARGET_PARTITIONS.store(
+        value.max(1).min(32) as usize,
+        std::sync::atomic::Ordering::Release,
+    );
 }
 
 pub fn get_reduce_target_partitions() -> usize {
@@ -794,7 +853,10 @@ pub fn create_reader(
     // Otherwise use default LocalFileSystem.
     let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
         let boxed = unsafe {
-            &*(store_ptr as *const Arc<dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore>)
+            &*(store_ptr
+                as *const Arc<
+                    dyn opensearch_tiered_storage::tiered_object_store::MetadataCachingStore,
+                >)
         };
         // Bind first, then trait-upcast at the let-binding boundary
         // (Arc::clone alone can't infer the supertrait return type).
@@ -866,16 +928,18 @@ pub async unsafe fn execute_query(
     // Create per-query context (auto-registers in the global registry) and extract
     // its per-query memory pool overlaying the global pool.
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let (mut query_context, query_memory_pool) = new_query_tracking_context(
-        context_id,
-        global_pool.clone(),
-        QueryType::Shard,
-    );
+    let (mut query_context, query_memory_pool) =
+        new_query_tracking_context(context_id, global_pool.clone(), QueryType::Shard);
 
     // Apply disk-pressure capping + memory budget, attaching phantom
     // reservation/corrector to the query context.
-    let (effective_config, phantom_corrector) =
-        resolve_effective_config(shard_view, runtime, &global_pool, &query_config, &mut query_context);
+    let (effective_config, phantom_corrector) = resolve_effective_config(
+        shard_view,
+        runtime,
+        &global_pool,
+        &query_config,
+        &mut query_context,
+    );
 
     // Route to the indexed executor when the plan has an index_filter UDF or
     // requests __row_id__ (QTF query phase); otherwise the ListingTable path.
@@ -900,7 +964,8 @@ pub async unsafe fn execute_query(
                 query_memory_pool,
                 effective_config,
                 context_id,
-            ).await
+            )
+            .await
         } else {
             query_executor::execute_query(
                 shard_view.table_path.clone(),
@@ -917,7 +982,8 @@ pub async unsafe fn execute_query(
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
                 internal_search,
-            ).await
+            )
+            .await
         }
     };
 
@@ -981,8 +1047,15 @@ pub async unsafe fn fetch_by_row_ids(
 
     // ── 2. Build ShardFileInfo with ParquetAccessPlan per file ──
 
-    let store = ctx.state().runtime_env().object_store(&shard_view.table_path)?;
-    let metadata_cache = ctx.state().runtime_env().cache_manager.get_file_metadata_cache();
+    let store = ctx
+        .state()
+        .runtime_env()
+        .object_store(&shard_view.table_path)?;
+    let metadata_cache = ctx
+        .state()
+        .runtime_env()
+        .cache_manager
+        .get_file_metadata_cache();
     let (segments, _schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
@@ -991,12 +1064,15 @@ pub async unsafe fn fetch_by_row_ids(
         metadata_cache,
         &shard_view.sort_fields,
     )
-        .await
-        .map_err(DataFusionError::Execution)?;
+    .await
+    .map_err(DataFusionError::Execution)?;
 
     // Distribute global row_ids to per-file local positions.
     // Note: Java validates non-empty + ascending row_ids before the FFM call; we don't repeat that here.
-    debug_assert!(!segments.is_empty(), "fetch_by_row_ids: build_segments returned empty for non-empty shard view");
+    debug_assert!(
+        !segments.is_empty(),
+        "fetch_by_row_ids: build_segments returned empty for non-empty shard view"
+    );
     let mut per_segment: HashMap<usize, RoaringBitmap> = HashMap::new();
     for &gid in &row_ids {
         debug_assert!(gid >= 0, "fetch_by_row_ids: negative row id {}", gid);
@@ -1007,7 +1083,10 @@ pub async unsafe fn fetch_by_row_ids(
         debug_assert!(
             (gid as u64) >= seg.global_base && (gid as u64) < seg.global_base + seg.max_doc as u64,
             "fetch_by_row_ids: row id {} out of bounds for segment {} (base={}, max_doc={})",
-            gid, seg_idx, seg.global_base, seg.max_doc
+            gid,
+            seg_idx,
+            seg.global_base,
+            seg.max_doc
         );
         let local_pos = (gid as u64 - seg.global_base) as u32;
         per_segment.entry(seg_idx).or_default().insert(local_pos);
@@ -1028,9 +1107,8 @@ pub async unsafe fn fetch_by_row_ids(
                     .map(|pos| pos - rg_start)
                     .collect();
                 if !rg_bitmap.is_empty() {
-                    let selection = build_row_selection_with_min_skip_run(
-                        &rg_bitmap, rg.num_rows as usize, 1,
-                    );
+                    let selection =
+                        build_row_selection_with_min_skip_run(&rg_bitmap, rg.num_rows as usize, 1);
                     plan.set(rg.index, RowGroupAccess::Selection(selection));
                 }
             }
@@ -1051,10 +1129,14 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 3. Register ShardTableProvider ──
 
     let store_url = store_url_from_table_path(&shard_view.table_path)?;
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(
-        Arc::new(datafusion::datasource::file_format::parquet::ParquetFormat::new())
-    ).with_file_extension(".parquet").with_collect_stat(true);
-    let resolved_schema = listing_options.infer_schema(&ctx.state(), &shard_view.table_path).await?;
+    let listing_options = datafusion::datasource::listing::ListingOptions::new(Arc::new(
+        datafusion::datasource::file_format::parquet::ParquetFormat::new(),
+    ))
+    .with_file_extension(".parquet")
+    .with_collect_stat(true);
+    let resolved_schema = listing_options
+        .infer_schema(&ctx.state(), &shard_view.table_path)
+        .await?;
 
     let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
         file_schema: resolved_schema,
@@ -1069,10 +1151,15 @@ pub async unsafe fn fetch_by_row_ids(
     // each column verbatim except __row_id__, which we replace with the synthesized
     // expression. This preserves caller column order and guarantees a single __row_id__
     // column in the result.
-    let projection = columns.iter()
+    let projection = columns
+        .iter()
         .map(|c| {
             if c == crate::ROW_ID_COLUMN_NAME {
-                format!("(\"{}\" + \"row_base\") AS \"{}\"", crate::ROW_ID_COLUMN_NAME, crate::ROW_ID_COLUMN_NAME)
+                format!(
+                    "(\"{}\" + \"row_base\") AS \"{}\"",
+                    crate::ROW_ID_COLUMN_NAME,
+                    crate::ROW_ID_COLUMN_NAME
+                )
             } else {
                 format!("\"{}\"", c)
             }
@@ -1086,7 +1173,10 @@ pub async unsafe fn fetch_by_row_ids(
 
     // Post-condition: returned stream schema must contain __row_id__ plus every requested column.
     // Catches drift if SQL synthesis or the optimizer ever drops a projection silently.
-    debug_assert!(assert_fetch_result_schema(df_stream.schema().as_ref(), &columns));
+    debug_assert!(assert_fetch_result_schema(
+        df_stream.schema().as_ref(),
+        &columns
+    ));
 
     // ── 5. Wrap and return ──
 
@@ -1094,7 +1184,12 @@ pub async unsafe fn fetch_by_row_ids(
     // monotonically nondecreasing across the entire stream. target_partitions=1
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
-    Ok(wrap_stream_as_handle(df_stream, manager.cpu_executor(), runtime, context_id))
+    Ok(wrap_stream_as_handle(
+        df_stream,
+        manager.cpu_executor(),
+        runtime,
+        context_id,
+    ))
 }
 
 /// Resolve the dynamic spill limit based on available disk space.
@@ -1111,14 +1206,17 @@ fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
             let limit = (available as f64 * FRACTION) as u64;
             log::info!(
                 "Dynamic spill limit: {} bytes (80% of {} available on {})",
-                limit, available, spill_dir
+                limit,
+                available,
+                spill_dir
             );
             limit
         }
         None => {
             log::warn!(
                 "Could not determine disk space for '{}', using fallback {}GB",
-                spill_dir, FALLBACK / (1024 * 1024 * 1024)
+                spill_dir,
+                FALLBACK / (1024 * 1024 * 1024)
             );
             FALLBACK
         }
@@ -1137,7 +1235,9 @@ fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
 fn use_indexed_path(plan_bytes: &[u8]) -> bool {
     const INDEX_FILTER: &[u8] = b"index_filter";
     const ROW_ID: &[u8] = crate::ROW_ID_COLUMN_NAME.as_bytes();
-    plan_bytes.windows(INDEX_FILTER.len()).any(|w| w == INDEX_FILTER)
+    plan_bytes
+        .windows(INDEX_FILTER.len())
+        .any(|w| w == INDEX_FILTER)
         || plan_bytes.windows(ROW_ID.len()).any(|w| w == ROW_ID)
 }
 
@@ -1167,7 +1267,9 @@ fn resolve_effective_config(
     // cache, subsequent queries benefit).
     let mut cfg = query_config.clone();
     cfg.target_partitions = disk_capped_partitions;
-    let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, global_pool, &cfg) {
+    let corrector = if let Some(budget) =
+        try_acquire_budget_from_cache(shard_view, runtime, global_pool, &cfg)
+    {
         cfg.target_partitions = budget.target_partitions;
         cfg.batch_size = budget.batch_size;
         let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
@@ -1177,7 +1279,9 @@ fn resolve_effective_config(
             cfg.batch_size * 100 // fallback
         };
         let corrector = Arc::new(PhantomCorrector::new_from_metadata(
-            budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
+            budget.phantom_bytes,
+            estimated_batch_bytes,
+            batches_in_pipeline,
         ));
         query_context.set_phantom_reservation(budget.phantom_reservation);
         Some(query_context.set_phantom_corrector(corrector))
@@ -1206,13 +1310,18 @@ fn try_acquire_budget_from_cache(
     let cached = cache.get(&first_meta.location)?;
 
     // Downcast Arc<dyn FileMetadata> to ParquetMetaData
-    let parquet_meta = cached.file_metadata.as_any().downcast_ref::<ParquetMetaData>()?;
+    let parquet_meta = cached
+        .file_metadata
+        .as_any()
+        .downcast_ref::<ParquetMetaData>()?;
 
     // Extract Arrow schema (zero I/O — just struct conversion)
     let schema = parquet_to_arrow_schema(
         parquet_meta.file_metadata().schema_descr(),
         parquet_meta.file_metadata().key_value_metadata(),
-    ).ok().map(Arc::new)?;
+    )
+    .ok()
+    .map(Arc::new)?;
 
     // Acquire budget using measured row bytes from metadata
     crate::query_budget::acquire_budget_from_metadata(
@@ -1221,7 +1330,8 @@ fn try_acquire_budget_from_cache(
         parquet_meta,
         config.target_partitions,
         config.batch_size,
-    ).ok()
+    )
+    .ok()
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
@@ -1249,24 +1359,27 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// # Safety
 /// `stream_ptr` must be a valid, non-zero pointer. Must not be called concurrently
 /// on the same stream.
-pub async unsafe fn stream_next(
-    stream_ptr: i64,
-) -> Result<i64, DataFusionError> {
+pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
     let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
 
     // Fetch the next batch (cancellation-aware)
-    let result = cancellation::cancellable_or(
-        token.as_ref(),
-        None,
-        async { handle.stream.try_next().await.map_err(|e: DataFusionError| e) },
-    ).await
+    let result = cancellation::cancellable_or(token.as_ref(), None, async {
+        handle
+            .stream
+            .try_next()
+            .await
+            .map_err(|e: DataFusionError| e)
+    })
+    .await
     .map_err(|e| DataFusionError::Execution(e))?;
 
     match result {
         Some(batch) => {
             // Apply pending phantom correction from the self-correcting budget.
-            handle._query_tracking_context.apply_pending_phantom_correction();
+            handle
+                ._query_tracking_context
+                .apply_pending_phantom_correction();
 
             let batch = if handle.has_views {
                 compact_string_view_columns(batch)
@@ -1285,23 +1398,28 @@ pub async unsafe fn stream_next(
 /// Prevents sliced StringView batches from carrying full backing buffers across FFI.
 fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
     let schema = batch.schema();
-    let needs_compaction = batch
-        .columns()
-        .iter()
-        .zip(schema.fields().iter())
-        .any(|(col, field)| match field.data_type() {
-            DataType::Utf8View => {
-                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
-                    .expect("column must be StringViewArray when schema declares Utf8View");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            DataType::BinaryView => {
-                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
-                    .expect("column must be BinaryViewArray when schema declares BinaryView");
-                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
-            }
-            _ => false,
-        });
+    let needs_compaction =
+        batch
+            .columns()
+            .iter()
+            .zip(schema.fields().iter())
+            .any(|(col, field)| match field.data_type() {
+                DataType::Utf8View => {
+                    let view: &arrow_array::StringViewArray = col
+                        .as_any()
+                        .downcast_ref()
+                        .expect("column must be StringViewArray when schema declares Utf8View");
+                    view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+                }
+                DataType::BinaryView => {
+                    let view: &arrow_array::BinaryViewArray = col
+                        .as_any()
+                        .downcast_ref()
+                        .expect("column must be BinaryViewArray when schema declares BinaryView");
+                    view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+                }
+                _ => false,
+            });
     if !needs_compaction {
         return batch;
     }
@@ -1311,12 +1429,16 @@ fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
         .zip(schema.fields().iter())
         .map(|(col, field)| match field.data_type() {
             DataType::Utf8View => {
-                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
+                let view: &arrow_array::StringViewArray = col
+                    .as_any()
+                    .downcast_ref()
                     .expect("column must be StringViewArray when schema declares Utf8View");
                 Arc::new(view.gc()) as Arc<dyn Array>
             }
             DataType::BinaryView => {
-                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
+                let view: &arrow_array::BinaryViewArray = col
+                    .as_any()
+                    .downcast_ref()
                     .expect("column must be BinaryViewArray when schema declares BinaryView");
                 Arc::new(view.gc()) as Arc<dyn Array>
             }
@@ -1362,7 +1484,9 @@ pub unsafe fn stream_close(stream_ptr: i64) {
             // may leak the borrow — log it so a recurring timeout is visible rather than silent.
             let timed_out = mgr
                 .io_runtime
-                .block_on(async { tokio::time::timeout(std::time::Duration::from_secs(30), rx).await })
+                .block_on(async {
+                    tokio::time::timeout(std::time::Duration::from_secs(30), rx).await
+                })
                 .is_err();
             if timed_out {
                 native_bridge_common::log_error!(
@@ -1420,7 +1544,8 @@ pub unsafe fn sql_to_substrait(
             },
             CachedFileList::new(object_metas.as_ref().clone()),
         );
-        let runtime_env = crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
+        let runtime_env =
+            crate::query_executor::query_runtime_env_builder(runtime, list_file_cache).build()?;
 
         let state = SessionStateBuilder::new()
             .with_config(SessionConfig::new())
@@ -1482,7 +1607,10 @@ fn derive_schema_from_partial_plan(
     use substrait::proto::{read_rel::ReadType, Plan};
 
     let plan = Plan::decode(substrait_bytes).map_err(|e| {
-        DataFusionError::Execution(format!("derive_schema_from_partial_plan: decode failed: {}", e))
+        DataFusionError::Execution(format!(
+            "derive_schema_from_partial_plan: decode failed: {}",
+            e
+        ))
     })?;
 
     let state = SessionStateBuilder::new()
@@ -1509,9 +1637,10 @@ fn derive_schema_from_partial_plan(
             continue;
         };
         let table_name = nt.names.last().cloned().unwrap_or_default();
-        let base_schema = read.base_schema.as_ref().ok_or_else(|| {
-            DataFusionError::Execution("ReadRel missing base_schema".to_string())
-        })?;
+        let base_schema = read
+            .base_schema
+            .as_ref()
+            .ok_or_else(|| DataFusionError::Execution("ReadRel missing base_schema".to_string()))?;
         let df_schema = from_substrait_named_struct(&consumer, base_schema)?;
         let arrow_schema = df_schema.as_arrow().clone();
 
@@ -1548,35 +1677,56 @@ fn derive_schema_from_partial_plan(
     // Extract the substrait-declared output names from Plan.Root.names — these are the
     // user-facing aliases Java wrote (e.g. "RegionID", "u") and must match what the
     // FINAL substrait's Read.base_schema declares on the coordinator side.
-    let declared_names: Vec<String> = plan.relations.iter().find_map(|pr| {
-        if let Some(substrait::proto::plan_rel::RelType::Root(rr)) = pr.rel_type.as_ref() {
-            Some(rr.names.clone())
-        } else {
-            None
-        }
-    }).unwrap_or_default();
+    let declared_names: Vec<String> = plan
+        .relations
+        .iter()
+        .find_map(|pr| {
+            if let Some(substrait::proto::plan_rel::RelType::Root(rr)) = pr.rel_type.as_ref() {
+                Some(rr.names.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
 
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
-    let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+    let physical_plan =
+        futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
     // Engine-native-merge: Partial state types differ from Final output (Binary HLL sketches,
     // or List state for sub-32-bit bitmap accumulators). Use Partial schema + Root.names so
     // the coordinator sees the correct wire type.
     if let Some(partial_schema) = crate::agg_mode::partial_aggregate_schema(&physical_plan) {
         let has_nontrivial_state = partial_schema.fields().iter().any(|f| {
-            matches!(f.data_type(), arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::List(_))
+            matches!(
+                f.data_type(),
+                arrow::datatypes::DataType::Binary | arrow::datatypes::DataType::List(_)
+            )
         });
-        if has_nontrivial_state && !declared_names.is_empty() && declared_names.len() == partial_schema.fields().len() {
+        if has_nontrivial_state
+            && !declared_names.is_empty()
+            && declared_names.len() == partial_schema.fields().len()
+        {
             use arrow::datatypes::{Field, Schema};
             let coerced = crate::schema_coerce::coerce_inferred_schema(partial_schema);
-            let fields: Vec<Field> = coerced.fields().iter().zip(declared_names.iter())
-                .map(|(f, name)| Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
-                    .with_metadata(f.metadata().clone()))
+            let fields: Vec<Field> = coerced
+                .fields()
+                .iter()
+                .zip(declared_names.iter())
+                .map(|(f, name)| {
+                    Field::new(name.as_str(), f.data_type().clone(), f.is_nullable())
+                        .with_metadata(f.metadata().clone())
+                })
                 .collect();
-            return Ok(Arc::new(Schema::new_with_metadata(fields, coerced.metadata().clone())));
+            return Ok(Arc::new(Schema::new_with_metadata(
+                fields,
+                coerced.metadata().clone(),
+            )));
         }
     }
-    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
+    Ok(crate::schema_coerce::coerce_inferred_schema(
+        physical_plan.schema(),
+    ))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
@@ -1698,11 +1848,18 @@ pub(crate) fn first_named_table_name(plan_bytes: &[u8]) -> Option<String> {
 }
 
 /// Extracts the `base_schema` NamedStruct from the plan's first ReadRel matching `table_name`.
-pub(crate) fn base_schema_for_table(plan: &substrait::proto::Plan, table_name: &str) -> Option<substrait::proto::NamedStruct> {
+pub(crate) fn base_schema_for_table(
+    plan: &substrait::proto::Plan,
+    table_name: &str,
+) -> Option<substrait::proto::NamedStruct> {
     use substrait::proto::read_rel::ReadType;
     for read in collect_plan_reads(plan) {
-        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else { continue };
-        if nt.names.last().map(String::as_str) != Some(table_name) { continue }
+        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else {
+            continue;
+        };
+        if nt.names.last().map(String::as_str) != Some(table_name) {
+            continue;
+        }
         return read.base_schema.clone();
     }
     None
@@ -1779,7 +1936,11 @@ pub unsafe fn register_partition_stream(
     let current_partitions = session.target_partitions();
     let current_phantom = session.phantom_size();
     if let Some(budget) = crate::query_budget::try_grow_reduce_budget(
-        pool, &schema, batch_size, current_partitions, current_phantom,
+        pool,
+        &schema,
+        batch_size,
+        current_partitions,
+        current_phantom,
     )? {
         session.reduce_target_partitions(budget.target_partitions);
         session.set_phantom(budget.phantom_reservation);
@@ -1817,7 +1978,11 @@ pub async unsafe fn execute_local_plan(
     // Per-query memory tracking — wraps the session's global pool. A
     // `context_id` of 0 disables tracking (pool is not consulted) and no
     // cancellation token is registered in the global QUERY_REGISTRY.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let query_context = QueryTrackingContext::new(
+        context_id,
+        session.memory_pool(),
+        query_tracker::QueryType::Coordinator,
+    );
     let token = query_tracker::get_cancellation_token(context_id);
 
     // Race substrait planning + execution against the cancellation token so
@@ -1838,7 +2003,11 @@ pub async unsafe fn execute_local_plan(
     // task can be aborted mid-execution when cancel_query fires.
     let cpu_exec = manager.cpu_executor();
     let (cross_rt_stream, _abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+        CrossRtStream::new_with_df_error_stream_cancellable(
+            df_stream,
+            cpu_exec.clone(),
+            token.clone(),
+        );
     // Reduce path: cancel via the token only, do NOT register the abort handle — an abort() mid-send
     // would skip the cross_rt drop+drain cleanup and leak the aggregate's in-flight GroupValues.
     if let Some(rt) = cpu_exec.handle() {
@@ -1847,7 +2016,8 @@ pub async unsafe fn execute_local_plan(
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
     // Attach the teardown signal so stream_close releases borrowed input batches before allocator close.
-    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan).with_task_done(task_done);
+    let handle = QueryStreamHandle::new_with_plan(wrapped, query_context, permit, physical_plan)
+        .with_task_done(task_done);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -1875,7 +2045,11 @@ pub unsafe fn execute_local_prepared_plan(
     // so a `cancel_query(context_id)` call fires the token here too.
     // The token is held via the QueryStreamHandle's context and consulted by
     // stream_next on each batch pull.
-    let query_context = QueryTrackingContext::new(context_id, session.memory_pool(), query_tracker::QueryType::Coordinator);
+    let query_context = QueryTrackingContext::new(
+        context_id,
+        session.memory_pool(),
+        query_tracker::QueryType::Coordinator,
+    );
     let token = query_tracker::get_cancellation_token(context_id);
 
     // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
@@ -1886,7 +2060,11 @@ pub unsafe fn execute_local_prepared_plan(
 
     let cpu_exec = manager.cpu_executor();
     let (cross_rt_stream, _abort_handle, task_done) =
-        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_exec.clone(), token.clone());
+        CrossRtStream::new_with_df_error_stream_cancellable(
+            df_stream,
+            cpu_exec.clone(),
+            token.clone(),
+        );
     // Prepared-reduce path: same as execute_local_plan — token-only cancel, no abort handle.
     if let Some(rt) = cpu_exec.handle() {
         query_tracker::set_cpu_runtime_handle(context_id, rt);
@@ -2028,18 +2206,28 @@ mod tests {
         // Simulate a leaked spill file from a prior non-graceful shutdown.
         let sentinel = tmp.path().join("leaked_from_prior_run.tmp");
         fs::write(&sentinel, b"stale spill data").expect("seed sentinel");
-        assert!(sentinel.exists(), "sentinel must exist before runtime build");
+        assert!(
+            sentinel.exists(),
+            "sentinel must exist before runtime build"
+        );
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024)
+            .expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1 renames the sentinel file to leaked_from_prior_run.tmp.stale
         // synchronously; phase 2 unlinks it asynchronously. The original name
         // is gone immediately; wait for the .stale name to disappear too.
-        assert!(!sentinel.exists(), "sentinel original name must be gone (renamed)");
+        assert!(
+            !sentinel.exists(),
+            "sentinel original name must be gone (renamed)"
+        );
         let stale = tmp.path().join("leaked_from_prior_run.tmp.stale");
         let cleaned = wait_until(2000, || !stale.exists());
-        assert!(cleaned, "background cleanup must remove the .stale sentinel within 2s");
+        assert!(
+            cleaned,
+            "background cleanup must remove the .stale sentinel within 2s"
+        );
 
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
         assert!(
@@ -2087,24 +2275,40 @@ mod tests {
         assert!(top_file.exists());
         assert!(nested_file.exists());
 
-        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024).expect("runtime build");
+        let ptr = create_global_runtime(64 * 1024 * 1024, 0, spill_path, 1024 * 1024 * 1024)
+            .expect("runtime build");
         assert!(ptr > 0);
 
         // Phase 1: original names gone (renamed to *.stale).
-        assert!(!top_file.exists(), "top-level file original name must be gone (renamed)");
-        assert!(!outer_subdir.exists(), "original subdir name must be gone (renamed)");
+        assert!(
+            !top_file.exists(),
+            "top-level file original name must be gone (renamed)"
+        );
+        assert!(
+            !outer_subdir.exists(),
+            "original subdir name must be gone (renamed)"
+        );
 
         // Phase 2: *.stale entries cleaned by the background thread.
         let stale_top = tmp.path().join("top.tmp.stale");
         let stale_dir = tmp.path().join("subdir.stale");
         let cleaned = wait_until(2000, || !stale_top.exists() && !stale_dir.exists());
-        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
+        assert!(
+            cleaned,
+            "background cleanup must remove both .stale entries within 2s"
+        );
         assert!(!nested_file.exists(), "nested leaked file must be removed");
         assert!(!nested_dir.exists(), "nested leaked subdir must be removed");
 
         // Spill root itself must remain (cleanup wipes children only).
-        assert!(tmp.path().exists(), "spill root must be preserved across cleanup");
-        assert!(tmp.path().is_dir(), "spill root must remain a directory after cleanup");
+        assert!(
+            tmp.path().exists(),
+            "spill root must be preserved across cleanup"
+        );
+        assert!(
+            tmp.path().is_dir(),
+            "spill root must remain a directory after cleanup"
+        );
 
         unsafe { close_global_runtime(ptr) };
     }
@@ -2140,8 +2344,16 @@ mod tests {
         // Operator-facing message must include the offending path + io kind so the
         // logs are diagnostic without needing further investigation.
         let msg = err.to_string();
-        assert!(msg.contains(bad_path_str), "error must reference the offending path; got: {}", msg);
-        assert!(msg.contains("io kind="), "error must include the io::ErrorKind for diagnosis; got: {}", msg);
+        assert!(
+            msg.contains(bad_path_str),
+            "error must reference the offending path; got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("io kind="),
+            "error must include the io::ErrorKind for diagnosis; got: {}",
+            msg
+        );
         assert!(
             msg.contains("Failed to enumerate spill directory")
                 || msg.contains("Failed to clear leaked spill entry"),
@@ -2189,8 +2401,13 @@ mod tests {
         fs::write(&loose_file, b"loose top-level file").expect("seed loose file");
 
         // Lock parent to r+x only — simulates the mount-point parent the JVM doesn't own.
-        let original_parent_mode = fs::metadata(parent.path()).expect("stat parent").permissions().mode();
-        let mut locked = fs::metadata(parent.path()).expect("stat parent").permissions();
+        let original_parent_mode = fs::metadata(parent.path())
+            .expect("stat parent")
+            .permissions()
+            .mode();
+        let mut locked = fs::metadata(parent.path())
+            .expect("stat parent")
+            .permissions();
         locked.set_mode(0o555);
         fs::set_permissions(parent.path(), locked).expect("chmod parent 555");
 
@@ -2211,25 +2428,46 @@ mod tests {
                 }
             }
         }
-        let _restore = RestorePerms { path: parent.path(), mode: original_parent_mode };
+        let _restore = RestorePerms {
+            path: parent.path(),
+            mode: original_parent_mode,
+        };
 
         let ptr = result.expect("runtime build must succeed when only the parent is read-only");
         assert!(ptr > 0);
 
         // Phase 1: both originals are renamed inline — gone immediately by the
         // original name. Phase 2 unlinks the .stale entries asynchronously.
-        assert!(!loose_file.exists(), "loose top-level file original name must be gone (renamed)");
-        assert!(!leaked_dir.exists(), "leaked datafusion-* original name must be gone (renamed)");
+        assert!(
+            !loose_file.exists(),
+            "loose top-level file original name must be gone (renamed)"
+        );
+        assert!(
+            !leaked_dir.exists(),
+            "leaked datafusion-* original name must be gone (renamed)"
+        );
 
         let stale_loose = spill_path.join("stray.txt.stale");
         let stale_dir = spill_path.join("datafusion-aB3kF7.stale");
         let cleaned = wait_until(2000, || !stale_loose.exists() && !stale_dir.exists());
-        assert!(cleaned, "background cleanup must remove both .stale entries within 2s");
-        assert!(!leaked_file.exists(), "leaked file under leaked subdir must be removed");
+        assert!(
+            cleaned,
+            "background cleanup must remove both .stale entries within 2s"
+        );
+        assert!(
+            !leaked_file.exists(),
+            "leaked file under leaked subdir must be removed"
+        );
 
         // Spill root itself preserved.
-        assert!(spill_path.exists(), "spill mount-point dir must be preserved");
-        assert!(spill_path.is_dir(), "spill mount-point must remain a directory");
+        assert!(
+            spill_path.exists(),
+            "spill mount-point dir must be preserved"
+        );
+        assert!(
+            spill_path.is_dir(),
+            "spill mount-point must remain a directory"
+        );
 
         unsafe { close_global_runtime(ptr) };
     }
@@ -2257,12 +2495,18 @@ mod tests {
         assert!(ptr > 0);
 
         // Phase 1: symlink is renamed inline (fs::rename does not follow symlinks).
-        assert!(!link.exists(), "symlink original name must be gone (renamed)");
+        assert!(
+            !link.exists(),
+            "symlink original name must be gone (renamed)"
+        );
         let stale_link = spill_path.join("escape_link.stale");
 
         // Phase 2: remove_file on a symlink unlinks the link itself, never the target.
         let cleaned = wait_until(2000, || !stale_link.exists());
-        assert!(cleaned, "background cleanup must remove escape_link.stale within 2s");
+        assert!(
+            cleaned,
+            "background cleanup must remove escape_link.stale within 2s"
+        );
 
         // Critical: the target outside spill must be intact across both phases.
         // If phase 1 had followed the symlink during rename, or phase 2 followed
@@ -2308,7 +2552,10 @@ mod tests {
         let stale_a = tmp.path().join("datafusion-aB3kF7.stale");
         let stale_b = tmp.path().join("datafusion-Xy9pQ2.stale");
         let cleaned = wait_until(2000, || !stale_a.exists() && !stale_b.exists());
-        assert!(cleaned, "background cleanup must remove both *.stale entries within 2s");
+        assert!(
+            cleaned,
+            "background cleanup must remove both *.stale entries within 2s"
+        );
 
         unsafe { close_global_runtime(ptr) };
     }
@@ -2330,7 +2577,10 @@ mod tests {
         assert!(ptr > 0);
 
         let cleaned = wait_until(2000, || !leftover.exists());
-        assert!(cleaned, "prior-boot .stale leftover must be cleaned within 2s");
+        assert!(
+            cleaned,
+            "prior-boot .stale leftover must be cleaned within 2s"
+        );
         assert!(
             !tmp.path().join("datafusion-old.stale.stale").exists(),
             "phase 1 must NOT double-suffix existing .stale entries"
@@ -2347,7 +2597,8 @@ mod tests {
         let strings: Vec<String> = (0..total_rows)
             .map(|i| format!("long_string_value_{:06}_padding", i))
             .collect();
-        let string_view_array = StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let string_view_array =
+            StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
         let int_array = Int64Array::from_iter_values(0..total_rows as i64);
 
         let schema = Arc::new(Schema::new(vec![
@@ -2382,9 +2633,11 @@ mod tests {
         let strings: Vec<&str> = (0..100).map(|_| "short").collect();
         let string_view_array = StringViewArray::from_iter_values(strings.into_iter());
 
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("str_col", DataType::Utf8View, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "str_col",
+            DataType::Utf8View,
+            false,
+        )]));
         let batch =
             RecordBatch::try_new(schema, vec![Arc::new(string_view_array.clone())]).unwrap();
 
@@ -2397,9 +2650,11 @@ mod tests {
     #[test]
     fn stringview_gc_empty_array() {
         let string_view_array = StringViewArray::from_iter_values(std::iter::empty::<&str>());
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("str_col", DataType::Utf8View, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "str_col",
+            DataType::Utf8View,
+            false,
+        )]));
         let batch = RecordBatch::try_new(schema, vec![Arc::new(string_view_array)]).unwrap();
         let compacted = compact_string_view_columns(batch);
         assert_eq!(compacted.num_rows(), 0);
@@ -2445,9 +2700,11 @@ mod tests {
     #[test]
     fn no_view_columns_passthrough() {
         let int_array = Int64Array::from_iter_values(0..1000);
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("int_col", DataType::Int64, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "int_col",
+            DataType::Int64,
+            false,
+        )]));
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array)]).unwrap();
         let compacted = compact_string_view_columns(batch.clone());
         assert_eq!(
@@ -2461,14 +2718,16 @@ mod tests {
         let strings: Vec<String> = (0..1000)
             .map(|i| format!("long_string_value_{:06}_padding", i))
             .collect();
-        let string_view_array: Arc<dyn Array> =
-            Arc::new(StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str())));
+        let string_view_array: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(
+            strings.iter().map(|s| s.as_str()),
+        ));
 
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("str_col", DataType::Utf8View, false),
-        ]));
-        let batch =
-            RecordBatch::try_new(schema, vec![Arc::clone(&string_view_array)]).unwrap();
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "str_col",
+            DataType::Utf8View,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::clone(&string_view_array)]).unwrap();
 
         let compacted = compact_string_view_columns(batch);
 
@@ -2493,18 +2752,23 @@ mod tests {
         let strings: Vec<String> = (0..10_000)
             .map(|i| format!("long_string_value_{:06}_padding", i))
             .collect();
-        let full_array =
-            StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let full_array = StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
 
         let sliced = full_array.slice(0, 100);
         let sliced_view: &StringViewArray = sliced.as_any().downcast_ref().unwrap();
         assert!(
-            view_needs_gc(sliced_view.data_buffers(), sliced_view.total_buffer_bytes_used()),
+            view_needs_gc(
+                sliced_view.data_buffers(),
+                sliced_view.total_buffer_bytes_used()
+            ),
             "Sliced array must be detected as needing gc"
         );
 
         assert!(
-            !view_needs_gc(full_array.data_buffers(), full_array.total_buffer_bytes_used()),
+            !view_needs_gc(
+                full_array.data_buffers(),
+                full_array.total_buffer_bytes_used()
+            ),
             "Non-sliced array must NOT need gc"
         );
     }
@@ -2517,11 +2781,23 @@ mod tests {
 
         // Clamps to the [1, 32] range used by the datafusion.reduce.target_partitions setting.
         set_reduce_target_partitions(0);
-        assert_eq!(get_reduce_target_partitions(), 1, "values below 1 clamp up to 1");
+        assert_eq!(
+            get_reduce_target_partitions(),
+            1,
+            "values below 1 clamp up to 1"
+        );
         set_reduce_target_partitions(-5);
-        assert_eq!(get_reduce_target_partitions(), 1, "negative values clamp up to 1");
+        assert_eq!(
+            get_reduce_target_partitions(),
+            1,
+            "negative values clamp up to 1"
+        );
         set_reduce_target_partitions(1000);
-        assert_eq!(get_reduce_target_partitions(), 32, "values above 32 clamp down to 32");
+        assert_eq!(
+            get_reduce_target_partitions(),
+            32,
+            "values above 32 clamp down to 32"
+        );
 
         // Boundary values pass through unchanged.
         set_reduce_target_partitions(1);
@@ -2651,15 +2927,25 @@ fn ascending_row_id_check_stream(
 
 /// Verify the fetch-result schema carries `__row_id__` plus every requested column.
 /// Body only runs under `debug_assertions` (called from a `debug_assert!`).
-fn assert_fetch_result_schema(schema: &datafusion::arrow::datatypes::Schema, columns: &[String]) -> bool {
+fn assert_fetch_result_schema(
+    schema: &datafusion::arrow::datatypes::Schema,
+    columns: &[String],
+) -> bool {
     if schema.column_with_name(crate::ROW_ID_COLUMN_NAME).is_none() {
         let names: Vec<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
-        panic!("fetch_by_row_ids: result schema missing {}, got {:?}", crate::ROW_ID_COLUMN_NAME, names);
+        panic!(
+            "fetch_by_row_ids: result schema missing {}, got {:?}",
+            crate::ROW_ID_COLUMN_NAME,
+            names
+        );
     }
     for col in columns {
         if schema.column_with_name(col).is_none() {
             let names: Vec<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
-            panic!("fetch_by_row_ids: result schema missing requested column {}, got {:?}", col, names);
+            panic!(
+                "fetch_by_row_ids: result schema missing requested column {}, got {:?}",
+                col, names
+            );
         }
     }
     true

@@ -22,7 +22,9 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import io.netty.channel.Channel;
@@ -187,6 +189,55 @@ public class ServerConfig {
         Setting.Property.NodeScope
     );
 
+    // gRPC server keepalive. Defaults match gRPC's own server defaults (time 2h, timeout 20s) so
+    // behaviour is unchanged from before this setting existed; lower the time for faster
+    // dead-connection detection (releases resources held by a stalled stream on a half-open connection).
+    static final Setting<TimeValue> FLIGHT_KEEPALIVE_TIME = Setting.timeSetting(
+        "flight.keepalive.time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
+    // Must be strictly less than FLIGHT_KEEPALIVE_TIME (else a slow-but-alive peer is
+    // false-disconnected); enforced by the validator below.
+    static final Setting<TimeValue> FLIGHT_KEEPALIVE_TIMEOUT = new Setting<>(
+        "flight.keepalive.timeout",
+        TimeValue.timeValueSeconds(20).getStringRep(),
+        s -> TimeValue.parseTimeValue(s, "flight.keepalive.timeout"),
+        new KeepAliveTimeoutValidator(),
+        Setting.Property.NodeScope
+    );
+
+    /** Enforces {@code flight.keepalive.timeout < flight.keepalive.time}. */
+    static final class KeepAliveTimeoutValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(final TimeValue value) {}
+
+        @Override
+        public void validate(final TimeValue timeout, final Map<Setting<?>, Object> settings) {
+            final TimeValue time = (TimeValue) settings.get(FLIGHT_KEEPALIVE_TIME);
+            if (timeout.nanos() >= time.nanos()) {
+                throw new IllegalArgumentException(
+                    "["
+                        + FLIGHT_KEEPALIVE_TIMEOUT.getKey()
+                        + "] ("
+                        + timeout
+                        + ") must be less than ["
+                        + FLIGHT_KEEPALIVE_TIME.getKey()
+                        + "] ("
+                        + time
+                        + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(FLIGHT_KEEPALIVE_TIME).iterator();
+        }
+    }
+
     /**
      * The thread pool name for the Flight producer handling
      */
@@ -207,6 +258,8 @@ public class ServerConfig {
     private static int threadPoolMax;
     private static TimeValue keepAlive;
     private static int eventLoopThreads;
+    private static TimeValue grpcKeepAliveTime;
+    private static TimeValue grpcKeepAliveTimeout;
 
     /**
      * Initializes the server configuration with the provided settings.
@@ -230,6 +283,18 @@ public class ServerConfig {
         threadPoolMax = FLIGHT_THREAD_POOL_MAX_SIZE.get(settings);
         keepAlive = FLIGHT_THREAD_POOL_KEEP_ALIVE.get(settings);
         eventLoopThreads = FLIGHT_EVENT_LOOP_THREADS.get(settings);
+        grpcKeepAliveTime = FLIGHT_KEEPALIVE_TIME.get(settings);
+        grpcKeepAliveTimeout = FLIGHT_KEEPALIVE_TIMEOUT.get(settings);
+    }
+
+    /** gRPC keepalive PING interval on the Flight server (connection-level liveness). */
+    public static TimeValue getGrpcKeepAliveTime() {
+        return grpcKeepAliveTime;
+    }
+
+    /** gRPC keepalive ack timeout: kill the connection if a PING is unacked for this long. */
+    public static TimeValue getGrpcKeepAliveTimeout() {
+        return grpcKeepAliveTimeout;
     }
 
     /**
@@ -290,6 +355,8 @@ public class ServerConfig {
                 ARROW_ENABLE_DEBUG_ALLOCATOR,
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
                 ARROW_SSL_ENABLE,
+                FLIGHT_KEEPALIVE_TIME,
+                FLIGHT_KEEPALIVE_TIMEOUT,
                 FLIGHT_EVENT_LOOP_THREADS,
                 FLIGHT_THREAD_POOL_MIN_SIZE,
                 FLIGHT_READY_TIMEOUT,

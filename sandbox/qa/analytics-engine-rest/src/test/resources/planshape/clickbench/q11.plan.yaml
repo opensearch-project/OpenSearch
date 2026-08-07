@@ -39,19 +39,23 @@ plans:
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], preserve_partitioning=[true]
             ProjectionExec: expr=[MobilePhoneModel@0 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@1 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@1) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: MobilePhoneModel@0 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
+              AggregateExec: mode=PartialReduce, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([MobilePhoneModel@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: MobilePhoneModel@0 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
     shard_physical_nseg: |
       ProjectionExec: expr=[MobilePhoneModel@0 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)@1 as u]
         SortPreservingMergeExec: [reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], fetch=30
           SortExec: TopK(fetch=30), expr=[reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))@2 DESC NULLS LAST], preserve_partitioning=[true]
             ProjectionExec: expr=[MobilePhoneModel@0 as MobilePhoneModel, approx_distinct(<scrubbed>.UserID)[hll_registers]@1 as approx_distinct(<scrubbed>.UserID), reduce_eval(approx_distinct, approx_distinct(<scrubbed>.UserID)[hll_registers]@1) as reduce_eval(Utf8("approx_distinct"),approx_distinct(<scrubbed>.UserID))]
-              AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
-                FilterExec: MobilePhoneModel@0 != 
-                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                    DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
+              AggregateExec: mode=PartialReduce, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                RepartitionExec: partitioning=Hash([MobilePhoneModel@0], 4), input_partitions=4
+                  AggregateExec: mode=Partial, gby=[MobilePhoneModel@0 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
+                    FilterExec: MobilePhoneModel@0 != 
+                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                        DataSourceExec: file_groups={<scrubbed>}, projection=[MobilePhoneModel, UserID], file_type=parquet, predicate=MobilePhoneModel@33 != , pruning_predicate=MobilePhoneModel_null_count@2 != row_count@3 AND (MobilePhoneModel_min@0 !=  OR  != MobilePhoneModel_max@1), required_guarantees=[MobilePhoneModel not in ()]
   prod1s:
     post_cbo: |
       OpenSearchSort(sort0=[$0], dir0=[DESC-nulls-last], fetch=[10000], viableBackends=[[datafusion]])

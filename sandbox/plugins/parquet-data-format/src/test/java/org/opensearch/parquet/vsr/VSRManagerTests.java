@@ -153,6 +153,43 @@ public class VSRManagerTests extends ParquetBaseTests {
         manager.flush();
     }
 
+    /**
+     * Regression for the ingest-pool leak: when {@code close()} fails to drain a background write
+     * (awaitPendingWrite throws {@code IOException("Background VSR write failed...")}), it must still
+     * release the VSR pool. The pre-fix close() called {@code vsrPool.close()} only after
+     * awaitPendingWrite/flush, so a background-write failure skipped it and stranded the per-VSR
+     * child allocators' off-heap buffers on the ingest pool for the node's lifetime ("Memory was
+     * leaked by query"). Here we buffer data into the active VSR, inject an already-failed
+     * pendingWrite so close() takes the throwing path, and assert the pool drains to zero.
+     */
+    public void testCloseReleasesPoolWhenBackgroundWriteFailed() throws Exception {
+        String filePath = createTempDir().resolve("bgwrite-fail.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+
+        // Materialize buffers on the active VSR's child allocator so the pool holds bytes.
+        ManagedVSR active = manager.getActiveManagedVSR();
+        IntVector vec = (IntVector) active.getVector("val");
+        for (int i = 0; i < 1000; i++) {
+            vec.setSafe(i, i);
+        }
+        active.setRowCount(1000);
+        assertTrue("pool holds buffers before close", bufferPool.getTotalAllocatedBytes() > 0);
+
+        // Inject an already-failed background write so close()'s awaitPendingWrite throws — the exact
+        // condition (Background VSR write failed) that used to skip vsrPool.close().
+        java.util.concurrent.CompletableFuture<Object> failed = new java.util.concurrent.CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("simulated native write failure"));
+        manager.setPendingWrite(failed);
+
+        RuntimeException thrown = expectThrows(RuntimeException.class, manager::close);
+        assertTrue(
+            "close still surfaces the background-write failure",
+            thrown.getMessage() != null && thrown.getMessage().contains("Failed to close VSRManager")
+        );
+
+        assertEquals("VSR pool must be released even when the background write failed", 0, bufferPool.getTotalAllocatedBytes());
+    }
+
     public void testMaybeRotateAtThreshold() throws Exception {
         String filePath = createTempDir().resolve("rotate.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);

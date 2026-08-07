@@ -36,14 +36,14 @@
 //! cold-path operation (file deletion or merge), not on the query hot path.
 
 use std::cell::UnsafeCell;
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::hash::Hash;
-use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::Relaxed};
 
+use crate::eviction_policy::CacheEvictionPolicy;
 use dashmap::DashMap;
 use parking_lot::Mutex;
-use crate::eviction_policy::CacheEvictionPolicy;
 
 /// Fallback byte budget used only in tests that bypass the Java startup path.
 /// In production the Java settings consumer always calls
@@ -130,7 +130,9 @@ unsafe impl<K: Send> Sync for FifoPolicy<K> {}
 
 impl<K> FifoPolicy<K> {
     pub(super) fn new() -> Self {
-        Self { queue: UnsafeCell::new(VecDeque::new()) }
+        Self {
+            queue: UnsafeCell::new(VecDeque::new()),
+        }
     }
 
     /// Borrow the queue mutably. Caller must hold the outer write lock.
@@ -175,7 +177,10 @@ struct WriteState {
 
 impl WriteState {
     fn new(limit: usize) -> Self {
-        Self { used_bytes: 0, limit }
+        Self {
+            used_bytes: 0,
+            limit,
+        }
     }
 }
 
@@ -288,7 +293,9 @@ where
             return;
         }
 
-        let old_size = self.map.insert(key.clone(), (value, size))
+        let old_size = self
+            .map
+            .insert(key.clone(), (value, size))
             .map(|(_, s)| s)
             .unwrap_or(0);
 
@@ -326,7 +333,9 @@ where
             if size > limit {
                 continue;
             }
-            let old_size = self.map.insert(key.clone(), (value, size))
+            let old_size = self
+                .map
+                .insert(key.clone(), (value, size))
                 .map(|(_, s)| s)
                 .unwrap_or(0);
             to_account.push((key, size, old_size));
@@ -360,7 +369,9 @@ where
     fn drain_to_limit(&self, w: &mut WriteState) -> u64 {
         let mut evicted = 0u64;
         while w.used_bytes > w.limit {
-            let Some(victim) = self.policy.next_victim() else { break };
+            let Some(victim) = self.policy.next_victim() else {
+                break;
+            };
             if let Some((_, (_, size))) = self.map.remove(&victim) {
                 w.used_bytes = w.used_bytes.saturating_sub(size);
                 evicted += 1;
@@ -404,7 +415,9 @@ where
     pub(super) fn evict_by_prefix(&self, prefix: &str) {
         // Collect victims by iterating the DashMap (avoids holding the write
         // lock while doing string comparisons on every FIFO entry).
-        let victims: Vec<K> = self.map.iter()
+        let victims: Vec<K> = self
+            .map
+            .iter()
             .filter(|e| e.key().to_string().starts_with(prefix))
             .map(|e| e.key().clone())
             .collect();
@@ -453,10 +466,14 @@ mod tests {
     #[derive(Clone, PartialEq, Eq, Hash)]
     struct Key(String);
     impl std::fmt::Display for Key {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(&self.0) }
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(&self.0)
+        }
     }
     impl Key {
-        fn new(s: impl Into<String>) -> Self { Key(s.into()) }
+        fn new(s: impl Into<String>) -> Self {
+            Key(s.into())
+        }
     }
 
     fn make_cache(limit: usize) -> BoundedCache<Key, Vec<u8>> {
@@ -481,7 +498,11 @@ mod tests {
         assert_eq!(c.stats().used_bytes, 8);
         c.insert(Key::new("c"), vec![], 4);
         let s = c.stats();
-        assert!(s.used_bytes <= 10, "used_bytes={} must be <= limit=10", s.used_bytes);
+        assert!(
+            s.used_bytes <= 10,
+            "used_bytes={} must be <= limit=10",
+            s.used_bytes
+        );
         assert!(s.evictions >= 1);
     }
 
@@ -585,10 +606,17 @@ mod tests {
                 }
             }));
         }
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
 
         let s = cache.stats();
-        assert!(s.used_bytes <= LIMIT, "used_bytes={} > limit={}", s.used_bytes, LIMIT);
+        assert!(
+            s.used_bytes <= LIMIT,
+            "used_bytes={} > limit={}",
+            s.used_bytes,
+            LIMIT
+        );
         let map_total: usize = cache.map.iter().map(|e| e.value().1).sum();
         assert_eq!(map_total, s.used_bytes);
     }
@@ -613,7 +641,9 @@ mod tests {
                 }
             }));
         }
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
         let s = cache.stats();
         assert!(s.used_bytes <= 200);
         let map_total: usize = cache.map.iter().map(|e| e.value().1).sum();
@@ -640,7 +670,9 @@ mod tests {
                 }
             }));
         }
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
         cache.evict_by_prefix("hot/");
         for entry in cache.map.iter() {
             assert!(!entry.key().0.starts_with("hot/"));
@@ -659,14 +691,15 @@ mod tests {
             let c = Arc::clone(&cache);
             handles.push(std::thread::spawn(move || {
                 for b in 0..50usize {
-                    let batch = (0..5usize).map(|i| {
-                        (Key::new(format!("t{t}:b{b}:i{i}")), vec![t as u8], 8)
-                    });
+                    let batch = (0..5usize)
+                        .map(|i| (Key::new(format!("t{t}:b{b}:i{i}")), vec![t as u8], 8));
                     c.insert_batch(batch);
                 }
             }));
         }
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
         let s = cache.stats();
         assert!(s.used_bytes <= LIMIT);
         let map_total: usize = cache.map.iter().map(|e| e.value().1).sum();
@@ -693,7 +726,9 @@ mod tests {
                 c2.set_limit(1000);
             }
         }));
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
         let limit = cache.limit_snapshot.load(Relaxed);
         let s = cache.stats();
         assert!(s.used_bytes <= limit);

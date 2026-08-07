@@ -25,15 +25,8 @@ const WIDE_STRING_COLUMNS: usize = 20;
 const NARROW_STRING_COLUMNS: usize = 2;
 const STRING_VALUE_LEN: usize = 100;
 
-fn generate_parquet_file(
-    path: &str,
-    num_rows: usize,
-    num_string_cols: usize,
-    file_id: usize,
-) {
-    let mut fields = vec![
-        Field::new("@timestamp", DataType::Int64, false),
-    ];
+fn generate_parquet_file(path: &str, num_rows: usize, num_string_cols: usize, file_id: usize) {
+    let mut fields = vec![Field::new("@timestamp", DataType::Int64, false)];
     for i in 0..num_string_cols {
         fields.push(Field::new(format!("field_{}", i), DataType::Utf8, true));
     }
@@ -86,7 +79,12 @@ fn measure_resident_bytes() -> usize {
     #[cfg(target_os = "linux")]
     {
         let statm = fs::read_to_string("/proc/self/statm").unwrap_or_default();
-        let pages: usize = statm.split_whitespace().nth(1).unwrap_or("0").parse().unwrap_or(0);
+        let pages: usize = statm
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("0")
+            .parse()
+            .unwrap_or(0);
         pages * 4096 // RSS in bytes (page size = 4KB)
     }
     #[cfg(not(target_os = "linux"))]
@@ -140,7 +138,8 @@ fn run_merge_bench(label: &str, num_string_cols: usize) {
     let total_rows = ROWS_PER_FILE * NUM_FILES;
     let rows_per_sec = total_rows as f64 / elapsed.as_secs_f64();
     let mb_per_sec = {
-        let input_size: u64 = input_paths.iter()
+        let input_size: u64 = input_paths
+            .iter()
             .map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
             .sum();
         (input_size as f64 / 1024.0 / 1024.0) / elapsed.as_secs_f64()
@@ -153,15 +152,34 @@ fn run_merge_bench(label: &str, num_string_cols: usize) {
             println!("┌─────────────────────────────────────────────────────────────");
             println!("│ {} ", label);
             println!("├─────────────────────────────────────────────────────────────");
-            println!("│ Files:         {} × {} rows = {} total rows", NUM_FILES, ROWS_PER_FILE, total_rows);
-            println!("│ Columns:       1 sort (Int64) + {} string ({}B each)", num_string_cols, STRING_VALUE_LEN);
+            println!(
+                "│ Files:         {} × {} rows = {} total rows",
+                NUM_FILES, ROWS_PER_FILE, total_rows
+            );
+            println!(
+                "│ Columns:       1 sort (Int64) + {} string ({}B each)",
+                num_string_cols, STRING_VALUE_LEN
+            );
             println!("│ Batch size:    {}", BATCH_SIZE);
             println!("│ Elapsed:       {:.2?}", elapsed);
-            println!("│ Throughput:    {:.0} rows/sec, {:.1} MB/sec (input)", rows_per_sec, mb_per_sec);
+            println!(
+                "│ Throughput:    {:.0} rows/sec, {:.1} MB/sec (input)",
+                rows_per_sec, mb_per_sec
+            );
             println!("│ RSS delta:     {:.1} MB", mem_delta_mb);
-            println!("│ Output rows:   {}", output.metadata.file_metadata().num_rows());
+            println!(
+                "│ Output rows:   {}",
+                output.metadata.file_metadata().num_rows()
+            );
             println!("│ Output RGs:    {}", output.metadata.num_row_groups());
-            println!("│ Deferred mode: {}", if num_string_cols >= 3 { "YES (expected)" } else { "NO (eager)" });
+            println!(
+                "│ Deferred mode: {}",
+                if num_string_cols >= 3 {
+                    "YES (expected)"
+                } else {
+                    "NO (eager)"
+                }
+            );
             println!("└─────────────────────────────────────────────────────────────");
             println!();
         }
