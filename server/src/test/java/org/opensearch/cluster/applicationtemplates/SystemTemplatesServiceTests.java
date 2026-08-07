@@ -112,21 +112,21 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("experimental feature"));
     }
 
-    public void testValidatorDoesNotRejectDefaultOrUnrelatedUpdatesWhenFlagOff() {
-        // Regression guard: the validator must only fire when the value is true. Settings-update validation runs every
-        // setting's validator against its default value on every _cluster/settings update, so a validator that threw on
-        // the default (false) would reject ALL cluster settings updates when the (off-by-default) flag is disabled.
-        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+    public void testValidatorDoesNotThrowOnDefaultOrDisableWhenFlagOff() {
+        // Regression guard for the DoS hazard: settings-update validation runs a setting's validator against its
+        // CURRENT/DEFAULT value on every _cluster/settings update. If this validator threw on false, every cluster
+        // settings update would be rejected whenever the (off-by-default) experimental flag is disabled. So with the
+        // flag off it must accept both the default and an explicit false. Asserting the validator directly, because
+        // ClusterSettings.validate only invokes a setting's validator when that setting's key is present in the update.
+        SystemTemplatesService.ApplicationTemplatesEnabledValidator validator =
+            new SystemTemplatesService.ApplicationTemplatesEnabledValidator();
+        validator.validate(false); // default / explicit disable — must not throw with the flag off
 
-        // Explicitly disabling must pass even with the flag off.
+        // And an explicit disable through the settings path is accepted too.
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
         Settings disable = Settings.builder()
             .put(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)
             .build();
         cs.validate(disable, true);
-
-        // An unrelated dynamic setting update must not be affected by this validator.
-        Settings unrelated = Settings.builder().put("cluster.max_shards_per_node", 2000).build();
-        cs.validate(unrelated, true);
-        cs.validateUpdate(unrelated);
     }
 }

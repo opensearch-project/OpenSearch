@@ -84,6 +84,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     private final ClusterSettings clusterSettings;
 
+    private final Settings settings;
+
     private final ClusterManagerTaskThrottler.ThrottlingKey clusterUpdateSettingTaskKey;
 
     @Inject
@@ -94,7 +96,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         AllocationService allocationService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Settings settings
     ) {
         super(
             ClusterUpdateSettingsAction.NAME,
@@ -108,6 +111,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         );
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
+        this.settings = settings;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         clusterUpdateSettingTaskKey = clusterService.registerClusterManagerTask(CLUSTER_UPDATE_SETTINGS, true);
@@ -268,10 +272,10 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                         clusterSettings.upgradeSettings(request.persistentSettings()),
                         logger
                     );
-                    // Validate against the post-update state so the effective value (whether set, reset, or unchanged) is
-                    // checked against the existing stored scripts before this state is published. This stateful invariant
-                    // cannot be enforced by a Setting.Validator; rejecting here avoids throwing at apply time.
-                    validateScriptMaxSizeInBytes(clusterState);
+                    // Validate against the post-update state so the effective value is checked against the existing
+                    // stored scripts before this state is published. This stateful invariant cannot be enforced by a
+                    // Setting.Validator; rejecting here avoids throwing at apply time.
+                    validateScriptMaxSizeInBytes(request, clusterState);
                     clusterState = checkAndFinalizeRemoteStoreMigration(isCompatibilityModeChanging, request, clusterState, logger);
                     changed = clusterState != currentState;
                     return clusterState;
@@ -372,8 +376,18 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * only at apply time and would destabilize the cluster-manager). Reading the effective value from the merged settings
      * also covers a reset-to-default that would lower the limit, not just an explicit smaller value.
      */
-    private void validateScriptMaxSizeInBytes(ClusterState updatedState) {
-        int effectiveMaxSize = SCRIPT_MAX_SIZE_IN_BYTES.get(updatedState.metadata().settings());
+    private void validateScriptMaxSizeInBytes(ClusterUpdateSettingsRequest request, ClusterState updatedState) {
+        // Only validate when the request actually touches the setting (including an explicit reset-to-default), matching
+        // the pattern used for other cross-state settings validated here.
+        if (request.transientSettings().hasValue(SCRIPT_MAX_SIZE_IN_BYTES.getKey()) == false
+            && request.persistentSettings().hasValue(SCRIPT_MAX_SIZE_IN_BYTES.getKey()) == false) {
+            return;
+        }
+        // Resolve the effective value the same way it is resolved at apply time: node settings (e.g. opensearch.yml)
+        // overlaid with the post-update cluster settings. Reading metadata().settings() alone (cluster settings only)
+        // would fall back to the default when the value is configured only in opensearch.yml.
+        Settings effectiveSettings = Settings.builder().put(settings).put(updatedState.metadata().settings()).build();
+        int effectiveMaxSize = SCRIPT_MAX_SIZE_IN_BYTES.get(effectiveSettings);
         ScriptService.validateMaxSizeInBytes(effectiveMaxSize, updatedState);
     }
 }
