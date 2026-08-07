@@ -32,7 +32,7 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::SchemaRef;
@@ -57,13 +57,15 @@ const CHANNEL_CAPACITY: usize = 4;
 /// receiver side.
 pub struct PartitionStreamSender {
     tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
+    receiver: Weak<Mutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
 }
 
 /// Outcome of a blocking send. `ReceiverDropped` is the benign terminal case — the
-/// DataFusion consumer finished (e.g. a `LimitExec` satisfied its fetch) and dropped the
-/// receiver. Surfaced as a distinct variant so the FFM layer can signal it without the Java
-/// side substring-matching an error message.
+/// DataFusion consumer finished (e.g. a `LimitExec` satisfied its fetch), or an
+/// early-termination request closed this partition's receiver. Surfaced as a distinct
+/// variant so the FFM layer can signal it without the Java side substring-matching an
+/// error message.
 #[must_use]
 pub enum SendOutcome {
     Sent,
@@ -76,6 +78,21 @@ impl PartitionStreamSender {
         &self.schema
     }
 
+    /// Gracefully terminates this input partition without cancelling the query.
+    ///
+    /// Closing the receiver rejects any blocked or future sends while preserving
+    /// already buffered batches for the DataFusion consumer to drain before EOF.
+    /// This is safe to call while [`Self::send_blocking`] holds an immutable sender
+    /// borrow, unlike dropping the sender itself.
+    pub fn terminate_early(&self) {
+        if let Some(receiver) = self.receiver.upgrade() {
+            receiver
+                .lock()
+                .expect("partition receiver mutex poisoned")
+                .close();
+        }
+    }
+
     /// Push a batch into the channel from a synchronous (non-async) context.
     ///
     /// The provided `handle` is used to drive the async send — typically the
@@ -84,8 +101,8 @@ impl PartitionStreamSender {
     /// thread to be a Tokio worker.
     ///
     /// Blocks while the channel is full (natural backpressure). Returns
-    /// [`SendOutcome::ReceiverDropped`] only if the receiver has been dropped —
-    /// the sole failure mode of `mpsc::Sender::send`.
+    /// [`SendOutcome::ReceiverDropped`] only if the receiver has been dropped or
+    /// closed for early termination — the sole failure mode of `mpsc::Sender::send`.
     pub fn send_blocking(
         &self,
         batch: Result<RecordBatch, DataFusionError>,
@@ -112,7 +129,7 @@ impl fmt::Debug for PartitionStreamSender {
 /// directly. Typically handed to [`SingleReceiverPartition`] and registered on
 /// a `SessionContext` as a `StreamingTable`.
 pub struct PartitionStreamReceiver {
-    rx: mpsc::Receiver<Result<RecordBatch, DataFusionError>>,
+    rx: Arc<Mutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
 }
 
@@ -127,8 +144,11 @@ impl fmt::Debug for PartitionStreamReceiver {
 impl Stream for PartitionStreamReceiver {
     type Item = Result<RecordBatch, DataFusionError>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.rx.poll_recv(cx)
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.rx
+            .lock()
+            .expect("partition receiver mutex poisoned")
+            .poll_recv(cx)
     }
 }
 
@@ -146,11 +166,16 @@ impl RecordBatchStream for PartitionStreamReceiver {
 /// buffered batches are drained, which DataFusion interprets as end-of-input.
 pub fn channel(schema: SchemaRef) -> (PartitionStreamSender, PartitionStreamReceiver) {
     let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
+    let receiver = Arc::new(Mutex::new(rx));
     let sender = PartitionStreamSender {
         tx,
+        receiver: Arc::downgrade(&receiver),
         schema: Arc::clone(&schema),
     };
-    let receiver = PartitionStreamReceiver { rx, schema };
+    let receiver = PartitionStreamReceiver {
+        rx: receiver,
+        schema,
+    };
     (sender, receiver)
 }
 
@@ -297,6 +322,49 @@ mod tests {
         .join()
         .unwrap();
         assert!(matches!(outcome, SendOutcome::ReceiverDropped));
+    }
+
+    #[tokio::test]
+    async fn early_termination_drains_buffered_batches_then_eof() {
+        let schema = test_schema();
+        let (sender, mut receiver) = channel(Arc::clone(&schema));
+
+        sender.tx.try_send(Ok(test_batch(&schema, &[1]))).unwrap();
+        sender.tx.try_send(Ok(test_batch(&schema, &[2]))).unwrap();
+        sender.terminate_early();
+
+        assert!(sender.tx.try_send(Ok(test_batch(&schema, &[3]))).is_err());
+        assert_eq!(receiver.next().await.unwrap().unwrap().num_rows(), 1);
+        assert_eq!(receiver.next().await.unwrap().unwrap().num_rows(), 1);
+        assert!(receiver.next().await.is_none());
+    }
+
+    #[test]
+    fn early_termination_unblocks_full_channel_sender() {
+        let rt = tokio::runtime::Runtime::new().expect("runtime builds");
+        let handle = rt.handle().clone();
+        let schema = test_schema();
+        let (sender, _receiver) = channel(Arc::clone(&schema));
+        let sender = Arc::new(sender);
+
+        for value in 0..CHANNEL_CAPACITY {
+            sender
+                .tx
+                .try_send(Ok(test_batch(&schema, &[value as i64])))
+                .unwrap();
+        }
+
+        let blocked_sender = Arc::clone(&sender);
+        let blocked_schema = Arc::clone(&schema);
+        let blocked = std::thread::spawn(move || {
+            blocked_sender.send_blocking(Ok(test_batch(&blocked_schema, &[99])), &handle)
+        });
+
+        sender.terminate_early();
+        assert!(matches!(
+            blocked.join().unwrap(),
+            SendOutcome::ReceiverDropped
+        ));
     }
 
     #[tokio::test]
