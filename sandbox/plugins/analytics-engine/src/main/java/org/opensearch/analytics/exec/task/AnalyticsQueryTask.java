@@ -71,18 +71,28 @@ public class AnalyticsQueryTask extends SearchTask {
     }
 
     /**
-     * Install a callback to be run when this task is cancelled. Must be called
-     * at most once per task instance — typically right after task registration
-     * by the query driver. The callback runs on whatever thread invokes cancel
-     * (transport thread, timeout scheduler, parent cascade); it must be
+     * Install a callback to be run when this task is cancelled. Typically called right
+     * after task registration by the query driver. The callback runs on whatever thread
+     * invokes cancel (transport thread, timeout scheduler, parent cascade); it must be
      * non-blocking and safe from any thread.
+     *
+     * <p>Replaces any previously installed callback — multi-phase drivers (e.g. M1 broadcast
+     * dispatch) install a temporary callback targeting the phase 1 execution, then replace
+     * it when phase 2 begins so cancel routes to the active phase's walker.
+     *
+     * <p>Late-install replay: if this task has already been cancelled by the time
+     * {@code setOnCancelCallback} is called, run the new callback immediately on the
+     * caller's thread. {@link #onCancelled()} is one-shot, so without replay a callback
+     * installed after cancellation would never fire — losing cancel semantics across the
+     * broadcast-capture → residual-dispatch handoff in {@code UnifiedDispatch}.
      */
     public void setOnCancelCallback(Runnable callback) {
-        if (onCancelCallback.compareAndSet(null, callback) == false) {
-            throw new IllegalStateException("onCancelCallback already set for AnalyticsQueryTask " + queryId);
-        }
-        // Cancel may have arrived before this install — fire inline if so. Mirrors AnalyticsShardTask.setCancellationListener.
-        if (isCancelled()) {
+        onCancelCallback.set(callback);
+        // Cancel may have arrived before this install — fire inline if so. onCancelled() is one-shot
+        // (it clears the slot via getAndSet(null)), so a callback installed after cancellation would
+        // otherwise never fire — losing cancel semantics across the broadcast-capture → residual-dispatch
+        // handoff in UnifiedDispatch. Mirrors AnalyticsShardTask.setCancellationListener.
+        if (callback != null && isCancelled()) {
             runCallbackOnce();
         }
     }

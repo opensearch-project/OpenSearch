@@ -39,12 +39,16 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     /**
      * Creates a DataFusion execution context
      * @param task the search shard task
-     * @param reader the DataFusion reader providing index data
+     * @param reader the DataFusion reader providing index data, or {@code null} for fragments
+     *               that have no shard scan (e.g. hash-shuffle worker fragments) and read only
+     *               from named-input sources registered on the session context. The resulting
+     *               searcher's vanilla path is unusable when reader is null — workers must go
+     *               through {@code searchWithSessionContext}.
      * @param nativeRuntime handle to the native DataFusion runtime
      */
     public DatafusionContext(Task task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
-        this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
+        this.engineSearcher = new DatafusionSearcher(reader == null ? null : reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
     }
 

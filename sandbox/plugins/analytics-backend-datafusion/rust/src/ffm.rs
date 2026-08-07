@@ -773,6 +773,24 @@ pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
 }
 
+/// Fails a partition stream: pushes an error into the channel (so the consumer's stream yields an
+/// ERROR rather than a clean EOF), then drops the sender. Used by the Java shuffle drain thread when a
+/// mid-stream failure (e.g. a spill-read error) truncates the partition — turning a silent
+/// wrong-result into a loud query failure. The reason string is included in the surfaced error.
+/// Returns 0 on success, a non-empty error string (via `ffm_wrap`) only on argument-decode failure.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_fail(
+    sender_ptr: i64,
+    reason_ptr: *const u8,
+    reason_len: i64,
+) -> i64 {
+    let reason = str_from_raw(reason_ptr, reason_len)
+        .map_err(|e| format!("df_sender_fail: reason: {}", e))?;
+    api::sender_fail(sender_ptr, reason);
+    Ok(0)
+}
+
 /// Memtable variant of `df_register_partition_stream`: instead of returning a
 /// sender that streams batches one at a time, the caller hands across `n`
 /// already-exported Arrow C Data batches in two parallel pointer arrays and
@@ -825,6 +843,162 @@ pub unsafe extern "C" fn df_register_memtable(
         out_cap,
         out_len,
         "register_memtable schema IPC",
+    )?;
+    Ok(0)
+}
+
+/// Variant of `df_register_memtable` for the shard-scan side. Takes a
+/// `SessionContextHandle` pointer (returned by `df_create_session_context`) instead of a
+/// `LocalSession` pointer (returned by `df_create_local_session`) — the M1 broadcast
+/// injection runs on the same shard-scan session that has the listing-table-backed
+/// probe scan registered, so the memtable lives alongside that table.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+    array_ptrs: *const i64,
+    schema_ptrs: *const i64,
+    n_batches: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_memtable_on_session_context: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let n = n_batches as usize;
+    let array_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(array_ptrs, n)
+    };
+    let schema_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(schema_ptrs, n)
+    };
+    api::register_memtable_on_session_context(
+        session_ctx_handle_ptr,
+        input_id,
+        schema_ipc,
+        array_slice,
+        schema_slice,
+    )
+    .map(|_| 0)
+    .map_err(|e| e.to_string())
+}
+
+/// Streaming sibling of `df_register_memtable_on_session_context`. Registers a partitioned
+/// streaming input on the shard-scan session under `input_id` and returns the producer-side
+/// channel sender pointer. M2 hash-shuffle workers register left/right partition inputs via
+/// this entry; the per-batch feed reuses the existing `df_sender_send` / `df_sender_close`
+/// FFM exports because `PartitionStreamSender` is the same type whether the session was
+/// created via `df_create_local_session` or `df_create_session_context`.
+///
+/// On success the function returns the sender pointer cast to `i64`. On error it returns
+/// the FFM error sentinel; the bridge layer converts that to a Java exception.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context: input_id: {}",
+            e
+        )
+    })?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
+        .map_err(|e| e.to_string())
+}
+
+/// M3 hash-shuffle AGGREGATE worker variant of `df_register_partition_stream_on_session_context`.
+///
+/// Identical wiring (channel + `SingleReceiverPartition` + `StreamingTable` registered on the
+/// `SessionContextHandle`, returning the `PartitionStreamSender` pointer), but the table schema
+/// is derived from the producer's PARTIAL substrait plan (the SAME derivation the
+/// coordinator-reduce `df_register_partition_stream` uses) instead of the raw producer IPC
+/// header. This registers the streaming table under the FINAL fragment's logical column names
+/// (e.g. `sum_qty`) rather than the producer's physical state names (e.g. `sum_qty[sum]`), so
+/// the worker FINAL's by-name `base_schema` binding resolves. See
+/// `api::register_partition_stream_on_session_context_from_partial_plan` for the full rationale.
+///
+/// On success returns the sender pointer cast to `i64`; on error returns the FFM error sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}",
+            e
+        )
+    })?;
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
+    api::register_partition_stream_on_session_context_from_partial_plan(
+        session_ctx_handle_ptr,
+        input_id,
+        partial_plan,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Hash-partitions one Arrow C Data batch into N output batches using DataFusion's
+/// `BatchPartitioner` (matches `RepartitionExec` and `HashJoinExec` row-to-partition
+/// mapping). Writes the resulting N (array_ptr, schema_ptr) pairs as 16N bytes into the
+/// caller-provided output buffer (8 bytes for array_ptr, 8 bytes for schema_ptr, repeated).
+/// The output FFI structs are heap-allocated by Rust; ownership transfers to Java which
+/// must close them via Arrow C Data Interface.
+///
+/// On success returns 0 and writes 16N to `out_len`. On error returns the FFM sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices_ptr: *const i32,
+    hash_key_indices_len: i64,
+    partition_count: i32,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let n = hash_key_indices_len as usize;
+    let key_slice: &[i32] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(hash_key_indices_ptr, n)
+    };
+    let pairs = api::partition_batch_by_hash(
+        input_array_ptr,
+        input_schema_ptr,
+        key_slice,
+        partition_count,
+    )
+    .map_err(|e| e.to_string())?;
+    // Pack as parallel little-endian i64 pairs: [array_ptr_0, schema_ptr_0, array_ptr_1, ...]
+    let mut bytes = Vec::with_capacity(pairs.len() * 16);
+    for (a, s) in &pairs {
+        bytes.extend_from_slice(&a.to_le_bytes());
+        bytes.extend_from_slice(&s.to_le_bytes());
+    }
+    write_out_buffer(
+        &bytes,
+        out_ptr,
+        out_cap,
+        out_len,
+        "partition_batch_by_hash output ptrs",
     )?;
     Ok(0)
 }
@@ -1057,6 +1231,27 @@ pub unsafe extern "C" fn df_create_session_context(
                 has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
+            ),
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config_ptr: i64,
+) -> i64 {
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_worker_session_context(
+                runtime_ptr,
+                context_id,
+                query_config,
             ),
         ))
         .map_err(|e| e.to_string())

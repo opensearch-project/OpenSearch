@@ -108,8 +108,14 @@ public class QueryScheduler implements Scheduler {
      * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
      * when {@code start()} transitions straight to a terminal (empty target resolution →
      * SUCCEEDED; concurrent cancel → CANCELLED).
+     *
+     * <p>Public for the MPP dispatcher ({@code UnifiedDispatch}) which needs to run
+     * a single stage in isolation with a caller-supplied output sink, outside the normal
+     * {@link QueryExecution} graph traversal. Those callers reuse this method rather than
+     * inlining the dispatch loop so future scheduler enhancements (in-flight caps, retry-aware
+     * task pacing) automatically apply to phased dispatch as well.
      */
-    void scheduleStage(StageExecution stage) {
+    public void scheduleStage(StageExecution stage) {
         stage.start();
         if (stage.getState() != StageExecution.State.RUNNING) return;
         logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
@@ -189,11 +195,20 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
-     * custom {@link org.opensearch.analytics.exec.stage.StageExecutionFactory} for a stage
-     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
-     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
-     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * Returns the underlying {@link StageExecutionBuilder}.
+     *
+     * <p>Used by:
+     * <ul>
+     *   <li>join-strategy dispatchers (e.g. M1 broadcast) that need to run a single stage in
+     *       isolation with a caller-supplied output sink, bypassing the parent-sink resolution
+     *       chain;</li>
+     *   <li>resilience integration tests that register a custom
+     *       {@link org.opensearch.analytics.exec.stage.StageExecutionFactory} for a stage type
+     *       (e.g. fault-injecting scheduler).</li>
+     * </ul>
+     *
+     * <p>Resolving via the singleton scheduler avoids a Guice JIT lookup that would
+     * re-instantiate {@link AnalyticsSearchTransportService} (whose ctor registers transport
      * handlers, only legal once per node).
      */
     public StageExecutionBuilder getStageExecutionBuilder() {

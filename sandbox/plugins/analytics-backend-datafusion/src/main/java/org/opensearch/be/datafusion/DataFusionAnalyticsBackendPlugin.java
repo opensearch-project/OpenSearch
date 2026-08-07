@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -17,12 +18,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
+import org.opensearch.analytics.planner.CalciteToArrowSchema;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
@@ -44,6 +48,7 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.analytics.spi.ShuffleSender;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.analytics.spi.WindowFunctionAdapter;
@@ -56,6 +61,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -645,6 +651,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<DataTransferCapability> dataTransferCapabilities() {
+                // Format string is backend-specific. "arrow-ipc-partitioned" means the producer
+                // serializes each hash bucket as Arrow IPC bytes, and the consumer deserializes
+                // back to Arrow record batches before feeding them to the worker plan via
+                // StreamingTableExec + PartitionStream (the ShuffleScanHandler's job).
+                return Set.of(
+                    new DataTransferCapability(DataTransferCapability.Kind.PRODUCER, "arrow-ipc-partitioned"),
+                    new DataTransferCapability(DataTransferCapability.Kind.CONSUMER, "arrow-ipc-partitioned")
+                );
+            }
+
+            @Override
             public Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
                 // Map entries are alphabetical (Map.ofEntries past 5 pairs, else spotless inlines).
                 // Alias pairs share an adapter instance but need separate enum entries because
@@ -864,7 +882,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * base cannot be instantiated directly.
      */
     private static AbstractNameMappingAdapter nameMapping(SqlOperator target) {
-        return new AbstractNameMappingAdapter(target, java.util.List.of(), java.util.List.of()) {
+        return new AbstractNameMappingAdapter(target, List.of(), List.of()) {
         };
     }
 
@@ -891,11 +909,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         break;
                     }
                 }
+                if (dfReader == null) {
+                    throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+                }
             }
-
-            if (dfReader == null) {
-                throw new IllegalStateException("No DatafusionReader available in the acquired reader");
-            }
+            // dfReader may be null for hash-shuffle worker fragments — those have no shard scan
+            // and read only from named-input streams registered on the SessionContextHandle by
+            // the prior ShuffleScanHandler chain. The searcher's vanilla path is unreachable in
+            // that case (no reader handle); the searchWithSessionContext path is the only one
+            // that fires.
             DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
@@ -916,34 +938,80 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     public ExchangeSinkProvider getExchangeSinkProvider() {
         return new ExchangeSinkProvider() {
             @Override
+            public ExchangeSink createBroadcastCaptureSink(
+                BufferAllocator allocator,
+                org.apache.calcite.rel.type.RelDataType buildRowType,
+                long maxBytes
+            ) {
+                Schema fallback = buildRowType == null ? null : CalciteToArrowSchema.convert(buildRowType);
+                return new BroadcastCaptureSink(allocator, fallback, maxBytes);
+            }
+
+            @Override
             public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
-                DataFusionService svc = plugin.getDataFusionService();
-                if (svc == null) {
-                    throw new IllegalStateException("DataFusionService not initialized");
-                }
-                // When the FinalAggregateInstructionHandler has already prepared a plan on the
-                // coordinator, it hands over a DataFusionReduceState carrying the session +
-                // registered senders. The sink drives executeLocalPreparedPlan against that
-                // state instead of re-decoding the fragment bytes.
-                DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
-                String mode = plugin.getClusterService() != null
-                    ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
-                    : "streaming";
-                // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-                // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-                // need per-child input partitions, which only the streaming sink implements via
-                // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-                // don't have to flip the cluster setting per query. Also fall back when a
-                // prepared state is supplied (memtable sink does not yet support the
-                // prepared-plan path).
-                // TODO: lift this fallback once the memtable sink registers one MemTable per
-                // child stage (see DatafusionMemtableReduceSink class javadoc).
-                if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
-                    return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
-                }
-                return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+                return buildReduceSink(ctx, backendContext);
+            }
+
+            @Override
+            public ExchangeSink createPartitionedSink(
+                List<Integer> hashKeyChannels,
+                int partitionCount,
+                List<String> targetWorkerNodeIds,
+                ShuffleSender sender,
+                ExchangeSinkContext context
+            ) {
+                // queryId+stageId+side are stamped onto the framework-provided sender; the sink
+                // only needs an opaque tag for log messages so producers from different stages
+                // are distinguishable in mixed traces.
+                String logTag = context.queryId() + "/stage=" + context.stageId();
+                // Resolve the shuffle-IPC compression policy live from the cluster settings (default OFF).
+                ShuffleCompression.Config compression = plugin.getClusterService() != null
+                    ? ShuffleCompression.Config.from(plugin.getClusterService().getClusterSettings())
+                    : ShuffleCompression.Config.DISABLED;
+                return new DatafusionPartitionedSink(
+                    context.allocator(),
+                    hashKeyChannels,
+                    partitionCount,
+                    targetWorkerNodeIds,
+                    sender,
+                    logTag,
+                    compression
+                );
             }
         };
+    }
+
+    private ExchangeSink buildReduceSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
+        DataFusionService svc = plugin.getDataFusionService();
+        if (svc == null) {
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+        // When the FinalAggregateInstructionHandler has already prepared a plan on the
+        // coordinator, it hands over a DataFusionReduceState carrying the session +
+        // registered senders. The sink drives executeLocalPreparedPlan against that
+        // state instead of re-decoding the fragment bytes.
+        DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
+        String mode = plugin.getClusterService() != null
+            ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+            : "streaming";
+        int inputCount = ctx.childInputs().size();
+        // Multi-input coordinator operators (Join, Union) use the buffered memtable sink. The
+        // streaming sink registers each input as a bounded-mpsc StreamingTable and drains the plan
+        // concurrently with feeds; for a multi-input operator that can deadlock (a HashJoinExec
+        // collects its build side fully before the probe, so a build-side producer back-pressuring
+        // on a bounded input channel the join isn't yet draining blocks forever — observed on
+        // TPC-H q15). The memtable sink buffers each input fully in Java first, so no bounded native
+        // channel sits in the input path. Falls back to streaming only when a prepared state is
+        // supplied (the memtable sink doesn't support the prepared-plan path; that path is
+        // single-input final-aggregate so it's never a multi-input deadlock).
+        if (inputCount > 1 && preparedState == null) {
+            return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+        }
+        // Single-input: honor the mode setting (memtable buffers; streaming default streams).
+        if ("memtable".equals(mode) && inputCount == 1 && preparedState == null) {
+            return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+        }
+        return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
     }
 
     /**
@@ -1033,5 +1101,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     public Exception convertException(Exception original) {
         return NativeErrorConverter.convert(original);
+    }
+
+    /**
+     * DataFusion participates in MPP hash-shuffle: default the partition count to the number of
+     * data nodes in the cluster. The advisor uses this when {@code analytics.mpp.shuffle.partitions}
+     * isn't pinned by the operator. One partition per data node maximizes parallelism without
+     * over-subscribing — additional partitions on the same node would queue on the same
+     * DataFusion threadpool. Returns {@code 1} if the cluster has no data nodes (gates the
+     * shuffle rule out and falls back to coordinator-centric).
+     */
+    @Override
+    public int defaultShuffleParallelism(org.opensearch.cluster.ClusterState state) {
+        int dataNodeCount = state.nodes().getDataNodes().size();
+        return Math.max(dataNodeCount, 1);
     }
 }

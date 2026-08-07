@@ -107,27 +107,18 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         runAndAssertRules(
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
-            Map.of(
-                "ExtractLiteralAggRule",
-                0L,
-                "ReduceExpressionsRule(Project)",
-                0L,
-                "OpenSearchTableScanRule",
-                1L,
-                "OpenSearchProjectRule",
-                1L,
-                "OpenSearchJoinRule",
-                1L,
-                "OpenSearchAggregateRule",
-                1L,
-                "OpenSearchAggregateSplitRule",
-                1L,
-                "OpenSearchJoinSplitRule",
-                1L,
-                "OpenSearchAggLiteralArgProjectSplitRule",
-                0L,
-                "ExpandConversionRule",
-                2L
+            Map.ofEntries(
+                Map.entry("ExtractLiteralAggRule", 0L),
+                Map.entry("ReduceExpressionsRule(Project)", 0L),
+                Map.entry("OpenSearchTableScanRule", 1L),
+                Map.entry("OpenSearchProjectRule", 2L),
+                Map.entry("OpenSearchJoinRule", 1L),
+                Map.entry("OpenSearchAggregateRule", 1L),
+                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                Map.entry("OpenSearchJoinSplitRule", 1L),
+                Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
+                Map.entry("OpenSearchDistributionDeriveRule", 1L),
+                Map.entry("ExpandConversionRule", 3L)
             )
         );
     }
@@ -195,6 +186,17 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     }
 
     private PlannerContext context(ClusterState state, boolean profilingEnabled) {
-        return new PlannerContext(new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new), state, profilingEnabled);
+        // Default test settings: MPP off — pins COORDINATOR_CENTRIC plan shape (the existing
+        // test fixture's expected rule firings assume this). MPP-on cases live in the rule-
+        // specific test files (OpenSearchBroadcastJoinSplitRuleTests etc.).
+        org.opensearch.common.settings.Settings settings = org.opensearch.common.settings.Settings.builder()
+            .put("analytics.mpp.enabled", false)
+            .build();
+        return new PlannerContext(
+            new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new),
+            state,
+            settings,
+            profilingEnabled
+        );
     }
 }

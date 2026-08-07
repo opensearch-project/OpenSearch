@@ -68,6 +68,19 @@ dependencies {
   compileOnly project(':libs:opensearch-arrow-spi')
   compileOnly project(':plugins:arrow-base')
 
+  // Hash-shuffle IPC compression codecs (see exec/shuffle/ShuffleCompression + FastLz4CompressionCodec).
+  // arrow-vector (from arrow-base) already ships the codec SPI + compression-aware
+  // ArrowStreamWriter/Reader ctors; these supply the concrete codec implementations. Bundled here
+  // (implementation) so the DataFusion backend — a child on the extendedPlugins classloader chain —
+  // sees them at runtime without duplicate bundling. arrow-compression's ZSTD path uses zstd-jni; its
+  // LZ4_FRAME path needs commons-compress (not pulled transitively). lz4-java is a FAST (JNI-native,
+  // pure-Java fallback) standard LZ4-frame codec used instead of arrow-compression's bundled
+  // Lz4CompressionCodec, whose commons-compress pure-Java block matcher hangs on large fact-table
+  // buffers (see FastLz4CompressionCodec) — same on-wire LZ4 frame format, native speed.
+  implementation "org.apache.arrow:arrow-compression:${versions.arrow}"
+  implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  implementation "org.lz4:lz4-java:1.8.0"
+
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"
@@ -131,8 +144,28 @@ tasks.named('thirdPartyAudit').configure {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
     'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
-    // Optional Apache Commons Compress reference — gated by runtime classpath probe
-    'org.apache.commons.compress.compressors.CompressorStreamFactory',
+    // commons-compress (bundled for arrow-compression's LZ4_FRAME codec — see exec/shuffle) optionally
+    // supports Brotli / XZ-LZMA / Pack200 streams via classes we do NOT bundle; the shuffle path uses
+    // only the LZ4 frame + (zstd-jni) codecs. These are commons-compress's standard optional deps.
+    'org.brotli.dec.BrotliInputStream',
+    'org.tukaani.xz.DeltaOptions',
+    'org.tukaani.xz.FilterOptions',
+    'org.tukaani.xz.LZMA2InputStream',
+    'org.tukaani.xz.LZMA2Options',
+    'org.tukaani.xz.LZMAInputStream',
+    'org.tukaani.xz.LZMAOutputStream',
+    'org.tukaani.xz.MemoryLimitException',
+    'org.tukaani.xz.UnsupportedOptionsException',
+    'org.tukaani.xz.XZ',
+    'org.tukaani.xz.XZOutputStream',
+    'org.objectweb.asm.AnnotationVisitor',
+    'org.objectweb.asm.Attribute',
+    'org.objectweb.asm.ClassReader',
+    'org.objectweb.asm.ClassVisitor',
+    'org.objectweb.asm.FieldVisitor',
+    'org.objectweb.asm.Label',
+    'org.objectweb.asm.MethodVisitor',
+    'org.objectweb.asm.Type',
     // Optional Conscrypt provider — TLS support fallback path
     'org.conscrypt.Conscrypt'
   )
@@ -150,7 +183,11 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    // lz4-java's UnsafeUtils touches sun.misc.Unsafe for its fast off-heap path (same pattern the
+    // netty / grpc modules whitelist). Bundled for the fast LZ4_FRAME shuffle codec (see
+    // exec/shuffle/FastLz4CompressionCodec); the Unsafe use is internal to the library.
+    'net.jpountz.util.UnsafeUtils'
   )
 }
 

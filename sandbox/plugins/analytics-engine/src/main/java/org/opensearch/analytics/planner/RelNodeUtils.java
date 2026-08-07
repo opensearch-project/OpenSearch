@@ -30,6 +30,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
@@ -131,6 +132,15 @@ public class RelNodeUtils {
                 reducer.getViableBackends(),
                 reducer.getExchangeInfo()
             );
+        } else if (node instanceof OpenSearchShuffleExchange shuffle) {
+            return new OpenSearchShuffleExchange(
+                newCluster,
+                newTraits,
+                newInputs.getFirst(),
+                shuffle.getHashKeys(),
+                shuffle.getPartitionCount(),
+                shuffle.getViableBackends()
+            );
         }
 
         throw new UnsupportedOperationException("Cannot copy node type: " + node.getClass().getSimpleName());
@@ -168,10 +178,36 @@ public class RelNodeUtils {
     }
 
     /**
+     * Collects every node of {@code type} reachable from {@code node}, searching ALL inputs
+     * (unlike {@link #findNode}, which only walks the first-input chain). Needed for multi-input
+     * fragments — e.g. a {@code Join} or {@code Union} over two {@code OpenSearchStageInputScan}
+     * leaves, where each child stage corresponds to a distinct leaf and the first-input-only walk
+     * would miss every leaf but the first. Returns an empty list if none are present.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> List<T> findNodes(RelNode node, Class<T> type) {
+        List<T> out = new ArrayList<>();
+        collectNodes(node, type, out);
+        return out;
+    }
+
+    private static <T extends RelNode> void collectNodes(RelNode node, Class<T> type, List<T> out) {
+        if (type.isInstance(node)) {
+            out.add((T) node);
+        }
+        for (RelNode input : node.getInputs()) {
+            collectNodes(input, type, out);
+        }
+    }
+
+    /**
      * Finds all nodes of the given type reachable from {@code node} (walks the full tree, all inputs).
      * Unlike {@link #findNode} (which returns only the topmost match via the first-input chain), this
      * sees every match — e.g. a WHERE filter below an Aggregate AND a HAVING filter above it, which
      * do not merge (FILTER_MERGE does not cross the Aggregate). Order is pre-order (topmost first).
+     *
+     * <p>Functionally equivalent to {@link #findNodes}; retained as a distinct entry point for callers
+     * that read better with this name (e.g. {@code FragmentConversionDriver}'s filter collection).
      */
     @SuppressWarnings("unchecked")
     public static <T extends RelNode> List<T> findAllNodes(RelNode node, Class<T> type) {
@@ -214,7 +250,7 @@ public class RelNodeUtils {
      * @throws IllegalArgumentException if the plan exceeds the maximum depth
      */
     public static String[] extractIndices(RelNode plan) {
-        java.util.Set<String> indices = new java.util.LinkedHashSet<>();
+        Set<String> indices = new LinkedHashSet<>();
         if (!collectIndices(plan, indices, 0)) {
             throw new IllegalArgumentException(
                 "Query plan exceeds maximum depth ("
@@ -225,12 +261,12 @@ public class RelNodeUtils {
         return indices.toArray(String[]::new);
     }
 
-    private static boolean collectIndices(RelNode node, java.util.Set<String> indices, int depth) {
+    private static boolean collectIndices(RelNode node, Set<String> indices, int depth) {
         if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
             return false;
         }
         if (node instanceof TableScan scan) {
-            java.util.List<String> names = scan.getTable().getQualifiedName();
+            List<String> names = scan.getTable().getQualifiedName();
             String tableName = names.get(names.size() - 1);
             // PPL multi-source queries (source=a,b) produce a single TableScan with a
             // comma-delimited table name. Split so each index is evaluated independently
