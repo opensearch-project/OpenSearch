@@ -1022,7 +1022,7 @@ pub async unsafe fn fetch_by_row_ids(
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
-    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle};
+    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle_with_plan};
 
     // ── 1. Build RuntimeEnv + SessionContext ──
 
@@ -1169,7 +1169,7 @@ pub async unsafe fn fetch_by_row_ids(
     let sql = format!("SELECT {} FROM t", projection);
     let df = ctx.sql(&sql).await?;
     let physical_plan = df.create_physical_plan().await?;
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())?;
+    let df_stream = execute_stream(Arc::clone(&physical_plan), ctx.task_ctx())?;
 
     // Post-condition: returned stream schema must contain __row_id__ plus every requested column.
     // Catches drift if SQL synthesis or the optimizer ever drops a projection silently.
@@ -1184,11 +1184,12 @@ pub async unsafe fn fetch_by_row_ids(
     // monotonically nondecreasing across the entire stream. target_partitions=1
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
-    Ok(wrap_stream_as_handle(
+    Ok(wrap_stream_as_handle_with_plan(
         df_stream,
         manager.cpu_executor(),
         runtime,
         context_id,
+        Some(physical_plan),
     ))
 }
 

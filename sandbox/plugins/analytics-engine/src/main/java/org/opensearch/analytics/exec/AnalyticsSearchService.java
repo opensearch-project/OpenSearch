@@ -392,7 +392,16 @@ public class AnalyticsSearchService implements AutoCloseable {
             while (it.hasNext()) {
                 responseHandler.onBatch(it.next());
             }
-            responseHandler.onComplete();
+            if (request.profile()) {
+                byte[] metricsJson = ctx.getExecutionMetrics();
+                if (metricsJson != null) {
+                    responseHandler.onCompleteWithMetrics(metricsJson);
+                } else {
+                    responseHandler.onComplete();
+                }
+            } else {
+                responseHandler.onComplete();
+            }
         } catch (Exception e) {
             responseHandler.onFailure(backend.convertException(e));
         } finally {

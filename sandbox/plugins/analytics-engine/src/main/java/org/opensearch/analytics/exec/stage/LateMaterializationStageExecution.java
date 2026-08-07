@@ -427,7 +427,8 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 target.shardId(),
                 fetchBackendId,
                 plan.rowIds(),
-                columns
+                columns,
+                config.profile()
             );
             // Per-node PendingExecutions: mirrors ShardTaskRunner — keeps a slow node from
             // blocking dispatches to other nodes.
@@ -435,7 +436,13 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 target.node().getId(),
                 n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
             );
-            transport.dispatchFetchByRowIds(request, target.node(), new GatherListener(stitcher, plan), config.parentTask(), pending);
+            transport.dispatchFetchByRowIds(
+                request,
+                target.node(),
+                new GatherListener(stitcher, plan, tasks().get(0)),
+                config.parentTask(),
+                pending
+            );
         }
     }
 
@@ -453,11 +460,13 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     private static final class GatherListener implements StreamingResponseListener<FragmentExecutionArrowResponse> {
         private final Stitcher stitcher;
         private final ShardFetchPlan plan;
+        private final StageTask task;
         private int rowsCopiedSoFar;
 
-        GatherListener(Stitcher stitcher, ShardFetchPlan plan) {
+        GatherListener(Stitcher stitcher, ShardFetchPlan plan, StageTask task) {
             this.stitcher = stitcher;
             this.plan = plan;
+            this.task = task;
         }
 
         @Override
@@ -476,6 +485,13 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
             }
             if (isLast) stitcher.shardComplete();
             return true;
+        }
+
+        @Override
+        public void onStreamComplete(byte[] trailingMetadata) {
+            if (trailingMetadata != null && task != null) {
+                task.setDataNodeMetrics(trailingMetadata);
+            }
         }
 
         @Override
