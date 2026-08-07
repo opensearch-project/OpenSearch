@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.Assertions;
@@ -406,6 +407,39 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns one active replica shard for the given shard id or <code>null</code> if
+     * no active replica is found.
+     * <p>
+     * Since replicas could possibly be on nodes with an older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch.
+     *
+     * @deprecated no longer used for primary promotion. Promoting the highest-version replica
+     * raises the primary's version, after which
+     * {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider}
+     * refuses to allocate that shard's replicas onto any not-yet-upgraded node. Both replication
+     * types now promote via {@link #activeReplicaWithOldestVersion(ShardId)}.
+     */
+    @Deprecated
+    @DeprecatedApi(since = "3.8.0", forRemoval = "4.0.0")
+    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
+        // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
+        // that have been removed, the shards are failed, and part of the shard failing
+        // calls this method with an out-of-date RoutingNodes, where the version might not
+        // be accessible. Therefore, we need to protect against the version being null
+        // (meaning the node will be going away).
+        return assignedShards(shardId).stream()
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
+            .filter(shr -> node(shr.currentNodeId()) != null)
+            .max(
+                Comparator.comparing(
+                    shr -> node(shr.currentNodeId()).node(),
+                    Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
+                )
+            )
+            .orElse(null);
     }
 
     /**
