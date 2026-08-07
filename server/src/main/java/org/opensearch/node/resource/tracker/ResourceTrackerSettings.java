@@ -14,10 +14,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.monitor.os.OsProbe;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Settings related to resource usage trackers such as polling interval, window duration etc
  */
@@ -42,57 +38,14 @@ public class ResourceTrackerSettings {
         private static final long IO_WINDOW_DURATION_IN_SECONDS = 120;
     }
 
-    /**
-     * Builds a validator for a {@code *.window_duration} setting that enforces {@code window_duration >= polling_interval}.
-     * <p>
-     * The moving-average window size is computed as {@code window_duration / polling_interval} (integer division); a window
-     * shorter than the polling interval floors that ratio to {@code 0}, which the moving average rejects. Enforcing the
-     * relationship here means an invalid value is rejected during settings-update validation instead of throwing while the
-     * new cluster state is applied (which would destabilize the cluster-manager). The paired polling interval is a
-     * non-dynamic {@code NodeScope} setting, so it is a stable value to compare against and introduces no ordering hazard.
-     *
-     * @param windowSettingKey the key of the window-duration setting being validated
-     * @param pollingSetting the paired polling-interval setting this window duration must not be shorter than
-     */
-    private static Setting.Validator<TimeValue> windowDurationValidator(String windowSettingKey, Setting<TimeValue> pollingSetting) {
-        return new Setting.Validator<>() {
-            @Override
-            public void validate(TimeValue value) {}
-
-            @Override
-            public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
-                final TimeValue pollingInterval = (TimeValue) settings.get(pollingSetting);
-                if (value.nanos() < pollingInterval.nanos()) {
-                    throw new IllegalArgumentException(
-                        "Setting ["
-                            + windowSettingKey
-                            + "]="
-                            + value
-                            + " must be greater than or equal to ["
-                            + pollingSetting.getKey()
-                            + "]="
-                            + pollingInterval
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(pollingSetting).iterator();
-            }
-        };
-    }
-
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_cpu_usage.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
-    public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_cpu_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
-        TimeValue.timeValueMillis(0),
-        windowDurationValidator("node.resource.tracker.global_cpu_usage.window_duration", GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -102,11 +55,9 @@ public class ResourceTrackerSettings {
         TimeValue.timeValueMillis(Defaults.IO_POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
-    public static final Setting<TimeValue> GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_io_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.IO_WINDOW_DURATION_IN_SECONDS),
-        TimeValue.timeValueMillis(0),
-        windowDurationValidator("node.resource.tracker.global_io_usage.window_duration", GLOBAL_IO_USAGE_AC_POLLING_INTERVAL_SETTING),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -117,11 +68,9 @@ public class ResourceTrackerSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_jvmmp.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
-        TimeValue.timeValueMillis(0),
-        windowDurationValidator("node.resource.tracker.global_jvmmp.window_duration", GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -132,14 +81,9 @@ public class ResourceTrackerSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_native_memory_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
-        TimeValue.timeValueMillis(0),
-        windowDurationValidator(
-            "node.resource.tracker.global_native_memory_usage.window_duration",
-            GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING
-        ),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

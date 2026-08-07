@@ -410,10 +410,14 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     /**
      * Changes the maximum number of bytes a script's source is allowed to have.
+     * <p>
+     * Runs as the {@code script.max_size_in_bytes} settings-update consumer at apply time and only assigns. The
+     * stored-script invariant is enforced up front by {@link #validateMaxSizeInBytes(int, ClusterState)} in the
+     * cluster-settings update transport action, so an invalid value is rejected before commit rather than throwing
+     * while the new cluster state is applied (which would destabilize the cluster-manager).
      * @param newMaxSizeInBytes The new maximum number of bytes.
      */
     void setMaxSizeInBytes(int newMaxSizeInBytes) {
-        validateMaxSizeInBytes(newMaxSizeInBytes, getScriptsFromClusterState());
         maxSizeInBytes = newMaxSizeInBytes;
     }
 

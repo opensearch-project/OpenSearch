@@ -55,11 +55,18 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
     }
 
     /**
-     * Creates a new instance of MovingAverage with a new window size based on WindowDuration
+     * Creates a new instance of MovingAverage with a new window size based on WindowDuration.
+     * <p>
+     * This runs as a settings-update consumer at apply time. The moving-average window size is the number of polling
+     * cycles that fit in the window duration; a window shorter than the polling interval floors that ratio to zero.
+     * We clamp to a minimum of one observation rather than letting {@link MovingAverage} reject a zero size, because
+     * throwing here would fail while cluster state is applied and could destabilize the cluster-manager. The window and
+     * polling interval are node-local ({@code polling_interval} is {@code NodeScope}-only), so the relationship cannot
+     * be validated up front by a settings {@code Validator}.
      */
     public void setWindowSize(TimeValue windowDuration) {
         this.windowDuration = windowDuration;
-        int windowSize = (int) (windowDuration.nanos() / pollingInterval.nanos());
+        int windowSize = Math.max(1, (int) (windowDuration.nanos() / pollingInterval.nanos()));
         LOGGER.debug("updated window size: {}", windowSize);
         observations.set(new MovingAverage(windowSize));
     }
