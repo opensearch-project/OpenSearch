@@ -125,6 +125,13 @@ public class FileStatsCounter<K, V> implements StatsCounter<K, V> {
         if (isFullFile(value)) fullFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
         else blockFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
         pinnedFileStatsCounter.recordPinnedUsage(value, weight, shouldDecrease);
+        // since the pin is done after put, so these stats [pinnedFIleStatsCounter: activeUsage and usage] dont get updated in put, but since decRef is done after put, these values do get decremented.
+        // So added below changes to update these here.
+        // As the decrement part is taken care in decRef, so only needed to increment here, so this if condition is added.
+        if (shouldDecrease == false) {
+            pinnedFileStatsCounter.recordActiveUsage(value, weight, true, shouldDecrease);
+            pinnedFileStatsCounter.recordUsage(value, weight, true, shouldDecrease);
+        }
     }
 
     @Override
