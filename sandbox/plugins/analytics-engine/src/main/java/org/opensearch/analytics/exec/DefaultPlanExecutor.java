@@ -99,6 +99,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
     private volatile int maxShardsPerQuery;
+    private volatile int preFilterShardSize;
     private volatile int maxConcurrentShardRequestsPerNode;
     private volatile boolean preferMetadataDriver;
     private final PlannerSettings plannerSettings;
@@ -144,6 +145,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY, v -> maxShardsPerQuery = v);
+        this.preFilterShardSize = AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE, v -> preFilterShardSize = v);
         this.maxConcurrentShardRequestsPerNode = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE.get(
             clusterService.getSettings()
         );
@@ -308,6 +312,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 queryTask,
                 maxConcurrentShardRequestsPerNode,
                 maxShardsPerQuery,
+                preFilterShardSize,
                 List.of(queryListener),
                 queryAllocator,
                 ownsAllocator,

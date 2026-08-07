@@ -38,12 +38,14 @@ public class QueryContext {
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
         .get(Settings.EMPTY);
     private static final int DEFAULT_MAX_SHARDS_PER_QUERY = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(Settings.EMPTY);
+    private static final int DEFAULT_PRE_FILTER_SHARD_SIZE = AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.get(Settings.EMPTY);
 
     private final QueryDAG dag;
     private final ThreadPool threadPool;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequestsPerNode;
     private final int maxShardsPerQuery;
+    private final int preFilterShardSize;
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
@@ -75,6 +77,7 @@ public class QueryContext {
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequestsPerNode,
         int maxShardsPerQuery,
+        int preFilterShardSize,
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
         boolean ownsAllocator,
@@ -85,6 +88,7 @@ public class QueryContext {
         this.parentTask = parentTask;
         this.maxConcurrentShardRequestsPerNode = maxConcurrentShardRequestsPerNode;
         this.maxShardsPerQuery = maxShardsPerQuery;
+        this.preFilterShardSize = preFilterShardSize;
         this.operationListeners = operationListeners;
         this.allocator = allocator;
         this.ownsAllocator = ownsAllocator;
@@ -133,6 +137,15 @@ public class QueryContext {
      */
     public int maxShardsPerQuery() {
         return maxShardsPerQuery;
+    }
+
+    /**
+     * Fan-out above which the can-match pre-filter phase runs. Snapshotted from
+     * {@code analytics.query.pre_filter_shard_size} at query start by {@link DefaultPlanExecutor},
+     * so a mid-query settings change cannot make one stage probe and another not.
+     */
+    public int preFilterShardSize() {
+        return preFilterShardSize;
     }
 
     /** Returns the operation listeners for this query. */
@@ -236,6 +249,7 @@ public class QueryContext {
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
             DEFAULT_MAX_SHARDS_PER_QUERY,
+            DEFAULT_PRE_FILTER_SHARD_SIZE,
             operationListeners,
             testAllocator,
             true,

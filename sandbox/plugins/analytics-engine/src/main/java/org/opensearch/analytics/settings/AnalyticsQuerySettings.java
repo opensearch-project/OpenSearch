@@ -67,6 +67,25 @@ public final class AnalyticsQuerySettings {
     );
 
     /**
+     * Fan-out above which a query runs the can-match pre-filter phase before dispatching fragments.
+     * Mirrors vanilla's {@code pre_filter_shard_size} ({@code TransportSearchAction
+     * .shouldPreFilterSearchShards}), including its default of 128: below it the round trip costs
+     * more latency than the handful of shards it could prune is worth.
+     *
+     * <p>Only consulted when the query has something for the probe to answer — extractable range
+     * filters, or a sort to collect bounds for. A sorted query lowers the threshold to 1, matching
+     * vanilla's {@code hasPrimaryFieldSort} case: shard ordering and the top-N gate pay for
+     * themselves as soon as there is a second shard to order against.
+     */
+    public static final Setting<Integer> PRE_FILTER_SHARD_SIZE = Setting.intSetting(
+        "analytics.query.pre_filter_shard_size",
+        128,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Max in-flight shard fragment requests <b>per data node</b> for a single query. The coordinator
      * keeps an independent throttle per target node, so total in-flight requests for a query can be
      * up to this value times the number of nodes it fans out to — this bounds the load any single
@@ -81,7 +100,12 @@ public final class AnalyticsQuerySettings {
     );
 
     public static List<Setting<?>> all() {
-        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(
+            DELEGATION_BLOCKED_PREDICATES,
+            MAX_SHARDS_PER_QUERY,
+            PRE_FILTER_SHARD_SIZE,
+            MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
+        );
     }
 
     private AnalyticsQuerySettings() {}

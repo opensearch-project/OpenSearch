@@ -105,7 +105,9 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<CanMatchFilter> filters = stage.getCanMatchFilters();
         SortSpec sortSpec = stage.getSortSpec();
         boolean hasFilters = filters != null && filters.isEmpty() == false;
-        if (dispatcher == null || (hasFilters == false && sortSpec == null)) {
+        if (dispatcher == null
+            || (hasFilters == false && sortSpec == null)
+            || worthPreFiltering(resolved.size(), sortSpec) == false) {
             listener.onResponse(buildTasks(resolved));
             return;
         }
@@ -130,6 +132,24 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             setupSortGate(sortSpec, checked);
             listener.onResponse(buildTasks(checked.targets()));
         }, e -> listener.onResponse(buildTasks(resolved))));
+    }
+
+    /**
+     * Whether a fan-out of {@code shardCount} is wide enough to earn the can-match round trip.
+     * Mirrors vanilla's {@code TransportSearchAction.shouldPreFilterSearchShards}: the probe costs a
+     * cluster-wide round trip before any fragment is dispatched, so on a narrow fan-out it usually
+     * costs more latency than the shards it could prune are worth.
+     *
+     * <p>A sorted query drops the threshold to 1 — vanilla's {@code hasPrimaryFieldSort} case. The
+     * probe then buys shard ordering and the top-N gate, both of which pay off as soon as there is a
+     * second shard to order against, whereas pruning alone needs a wide fan-out to be worth it.
+     *
+     * <p>Strictly greater, so a single shard never probes: with one target there is nothing to order
+     * and pruning it would only hit the force-keep path in {@code CanMatchPreFilterPhase}.
+     */
+    private boolean worthPreFiltering(int shardCount, SortSpec sortSpec) {
+        int threshold = sortSpec != null ? 1 : config.preFilterShardSize();
+        return shardCount > threshold;
     }
 
     /**
