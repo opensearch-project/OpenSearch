@@ -66,7 +66,10 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
      */
     public void setWindowSize(TimeValue windowDuration) {
         this.windowDuration = windowDuration;
-        int windowSize = Math.max(1, (int) (windowDuration.nanos() / pollingInterval.nanos()));
+        // Guard against a zero (or non-positive) polling interval before dividing; fall back to a single-observation
+        // window. polling_interval is NodeScope-only and permits 0ms, so this is only reachable at node construction.
+        long pollingNanos = pollingInterval.nanos();
+        int windowSize = pollingNanos <= 0 ? 1 : Math.max(1, (int) (windowDuration.nanos() / pollingNanos));
         LOGGER.debug("updated window size: {}", windowSize);
         observations.set(new MovingAverage(windowSize));
     }
