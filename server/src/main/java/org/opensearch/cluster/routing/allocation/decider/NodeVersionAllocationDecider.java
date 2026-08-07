@@ -93,11 +93,13 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                     .filter(shr -> !shr.primary() && shr.active())
                     .collect(Collectors.toList());
                 for (ShardRouting replica : replicas) {
-                    // can not allocate if target node version > any existing replica version, unless they are
-                    // still Lucene-compatible (e.g. an OpenSearch patch-level difference)
+                    // With segment replication the replica continuously reads segments written by the primary,
+                    // so the replica's Lucene version must be able to read the primary's for the life of the
+                    // shard. Block a newer target unless the replica can still read what it would write (e.g.
+                    // an OpenSearch patch-level difference that shares the same Lucene major.minor).
                     RoutingNode replicaNode = allocation.routingNodes().node(replica.currentNodeId());
                     if (node.node().getVersion().after(replicaNode.node().getVersion())
-                        && isLuceneVersionCompatible(node.node().getVersion(), replicaNode.node().getVersion()) == false) {
+                        && isLuceneVersionCompatible(replicaNode.node().getVersion(), node.node().getVersion()) == false) {
                         return allocation.decision(
                             Decision.NO,
                             NAME,

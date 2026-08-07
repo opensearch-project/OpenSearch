@@ -530,6 +530,10 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
     }
 
     public void testRebalanceDoesNotAllocatePrimaryOnHigherVersionNodesSegrepEnabled() {
+        // Note: this relies on Version.CURRENT and VersionUtils.getPreviousVersion() differing in their
+        // Lucene major.minor (today 10.5.x vs 10.4.x). The segment-replication guard is keyed on Lucene
+        // format compatibility, so if a future release pairs them on the same Lucene minor the primary
+        // would legitimately be allowed to relocate and this test would need an explicitly older version.
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
         final DiscoveryNode newNode1 = new DiscoveryNode(
@@ -952,6 +956,68 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         Decision decision = allocationDecider.canAllocate(replicaShard, targetNode, routingAllocation);
         assertThat(
             "primary on " + primaryNodeVersion + ", target " + targetNodeVersion + ": " + decision.getExplanation(),
+            decision.type(),
+            is(expected)
+        );
+    }
+
+    public void testSegrepAllowsPrimaryOnSameLuceneMinorDifferentOpenSearchPatch() {
+        // V_2_19_0 -> Lucene 9.12.1, V_2_19_4 -> Lucene 9.12.3: the replica can still read segments
+        // written by a primary on the newer patch, so relocating the primary must be allowed.
+        assertSegrepPrimaryAllocationDecision(Version.V_2_19_0, Version.V_2_19_4, Decision.Type.YES);
+    }
+
+    public void testSegrepBlocksPrimaryOnNewerLuceneMinor() {
+        // V_2_17_2 -> Lucene 9.11.1, V_2_19_0 -> Lucene 9.12.1: a primary on the newer Lucene minor
+        // would write segments the replica cannot read, so this must stay blocked.
+        assertSegrepPrimaryAllocationDecision(Version.V_2_17_2, Version.V_2_19_0, Decision.Type.NO);
+    }
+
+    private void assertSegrepPrimaryAllocationDecision(Version replicaNodeVersion, Version targetNodeVersion, Decision.Type expected) {
+        final Settings segrepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT).put(segrepSettings))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        // keep the current primary at the replica's version so the relocate-primary check cannot be
+        // what drives the decision -- only the segment-replication guard should matter here.
+        RoutingNode primaryNode = new RoutingNode("primaryNode", newNode("primaryNode", replicaNodeVersion));
+        RoutingNode replicaNode = new RoutingNode("replicaNode", newNode("replicaNode", replicaNodeVersion));
+        RoutingNode targetNode = new RoutingNode("targetNode", newNode("targetNode", targetNodeVersion));
+
+        final org.opensearch.cluster.ClusterName clusterName = org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(
+            Settings.EMPTY
+        );
+        ClusterState clusterState = ClusterState.builder(clusterName)
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(primaryNode.node()).add(replicaNode.node()).add(targetNode.node()))
+            .build();
+
+        final ShardId shardId = clusterState.routingTable().index("test").shard(0).getShardId();
+        final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().get(0);
+
+        final RoutingChangesObserver observer = new RoutingChangesObserver.AbstractRoutingChangesObserver();
+        final RoutingNodes routingNodes = new RoutingNodes(clusterState, false);
+        routingNodes.startShard(logger, routingNodes.initializeShard(primaryShard, "primaryNode", null, 0, observer), observer);
+        routingNodes.startShard(logger, routingNodes.initializeShard(replicaShard, "replicaNode", null, 0, observer), observer);
+
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
+        routingAllocation.debugDecision(true);
+
+        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(segrepSettings);
+        final ShardRouting startedPrimary = routingNodes.activePrimary(shardId);
+        Decision decision = allocationDecider.canAllocate(startedPrimary, targetNode, routingAllocation);
+        assertThat(
+            "replica on " + replicaNodeVersion + ", target " + targetNodeVersion + ": " + decision.getExplanation(),
             decision.type(),
             is(expected)
         );
