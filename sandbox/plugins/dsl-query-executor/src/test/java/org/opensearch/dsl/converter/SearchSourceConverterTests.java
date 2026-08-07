@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -197,6 +198,8 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
                         fileName + ": Field names mismatch\n  Expected: " + tc.getMockResultFieldNames() + "\n  Actual:   " + actualFields
                     );
                 }
+
+                verifyAdditionalPlans(tc, plans, fileName, failures);
             } catch (Exception e) {
                 failures.add(fileName + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
             }
@@ -204,6 +207,46 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
 
         if (!failures.isEmpty()) {
             fail("Golden file RelNode generation failures:\n" + String.join("\n", failures));
+        }
+    }
+
+    /**
+     * Verifies each additional plan declared by the golden file: plan text and field
+     * names, matched positionally within the additional plan's type.
+     */
+    private static void verifyAdditionalPlans(GoldenTestCase tc, QueryPlans plans, String fileName, List<String> failures) {
+        if (tc.getAdditionalPlans() == null) {
+            return;
+        }
+        Map<QueryPlans.Type, Integer> nextIndexByType = new HashMap<>();
+        for (GoldenTestCase.AdditionalPlan additional : tc.getAdditionalPlans()) {
+            QueryPlans.Type type = QueryPlans.Type.valueOf(additional.getPlanType());
+            int index = nextIndexByType.merge(type, 1, Integer::sum) - 1;
+            List<QueryPlans.QueryPlan> typed = plans.get(type);
+            if (typed.size() <= index) {
+                failures.add(fileName + ": expected additional " + type + " plan #" + index + " but only " + typed.size() + " produced");
+                continue;
+            }
+            RelNode relNode = typed.get(index).relNode();
+            String actualPlan = relNode.explain().trim();
+            String expectedPlan = String.join("\n", additional.getExpectedRelNodePlan());
+            if (!expectedPlan.equals(actualPlan)) {
+                failures.add(
+                    fileName + ": additional " + type + " plan mismatch\n  Expected: " + expectedPlan + "\n  Actual:   " + actualPlan
+                );
+            }
+            List<String> actualFields = relNode.getRowType().getFieldNames();
+            if (!additional.getMockResultFieldNames().equals(actualFields)) {
+                failures.add(
+                    fileName
+                        + ": additional "
+                        + type
+                        + " field names mismatch\n  Expected: "
+                        + additional.getMockResultFieldNames()
+                        + "\n  Actual:   "
+                        + actualFields
+                );
+            }
         }
     }
 

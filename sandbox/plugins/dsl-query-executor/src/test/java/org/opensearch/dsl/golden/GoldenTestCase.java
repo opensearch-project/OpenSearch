@@ -30,6 +30,52 @@ public class GoldenTestCase {
     private List<List<Object>> mockResultRows;
     private Map<String, Object> expectedOutputDsl;
     private String planType;
+    private List<AdditionalPlan> additionalPlans;
+
+    /**
+     * An additional plan the same request is expected to produce beyond the primary
+     * {@code planType} plan — e.g. the PIPELINE plan accompanying an AGGREGATION plan.
+     * Carries its own expected plan text, field names, and mock execution rows.
+     */
+    public static class AdditionalPlan {
+
+        private String planType;
+        private List<String> expectedRelNodePlan;
+        private List<String> mockResultFieldNames;
+        private List<List<Object>> mockResultRows;
+
+        public String getPlanType() {
+            return planType;
+        }
+
+        public void setPlanType(String planType) {
+            this.planType = planType;
+        }
+
+        public List<String> getExpectedRelNodePlan() {
+            return expectedRelNodePlan;
+        }
+
+        public void setExpectedRelNodePlan(List<String> expectedRelNodePlan) {
+            this.expectedRelNodePlan = expectedRelNodePlan;
+        }
+
+        public List<String> getMockResultFieldNames() {
+            return mockResultFieldNames;
+        }
+
+        public void setMockResultFieldNames(List<String> mockResultFieldNames) {
+            this.mockResultFieldNames = mockResultFieldNames;
+        }
+
+        public List<List<Object>> getMockResultRows() {
+            return mockResultRows;
+        }
+
+        public void setMockResultRows(List<List<Object>> mockResultRows) {
+            this.mockResultRows = mockResultRows;
+        }
+    }
 
     public String getTestName() {
         return testName;
@@ -101,6 +147,15 @@ public class GoldenTestCase {
 
     public void setPlanType(String planType) {
         this.planType = planType;
+    }
+
+    /** Returns additional expected plans, or null when the request produces only the primary plan. */
+    public List<AdditionalPlan> getAdditionalPlans() {
+        return additionalPlans;
+    }
+
+    public void setAdditionalPlans(List<AdditionalPlan> additionalPlans) {
+        this.additionalPlans = additionalPlans;
     }
 
     @Override

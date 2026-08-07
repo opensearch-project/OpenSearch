@@ -96,6 +96,15 @@ public class AggregationTreeWalker {
         Map<String, AggregationMetadataBuilder> granularities,
         RelDataType rowType
     ) throws ConversionException {
+        if (aggBuilder.getPipelineAggregations().isEmpty() == false) {
+            throw new ConversionException(
+                "pipeline aggregation ["
+                    + aggBuilder.getPipelineAggregations().iterator().next().getName()
+                    + "] inside ["
+                    + aggBuilder.getName()
+                    + "] is not supported; pipeline aggregations are only supported at the root level"
+            );
+        }
         GroupingInfo grouping = translator.getGrouping(aggBuilder);
 
         List<GroupingInfo> accumulatedGroupings = new ArrayList<>(currentGroupings);

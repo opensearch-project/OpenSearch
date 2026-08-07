@@ -1,0 +1,77 @@
+{
+  "testName": "avg_bucket_pipeline_empty",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "sales_by_brand": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "total_sales": {
+            "sum": {
+              "field": "price"
+            }
+          }
+        }
+      },
+      "avg_brand_sales": {
+        "avg_bucket": {
+          "buckets_path": "sales_by_brand>total_sales"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], total_sales=[SUM($1)], _count=[COUNT()])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "total_sales", "_count"],
+  "mockResultRows": [],
+  "additionalPlans": [
+    {
+      "planType": "PIPELINE",
+      "expectedRelNodePlan": [
+        "LogicalAggregate(group=[{}], avg_brand_sales=[AVG($1)])",
+        "  LogicalProject(brand=[$0], total_sales=[CAST($1):DOUBLE], _count=[$2])",
+        "    LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC], fetch=[10])",
+        "      LogicalAggregate(group=[{2}], total_sales=[SUM($1)], _count=[COUNT()])",
+        "        LogicalTableScan(table=[[test-index]])"
+      ],
+      "mockResultFieldNames": ["avg_brand_sales"],
+      "mockResultRows": [
+        [null]
+      ]
+    }
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "sales_by_brand": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": []
+      },
+      "avg_brand_sales": {
+        "value": null
+      }
+    }
+  }
+}
