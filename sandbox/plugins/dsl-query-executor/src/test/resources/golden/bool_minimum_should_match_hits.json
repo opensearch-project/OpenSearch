@@ -1,0 +1,42 @@
+{
+  "testName": "bool_minimum_should_match_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "bool": {
+        "should": [
+          {"term": {"name": "laptop"}},
+          {"term": {"brand": "BrandA"}},
+          {"exists": {"field": "rating"}}
+        ],
+        "minimum_should_match": "2"
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[OR(AND(=($0, CAST('laptop':VARCHAR):VARCHAR), =($2, CAST('BrandA':VARCHAR):VARCHAR)), AND(=($0, CAST('laptop':VARCHAR):VARCHAR), IS NOT NULL($3)), AND(=($2, CAST('BrandA':VARCHAR):VARCHAR), IS NOT NULL($3)))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
