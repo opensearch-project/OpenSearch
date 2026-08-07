@@ -127,8 +127,24 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructor that receives index settings, so builders created
+         * for internal field types — derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        private boolean pluggableDataFormat;
+
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            if (Mapper.isPluggableDataFormatEnabled(settings)) {
+                // Pluggable data formats serve numeric queries from the doc-values column and write
+                // no BKD points, so the field is not point-searchable. Default `index` to false; an
+                // explicit `index: true` overwrites this during parameter parsing and is rejected in
+                // build().
+                this.pluggableDataFormat = true;
+                this.indexed.setValue(false);
+            }
         }
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
@@ -159,6 +175,19 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(BuilderContext context) {
+            // Runs after parameter parsing, so a still-true `index` here means the mapping explicitly
+            // set it and overwrote the not-indexed default from the constructor. Enabling `index` on a
+            // pluggable data format index cannot be honoured — no BKD points are written — and would
+            // route queries to a point branch that matches nothing.
+            if (pluggableDataFormat && indexed.getValue()) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + CONTENT_TYPE
+                        + "] cannot set [index] to true on an index using a pluggable data format"
+                );
+            }
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 buildFullName(context),
                 indexed.getValue(),

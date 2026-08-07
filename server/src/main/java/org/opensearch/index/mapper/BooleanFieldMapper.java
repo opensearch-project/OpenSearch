@@ -45,6 +45,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -126,8 +127,28 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructor that receives index settings, so builders created
+         * for internal field types — derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        private boolean pluggableDataFormat;
+
         public Builder(String name) {
+            this(name, Settings.EMPTY);
+        }
+
+        public Builder(String name, Settings settings) {
             super(name);
+            if (Mapper.isPluggableDataFormatEnabled(settings)) {
+                // Pluggable data formats serve boolean queries from the doc-values column and write no
+                // terms for the field in the Lucene secondary, so it is not searchable through the
+                // inverted index. Default `index` to false; an explicit `index: true` overwrites this
+                // during parameter parsing and is rejected in build().
+                this.pluggableDataFormat = true;
+                this.indexed.setValue(false);
+            }
         }
 
         @Override
@@ -137,6 +158,18 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
+            // Runs after parameter parsing, so a still-true `index` here means the mapping explicitly
+            // set it and overwrote the not-indexed default from the constructor. Enabling `index` on a
+            // pluggable data format index cannot be honoured, since the field's terms are not written.
+            if (pluggableDataFormat && indexed.getValue()) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + CONTENT_TYPE
+                        + "] cannot set [index] to true on an index using a pluggable data format"
+                );
+            }
             MappedFieldType ft = new BooleanFieldType(
                 buildFullName(context),
                 indexed.getValue(),
@@ -150,7 +183,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
     /**
      * Field type for boolean field mapper
