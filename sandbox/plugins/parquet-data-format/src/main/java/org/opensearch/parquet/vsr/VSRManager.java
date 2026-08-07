@@ -9,11 +9,17 @@
 package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.vector.BaseFixedWidthVector;
+import org.apache.arrow.vector.BaseLargeVariableWidthVector;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVectorHelper;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -34,6 +40,7 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -209,41 +216,135 @@ public class VSRManager implements AutoCloseable {
             );
         }
         ManagedVSR activeVSR = managedVSR.get();
-        for (FieldValuePair pair : doc.getFinalInput()) {
-            MappedFieldType fieldType = pair.getFieldType();
-            ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
-            if (parquetField == null) {
-                // Defense-in-depth: schema reconciliation is supposed to happen in
-                // ParquetWriter.updateMappingVersion before any addDocument with a new
-                // field type. If we still see an unmapped type here, the writer is
-                // out of sync with the mapping — surface as a recoverable failure.
-                // TODO:: we can remove this post the validation on mapping update
-                throw new MismatchedInputException(
-                    "No ParquetField mapping for field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]"
-                );
+        final int rowIndex = activeVSR.getRowCount();
+        // Track how far admission progressed for this row so a mid-document failure can scrub exactly
+        // the slots a successful write already allocated. writtenFields is the count of leading source
+        // fields fully written (getFinalInput() is written in order); rowIdWritten covers the rowId
+        // vector written after the loop. See scrubPartialRow.
+        int writtenFields = 0;
+        boolean rowIdWritten = false;
+        try {
+            for (FieldValuePair pair : doc.getFinalInput()) {
+                MappedFieldType fieldType = pair.getFieldType();
+                ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
+                if (parquetField == null) {
+                    // Defense-in-depth: schema reconciliation is supposed to happen in
+                    // ParquetWriter.updateMappingVersion before any addDocument with a new
+                    // field type. If we still see an unmapped type here, the writer is
+                    // out of sync with the mapping — surface as a recoverable failure.
+                    // TODO:: we can remove this post the validation on mapping update
+                    throw new MismatchedInputException(
+                        "No ParquetField mapping for field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]"
+                    );
+                }
+                if (activeVSR.getVector(fieldType.name()) == null) {
+                    logger.error(
+                        "[Gen: {}] VSR schema mismatch: field [{}] not in active VSR. VSR schema fields: {}",
+                        writerGeneration,
+                        fieldType.name(),
+                        activeVSR.getSchema().getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
+                    );
+                    throw new MismatchedInputException(
+                        "Active VSR has no vector for field ["
+                            + fieldType.name()
+                            + "] — schema reconciliation must run via updateMappingVersion before addDocument"
+                    );
+                }
+                parquetField.createField(fieldType, activeVSR, pair.getValue());
+                writtenFields++;
             }
-            if (activeVSR.getVector(fieldType.name()) == null) {
-                logger.error(
-                    "[Gen: {}] VSR schema mismatch: field [{}] not in active VSR. VSR schema fields: {}",
+            BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
+            if (rowIdVector != null) {
+                rowIdVector.setSafe(rowIndex, doc.getRowId());
+                rowIdWritten = true;
+            }
+            activeVSR.setRowCount(rowIndex + 1);
+            acceptedRows++;
+        } catch (Exception e) {
+            // Any failure between the first field write and acceptance leaves an uncounted partial
+            // row. Scrub it (best-effort, never throws) so no stale value can leak into the next doc
+            // that reuses this row index, then rethrow the original failure unchanged. Precise
+            // rethrow keeps addDocument's throws clause unchanged.
+            scrubPartialRow(doc, activeVSR, rowIndex, writtenFields, rowIdWritten);
+            throw e;
+        }
+    }
+
+    /**
+     * Scrubs a partially-written, uncounted row after a mid-document failure so no stale value
+     * survives to leak into the next document that reuses this row index (issue #22417).
+     *
+     * <p>Only the vectors whose write for this row already <em>succeeded</em> are reset: the leading
+     * {@code writtenFields} fields of {@link ParquetDocumentInput#getFinalInput()} (which is written in
+     * order) plus, when {@code rowIdWritten}, the rowId vector. Because each of those writes completed,
+     * its slot at {@code rowIndex} is already allocated, so {@link #setNull} degrades to a plain
+     * validity-bit clear and never triggers a (re)allocation — safe to run under the memory pressure
+     * that may have caused the failure. The field that actually failed, and any fields ordered after it,
+     * are intentionally left untouched: their slot may not be allocated, so clearing them could force a
+     * growth allocation.
+     *
+     * <p>Best-effort and strictly non-throwing (see {@link #scrubVector}): a failure clearing any single
+     * vector is logged and the remaining vectors are still scrubbed, so the original write failure (which
+     * the caller rethrows) is never masked.
+     *
+     * @param doc           the document being admitted; source of the written field prefix, in order
+     * @param activeVSR     the VSR the row was being written into
+     * @param rowIndex      the uncommitted row index to clear
+     * @param writtenFields number of leading source fields fully written for this row
+     * @param rowIdWritten  whether the rowId vector was written for this row
+     */
+    private void scrubPartialRow(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex, int writtenFields, boolean rowIdWritten) {
+        List<FieldValuePair> fields = doc.getFinalInput();
+        for (int i = 0; i < writtenFields; i++) {
+            scrubVector(activeVSR.getVector(fields.get(i).getFieldType().name()), rowIndex);
+        }
+        if (rowIdWritten) {
+            scrubVector(activeVSR.getVector(DocumentInput.ROW_ID_FIELD), rowIndex);
+        }
+    }
+
+    /**
+     * Clears a single vector's slot at {@code rowIndex}, guarding the clear so it never throws. A
+     * failure on one vector is logged and swallowed so the remaining vectors are still scrubbed and the
+     * caller's original failure is never masked. No-op if {@code vector} is null.
+     */
+    private void scrubVector(FieldVector vector, int rowIndex) {
+        if (vector == null) {
+            return;
+        }
+        try {
+            setNull(vector, rowIndex);
+        } catch (RuntimeException | Error scrubFailure) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "[Gen: {}] Failed to scrub partial row {} for vector [{}] in {}; column may retain a stale value",
                     writerGeneration,
-                    fieldType.name(),
-                    activeVSR.getSchema().getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
-                );
-                throw new MismatchedInputException(
-                    "Active VSR has no vector for field ["
-                        + fieldType.name()
-                        + "] — schema reconciliation must run via updateMappingVersion before addDocument"
-                );
-            }
-            parquetField.createField(fieldType, activeVSR, pair.getValue());
+                    rowIndex,
+                    vector.getName(),
+                    fileName
+                ),
+                scrubFailure
+            );
         }
-        int rowIndex = activeVSR.getRowCount();
-        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
-        if (rowIdVector != null) {
-            rowIdVector.setSafe(rowIndex, doc.getRowId());
+    }
+
+    /**
+     * Clears the value at {@code index} by unsetting its validity bit, so the slot reads as null.
+     * In Arrow 18.1.0 every vector's {@code setNull} clears only the validity bit at {@code index}
+     * (growing the validity/offset buffers first if {@code index} is beyond capacity); it does not
+     * rewrite the value/offset data of {@code index} or any other row. Callers here only pass slots
+     * whose successful write already allocated them, so no growth occurs. Every vector type the Parquet
+     * field registry produces is either fixed- or variable-width; the final branch is a non-throwing
+     * fallback for any other vector type (e.g. a future nested/view field) that clears only the
+     * top-level validity bit.
+     */
+    private static void setNull(FieldVector vector, int index) {
+        switch (vector) {
+            case BaseFixedWidthVector fixed -> fixed.setNull(index);
+            case BaseVariableWidthVector variable -> variable.setNull(index);
+            case BaseLargeVariableWidthVector large -> large.setNull(index);
+            default -> BitVectorHelper.unsetBit(vector.getValidityBuffer(), index);
         }
-        activeVSR.setRowCount(rowIndex + 1);
-        acceptedRows++;
     }
 
     public long getAcceptedRows() {
