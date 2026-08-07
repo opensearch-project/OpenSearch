@@ -1989,7 +1989,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            Query query = type.termQuery(name(), value, hasDocValues(), isSearchable());
+            Query query = type.termQuery(name(), value, hasDocValues(), isEffectiveSearchable(context));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -1999,16 +1999,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            Query query = type.termsQuery(name(), values, hasDocValues(), isSearchable());
+            Query query = type.termsQuery(name(), values, hasDocValues(), isEffectiveSearchable(context));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
             return query;
         }
 
-        public Query bitmapQuery(BytesArray bitmap) {
+        public Query bitmapQuery(BytesArray bitmap, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            return type.bitmapQuery(name(), bitmap, isSearchable(), hasDocValues());
+            return type.bitmapQuery(name(), bitmap, isEffectiveSearchable(context), hasDocValues());
         }
 
         @Override
@@ -2021,7 +2021,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 includeLower,
                 includeUpper,
                 hasDocValues(),
-                isSearchable(),
+                isEffectiveSearchable(context),
                 context
             );
             if (boost() != 1f) {

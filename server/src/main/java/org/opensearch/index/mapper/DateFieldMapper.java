@@ -538,8 +538,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 (l, u, nowUsed) -> {
                     Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
 
-                    // Not searchable. Must have doc values.
-                    if (!isSearchable()) {
+                    if (!isEffectiveSearchable(context)) {
                         if (context.indexSortedOnField(name())) {
                             dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
                         }
