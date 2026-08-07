@@ -19,7 +19,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
@@ -35,9 +34,6 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -189,14 +185,11 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Enforces single-value semantics: if the same {@link MappedFieldType} instance
-     * appears more than once in the document's field list, a {@link MapperParsingException}
-     * is thrown. Identity equality (reference {@code ==}) is used because the mapper
-     * service reuses field type instances — the same instance appearing twice indicates
-     * a multi-value field, which columnar formats do not support.
+     * Single-value semantics are enforced at the {@link ParquetDocumentInput} layer:
+     * if an array field produces multiple values for the same field type, only the
+     * last value is retained (last-value-wins).
      *
      * @param doc the document input containing field-value pairs
-     * @throws MapperParsingException if a field appears more than once in the document
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
         if (pendingWrite != null && pendingWrite.isDone()) {
@@ -216,14 +209,8 @@ public class VSRManager implements AutoCloseable {
             );
         }
         ManagedVSR activeVSR = managedVSR.get();
-        Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
         for (FieldValuePair pair : doc.getFinalInput()) {
             MappedFieldType fieldType = pair.getFieldType();
-            if (dedup.add(fieldType) == false) {
-                throw new MapperParsingException(
-                    "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
-                );
-            }
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
             if (parquetField == null) {
                 // Defense-in-depth: schema reconciliation is supposed to happen in
@@ -368,16 +355,26 @@ public class VSRManager implements AutoCloseable {
 
     @Override
     public void close() {
+        // vsrPool.close() MUST run even if awaitPendingWrite / writer.flush() throws: a failed or
+        // timed-out background write (IOException from awaitPendingWrite) previously skipped it,
+        // stranding the pool's per-VSR child allocators (their off-heap Arrow buffers leaked onto
+        // the ingest pool for the node's lifetime — "Memory was leaked by query"). Release the pool
+        // in a finally so the buffers are reclaimed regardless of the drain/flush outcome.
         try {
             awaitPendingWrite(ROTATION_TIMEOUT, true);
             if (writer != null) {
                 writer.flush();
             }
-            vsrPool.close();
-            managedVSR.set(null);
         } catch (Exception e) {
             logger.error("Error during close for {}: {}", fileName, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
+        } finally {
+            try {
+                vsrPool.close();
+            } catch (Exception e) {
+                logger.error("Error releasing VSR pool during close for {}: {}", fileName, e.getMessage());
+            }
+            managedVSR.set(null);
         }
     }
 
@@ -478,5 +475,10 @@ public class VSRManager implements AutoCloseable {
     /** Visible for testing — returns the pending background write future, or null. */
     Future<?> getPendingWrite() {
         return pendingWrite;
+    }
+
+    /** Visible for testing — injects a pending background write future to exercise close() paths. */
+    void setPendingWrite(Future<?> future) {
+        this.pendingWrite = future;
     }
 }

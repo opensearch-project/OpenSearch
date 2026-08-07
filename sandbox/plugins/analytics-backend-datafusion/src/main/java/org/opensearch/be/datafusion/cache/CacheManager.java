@@ -88,10 +88,10 @@ public class CacheManager {
 
     public void updateSizeLimit(CacheUtils.CacheType cacheType, long sizeLimit) {
         try {
-            // TODO: Add updateSizeLimitForCacheType FFM function when needed
-            logger.warn("updateSizeLimit not yet implemented for FFM bridge");
+            NativeBridge.cacheManagerUpdateSizeLimit(runtimeHandle.get(), cacheType.getCacheTypeName(), sizeLimit);
+            logger.info("Updated {} cache size limit to {} bytes", cacheType.getCacheTypeName(), sizeLimit);
         } catch (Exception e) {
-            logger.error("Error updating size limit", e);
+            logger.error("Error updating cache size limit", e);
         }
     }
 

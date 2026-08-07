@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -73,5 +74,16 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
 
         input.close();
         assertTrue(input.getFinalInput().isEmpty());
+    }
+
+    public void testRejectsDuplicateFieldInSingleDocument() throws Exception {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+
+        input.addField(valField, 10);
+        expectThrows(MapperParsingException.class, () -> input.addField(valField, 20));
     }
 }

@@ -485,6 +485,57 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    // ── Detection: chained stats (nested aggregation) must NOT get TopK ─────────
+
+    /**
+     * PPL: {@code stats count() as c by X, Y | stats sum(c) as total by X | sort - total | head 5}
+     * The outer aggregate's PARTIAL input subtree contains another aggregate, so TopK must bail.
+     * TopK on the inner agg would truncate (X, Y) groups before the outer sum sees all of them,
+     * producing catastrophically wrong totals.
+     */
+    public void testDetection_chainedStats_topKBails() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+
+        // Inner agg: count() by (status, size)
+        LogicalAggregate innerAgg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0, 1), null, List.of(countStarCall()));
+
+        // Outer agg: sum(count) by status — groups over the inner agg result
+        LogicalAggregate outerAgg = LogicalAggregate.create(
+            innerAgg,
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(
+                AggregateCall.create(
+                    SqlStdOperatorTable.SUM,
+                    false,
+                    false,
+                    false,
+                    List.of(),
+                    List.of(2),
+                    -1,
+                    null,
+                    RelCollations.EMPTY,
+                    typeFactory.createSqlType(SqlTypeName.BIGINT),
+                    "total"
+                )
+            )
+        );
+
+        // Sort on total DESC, head 5
+        RelNode sort = LogicalSort.create(
+            outerAgg,
+            RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
+            null,
+            rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        RelNode result = runPlanner(sort, contextWithOversampling(2.0));
+        String plan = RelOptUtil.toString(result);
+        assertEquals("chained stats — TopK must not insert a shard Sort", 0, countShardSortsBelowER(plan));
+    }
+
     // ── Detection: AVG does NOT get TopK (reduce decomposition inserts computed Project) ──
 
     /** AVG is decomposed into SUM/COUNT with a divide Project — rewriter bails. */
@@ -504,10 +555,11 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
     }
 
     /**
-     * Multiple adjacent Projects between Sort and Aggregate: if PROJECT_MERGE is ever removed,
-     * the rewriter should still work (captures only the first Project, skips remapping for the
-     * second). This test verifies TopK still fires — sort key passes through un-remapped since
-     * the second Project is not captured.
+     * Multiple adjacent Projects between Sort and Aggregate: PROJECT_MERGE collapses them during
+     * RBO so TopK normally fires. If for any reason two projects survive (PROJECT_MERGE removed or
+     * blocked), the rewriter now safely bails — accepting the second project is unsafe since it
+     * could carry window functions or other expressions that make TopK incorrect.
+     * This test verifies the safe-bail behavior when two projects reach the rewriter.
      */
     public void testDetection_multipleProjects_topKStillFires() {
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -538,7 +590,10 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(sort, contextWithOversampling(2.0));
         String plan = RelOptUtil.toString(result);
         long sortCount = plan.lines().filter(l -> l.contains("OpenSearchSort")).count();
-        assertTrue("TopK should still fire with multiple projects (PROJECT_MERGE collapses them)", sortCount >= 2);
+        // PROJECT_MERGE collapses the two adjacent identity projects, so TopK fires.
+        // Even without PROJECT_MERGE, the rewriter passes through multiple plain-column projects
+        // and validates the sort key at the first seenProject — TopK still fires correctly.
+        assertTrue("TopK should fire with multiple plain-column projects", sortCount >= 2);
     }
 
     /** Computed expression (literal) in Project between Sort and Aggregate — rewriter bails. */

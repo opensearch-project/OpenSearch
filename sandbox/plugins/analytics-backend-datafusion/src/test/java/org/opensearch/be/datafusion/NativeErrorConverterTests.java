@@ -30,7 +30,29 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertEquals(4294967296L, cbe.getByteLimit());
         assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
         assertEquals("[analytics_backend_datafusion] Failed to allocate 1048576 bytes (limit: 4294967296)", cbe.getMessage());
-        assertSame(original, cbe.getCause());
+        // The raw native error (with allocator internals) must NOT be attached as the user-facing cause.
+        assertNull("converted exception must carry no cause (raw native detail stays server-side)", cbe.getCause());
+        assertNoNativeLeak(cbe);
+    }
+
+    /** Asserts the rendered exception (message + cause chain) carries no raw native allocator internals. */
+    private static void assertNoNativeLeak(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            sb.append(c.getClass().getName()).append(':').append(c.getMessage()).append('\n');
+        }
+        String rendered = sb.toString();
+        for (String leak : new String[] {
+            "top memory consumers",
+            "query_untracked",
+            "can spill",
+            "already reserved",
+            "GroupedHashAggregateStream",
+            "RepartitionExec",
+            "batch_size",
+            "avg_row_bytes" }) {
+            assertFalse("must not leak native detail '" + leak + "' to the user, got: " + rendered, rendered.contains(leak));
+        }
     }
 
     public void testPoolLimitExceededUsesControlledMessage() {
@@ -55,7 +77,8 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         OpenSearchStatusException statusEx = (OpenSearchStatusException) result;
         assertEquals(RestStatus.TOO_MANY_REQUESTS, statusEx.status());
         assertEquals("Native query admission rejected: insufficient memory budget available", result.getMessage());
-        assertSame(original, result.getCause());
+        assertNull("converted exception must carry no cause (raw native detail stays server-side)", result.getCause());
+        assertNoNativeLeak(result);
     }
 
     public void testCriticalPressureCancellationConvertsToCircuitBreakingException() {
@@ -72,7 +95,8 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertEquals(65536L, cbe.getBytesWanted());
         assertEquals(4294967296L, cbe.getByteLimit());
         assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
-        assertSame(original, cbe.getCause());
+        assertNull("converted exception must carry no cause (raw native detail stays server-side)", cbe.getCause());
+        assertNoNativeLeak(cbe);
     }
 
     public void testSpillPoolExhaustedConvertsToCircuitBreakingException() {
@@ -86,7 +110,28 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
         assertTrue(result instanceof CircuitBreakingException);
         CircuitBreakingException cbe = (CircuitBreakingException) result;
         assertEquals(CircuitBreaker.Durability.TRANSIENT, cbe.getDurability());
-        assertSame(original, cbe.getCause());
+        assertNull("converted exception must carry no cause (raw native detail stays server-side)", cbe.getCause());
+        assertNoNativeLeak(cbe);
+    }
+
+    /**
+     * The real staging TopK message: a controlled "[analytics_backend_datafusion] Failed to allocate N bytes
+     * (limit: L)" with the verbose native allocator dump appended. The converted exception must keep the clean
+     * numeric message and NOT echo the consumer breakdown anywhere in its rendered chain.
+     */
+    public void testTopKConsumerDumpIsSanitized() {
+        String message = "[analytics_backend_datafusion] Failed to allocate 307848 bytes (limit: 27673548029)\n"
+            + "Execution error: Resources exhausted: Additional allocation failed for TopK[0] with top memory consumers "
+            + "(across reservations) as:\n  query_untracked(partitions=4,batch=8192)#49492(can spill: true) consumed 20.7 MB, "
+            + "peak 20.7 MB.\nError: Failed to allocate 307848 bytes for TopK[0] (0 already reserved) "
+            + "— 0 available out of 27673548029 limit";
+        RuntimeException original = new RuntimeException(message);
+
+        Exception result = NativeErrorConverter.convert(original);
+
+        assertTrue(result instanceof CircuitBreakingException);
+        assertEquals("[analytics_backend_datafusion] Failed to allocate 307848 bytes (limit: 27673548029)", result.getMessage());
+        assertNoNativeLeak(result);
     }
 
     public void testRawRecursionLimitConvertsToIllegalArgumentException() {

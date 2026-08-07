@@ -208,9 +208,7 @@ public class GetService implements Closeable {
          */
         private long executeInternalSearch(long readerPtr, long runtimePtr, long mode, long bound, String errorMessage) throws IOException {
             CompletableFuture<Long> future = new CompletableFuture<>();
-            WireConfigSnapshot configSnapshot = WireConfigSnapshot.builder(dfPlugin.getDatafusionSettings().getSnapshot())
-                .queryStrategy(1)
-                .build();
+            WireConfigSnapshot configSnapshot = WireConfigSnapshot.builder(dfPlugin.getDatafusionSettings().getSnapshot()).build();
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment configSegment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
                 configSnapshot.writeTo(configSegment);

@@ -18,6 +18,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -120,5 +121,49 @@ public class ConcatVariadicAdapterTests extends OpenSearchTestCase {
         RexNode adapted = adapter.adapt(original, List.of(), cluster);
 
         assertSame("all-VARCHAR call must pass through unchanged", original, adapted);
+    }
+
+    public void testAdaptCastsCharLiteralBetweenScalarFunctionOperands() {
+        // CONCAT(SUBSTRING(f0,1,3), charLiteral, SUBSTRING(f1,1,3)): the outer operands are
+        // scalar-function calls (RexCall), only the middle FixedChar literal needs casting.
+        RexNode substr0 = substringCall(0);
+        RexNode charLiteral = rexBuilder.makeInputRef(charType, 2);
+        RexNode substr1 = substringCall(1);
+        RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.CONCAT_FUNCTION, substr0, charLiteral, substr1);
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertSame("operator identity must be preserved", original.getOperator(), adapted.getOperator());
+        for (int i = 0; i < adapted.getOperands().size(); i++) {
+            assertEquals(
+                "operand " + i + " must be VARCHAR after normalisation",
+                SqlTypeName.VARCHAR,
+                adapted.getOperands().get(i).getType().getSqlTypeName()
+            );
+        }
+        // The two scalar-function operands were already VARCHAR, so they must pass through by
+        // reference — only the middle literal is rewritten.
+        assertSame("VARCHAR substring operand 0 must pass through unchanged", substr0, adapted.getOperands().get(0));
+        assertSame("VARCHAR substring operand 2 must pass through unchanged", substr1, adapted.getOperands().get(2));
+        assertNotSame("CHAR literal operand must be rewritten to a VARCHAR cast", charLiteral, adapted.getOperands().get(1));
+    }
+
+    public void testAdaptTwoScalarFunctionOperandsIsNoOp() {
+        // CONCAT(SUBSTRING(f0,1,3), SUBSTRING(f1,1,3)): two VARCHAR-typed scalar-function operands,
+        // nothing to cast, so the original call passes through by reference.
+        RexCall original = (RexCall) rexBuilder.makeCall(SqlLibraryOperators.CONCAT_FUNCTION, substringCall(0), substringCall(1));
+
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertSame("all-VARCHAR scalar-fn operand call must pass through unchanged", original, adapted);
+    }
+
+    /** {@code SUBSTRING(field#idx, 1, 3)} typed VARCHAR — a RexCall operand for concat. */
+    private RexCall substringCall(int fieldIndex) {
+        RexNode field = rexBuilder.makeInputRef(varcharType, fieldIndex);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode start = rexBuilder.makeExactLiteral(java.math.BigDecimal.ONE, intType);
+        RexNode len = rexBuilder.makeExactLiteral(java.math.BigDecimal.valueOf(3), intType);
+        return (RexCall) rexBuilder.makeCall(varcharType, SqlStdOperatorTable.SUBSTRING, List.of(field, start, len));
     }
 }

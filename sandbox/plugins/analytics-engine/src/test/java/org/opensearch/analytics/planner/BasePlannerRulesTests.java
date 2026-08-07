@@ -27,10 +27,16 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -229,8 +235,18 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         for (int index = 0; index < fieldNames.length; index++) {
             rowTypeBuilder.add(fieldNames[index], typeFactory.createSqlType(fieldTypes[index]));
         }
-        RelDataType rowType = rowTypeBuilder.build();
+        return mockTable(tableName, rowTypeBuilder.build());
+    }
 
+    protected RelOptTable mockNullableTable(String tableName, String... fieldNames) {
+        RelDataTypeFactory.Builder rowTypeBuilder = typeFactory.builder();
+        for (String fieldName : fieldNames) {
+            rowTypeBuilder.add(fieldName, typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true));
+        }
+        return mockTable(tableName, rowTypeBuilder.build());
+    }
+
+    private RelOptTable mockTable(String tableName, RelDataType rowType) {
         RelOptTable table = mock(RelOptTable.class);
         when(table.getQualifiedName()).thenReturn(List.of(tableName));
         when(table.getRowType()).thenReturn(rowType);
@@ -475,9 +491,37 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
             List.of(1),
             -1,
             input,
-            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            input.getRowType().getFieldList().get(1).getType(),
             "total_size"
         );
+    }
+
+    protected AggregateCall checkedLongSumCall(RelNode input) {
+        return AggregateCall.create(
+            checkedLongSumOperator(),
+            false,
+            List.of(1),
+            -1,
+            input,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "checked_total_size"
+        );
+    }
+
+    protected SqlAggFunction checkedLongSumOperator() {
+        return new SqlAggFunction(
+            "CHECKED_LONG_SUM",
+            null,
+            SqlKind.SUM,
+            ReturnTypes.BIGINT_FORCE_NULLABLE,
+            null,
+            OperandTypes.NUMERIC,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
     }
 
     protected AggregateCall countStarCall() {

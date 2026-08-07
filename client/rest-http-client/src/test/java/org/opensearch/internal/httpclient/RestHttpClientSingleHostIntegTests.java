@@ -279,6 +279,10 @@ public class RestHttpClientSingleHostIntegTests extends RestHttpClientTestCase {
                 Arrays.asList("Connection", "Host", "User-agent", "Date", "Upgrade", "HTTP2-Settings", "Content-Length")
             );
 
+            if (method.equals("HEAD") && Runtime.version().feature() > 25 /* https://bugs.openjdk.org/browse/JDK-8369981 */) {
+                standardHeaders.remove("Content-Length");
+            }
+
             final Map<String, List<String>> requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = RestClientTestUtil.randomStatusCode(getRandom());
             Request request = Request.newRequest(method, "/" + statusCode)

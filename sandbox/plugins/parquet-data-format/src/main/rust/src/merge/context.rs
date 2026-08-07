@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
-use parquet::arrow::arrow_writer::{ArrowRowGroupWriterFactory, compute_leaves};
+use parquet::arrow::arrow_writer::{compute_leaves, ArrowRowGroupWriterFactory};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescriptor;
 use rayon::prelude::*;
@@ -26,9 +26,7 @@ use crate::{log_debug, log_error, SETTINGS_STORE};
 use native_bridge_common::memory_pool::MemoryReservation;
 
 use super::error::{MergeError, MergeResult};
-use super::io_task::{
-    get_merge_pool, spawn_io_task, IoCommand, RATE_LIMIT_MB_PER_SEC,
-};
+use super::io_task::{get_merge_pool, spawn_io_task, IoCommand, RATE_LIMIT_MB_PER_SEC};
 use super::schema::{append_row_id, build_parquet_root_schema, ROW_ID_COLUMN_NAME};
 
 /// Owns all shared state for a merge operation: schemas, writer factory,
@@ -109,9 +107,16 @@ impl MergeContext {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let writer_props = Arc::new(WriterPropertiesBuilder::build_with_generation(&config, Some(output_writer_generation), &output_schema)
-            .map_err(|e| MergeError::Logic(format!("Invalid encoding/compression config: {}", e)))?);
-
+        let writer_props = Arc::new(
+            WriterPropertiesBuilder::build_with_generation(
+                &config,
+                Some(output_writer_generation),
+                &output_schema,
+            )
+            .map_err(|e| {
+                MergeError::Logic(format!("Invalid encoding/compression config: {}", e))
+            })?,
+        );
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());
@@ -155,7 +160,9 @@ impl MergeContext {
         // Track with_id batch (transient — alive during column write)
         self.reservation.grow(with_id_bytes);
 
-        let col_writers = self.col_writers.as_mut()
+        let col_writers = self
+            .col_writers
+            .as_mut()
             .ok_or_else(|| MergeError::Logic("Column writers not initialized".into()))?;
 
         // Compute leaf columns (O(columns) pointer math), then parallel-write
@@ -168,7 +175,8 @@ impl MergeContext {
         }
 
         let write_errors: Vec<_> = get_merge_pool(self.rayon_threads).install(|| {
-            col_writers.par_iter_mut()
+            col_writers
+                .par_iter_mut()
                 .zip(all_leaves.into_par_iter())
                 .filter_map(|(writer, leaf)| writer.write(&leaf).err())
                 .collect()
@@ -186,9 +194,11 @@ impl MergeContext {
         // Track actual column writer memory using memory_size() API
         let actual_writer_bytes: usize = col_writers.iter().map(|w| w.memory_size()).sum();
         if actual_writer_bytes > self.tracked_writer_bytes {
-            self.reservation.grow(actual_writer_bytes - self.tracked_writer_bytes);
+            self.reservation
+                .grow(actual_writer_bytes - self.tracked_writer_bytes);
         } else if actual_writer_bytes < self.tracked_writer_bytes {
-            self.reservation.shrink(self.tracked_writer_bytes - actual_writer_bytes);
+            self.reservation
+                .shrink(self.tracked_writer_bytes - actual_writer_bytes);
         }
         self.tracked_writer_bytes = actual_writer_bytes;
 
@@ -223,7 +233,9 @@ impl MergeContext {
     }
 
     fn do_flush(&mut self) -> MergeResult<()> {
-        let col_writers = self.col_writers.take()
+        let col_writers = self
+            .col_writers
+            .take()
             .ok_or_else(|| MergeError::Logic("Column writers not initialized".into()))?;
         let n = self.output_row_count;
 
@@ -259,7 +271,8 @@ impl MergeContext {
 
         // Open writers for the next row group.
         self.col_writers = Some(
-            self.rg_writer_factory.create_column_writers(self.row_group_index)?
+            self.rg_writer_factory
+                .create_column_writers(self.row_group_index)?,
         );
 
         log_debug!(

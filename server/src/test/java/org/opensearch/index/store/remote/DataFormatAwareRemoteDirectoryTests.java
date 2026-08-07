@@ -1269,4 +1269,176 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
     public void testOpenBlockInput_LengthExceedsFileLength_Throws() {
         expectThrows(IllegalArgumentException.class, () -> directory.openBlockInput("_0.cfe__UUID1", 5, 10, 10, IOContext.DEFAULT));
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // IndexInput ref-count exhaustion Tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Helper: builds an AsyncDir backed by an AsyncMultiStreamBlobContainer that captures the
+     * WriteContext and completion listener without performing any real upload.
+     */
+    private record AsyncDirFixture(DataFormatAwareRemoteDirectory dir, AsyncMultiStreamBlobContainer container, AtomicReference<
+        WriteContext> writeCtx, AtomicReference<ActionListener<Void>> listener, java.util.concurrent.CountDownLatch captureLatch) {
+    }
+
+    private AsyncDirFixture buildAsyncFixture() throws Exception {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        when(container.remoteIntegrityCheckSupported()).thenReturn(true);
+        when(container.path()).thenReturn(baseBlobPath);
+
+        BlobStore store = mock(BlobStore.class);
+        when(store.blobContainer(baseBlobPath)).thenReturn(container);
+
+        DataFormatAwareRemoteDirectory dir = new DataFormatAwareRemoteDirectory(
+            store,
+            baseBlobPath,
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            new HashMap<>(),
+            logger,
+            null,
+            null
+        );
+
+        AtomicReference<WriteContext> writeCtx = new AtomicReference<>();
+        AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+        Mockito.doAnswer(inv -> {
+            writeCtx.set(inv.getArgument(0));
+            listener.set(inv.getArgument(1));
+            latch.countDown();
+            return null;
+        }).when(container).asyncBlobUpload(any(WriteContext.class), any());
+
+        return new AsyncDirFixture(dir, container, writeCtx, listener, latch);
+    }
+
+    private Directory buildFileDir(String filename, int dataBytes) throws IOException {
+        Directory d = newDirectory();
+        IndexOutput out = d.createOutput(filename, IOContext.DEFAULT);
+        out.writeBytes(new byte[dataBytes], dataBytes);
+        CodecUtil.writeFooter(out);
+        out.close();
+        d.sync(List.of(filename));
+        return d;
+    }
+    // ═══════════════════════════════════════════════════════════════
+    // slice() isolation tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Regression: closing one part's stream must NOT prevent other parts from being served.
+     *
+     * Root cause: clone() passed the master's segments[] array by reference to MultiSegmentImpl.
+     * When any clone closed, Arrays.fill(segments, null) corrupted the shared array, causing
+     * AlreadyClosedException on all subsequent provideStream() calls during seek() in the
+     * OffsetRangeIndexInputStream constructor.
+     *
+     * Fix: slice() calls ArrayUtil.copyOfSubArray() for non-full-range slices, giving each part
+     * its own independent segments[] copy. Closing one part only nullifies its own array.
+     */
+    public void testIndexInputRefCount_StaysOpenWhileProvideStreamInProgress() throws Exception {
+        AsyncMultiStreamBlobContainer asyncContainer = mock(AsyncMultiStreamBlobContainer.class);
+        when(asyncContainer.remoteIntegrityCheckSupported()).thenReturn(true);
+        when(asyncContainer.path()).thenReturn(baseBlobPath);
+
+        BlobStore asyncBlobStore = mock(BlobStore.class);
+        when(asyncBlobStore.blobContainer(baseBlobPath)).thenReturn(asyncContainer);
+
+        DataFormatAwareRemoteDirectory asyncDir = new DataFormatAwareRemoteDirectory(
+            asyncBlobStore,
+            baseBlobPath,
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            UnaryOperator.identity(),
+            new HashMap<>(),
+            logger,
+            null,
+            null
+        );
+
+        // Write a real file with codec footer (required for checksum computation)
+        Directory storeDirectory = newDirectory();
+        String filename = "_segment.bin";
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        // Write enough bytes to ensure multipart upload (content > 0)
+        byte[] content = new byte[1024];
+        for (int i = 0; i < content.length; i++)
+            content[i] = (byte) i;
+        indexOutput.writeBytes(content, content.length);
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        // Capture the WriteContext so we can manually call provideStream() on a different thread,
+        // simulating the SizeBasedBlockingQ consumer running long after asyncBlobUpload() returns.
+        AtomicReference<WriteContext> capturedWriteContext = new AtomicReference<>();
+        AtomicReference<ActionListener<Void>> capturedListener = new AtomicReference<>();
+        CountDownLatch uploadCaptureLatch = new CountDownLatch(1);
+
+        Mockito.doAnswer(invocation -> {
+            capturedWriteContext.set(invocation.getArgument(0));
+            capturedListener.set(invocation.getArgument(1));
+            uploadCaptureLatch.countDown();
+            return null;
+        }).when(asyncContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        CountDownLatch completionLatch = new CountDownLatch(1);
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+
+        asyncDir.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT, () -> {}, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                completionLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                uploadFailure.set(e);
+                completionLatch.countDown();
+            }
+        }, false, null);
+
+        assertTrue("asyncBlobUpload should be called", uploadCaptureLatch.await(5, TimeUnit.SECONDS));
+
+        // Get the StreamContext and serve 3 sequential part streams, closing each before the next.
+        // With the old clone() approach, closing stream0 would call Arrays.fill(segments, null)
+        // on the SHARED array, causing provideStream(1) to throw AlreadyClosedException in the
+        // OffsetRangeIndexInputStream constructor's seek() call.
+        // With slice(), each part has its own independent segments[] copy — closing one never
+        // affects others.
+        WriteContext writeContext = capturedWriteContext.get();
+        long partSize = Math.max(1, writeContext.getFileSize() / 3);
+        org.opensearch.common.StreamContext streamContext = writeContext.getStreamProvider(partSize);
+
+        org.opensearch.common.io.InputStreamContainer stream0 = streamContext.provideStream(0);
+        assertNotNull("Part 0 stream must be created", stream0);
+        stream0.getInputStream().close();  // closes part 0's independent slice — must NOT affect parts 1,2
+
+        try {
+            org.opensearch.common.io.InputStreamContainer stream1 = streamContext.provideStream(1);
+            assertNotNull("Part 1 stream must be created after part 0 closes — slice() fix", stream1);
+            stream1.getInputStream().close();
+
+            org.opensearch.common.io.InputStreamContainer stream2 = streamContext.provideStream(2);
+            assertNotNull("Part 2 stream must be created after parts 0,1 close — slice() fix", stream2);
+            stream2.getInputStream().close();
+        } catch (org.apache.lucene.store.AlreadyClosedException e) {
+            fail(
+                "AlreadyClosedException must NOT be thrown after a prior part stream closes. "
+                    + "This is the Arrays.fill(segments,null) shared-array corruption bug that "
+                    + "slice() fixes. Exception: "
+                    + e.getMessage()
+            );
+        }
+
+        capturedListener.get().onResponse(null);
+        assertTrue(completionLatch.await(5, TimeUnit.SECONDS));
+        storeDirectory.close();
+    }
 }

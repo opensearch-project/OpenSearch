@@ -125,12 +125,14 @@ public final class NativeBridge {
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
     private static final MethodHandle CACHE_MANAGER_ADD_FILES;
+    private static final MethodHandle CACHE_MANAGER_ADD_FILES_WITH_STORE;
     private static final MethodHandle CACHE_MANAGER_REMOVE_FILES;
     private static final MethodHandle CACHE_MANAGER_CLEAR;
     private static final MethodHandle CACHE_MANAGER_CLEAR_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_MEMORY_BY_TYPE;
     private static final MethodHandle CACHE_MANAGER_GET_TOTAL_MEMORY;
     private static final MethodHandle CACHE_MANAGER_CONTAINS_BY_TYPE;
+    private static final MethodHandle CACHE_MANAGER_UPDATE_SIZE_LIMIT;
     private static final MethodHandle CREATE_SESSION_CONTEXT;
     private static final MethodHandle CREATE_SESSION_CONTEXT_INDEXED;
     private static final MethodHandle CLOSE_SESSION_CONTEXT;
@@ -468,6 +470,18 @@ public final class NativeBridge {
             )
         );
 
+        CACHE_MANAGER_ADD_FILES_WITH_STORE = linker.downcallHandle(
+            lib.find("df_cache_manager_add_files_with_store").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // runtime_ptr
+                ValueLayout.JAVA_LONG,  // store_ptr
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.JAVA_LONG   // files_count
+            )
+        );
+
         CACHE_MANAGER_REMOVE_FILES = linker.downcallHandle(
             lib.find("df_cache_manager_remove_files").orElseThrow(),
             FunctionDescriptor.of(
@@ -509,6 +523,17 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        CACHE_MANAGER_UPDATE_SIZE_LIMIT = linker.downcallHandle(
+            lib.find("df_cache_manager_update_size_limit").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -1622,6 +1647,22 @@ public final class NativeBridge {
         }
     }
 
+    /**
+     * Load metadata for files through the given TieredObjectStore.
+     * Reads footer (lightweight) into heap cache, fetches page/offset index bytes
+     * through the store (populating data Foyer), and returns for promotion to metadata Foyer.
+     *
+     * @param runtimePtr pointer from createGlobalRuntime
+     * @param storePtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer (from TieredStorageBridge.getObjectStoreBoxPtr)
+     * @param filePaths array of absolute file paths
+     */
+    public static void cacheManagerAddFilesWithStore(long runtimePtr, long storePtr, String[] filePaths) {
+        try (var call = new NativeCall()) {
+            var f = call.strArray(filePaths);
+            call.invoke(CACHE_MANAGER_ADD_FILES_WITH_STORE, runtimePtr, storePtr, f.ptrs(), f.lens(), f.count());
+        }
+    }
+
     public static void cacheManagerRemoveFiles(long runtimePtr, String[] filePaths) {
         try (var call = new NativeCall()) {
             var f = call.strArray(filePaths);
@@ -1661,6 +1702,13 @@ public final class NativeBridge {
             var file = call.str(filePath);
             long result = call.invoke(CACHE_MANAGER_CONTAINS_BY_TYPE, runtimePtr, type.segment(), type.len(), file.segment(), file.len());
             return result != 0;
+        }
+    }
+
+    public static void cacheManagerUpdateSizeLimit(long runtimePtr, String cacheType, long newLimit) {
+        try (var call = new NativeCall()) {
+            var type = call.str(cacheType);
+            call.invoke(CACHE_MANAGER_UPDATE_SIZE_LIMIT, runtimePtr, type.segment(), type.len(), newLimit);
         }
     }
 

@@ -33,9 +33,9 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::TryStreamExt;
     use object_store::path::Path;
     use object_store::{ObjectStoreExt, PutPayload};
-    use futures::TryStreamExt;
 
     #[test]
     fn test_build_with_valid_path() {
@@ -64,7 +64,10 @@ mod tests {
         let data = b"hello parquet world";
 
         // Write
-        store.put(&path, PutPayload::from_static(data)).await.unwrap();
+        store
+            .put(&path, PutPayload::from_static(data))
+            .await
+            .unwrap();
 
         // Read
         let result = store.get(&path).await.unwrap();
@@ -81,7 +84,10 @@ mod tests {
         let path = Path::from("sized_file.dat");
         let data = b"exactly 26 bytes of data!!";
 
-        store.put(&path, PutPayload::from_static(data)).await.unwrap();
+        store
+            .put(&path, PutPayload::from_static(data))
+            .await
+            .unwrap();
 
         let meta = store.head(&path).await.unwrap();
         assert_eq!(meta.size as usize, data.len());
@@ -93,8 +99,14 @@ mod tests {
         let config = format!(r#"{{"base_path":"{}"}}"#, dir.path().display());
         let store = build(&config).unwrap();
 
-        store.put(&Path::from("a.parquet"), PutPayload::from_static(b"aaa")).await.unwrap();
-        store.put(&Path::from("b.parquet"), PutPayload::from_static(b"bbb")).await.unwrap();
+        store
+            .put(&Path::from("a.parquet"), PutPayload::from_static(b"aaa"))
+            .await
+            .unwrap();
+        store
+            .put(&Path::from("b.parquet"), PutPayload::from_static(b"bbb"))
+            .await
+            .unwrap();
 
         let list: Vec<_> = store.list(None).try_collect().await.unwrap();
         let names: Vec<String> = list.iter().map(|m| m.location.to_string()).collect();
@@ -109,7 +121,10 @@ mod tests {
         let store = build(&config).unwrap();
 
         let path = Path::from("to_delete.dat");
-        store.put(&path, PutPayload::from_static(b"delete me")).await.unwrap();
+        store
+            .put(&path, PutPayload::from_static(b"delete me"))
+            .await
+            .unwrap();
         assert!(store.head(&path).await.is_ok());
 
         store.delete(&path).await.unwrap();
@@ -123,7 +138,10 @@ mod tests {
         let store = build(&config).unwrap();
 
         let path = Path::from("range_file.dat");
-        store.put(&path, PutPayload::from_static(b"0123456789")).await.unwrap();
+        store
+            .put(&path, PutPayload::from_static(b"0123456789"))
+            .await
+            .unwrap();
 
         let bytes = store.get_range(&path, 3..7).await.unwrap();
         assert_eq!(bytes.as_ref(), b"3456");

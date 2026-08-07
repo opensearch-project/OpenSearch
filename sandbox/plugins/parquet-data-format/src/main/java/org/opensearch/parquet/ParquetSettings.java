@@ -19,6 +19,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 import java.util.Collections;
@@ -39,8 +40,57 @@ public final class ParquetSettings {
     public static final String POOL_WRITE = "write";
     public static final String POOL_MERGE = "merge";
 
-    public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
-    public static final int DEFAULT_MAX_ROWS_PER_VSR = 65536;
+    /**
+     * Anchor used to scale the batch/sort defaults with machine memory. The tuned base values
+     * (VSR rows, merge rows, and sort-threshold MiB) were measured on a 64 GiB machine; defaults
+     * scale linearly with total RAM relative to this anchor.
+     */
+    static final long BATCH_SIZE_ANCHOR_RAM_BYTES = 64L * 1024 * 1024 * 1024;
+
+    /** Fixed bounds for the RAM-scaled {@code parquet.max_rows_per_vsr} default (user-set values are unbounded). */
+    public static final int DEFAULT_MAX_ROWS_PER_VSR = 65_536;
+    static final int MAX_ROWS_PER_VSR_FLOOR = 8_192;
+    static final int MAX_ROWS_PER_VSR_CEIL = 131_072;
+
+    /** Tuned base (64 GiB anchor) and fixed bounds for the RAM-scaled {@code index.parquet.merge_batch_size} default. */
+    public static final int DEFAULT_MERGE_BATCH_SIZE = 100_000;
+    static final int MERGE_BATCH_SIZE_FLOOR = 12_500;
+    static final int MERGE_BATCH_SIZE_CEIL = 100_000;
+
+    /**
+     * Tuned base (64 GiB anchor) and fixed bounds, in MiB, for the RAM-scaled
+     * {@code index.parquet.sort_in_memory_threshold} default. Governs the sorted-write chunk size;
+     * each chunk flush transiently reserves ~2× this on the write pool.
+     */
+    static final int SORT_IN_MEMORY_THRESHOLD_BASE_MB = 32;
+    static final int SORT_IN_MEMORY_THRESHOLD_FLOOR_MB = 16;
+    static final int SORT_IN_MEMORY_THRESHOLD_CEIL_MB = 64;
+
+    /**
+     * RAM-scaled defaults, computed once at class load (total RAM is constant per node).
+     * Any failure reading RAM falls back to the tuned base value (see {@link #safeTotalRamBytes()}).
+     */
+    private static final int MAX_ROWS_PER_VSR_DEFAULT = deriveBatchSizeDefault(
+        safeTotalRamBytes(),
+        DEFAULT_MAX_ROWS_PER_VSR,
+        MAX_ROWS_PER_VSR_FLOOR,
+        MAX_ROWS_PER_VSR_CEIL
+    );
+    private static final int MERGE_BATCH_SIZE_DEFAULT = deriveBatchSizeDefault(
+        safeTotalRamBytes(),
+        DEFAULT_MERGE_BATCH_SIZE,
+        MERGE_BATCH_SIZE_FLOOR,
+        MERGE_BATCH_SIZE_CEIL
+    );
+    private static final ByteSizeValue SORT_IN_MEMORY_THRESHOLD_DEFAULT = new ByteSizeValue(
+        deriveBatchSizeDefault(
+            safeTotalRamBytes(),
+            SORT_IN_MEMORY_THRESHOLD_BASE_MB,
+            SORT_IN_MEMORY_THRESHOLD_FLOOR_MB,
+            SORT_IN_MEMORY_THRESHOLD_CEIL_MB
+        ),
+        ByteSizeUnit.MB
+    );
 
     /** Data page size limit in bytes (default 1MB). */
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
@@ -104,33 +154,23 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Maximum native memory allocation for Arrow buffers, as a percentage of non-heap memory (default 10%). */
-    public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
-        "parquet.max_native_allocation",
-        DEFAULT_MAX_NATIVE_ALLOCATION,
-        Setting.Property.NodeScope
-    );
-
-    /** Maximum rows per VectorSchemaRoot before rotation is triggered (default 50000). */
+    /**
+     * Maximum rows per VectorSchemaRoot before rotation is triggered. Default scales with total RAM
+     * (linearly, anchored at 64 GiB → {@value #DEFAULT_MAX_ROWS_PER_VSR}), clamped to
+     * [{@value #MAX_ROWS_PER_VSR_FLOOR}, {@value #MAX_ROWS_PER_VSR_CEIL}].
+     */
     public static final Setting<Integer> MAX_ROWS_PER_VSR = Setting.intSetting(
         "parquet.max_rows_per_vsr",
-        DEFAULT_MAX_ROWS_PER_VSR,
+        MAX_ROWS_PER_VSR_DEFAULT,
         1,
         Setting.Property.NodeScope
     );
 
-    /** File size threshold for in-memory sort vs streaming merge sort (default 32MB). */
+    /** File size threshold for in-memory sort vs streaming merge sort. Default scales with total RAM
+     *  (anchor 32 MiB @ 64 GiB), clamped to [16 MiB, 64 MiB]. */
     public static final Setting<ByteSizeValue> SORT_IN_MEMORY_THRESHOLD = Setting.byteSizeSetting(
         "index.parquet.sort_in_memory_threshold",
-        new ByteSizeValue(32, ByteSizeUnit.MB),
-        Setting.Property.IndexScope
-    );
-
-    /** Batch size for streaming merge sort (default 8192 rows). */
-    public static final Setting<Integer> SORT_BATCH_SIZE = Setting.intSetting(
-        "index.parquet.sort_batch_size",
-        8192,
-        1,
+        SORT_IN_MEMORY_THRESHOLD_DEFAULT,
         Setting.Property.IndexScope
     );
 
@@ -149,10 +189,14 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Batch size for reading records during merge (default 100000 rows). */
+    /**
+     * Batch size for reading records during merge. Default scales with total RAM
+     * (linearly, anchored at 64 GiB → {@value #DEFAULT_MERGE_BATCH_SIZE}), clamped to
+     * [{@value #MERGE_BATCH_SIZE_FLOOR}, {@value #MERGE_BATCH_SIZE_CEIL}].
+     */
     public static final Setting<Integer> MERGE_BATCH_SIZE = Setting.intSetting(
         "index.parquet.merge_batch_size",
-        100_000,
+        MERGE_BATCH_SIZE_DEFAULT,
         1,
         Setting.Property.IndexScope
     );
@@ -271,6 +315,42 @@ public final class ParquetSettings {
             return "0";
         }
         return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+    }
+
+    /**
+     * Scales a batch-size default linearly with total physical RAM, anchored at the 64 GiB benchmark
+     * machine ({@link #BATCH_SIZE_ANCHOR_RAM_BYTES}), and clamps the result to [{@code floor}, {@code ceil}].
+     * The base value is the default tuned on the anchor machine, and {@code factor = totalRamBytes / anchor}.
+     * If RAM is unavailable ({@code totalRamBytes <= 0}), falls back to the tuned default {@code base}
+     * with no scaling/clamping applied.
+     *
+     * @param totalRamBytes total physical RAM in bytes (e.g. {@code OsProbe.getTotalPhysicalMemorySize()})
+     * @param base          tuned default at the 64 GiB anchor (also the fallback value)
+     * @param floor         fixed lower bound
+     * @param ceil          fixed upper bound
+     */
+    static int deriveBatchSizeDefault(long totalRamBytes, int base, int floor, int ceil) {
+        if (totalRamBytes <= 0) {
+            // Memory unavailable — fall back to the tuned default, no calculation.
+            return base;
+        }
+        double factor = (double) totalRamBytes / BATCH_SIZE_ANCHOR_RAM_BYTES;
+        long scaled = Math.round((double) base * factor);
+        return (int) Math.max(floor, Math.min(ceil, scaled));
+    }
+
+    /**
+     * Returns total physical RAM in bytes, or {@code -1} if it cannot be read for any reason.
+     * A negative result drives {@link #deriveBatchSizeDefault} to the tuned base default, ensuring
+     * settings always resolve to a sane value (and class initialization never fails) even if the
+     * OS probe throws.
+     */
+    private static long safeTotalRamBytes() {
+        try {
+            return OsProbe.getInstance().getTotalPhysicalMemorySize();
+        } catch (Exception e) {
+            return -1L;
+        }
     }
 
     public static final Set<String> VALID_ENCODINGS = Set.of(
@@ -762,10 +842,8 @@ public final class ParquetSettings {
             BLOOM_FILTER_ENABLED,
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
-            MAX_NATIVE_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,
-            SORT_BATCH_SIZE,
             ROW_GROUP_MAX_ROWS,
             ROW_GROUP_MAX_BYTES,
             MERGE_BATCH_SIZE,

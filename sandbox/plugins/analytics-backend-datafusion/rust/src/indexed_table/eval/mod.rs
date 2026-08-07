@@ -748,7 +748,11 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        Arc::new(PagePruner::new(meta.schema(), meta.metadata().clone()))
+        Arc::new(PagePruner::new(
+            meta.schema(),
+            meta.metadata().clone(),
+            meta.schema().clone(),
+        ))
     }
 
     /// Leaf source that returns empty bitmaps — enough to compose a

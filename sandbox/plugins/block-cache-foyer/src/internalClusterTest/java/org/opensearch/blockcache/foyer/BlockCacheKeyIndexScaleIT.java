@@ -225,6 +225,48 @@ public class BlockCacheKeyIndexScaleIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
+     * Tiered mode: verify that BOTH the data tier and the metadata tier write
+     * their own {@code key_index.json} on graceful warm-node shutdown.
+     *
+     * <p>With the default {@code block_cache.foyer.metadata_cache_ratio} (5%) the
+     * Foyer block cache runs in tiered mode and creates two independent Foyer
+     * instances rooted at {@code foyer-block-cache/data} and
+     * {@code foyer-block-cache/metadata}. Each tier owns its own key_index.json,
+     * its own Drop impl, and its own periodic-persist task. A regression in either
+     * tier's persistence wiring would leak state across restarts.
+     */
+    public void testKeyIndexJsonForBothTiersWrittenOnShutdown() throws Exception {
+        setupScaleShards();
+
+        logger.info("[scale-tiered-01] restarting warm node '{}'", getWarmNodeName());
+        internalCluster().restartNode(getWarmNodeName());
+        ensureGreen(TimeValue.timeValueSeconds(120));
+
+        Path dataDir = findFoyerCacheDir();
+        Path metaDir = findFoyerMetadataCacheDir();
+        assertNotNull("data-tier cache directory must exist on warm node after restart", dataDir);
+        assertNotNull(
+            "metadata-tier cache directory must exist on warm node after restart "
+                + "(check block_cache.foyer.metadata_cache_ratio is > 0)",
+            metaDir
+        );
+
+        // Data tier
+        Path dataKeyIndex = dataDir.resolve(KEY_INDEX_FILENAME);
+        assertTrue("data-tier key_index.json must exist after restart", Files.exists(dataKeyIndex));
+        String dataContent = Files.readString(dataKeyIndex);
+        assertFalse("data-tier key_index.json must not be empty", dataContent.isBlank());
+        assertTrue("data-tier key_index.json must contain version:1", dataContent.contains("\"version\":1"));
+
+        // Metadata tier
+        Path metaKeyIndex = metaDir.resolve(KEY_INDEX_FILENAME);
+        assertTrue("metadata-tier key_index.json must exist after restart", Files.exists(metaKeyIndex));
+        String metaContent = Files.readString(metaKeyIndex);
+        assertFalse("metadata-tier key_index.json must not be empty", metaContent.isBlank());
+        assertTrue("metadata-tier key_index.json must contain version:1", metaContent.contains("\"version\":1"));
+    }
+
+    /**
      * Verifies that the warm node remains healthy after restoring all indices,
      * cluster is GREEN, and block_cache stats are accessible.
      */
@@ -359,7 +401,44 @@ public class BlockCacheKeyIndexScaleIT extends AbstractSnapshotIntegTestCase {
         return 0L;
     }
 
+    /**
+     * Locates the Foyer block cache directory that holds {@code key_index.json}.
+     *
+     * <p>In tiered mode (default — {@code block_cache.foyer.metadata_cache_ratio > 0})
+     * the layout is {@code foyer-block-cache/data/} and {@code foyer-block-cache/metadata/};
+     * each subdir has its own {@code key_index.json}. This helper returns the data
+     * subdir in that case. In single-cache mode the file lives directly under
+     * {@code foyer-block-cache/}, which is what gets returned then.
+     *
+     * <p>Use {@link #findFoyerMetadataCacheDir()} for the metadata-tier subdir.
+     */
     private Path findFoyerCacheDir() {
+        Path root = findFoyerCacheRoot();
+        if (root == null) {
+            return null;
+        }
+        Path dataSubdir = root.resolve("data");
+        if (Files.isDirectory(dataSubdir)) {
+            return dataSubdir;       // tiered mode
+        }
+        return root;                 // single-cache mode
+    }
+
+    /**
+     * Returns the metadata-tier subdir ({@code foyer-block-cache/metadata}) when
+     * the cache is in tiered mode, or {@code null} in single-cache mode.
+     */
+    private Path findFoyerMetadataCacheDir() {
+        Path root = findFoyerCacheRoot();
+        if (root == null) {
+            return null;
+        }
+        Path metaSubdir = root.resolve("metadata");
+        return Files.isDirectory(metaSubdir) ? metaSubdir : null;
+    }
+
+    /** Locates the {@code foyer-block-cache} parent directory on the warm node. */
+    private Path findFoyerCacheRoot() {
         String warmName = getWarmNodeName();
         assertNotNull("A warm node must be present in the cluster", warmName);
         Environment environment = internalCluster().getInstance(Environment.class, warmName);

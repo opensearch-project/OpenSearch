@@ -110,27 +110,31 @@ impl ScalarUDFImpl for MvfindUdf {
         let n = args.number_rows;
 
         // Fast path: pattern is a Utf8 scalar literal — compile once.
-        let scalar_regex: Option<Regex> = if let ColumnarValue::Scalar(ScalarValue::Utf8(Some(p)))
-        | ColumnarValue::Scalar(ScalarValue::LargeUtf8(Some(p)))
-        | ColumnarValue::Scalar(ScalarValue::Utf8View(Some(p))) = &args.args[1]
-        {
-            // Plan-time invalid pattern → planning error so users see it instantly.
-            // Mirrors the SQL plugin's IllegalArgumentException for invalid literal regex.
-            match Regex::new(p) {
-                Ok(r) => Some(r),
-                Err(e) => return plan_err!("mvfind: invalid regex pattern '{p}': {e}"),
-            }
-        } else {
-            None
-        };
+        let scalar_regex: Option<Regex> =
+            if let ColumnarValue::Scalar(ScalarValue::Utf8(Some(p)))
+            | ColumnarValue::Scalar(ScalarValue::LargeUtf8(Some(p)))
+            | ColumnarValue::Scalar(ScalarValue::Utf8View(Some(p))) = &args.args[1]
+            {
+                // Plan-time invalid pattern → planning error so users see it instantly.
+                // Mirrors the SQL plugin's IllegalArgumentException for invalid literal regex.
+                match Regex::new(p) {
+                    Ok(r) => Some(r),
+                    Err(e) => return plan_err!("mvfind: invalid regex pattern '{p}': {e}"),
+                }
+            } else {
+                None
+            };
 
         let arr_arr = args.args[0].clone().into_array(n)?;
-        let list = arr_arr.as_any().downcast_ref::<GenericListArray<i32>>().ok_or_else(|| {
-            DataFusionError::Internal(format!(
-                "mvfind: expected ListArray, got {:?}",
-                arr_arr.data_type()
-            ))
-        })?;
+        let list = arr_arr
+            .as_any()
+            .downcast_ref::<GenericListArray<i32>>()
+            .ok_or_else(|| {
+                DataFusionError::Internal(format!(
+                    "mvfind: expected ListArray, got {:?}",
+                    arr_arr.data_type()
+                ))
+            })?;
 
         // Materialize a column-valued pattern up front; for scalar patterns we keep
         // the pre-compiled regex.
@@ -139,8 +143,10 @@ impl ScalarUDFImpl for MvfindUdf {
         } else {
             None
         };
-        let pattern_arr: Option<StringArrayView<'_>> =
-            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let pattern_arr: Option<StringArrayView<'_>> = pattern_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
 
         let mut builder = Int32Builder::with_capacity(n);
         for i in 0..n {
@@ -149,11 +155,12 @@ impl ScalarUDFImpl for MvfindUdf {
                 continue;
             }
             // Per-row regex (compile if column-valued; reuse the scalar compile otherwise).
-            let regex_for_row: Option<Regex> = match (&scalar_regex, pattern_arr.as_ref().and_then(|a| a.cell(i))) {
-                (Some(r), _) => Some(r.clone()),
-                (None, Some(s)) => Regex::new(s).ok(),
-                _ => None,
-            };
+            let regex_for_row: Option<Regex> =
+                match (&scalar_regex, pattern_arr.as_ref().and_then(|a| a.cell(i))) {
+                    (Some(r), _) => Some(r.clone()),
+                    (None, Some(s)) => Regex::new(s).ok(),
+                    _ => None,
+                };
             let regex = match regex_for_row {
                 Some(r) => r,
                 None => {
@@ -192,7 +199,9 @@ fn find_first_match(arr: &dyn Array, regex: &Regex) -> Option<i32> {
     }
     match arr.data_type() {
         DataType::Utf8 => {
-            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::StringArray>()?;
+            let typed = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::StringArray>()?;
             for i in 0..n {
                 if !typed.is_null(i) && regex.is_match(typed.value(i)) {
                     return Some(i as i32);
@@ -201,7 +210,9 @@ fn find_first_match(arr: &dyn Array, regex: &Regex) -> Option<i32> {
             None
         }
         DataType::LargeUtf8 => {
-            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::LargeStringArray>()?;
+            let typed = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::LargeStringArray>()?;
             for i in 0..n {
                 if !typed.is_null(i) && regex.is_match(typed.value(i)) {
                     return Some(i as i32);
@@ -210,7 +221,9 @@ fn find_first_match(arr: &dyn Array, regex: &Regex) -> Option<i32> {
             None
         }
         DataType::Utf8View => {
-            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::StringViewArray>()?;
+            let typed = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::StringViewArray>()?;
             for i in 0..n {
                 if !typed.is_null(i) && regex.is_match(typed.value(i)) {
                     return Some(i as i32);

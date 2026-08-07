@@ -21,8 +21,8 @@ use super::heap::{cmp_sort_values, get_sort_values, HeapItem};
 use super::io_task::get_merge_pool;
 use super::schema::ColumnMapping;
 
-use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 use crate::memory::merge_pool;
+use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
 pub fn merge_sorted(
@@ -34,8 +34,18 @@ pub fn merge_sorted(
     nulls_first: &[bool],
     output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
-    let mut reservation = MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
-    merge_sorted_with_pool(input_files, output_path, index_name, sort_columns, reverse_sorts, nulls_first, output_writer_generation, &mut reservation)
+    let mut reservation =
+        MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
+    merge_sorted_with_pool(
+        input_files,
+        output_path,
+        index_name,
+        sort_columns,
+        reverse_sorts,
+        nulls_first,
+        output_writer_generation,
+        &mut reservation,
+    )
 }
 
 /// Performs a streaming k-way merge using the provided memory reservation.
@@ -100,8 +110,15 @@ pub fn merge_sorted_with_pool(
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
-        let (cursor, projected_schema, parquet_descr, generation, row_count) =
-            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size, deferred_threshold, reservation)?;
+        let (cursor, projected_schema, parquet_descr, generation, row_count) = FileCursor::new(
+            path,
+            file_id,
+            sort_columns,
+            nulls_first,
+            batch_size,
+            deferred_threshold,
+            reservation,
+        )?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
         parquet_descriptors.push(parquet_descr);
@@ -126,7 +143,8 @@ pub fn merge_sorted_with_pool(
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
-    let col_mappings: Vec<ColumnMapping> = arrow_schemas.iter()
+    let col_mappings: Vec<ColumnMapping> = arrow_schemas
+        .iter()
         .map(|s| ColumnMapping::new(s, ctx.data_schema()))
         .collect();
 
@@ -135,7 +153,9 @@ pub fn merge_sorted_with_pool(
     let total_rows: usize = file_row_counts.iter().sum();
     let mapping_bytes = total_rows * std::mem::size_of::<i64>();
     // Reserve for row-ID mapping Vec<i64> — total_rows × 8 bytes, allocated next line
-    reservation.request(mapping_bytes).map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
+    reservation
+        .request(mapping_bytes)
+        .map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
     let mut mapping: Vec<i64> = vec![0i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);

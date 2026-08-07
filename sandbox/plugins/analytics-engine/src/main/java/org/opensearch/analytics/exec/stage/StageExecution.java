@@ -140,8 +140,7 @@ public interface StageExecution {
      *   default-mode parents are scheduled here (eager parents already scheduled).
      *   <li>FAILED — invokes {@link #closeChildInput} then propagates via {@link #failWithCause}.
      *   <li>CANCELLED — invokes {@link #closeChildInput} (so a parent reduce drain sees EOF and
-     *   unwinds) but does NOT propagate cancel to the parent's state (the cancel initiator owns the
-     *   parent's lifecycle).
+     *   unwinds) then propagates {@link #cancel} to the parent so it can't strand in RUNNING.
      * </ul>
      *
      * <p>Parent→sibling cancel sweep: on FAILED / CANCELLED, sweep still-running children.
@@ -191,11 +190,13 @@ public interface StageExecution {
                                 : new RuntimeException("child stage " + child.getStageId() + " failed without recorded cause")
                         );
                     }
-                    case CANCELLED ->
-                        // Close this parent's input for the cancelled child so a parent reduce drain
-                        // blocked on streamNext sees EOF and unwinds. Cancel is not propagated to the
-                        // parent's state (it stays owner-driven).
+                    case CANCELLED -> {
                         closeChildInput(childId);
+                        // A cancelled child can't produce a complete result, so the parent must reach
+                        // terminal too — otherwise pending never drains and it strands in RUNNING (the
+                        // phantom-task leak). Idempotent; no-op if the parent is already terminal.
+                        cancel("child stage " + childId + " cancelled");
+                    }
                     default -> {
                     }
                 }
