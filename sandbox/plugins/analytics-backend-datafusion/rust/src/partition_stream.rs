@@ -43,6 +43,7 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream, Stream};
+use parking_lot::Mutex as ChannelMutex;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
@@ -57,7 +58,7 @@ const CHANNEL_CAPACITY: usize = 4;
 /// receiver side.
 pub struct PartitionStreamSender {
     tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
-    receiver: Weak<Mutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
+    receiver: Weak<ChannelMutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
 }
 
@@ -86,10 +87,7 @@ impl PartitionStreamSender {
     /// borrow, unlike dropping the sender itself.
     pub fn terminate_early(&self) {
         if let Some(receiver) = self.receiver.upgrade() {
-            receiver
-                .lock()
-                .expect("partition receiver mutex poisoned")
-                .close();
+            receiver.lock().close();
         }
     }
 
@@ -129,7 +127,7 @@ impl fmt::Debug for PartitionStreamSender {
 /// directly. Typically handed to [`SingleReceiverPartition`] and registered on
 /// a `SessionContext` as a `StreamingTable`.
 pub struct PartitionStreamReceiver {
-    rx: Arc<Mutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
+    rx: Arc<ChannelMutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
 }
 
@@ -145,10 +143,7 @@ impl Stream for PartitionStreamReceiver {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.rx
-            .lock()
-            .expect("partition receiver mutex poisoned")
-            .poll_recv(cx)
+        self.rx.lock().poll_recv(cx)
     }
 }
 
@@ -166,7 +161,7 @@ impl RecordBatchStream for PartitionStreamReceiver {
 /// buffered batches are drained, which DataFusion interprets as end-of-input.
 pub fn channel(schema: SchemaRef) -> (PartitionStreamSender, PartitionStreamReceiver) {
     let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
-    let receiver = Arc::new(Mutex::new(rx));
+    let receiver = Arc::new(ChannelMutex::new(rx));
     let sender = PartitionStreamSender {
         tx,
         receiver: Arc::downgrade(&receiver),
@@ -365,6 +360,18 @@ mod tests {
             blocked.join().unwrap(),
             SendOutcome::ReceiverDropped
         ));
+    }
+
+    #[test]
+    fn early_termination_after_receiver_drop_is_noop() {
+        let schema = test_schema();
+        let (sender, receiver) = channel(Arc::clone(&schema));
+        drop(receiver);
+
+        // The weak receiver-control handle no longer upgrades; this must not panic
+        // and later sends must still report the dropped receiver.
+        sender.terminate_early();
+        assert!(sender.tx.try_send(Ok(test_batch(&schema, &[1]))).is_err());
     }
 
     #[tokio::test]
