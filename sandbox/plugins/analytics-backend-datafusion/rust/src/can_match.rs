@@ -303,11 +303,8 @@ mod tests {
         let mut buf = Vec::new();
         let props = WriterProperties::builder().build();
         let mut writer = ArrowWriter::try_new(&mut buf, schema.clone(), Some(props)).unwrap();
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(Int64Array::from(values.to_vec()))],
-        )
-        .unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int64Array::from(values.to_vec()))])
+            .unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
         buf
@@ -339,11 +336,8 @@ mod tests {
         let mut buf = Vec::new();
         let props = WriterProperties::builder().build();
         let mut writer = ArrowWriter::try_new(&mut buf, schema.clone(), Some(props)).unwrap();
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(Int64Array::from(values.to_vec()))],
-        )
-        .unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int64Array::from(values.to_vec()))])
+            .unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
         buf
@@ -392,35 +386,50 @@ mod tests {
     fn test_overlaps_yes() {
         let data = build_test_parquet(&[100, 200, 300]);
         let metadata = metadata_from_bytes(&data);
-        assert_eq!(can_match_range_with_metadata(&metadata, "ts", 150, 250), CanMatchResult::Yes);
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "ts", 150, 250),
+            CanMatchResult::Yes
+        );
     }
 
     #[test]
     fn test_disjoint_above() {
         let data = build_test_parquet(&[100, 200, 300]);
         let metadata = metadata_from_bytes(&data);
-        assert_eq!(can_match_range_with_metadata(&metadata, "ts", 400, 500), CanMatchResult::No);
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "ts", 400, 500),
+            CanMatchResult::No
+        );
     }
 
     #[test]
     fn test_disjoint_below() {
         let data = build_test_parquet(&[100, 200, 300]);
         let metadata = metadata_from_bytes(&data);
-        assert_eq!(can_match_range_with_metadata(&metadata, "ts", 0, 50), CanMatchResult::No);
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "ts", 0, 50),
+            CanMatchResult::No
+        );
     }
 
     #[test]
     fn test_column_not_found() {
         let data = build_test_parquet(&[100, 200]);
         let metadata = metadata_from_bytes(&data);
-        assert_eq!(can_match_range_with_metadata(&metadata, "nonexistent", 0, 1000), CanMatchResult::Unknown);
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "nonexistent", 0, 1000),
+            CanMatchResult::Unknown
+        );
     }
 
     #[test]
     fn test_exact_boundary() {
         let data = build_test_parquet(&[100, 200]);
         let metadata = metadata_from_bytes(&data);
-        assert_eq!(can_match_range_with_metadata(&metadata, "ts", 200, 300), CanMatchResult::Yes);
+        assert_eq!(
+            can_match_range_with_metadata(&metadata, "ts", 200, 300),
+            CanMatchResult::Yes
+        );
     }
 
     #[tokio::test]
@@ -434,10 +443,12 @@ mod tests {
             .await
             .unwrap();
 
-        let result = can_match_range_via_store(Arc::clone(&store), &path, file_size, "ts", 150, 250).await;
+        let result =
+            can_match_range_via_store(Arc::clone(&store), &path, file_size, "ts", 150, 250).await;
         assert_eq!(result, CanMatchResult::Yes);
 
-        let result = can_match_range_via_store(Arc::clone(&store), &path, file_size, "ts", 400, 500).await;
+        let result =
+            can_match_range_via_store(Arc::clone(&store), &path, file_size, "ts", 400, 500).await;
         assert_eq!(result, CanMatchResult::No);
     }
 
@@ -513,7 +524,8 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("n", DataType::Int32, false)]));
         let mut buf = Vec::new();
         let mut writer = ArrowWriter::try_new(&mut buf, schema.clone(), None).unwrap();
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![5, 42]))]).unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int32Array::from(vec![5, 42]))]).unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
 
@@ -531,7 +543,8 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("host", DataType::Utf8, false)]));
         let mut buf = Vec::new();
         let mut writer = ArrowWriter::try_new(&mut buf, schema.clone(), None).unwrap();
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(StringArray::from(vec!["a", "b"]))]).unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(StringArray::from(vec!["a", "b"]))])
+            .unwrap();
         writer.write(&batch).unwrap();
         writer.close().unwrap();
 
@@ -553,29 +566,59 @@ mod tests {
         let bounds = sort_bounds_via_store(Arc::clone(&store), &path, file_size, "ts")
             .await
             .unwrap();
-        assert_eq!((bounds.min, bounds.max), (100, 600), "store path must fold too");
+        assert_eq!(
+            (bounds.min, bounds.max),
+            (100, 600),
+            "store path must fold too"
+        );
     }
 
     #[tokio::test]
     async fn test_bounds_via_store_file_not_found() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let path = ObjectPath::from("missing.parquet");
-        assert!(sort_bounds_via_store(store, &path, 100, "ts").await.is_none());
+        assert!(sort_bounds_via_store(store, &path, 100, "ts")
+            .await
+            .is_none());
     }
 
     #[test]
     fn test_bounds_merge_rejects_mixed_kinds() {
-        let a = Bounds { min: 1, max: 2, has_nulls: false, value_kind: VALUE_KIND_INT32 };
-        let b = Bounds { min: 0, max: 9, has_nulls: false, value_kind: VALUE_KIND_INT64 };
+        let a = Bounds {
+            min: 1,
+            max: 2,
+            has_nulls: false,
+            value_kind: VALUE_KIND_INT32,
+        };
+        let b = Bounds {
+            min: 0,
+            max: 9,
+            has_nulls: false,
+            value_kind: VALUE_KIND_INT64,
+        };
         assert!(a.merge(b).is_none());
     }
 
     #[test]
     fn test_bounds_merge_widens_range() {
-        let a = Bounds { min: 50, max: 60, has_nulls: false, value_kind: VALUE_KIND_INT64 };
-        let b = Bounds { min: 10, max: 90, has_nulls: false, value_kind: VALUE_KIND_INT64 };
+        let a = Bounds {
+            min: 50,
+            max: 60,
+            has_nulls: false,
+            value_kind: VALUE_KIND_INT64,
+        };
+        let b = Bounds {
+            min: 10,
+            max: 90,
+            has_nulls: false,
+            value_kind: VALUE_KIND_INT64,
+        };
         let merged = a.merge(b).unwrap();
-        assert_eq!((merged.min, merged.max), (10, 90), "merge must widen in both directions");
+        assert_eq!(
+            (merged.min, merged.max),
+            (10, 90),
+            "merge must widen in both directions"
+        );
     }
 
     // ---- has_nulls ----
@@ -584,10 +627,26 @@ mod tests {
     /// eliminate a shard that could hold a top-ranked null.
     #[test]
     fn test_bounds_merge_ors_has_nulls() {
-        let clean = Bounds { min: 1, max: 2, has_nulls: false, value_kind: VALUE_KIND_INT64 };
-        let dirty = Bounds { min: 3, max: 4, has_nulls: true, value_kind: VALUE_KIND_INT64 };
-        assert!(clean.merge(dirty).unwrap().has_nulls, "nulls on either side must survive the merge");
-        assert!(dirty.merge(clean).unwrap().has_nulls, "OR must be symmetric");
+        let clean = Bounds {
+            min: 1,
+            max: 2,
+            has_nulls: false,
+            value_kind: VALUE_KIND_INT64,
+        };
+        let dirty = Bounds {
+            min: 3,
+            max: 4,
+            has_nulls: true,
+            value_kind: VALUE_KIND_INT64,
+        };
+        assert!(
+            clean.merge(dirty).unwrap().has_nulls,
+            "nulls on either side must survive the merge"
+        );
+        assert!(
+            dirty.merge(clean).unwrap().has_nulls,
+            "OR must be symmetric"
+        );
     }
 
     #[test]
@@ -595,7 +654,10 @@ mod tests {
         let data = build_nullable_parquet(&[Some(100), None, Some(300)]);
         let metadata = metadata_from_bytes(&data);
         let bounds = sort_bounds_with_metadata(&metadata, "ts").unwrap();
-        assert!(bounds.has_nulls, "a column holding a null must report has_nulls");
+        assert!(
+            bounds.has_nulls,
+            "a column holding a null must report has_nulls"
+        );
     }
 
     #[test]
@@ -603,7 +665,10 @@ mod tests {
         let data = build_test_parquet(&[100, 200, 300]);
         let metadata = metadata_from_bytes(&data);
         let bounds = sort_bounds_with_metadata(&metadata, "ts").unwrap();
-        assert!(bounds.has_nulls == false, "a fully-populated column must report has_nulls == false");
+        assert!(
+            bounds.has_nulls == false,
+            "a fully-populated column must report has_nulls == false"
+        );
     }
 
     /// A null in ANY row group taints the shard-wide fold, even when the first group is clean.
@@ -614,16 +679,23 @@ mod tests {
         let mut writer = ArrowWriter::try_new(&mut buf, Arc::clone(&schema), None).unwrap();
         for group in [vec![Some(1i64), Some(2)], vec![Some(3), None]] {
             let batch =
-                RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Int64Array::from(group))]).unwrap();
+                RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(Int64Array::from(group))])
+                    .unwrap();
             writer.write(&batch).unwrap();
             writer.flush().unwrap();
         }
         writer.close().unwrap();
 
         let metadata = metadata_from_bytes(&buf);
-        assert!(metadata.num_row_groups() > 1, "fixture must produce multiple row groups");
+        assert!(
+            metadata.num_row_groups() > 1,
+            "fixture must produce multiple row groups"
+        );
         let bounds = sort_bounds_with_metadata(&metadata, "ts").unwrap();
-        assert!(bounds.has_nulls, "a null in the SECOND row group must taint the fold");
+        assert!(
+            bounds.has_nulls,
+            "a null in the SECOND row group must taint the fold"
+        );
     }
 
     // ---- value_kind carries the logical timestamp unit ----
@@ -674,10 +746,16 @@ mod tests {
         let bounds = sort_bounds_with_metadata(&metadata, "ts").unwrap();
         assert_eq!(bounds.value_kind, VALUE_KIND_INT64);
         let millis = sort_bounds_with_metadata(
-            &metadata_from_bytes(&build_timestamp_parquet(arrow::datatypes::TimeUnit::Millisecond, &[100])),
+            &metadata_from_bytes(&build_timestamp_parquet(
+                arrow::datatypes::TimeUnit::Millisecond,
+                &[100],
+            )),
             "ts",
         )
         .unwrap();
-        assert!(bounds.merge(millis).is_none(), "plain int64 must not merge with a millis timestamp");
+        assert!(
+            bounds.merge(millis).is_none(),
+            "plain int64 must not merge with a millis timestamp"
+        );
     }
 }

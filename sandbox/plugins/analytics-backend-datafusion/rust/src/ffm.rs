@@ -1649,11 +1649,19 @@ pub unsafe extern "C" fn df_can_match(
         let file_size = file_meta.size as usize;
 
         // Try cache first, then ObjectStore fallback
-        let result = try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
-            .unwrap_or_else(|| {
-                try_store_can_match(shard_view_ptr, file_path, column_name, filter_min, filter_max, file_size)
+        let result =
+            try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
+                .unwrap_or_else(|| {
+                    try_store_can_match(
+                        shard_view_ptr,
+                        file_path,
+                        column_name,
+                        filter_min,
+                        filter_max,
+                        file_size,
+                    )
                     .unwrap_or(crate::can_match::CanMatchResult::Unknown)
-            });
+                });
 
         match result {
             crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
@@ -1773,9 +1781,15 @@ unsafe fn try_cached_sort_bounds(
         return None;
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let cache = runtime.custom_cache_manager.as_ref()?.get_file_metadata_cache_for_datafusion()?;
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
     let entry = cache.get(&ObjectPath::from(file_path))?;
-    let cached_parquet = entry.file_metadata.as_any().downcast_ref::<CachedParquetMetaData>()?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
     let metadata = cached_parquet.parquet_metadata();
     crate::can_match::sort_bounds_with_metadata(&metadata, column_name)
 }
@@ -1797,7 +1811,15 @@ unsafe fn try_store_can_match(
     let store = Arc::clone(&shard_view.store);
     let path = object_store::path::Path::from(file_path);
     Some(rt_manager.io_runtime.block_on(async {
-        crate::can_match::can_match_range_via_store(store, &path, file_size, column_name, filter_min, filter_max).await
+        crate::can_match::can_match_range_via_store(
+            store,
+            &path,
+            file_size,
+            column_name,
+            filter_min,
+            filter_max,
+        )
+        .await
     }))
 }
 
@@ -1816,11 +1838,22 @@ unsafe fn try_cached_can_match(
         return None;
     }
     let runtime = &*(runtime_ptr as *const DataFusionRuntime);
-    let cache = runtime.custom_cache_manager.as_ref()?.get_file_metadata_cache_for_datafusion()?;
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
     let entry = cache.get(&ObjectPath::from(file_path))?;
-    let cached_parquet = entry.file_metadata.as_any().downcast_ref::<CachedParquetMetaData>()?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
     let metadata = cached_parquet.parquet_metadata();
-    Some(crate::can_match::can_match_range_with_metadata(&metadata, column_name, filter_min, filter_max))
+    Some(crate::can_match::can_match_range_with_metadata(
+        &metadata,
+        column_name,
+        filter_min,
+        filter_max,
+    ))
 }
 
 #[cfg(test)]

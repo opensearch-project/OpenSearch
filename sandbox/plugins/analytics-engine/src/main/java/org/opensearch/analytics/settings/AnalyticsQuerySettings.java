@@ -78,6 +78,30 @@ public final class AnalyticsQuerySettings {
     );
 
     /**
+     * @deprecated inert; superseded by {@code action.search.shard_count.limit}.
+     *
+     * <p>Registered only so a cluster still carrying this key starts with a deprecation warning
+     * rather than failing settings validation. <b>Nothing reads it</b> — the shard ceiling is
+     * vanilla's {@code action.search.shard_count.limit}, which
+     * {@link org.opensearch.analytics.planner.dag.ShardTargetResolver} reads live.
+     *
+     * <p>Note the semantics differ, so a value carried over is not equivalent: this one defaulted to
+     * 50 and exempted single-index queries; the replacement defaults to unlimited and counts shards
+     * regardless of how many indices they span. A deployment that relied on the old ceiling has to
+     * set the new key explicitly.
+     *
+     * <p>Not {@code Dynamic} — a settings-update consumer would imply something acts on changes.
+     */
+    @Deprecated
+    public static final Setting<Integer> MAX_SHARDS_PER_QUERY = Setting.intSetting(
+        "analytics.query.max_shards_per_query",
+        50,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    /**
      * Max in-flight shard fragment requests <b>per data node</b> for a single query. The coordinator
      * keeps an independent throttle per target node, so total in-flight requests for a query can be
      * up to this value times the number of nodes it fans out to — this bounds the load any single
@@ -92,7 +116,7 @@ public final class AnalyticsQuerySettings {
     );
 
     public static List<Setting<?>> all() {
-        return List.of(DELEGATION_BLOCKED_PREDICATES, PRE_FILTER_SHARD_SIZE, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, PRE_FILTER_SHARD_SIZE, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
     }
 
     private AnalyticsQuerySettings() {}

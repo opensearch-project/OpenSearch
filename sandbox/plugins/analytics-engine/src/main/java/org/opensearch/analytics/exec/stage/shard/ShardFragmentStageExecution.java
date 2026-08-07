@@ -105,9 +105,7 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         List<CanMatchFilter> filters = stage.getCanMatchFilters();
         SortSpec sortSpec = stage.getSortSpec();
         boolean hasFilters = filters != null && filters.isEmpty() == false;
-        if (dispatcher == null
-            || (hasFilters == false && sortSpec == null)
-            || worthPreFiltering(resolved.size(), sortSpec) == false) {
+        if (dispatcher == null || (hasFilters == false && sortSpec == null) || worthPreFiltering(resolved.size(), sortSpec) == false) {
             listener.onResponse(buildTasks(resolved));
             return;
         }
