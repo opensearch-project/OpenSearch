@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -151,7 +152,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             // caller-driven rollback no-ops in the VSR and restores ACTIVE.
             try {
                 vsrManager.addDocument(d);
-            } catch (MismatchedInputException e) {
+            } catch (MismatchedInputException | OutOfMemoryException e) {
                 state = WriterState.PENDING_ROLLBACK;
                 return new WriteResult.Failure(e, -1, -1, -1);
             }
