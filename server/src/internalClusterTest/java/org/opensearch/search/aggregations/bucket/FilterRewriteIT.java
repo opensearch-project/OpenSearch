@@ -59,9 +59,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            // Concurrent search across the three partition strategies (the default is "balanced", covered
-            // explicitly below). The same assertions must hold whether or not a segment is split into
-            // doc-id-range partitions (guards #18016).
+            // Concurrent search across the three partition strategies
             new Object[] {
                 Settings.builder()
                     .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
@@ -162,11 +160,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
             .get();
     }
 
-    /**
-     * date_histogram WITH a sub-aggregation exercises the partition-aware filter-rewrite collection path (the
-     * primary #18016 fix). Under intra-segment strategies the per-bucket doc counts must still match the
-     * expected per-day frequencies exactly, i.e. no per-partition duplication.
-     */
+    /** date_histogram + sub-agg: per-bucket doc counts must match the indexed per-day frequencies exactly. */
     public void testDateHistogramWithSubAggMatchesExpected() throws Exception {
         final SearchResponse response = client().prepareSearch("idx")
             .setSize(0)
@@ -206,11 +200,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         return ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
     }
 
-    /**
-     * Nested filter-rewrite under filter-rewrite: range(over the day-of-month) -&gt; date_histogram. The inner
-     * date_histogram is a leaf with no sub-agg; under intra it is collected through the parent's partition-clamped
-     * doc set, so total counts must still equal the indexed total under every strategy.
-     */
+    /** Nested date_histogram (month -> day): per-bucket counts match indexed totals under every strategy. */
     public void testNestedRangeDateHistogram() throws Exception {
         final SearchResponse response = client().prepareSearch("idx")
             .setSize(0)
@@ -253,14 +243,14 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     }
 
     /**
-     * Dedicated large-index test that guarantees the {@code balanced} strategy actually splits a segment (the
-     * suite-scope {@code idx} is too small to exceed the min-segment-size threshold). Indexes 5000 docs across
-     * 50 distinct days in 2 segments so each segment (~2500 docs) exceeds both the fair-share and the
-     * min_segment_size=1000 threshold, forcing balanced/force to partition. Asserts the partition-aware
-     * date_histogram + sub-agg counts are exact under every strategy (no #18016 per-partition duplication).
+     * Multi-shard intra-segment coverage: 5000 docs / 50 days across 2 shards, one large segment per shard
+     * (~2500 docs). Each strategy exercises a distinct path over the same data — {@code segment}: no
+     * intra-partitioning; {@code balanced}: the segment exceeds the per-shard fair share and
+     * min_segment_size=1000, so it is split; {@code force}: every segment split — all on top of the
+     * cross-shard reduce. Asserts date_histogram + sub-agg counts stay exact under every strategy.
      */
     public void testFilterRewriteWithIntraSegmentPartitioning() throws Exception {
-        createIndex("fr_intra_agg", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("fr_intra_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         try {
             int days = 50;
             int perDay = 100; // 50 * 100 = 5000 docs
@@ -276,7 +266,9 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
                     );
                 }
             }
-            indexBulkWithSegments(builders, 2);
+            // one segment per shard (~2500 docs) so a single segment exceeds the per-shard fair share and
+            // the balanced strategy deterministically splits it (not just distributes whole segments).
+            indexBulkWithSegments(builders, 1);
             indexRandomForConcurrentSearch("fr_intra_agg");
 
             final SearchResponse response = client().prepareSearch("fr_intra_agg")
