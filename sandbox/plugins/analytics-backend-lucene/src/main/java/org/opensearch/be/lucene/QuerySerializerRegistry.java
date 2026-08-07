@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.be.lucene.serializers.ComparisonSerializer;
 import org.opensearch.be.lucene.serializers.EqualsSerializer;
+import org.opensearch.be.lucene.serializers.IdsQuerySerializer;
 import org.opensearch.be.lucene.serializers.IsNullSerializer;
 import org.opensearch.be.lucene.serializers.LikeSerializer;
 import org.opensearch.be.lucene.serializers.MatchAllSerializer;
@@ -58,7 +59,8 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.LESS_THAN, new ComparisonSerializer()),
         Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, new ComparisonSerializer()),
         Map.entry(ScalarFunction.REGEXP, new RegexpSerializer()),
-        Map.entry(ScalarFunction.SARG_PREDICATE, new SargSerializer())
+        Map.entry(ScalarFunction.SARG_PREDICATE, new SargSerializer()),
+        Map.entry(ScalarFunction.IDS, new IdsQuerySerializer())
     );
 
     private QuerySerializerRegistry() {}
