@@ -363,12 +363,43 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     protected Exception closeImpl() {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
         if (before == SinkState.REDUCING) {
-            // Drain in flight — fire cancel so it unblocks, then wait for reduce's
-            // finally to complete teardown (releases Arrow batches from the allocator).
-            fireCancelQuery();
+            // Drain in flight. Close the input senders FIRST: dropping a sender closes
+            // its mpsc channel, which the native plan's streaming input reads as
+            // end-of-input. Pipeline-breaking operators above it (SortExec/TopK) cannot
+            // emit until they see EOF, so without this the drain blocks in streamNext
+            // waiting for output that structurally cannot exist yet, while we block
+            // here waiting for the drain — a cycle only the await timeout used to
+            // break (observed as a constant ~5s stall on every LM query, with the
+            // WARN below firing each time).
+            //
+            // EOF (not cancelQuery) is the correct unblocking mechanism on this path:
+            // close() here means "no more input is coming", not "abort". Cancelling
+            // instead aborts the TopK before it emits and the drain returns the
+            // cancellation sentinel with ZERO rows (verified: projections mixing sort
+            // keys with fetched columns returned 0 rows when this branch cancelled).
+            // fireCancelQuery remains the mechanism for genuine aborts via cancel().
+            //
+            // Signal EOF for every input without cancelling the query. A sender with no active
+            // feed closes immediately; a sender parked on a full channel closes its receiver
+            // first, which unblocks the feed and defers native-sender reclamation until its read
+            // lock is released. This preserves buffered input for the reducer to drain.
+            for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
+                try {
+                    sender.requestEarlyTermination();
+                } catch (Exception e) {
+                    logger.warn("[reduce-sink] error signalling input EOF: taskId={}", ctx.taskId(), e);
+                }
+            }
             try {
                 if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                    logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
+                    // EOF didn't unblock the drain (e.g. the native plan is stuck for
+                    // another reason). Fall back to a hard cancel so close() cannot
+                    // hang, then give teardown a short grace period.
+                    logger.warn("[reduce-sink] reduce did not finish after input EOF; falling back to cancel: taskId={}", ctx.taskId());
+                    fireCancelQuery();
+                    if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
