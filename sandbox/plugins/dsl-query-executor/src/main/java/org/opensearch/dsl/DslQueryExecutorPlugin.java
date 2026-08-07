@@ -12,12 +12,16 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.dsl.action.DslExecuteAction;
 import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportDslExecuteAction;
+import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
+import org.opensearch.dsl.query.QueryRegistryFactory;
+import org.opensearch.dsl.router.DslCalciteGrammar;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
@@ -59,7 +63,8 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.searchActionFilter = new SearchActionFilter((NodeClient) client);
+        DslCalciteGrammar grammar = new DslCalciteGrammar(QueryRegistryFactory.create(), AggregationRegistryFactory.create());
+        this.searchActionFilter = new SearchActionFilter((NodeClient) client, clusterService, grammar);
         return Collections.emptyList();
     }
 
@@ -71,5 +76,10 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionFilter> getActionFilters() {
         return searchActionFilter != null ? List.of(searchActionFilter) : List.of();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(DslQueryExecutorSettings.CALCITE_ENABLED);
     }
 }

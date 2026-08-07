@@ -15,14 +15,19 @@ import org.opensearch.dsl.aggregation.metric.MinMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.SumMetricTranslator;
 
 /**
- * Creates an {@link AggregationRegistry} populated with all supported translators.
+ * Returns the process-wide {@link AggregationRegistry} populated with all supported
+ * metric and bucket translators. Registrations are effectively immutable after class
+ * init, and the registry is safe to share across threads (concurrent reads, no writes
+ * at steady state).
  */
 public class AggregationRegistryFactory {
 
+    /** Built once at class init and cached forever. */
+    private static final AggregationRegistry INSTANCE = build();
+
     private AggregationRegistryFactory() {}
 
-    /** Creates a registry with all supported metric and bucket translators. */
-    public static AggregationRegistry create() {
+    private static AggregationRegistry build() {
         AggregationRegistry registry = new AggregationRegistry();
         registry.register(new AvgMetricTranslator());
         registry.register(new SumMetricTranslator());
@@ -31,5 +36,10 @@ public class AggregationRegistryFactory {
         registry.register(new TermsBucketTranslator());
         // TODO: add other aggregation translators
         return registry;
+    }
+
+    /** Returns the shared registry. All callers see the same instance. */
+    public static AggregationRegistry create() {
+        return INSTANCE;
     }
 }

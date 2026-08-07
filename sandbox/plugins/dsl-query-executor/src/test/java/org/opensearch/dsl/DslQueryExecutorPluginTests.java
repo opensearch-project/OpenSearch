@@ -9,6 +9,9 @@
 package org.opensearch.dsl;
 
 import org.opensearch.action.support.ActionFilter;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.dsl.action.DslExecuteAction;
 import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportDslExecuteAction;
@@ -17,8 +20,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
 
@@ -37,7 +42,16 @@ public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
     }
 
     public void testGetActionFiltersAfterCreateComponents() {
-        plugin.createComponents(mock(NodeClient.class), null, null, null, null, null, null, null, null, null, null);
+        // SearchActionFilter subscribes to CALCITE_ENABLED via ClusterService — a real (but
+        // minimal) ClusterSettings is needed so addSettingsUpdateConsumer() has somewhere to
+        // register. Other createComponents params remain null: none of them are dereferenced.
+        Settings settings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(DslQueryExecutorSettings.CALCITE_ENABLED));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        plugin.createComponents(mock(NodeClient.class), clusterService, null, null, null, null, null, null, null, null, null);
 
         List<ActionFilter> filters = plugin.getActionFilters();
         assertEquals(1, filters.size());
