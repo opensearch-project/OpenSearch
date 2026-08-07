@@ -136,16 +136,17 @@ public final class AnalyticsStats implements ToXContentFragment, Writeable {
      * totals that don't have a home in core node stats: end-to-end query
      * elapsed and Calcite planning time.
      */
-    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs) implements ToXContentFragment, Writeable {
+    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs, long planningFailures) implements ToXContentFragment, Writeable {
 
         public Queries(StreamInput in) throws IOException {
-            this(new LatencyStats(in), new LatencyStats(in));
+            this(new LatencyStats(in), new LatencyStats(in), in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             elapsedMs.writeTo(out);
             planningMs.writeTo(out);
+            out.writeVLong(planningFailures);
         }
 
         @Override
@@ -155,6 +156,7 @@ public final class AnalyticsStats implements ToXContentFragment, Writeable {
             elapsedMs.toXContent(builder, params);
             builder.field("planning_ms");
             planningMs.toXContent(builder, params);
+            builder.field("planning_failures", planningFailures);
             builder.endObject();
             return builder;
         }

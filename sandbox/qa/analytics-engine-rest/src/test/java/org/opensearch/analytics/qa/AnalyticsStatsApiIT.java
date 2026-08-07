@@ -149,6 +149,49 @@ public class AnalyticsStatsApiIT extends AnalyticsRestTestCase {
         assertNotNull(nodeId + ".analytics present", ((Map<String, Object>) scopedNodes.get(nodeId)).get("analytics"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPlanningFailuresCountedInStats() throws IOException {
+        ensureDataProvisioned();
+
+        // Record baseline planning_failures count (may be >0 from prior test methods).
+        long baselineFailures = totalPlanningFailures();
+
+        // Fire queries that will fail during planning — use a function that doesn't exist.
+        int expectedFailures = 3;
+        for (int i = 0; i < expectedFailures; i++) {
+            Request request = new Request("POST", "/_analytics/ppl");
+            request.setJsonEntity("{\"query\": \"source=" + DATASET.indexName + " | eval x = no_such_function_xyz()\"}");
+            try {
+                client().performRequest(request);
+                fail("Expected a 400 for unsupported function");
+            } catch (org.opensearch.client.ResponseException e) {
+                int status = e.getResponse().getStatusLine().getStatusCode();
+                assertTrue("Expected 4xx for planning failure, got " + status, status >= 400 && status < 500);
+            }
+        }
+
+        long afterFailures = totalPlanningFailures();
+        assertTrue(
+            "planning_failures should increase by at least " + expectedFailures
+                + " (baseline=" + baselineFailures + ", after=" + afterFailures + ")",
+            afterFailures >= baselineFailures + expectedFailures
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private long totalPlanningFailures() throws IOException {
+        Map<String, Object> body = fetchStats();
+        Map<String, Object> nodes = (Map<String, Object>) body.get("nodes");
+        long total = 0;
+        for (Map.Entry<String, Object> nodeEntry : nodes.entrySet()) {
+            Map<String, Object> nodeBody = (Map<String, Object>) nodeEntry.getValue();
+            Map<String, Object> analytics = (Map<String, Object>) nodeBody.get("analytics");
+            Map<String, Object> queries = (Map<String, Object>) analytics.get("queries");
+            total += ((Number) queries.get("planning_failures")).longValue();
+        }
+        return total;
+    }
+
     private static void assertLatencyStatsShape(String label, Map<String, Object> latency) {
         assertNotNull(label + " object present", latency);
         for (String field : new String[] { "count", "sum_ms" }) {
