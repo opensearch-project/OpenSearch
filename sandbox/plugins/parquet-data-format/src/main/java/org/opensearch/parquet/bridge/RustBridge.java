@@ -34,7 +34,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * FFM bridge to the native Rust parquet writer library.
+ * FFM bridge to the native Rust parquet library: the writer/merge path plus the DocValues codec's
+ * column-reader read path.
  */
 public class RustBridge {
 
@@ -56,6 +57,25 @@ public class RustBridge {
     private static final MethodHandle SET_MERGE_POOL_LIMIT;
     private static final MethodHandle GET_POOL_STATS;
     private static final MethodHandle REGISTER_OVERCOMMIT_CALLBACKS;
+
+    // DocValues codec — Parquet column-reader FFI handles
+    private static final MethodHandle OPEN_COLUMN_READER;
+    private static final MethodHandle CLOSE_COLUMN_READER;
+    private static final MethodHandle OPEN_COLUMN_READER_COUNT;
+    private static final MethodHandle READ_VALUE_AT_ROW;
+    private static final MethodHandle READ_REPEATED_AT_ROW;
+    private static final MethodHandle GET_COLUMN_NUM_PAGES;
+    private static final MethodHandle GET_COLUMN_PAGE_INDEX;
+    private static final MethodHandle DECODE_PAGE_AT_ROW;
+
+    /**
+     * Positive status code returned by the column-reader read/decode functions
+     * when a caller out-buffer was too small. The required sizes are written to
+     * the out-parameters so the caller can grow its buffers and retry once. This
+     * is distinct from the {@code < 0} error-pointer convention (a small negative
+     * constant would be dereferenced as an error pointer and corrupt memory).
+     */
+    public static final long RC_OVERFLOW = 1L;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -287,6 +307,90 @@ public class RustBridge {
         REGISTER_OVERCOMMIT_CALLBACKS = linker.downcallHandle(
             lib.find("parquet_register_overcommit_callbacks").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
+
+        // ── DocValues codec column-reader functions ──
+        OPEN_COLUMN_READER = linker.downcallHandle(
+            lib.find("parquet_open_column_reader").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,    // file_ptr
+                ValueLayout.JAVA_LONG,  // file_len
+                ValueLayout.ADDRESS,    // col_ptr
+                ValueLayout.JAVA_LONG,  // col_len
+                ValueLayout.JAVA_INT    // expected_type
+            )
+        );
+        CLOSE_COLUMN_READER = linker.downcallHandle(
+            lib.find("parquet_close_column_reader").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        OPEN_COLUMN_READER_COUNT = linker.downcallHandle(
+            lib.find("parquet_open_column_reader_count").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
+        );
+        READ_VALUE_AT_ROW = linker.downcallHandle(
+            lib.find("parquet_read_value_at_row").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // handle
+                ValueLayout.JAVA_LONG,  // row
+                ValueLayout.ADDRESS,    // out_present
+                ValueLayout.ADDRESS,    // out_long
+                ValueLayout.ADDRESS,    // out_buf
+                ValueLayout.JAVA_LONG,  // out_buf_cap
+                ValueLayout.ADDRESS     // out_len
+            )
+        );
+        READ_REPEATED_AT_ROW = linker.downcallHandle(
+            lib.find("parquet_read_repeated_at_row").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // handle
+                ValueLayout.JAVA_LONG,  // row
+                ValueLayout.ADDRESS,    // out_count
+                ValueLayout.ADDRESS,    // out_longs
+                ValueLayout.JAVA_LONG,  // out_long_cap
+                ValueLayout.ADDRESS,    // out_byte_buf
+                ValueLayout.ADDRESS,    // out_byte_offsets
+                ValueLayout.JAVA_LONG   // out_byte_buf_cap
+            )
+        );
+        GET_COLUMN_NUM_PAGES = linker.downcallHandle(
+            lib.find("parquet_get_column_num_pages").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        GET_COLUMN_PAGE_INDEX = linker.downcallHandle(
+            lib.find("parquet_get_column_page_index").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // handle
+                ValueLayout.ADDRESS,    // out_first_row
+                ValueLayout.ADDRESS,    // out_file_offset
+                ValueLayout.ADDRESS,    // out_compressed_size
+                ValueLayout.ADDRESS,    // out_null_count
+                ValueLayout.ADDRESS,    // out_min_long
+                ValueLayout.ADDRESS,    // out_max_long
+                ValueLayout.JAVA_LONG,  // out_buf_capacity
+                ValueLayout.ADDRESS     // out_actual_pages
+            )
+        );
+        DECODE_PAGE_AT_ROW = linker.downcallHandle(
+            lib.find("parquet_decode_page_at_row").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,  // handle
+                ValueLayout.JAVA_LONG,  // row
+                ValueLayout.ADDRESS,    // out_first_row
+                ValueLayout.ADDRESS,    // out_last_row
+                ValueLayout.ADDRESS,    // out_value_buf
+                ValueLayout.JAVA_LONG,  // out_value_buf_cap
+                ValueLayout.ADDRESS,    // out_value_actual_len
+                ValueLayout.ADDRESS,    // out_byte_offsets
+                ValueLayout.JAVA_LONG,  // out_byte_offsets_cap
+                ValueLayout.ADDRESS,    // out_presence_bitset
+                ValueLayout.JAVA_LONG   // out_presence_bits_cap
+            )
         );
     }
 
@@ -697,6 +801,174 @@ public class RustBridge {
             int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
             return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // DocValues codec — Parquet column-reader bridge methods
+    //
+    // These methods own the MethodHandle invocations; the MemorySegment scratch
+    // buffers are supplied by the caller (ParquetColumnReader), which owns their
+    // lifecycle via its own Arena. Read/decode methods return the raw native
+    // status code so the caller can implement the grow-and-retry protocol on
+    // RC_OVERFLOW; a {@code < 0} result is decoded into an IOException here.
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Invokes a {@code long}-returning handle on caller-owned segments and checks the
+     * result, without allocating a per-call {@link NativeCall} arena. A {@code < 0}
+     * result is decoded into an {@link IOException}; {@code >= 0} (including
+     * {@link #RC_OVERFLOW}) is returned as-is.
+     *
+     * <p>Delegates to {@link NativeCall#invokeIOStatic} so the underlying MethodHandle
+     * invocation lives in the native-bridge library (which permits it), keeping this plugin
+     * free of the banned {@code MethodHandle#invokeWithArguments} call. Used on the column-reader
+     * read path.
+     */
+    private static long invokeChecked(MethodHandle handle, Object... args) throws IOException {
+        return NativeCall.invokeIOStatic(handle, args);
+    }
+
+    /**
+     * Opens a per-column reader over {@code file} for {@code column}, validating that the
+     * column exists and its physical type matches {@code expectedTypeCode}
+     * (0=INT32, 1=INT64, 2=FLOAT, 3=DOUBLE, 4=BOOL, 5=BYTE_ARRAY).
+     *
+     * @return a {@code >= 0} opaque reader handle (a Rust-side i64; lives until {@link #closeColumnReader})
+     * @throws IOException if the column is missing, the type mismatches, or the file cannot be read
+     */
+    public static long openColumnReader(String file, String column, int expectedTypeCode) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var c = call.str(column);
+            return call.invokeIO(OPEN_COLUMN_READER, f.segment(), f.len(), c.segment(), c.len(), expectedTypeCode);
+        }
+    }
+
+    /**
+     * Closes a column reader handle, releasing its native file handle and buffers. The native side
+     * treats an unknown handle as an error, so callers must not double-close; {@code ParquetColumnReader}
+     * enforces this by tracking a closed sentinel and calling here at most once per handle.
+     *
+     * @throws IOException if the handle is unknown
+     */
+    public static void closeColumnReader(long handle) throws IOException {
+        invokeChecked(CLOSE_COLUMN_READER, handle);
+    }
+
+    /**
+     * Returns the number of currently open native column-reader handles. Test-only: used to assert
+     * that readers do not leak their native handles (every open is matched by a close).
+     */
+    public static long openColumnReaderCount() {
+        return NativeCall.invokeStatic(OPEN_COLUMN_READER_COUNT);
+    }
+
+    /**
+     * Reads the single value at {@code row} into caller-provided out-segments.
+     * The caller (ParquetColumnReader) owns the segments. Returns the native status:
+     * {@code 0} on success, {@link #RC_OVERFLOW} when {@code outBuf} was too small
+     * (required length written to {@code outLen}); throws on a native error.
+     */
+    static long readValueAtRow(
+        long handle,
+        long row,
+        MemorySegment outPresent,
+        MemorySegment outLong,
+        MemorySegment outBuf,
+        long outBufCap,
+        MemorySegment outLen
+    ) throws IOException {
+        return invokeChecked(READ_VALUE_AT_ROW, handle, row, outPresent, outLong, outBuf, outBufCap, outLen);
+    }
+
+    /**
+     * Reads all values at {@code row} for a repeated (multi-valued) column into caller-provided
+     * out-segments. Returns the native status: {@code 0} on success, {@link #RC_OVERFLOW} when a
+     * buffer was too small (required element count in {@code outCount}; required byte
+     * size in {@code outByteOffsets[count]} when only the byte buffer overflowed).
+     */
+    static long readRepeatedAtRow(
+        long handle,
+        long row,
+        MemorySegment outCount,
+        MemorySegment outLongs,
+        long outLongCap,
+        MemorySegment outByteBuf,
+        MemorySegment outByteOffsets,
+        long outByteBufCap
+    ) throws IOException {
+        return invokeChecked(READ_REPEATED_AT_ROW, handle, row, outCount, outLongs, outLongCap, outByteBuf, outByteOffsets, outByteBufCap);
+    }
+
+    /** Returns the number of pages in the column (used to pre-size the page-index arrays). */
+    static long getColumnNumPages(long handle) throws IOException {
+        return invokeChecked(GET_COLUMN_NUM_PAGES, handle);
+    }
+
+    /**
+     * Loads the column's per-page row-range jump table + stats into caller-provided
+     * parallel out-segments, each of capacity {@code outBufCapacity} pages. Returns the
+     * native status: {@code 0} on success, {@link #RC_OVERFLOW} when capacity is too
+     * small (true page count written to {@code outActualPages}).
+     */
+    static long getColumnPageIndex(
+        long handle,
+        MemorySegment outFirstRow,
+        MemorySegment outFileOffset,
+        MemorySegment outCompressedSize,
+        MemorySegment outNullCount,
+        MemorySegment outMinLong,
+        MemorySegment outMaxLong,
+        long outBufCapacity,
+        MemorySegment outActualPages
+    ) throws IOException {
+        return invokeChecked(
+            GET_COLUMN_PAGE_INDEX,
+            handle,
+            outFirstRow,
+            outFileOffset,
+            outCompressedSize,
+            outNullCount,
+            outMinLong,
+            outMaxLong,
+            outBufCapacity,
+            outActualPages
+        );
+    }
+
+    /**
+     * Decodes the page containing {@code row} (values + presence bitset)
+     * into caller-provided out-segments. Returns the native status: {@code 0} on success,
+     * {@link #RC_OVERFLOW} when a buffer was too small (page row range and required value
+     * byte length are still written so the caller can size every buffer and retry once).
+     */
+    static long decodePageAtRow(
+        long handle,
+        long row,
+        MemorySegment outFirstRow,
+        MemorySegment outLastRow,
+        MemorySegment outValueBuf,
+        long outValueBufCap,
+        MemorySegment outValueActualLen,
+        MemorySegment outByteOffsets,
+        long outByteOffsetsCap,
+        MemorySegment outPresenceBitset,
+        long outPresenceBitsCap
+    ) throws IOException {
+        return invokeChecked(
+            DECODE_PAGE_AT_ROW,
+            handle,
+            row,
+            outFirstRow,
+            outLastRow,
+            outValueBuf,
+            outValueBufCap,
+            outValueActualLen,
+            outByteOffsets,
+            outByteOffsetsCap,
+            outPresenceBitset,
+            outPresenceBitsCap
+        );
     }
 
     private record MapArrays(NativeCall.StrArray keys, NativeCall.StrArray values) {

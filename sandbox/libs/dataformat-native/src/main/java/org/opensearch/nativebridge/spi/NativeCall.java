@@ -268,6 +268,49 @@ public final class NativeCall implements AutoCloseable {
         }
     }
 
+    // ---- Static invocation (no Arena) ----
+    //
+    // The instance invoke / invokeIO above run inside a NativeCall so short-lived arguments
+    // (marshalled strings, out-pointers) can be allocated in the instance's Arena and freed on
+    // close. The two static variants below are for callers that already own every argument in
+    // their own memory and so need no Arena — chiefly the column-reader read path, where
+    // ParquetColumnReader keeps its buffers in a pooled Arena reused across many reads. Using the
+    // instance form there would allocate and immediately close a throwaway Arena on every read.
+    // Being static, these allocate nothing; they only run the handle and check the status. They are
+    // also stateless (they touch only their parameters and locals), so concurrent calls from
+    // different query threads share no mutable state.
+
+    /**
+     * Invokes a {@code long}-returning native call and checks its status: returns the value
+     * when {@code >= 0} (positive status codes are passed through), throws {@link IOException}
+     * when {@code < 0}. Static (no {@link Arena}), so the caller must own every argument.
+     */
+    public static long invokeIOStatic(MethodHandle handle, Object... args) throws IOException {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResultIO(result);
+        } catch (IOException | RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IOException(t);
+        }
+    }
+
+    /**
+     * Same as {@link #invokeIOStatic} but throws {@link RuntimeException} on a {@code < 0}
+     * status instead of {@link IOException}.
+     */
+    public static long invokeStatic(MethodHandle handle, Object... args) {
+        try {
+            long result = (long) handle.invokeWithArguments(args);
+            return NativeLibraryLoader.checkResult(result);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     @Override
     public void close() {
         closed = true;
