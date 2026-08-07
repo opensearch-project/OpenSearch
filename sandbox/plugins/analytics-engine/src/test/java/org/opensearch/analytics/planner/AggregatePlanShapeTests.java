@@ -141,7 +141,7 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchProject(status=[$0], checked_total_size=[ANNOTATED_PROJECT_EXPR(id=1, backends=[mock-parquet], CAST($1):BIGINT)], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], checked_total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchAggregate(group=[{0}], checked_total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -157,7 +157,7 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchProject(status=[$0], total_size=[$1], checked_total_size=[ANNOTATED_PROJECT_EXPR(id=2, backends=[mock-parquet], CAST($2):BIGINT)], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], checked_total_size=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], checked_total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
