@@ -977,10 +977,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         final Settings segrepSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put(segrepSettings))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                IndexMetadata.builder("test").settings(settings(Version.CURRENT).put(segrepSettings)).numberOfShards(1).numberOfReplicas(1)
             )
             .build();
 
