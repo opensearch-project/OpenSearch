@@ -491,13 +491,10 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
-        iae = expectThrows(IllegalArgumentException.class, () -> {
-            clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
-        });
-        assertEquals(
-            "script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
-            iae.getMessage()
-        );
+        // Note: lowering the max below an already stored script is rejected up front by the cluster-settings update
+        // transport action (see validateMaxSizeInBytes(int, ClusterState), covered by
+        // testValidateMaxSizeInBytesAgainstClusterState). The apply-time setter no longer throws, so applying a smaller
+        // value directly here would simply take effect; this test focuses on inline-compile limit tracking.
     }
 
     public void testConflictContextSettings() throws IOException {

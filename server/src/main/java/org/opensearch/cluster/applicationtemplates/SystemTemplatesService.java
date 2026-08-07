@@ -170,8 +170,9 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
     }
 
     private void setEnabledTemplates(boolean enabled) {
-        // Defense-in-depth; the invariant is enforced up front by ApplicationTemplatesEnabledValidator at validation time.
-        ensureFeatureFlagEnabledForApplicationTemplates(enabled);
+        // Runs as the settings-update consumer at apply time and only assigns; the feature-flag gate is enforced up
+        // front by ApplicationTemplatesEnabledValidator at settings-validation time (and on the setting's default at
+        // startup). Throwing here would instead fail while cluster state is applied, destabilizing the cluster-manager.
         enabledTemplates = enabled;
     }
 
