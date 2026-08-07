@@ -50,6 +50,7 @@ import org.opensearch.common.TriFunction;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
@@ -310,12 +311,31 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Resolution resolution;
         private final Version indexCreatedVersion;
 
+        /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructor that receives index settings, so builders created
+         * for internal field types — derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        private boolean pluggableDataFormat;
+
         public Builder(
             String name,
             Resolution resolution,
             DateFormatter dateFormatter,
             boolean ignoreMalformedByDefault,
             Version indexCreatedVersion
+        ) {
+            this(name, resolution, dateFormatter, ignoreMalformedByDefault, indexCreatedVersion, Settings.EMPTY);
+        }
+
+        public Builder(
+            String name,
+            Resolution resolution,
+            DateFormatter dateFormatter,
+            boolean ignoreMalformedByDefault,
+            Version indexCreatedVersion,
+            Settings settings
         ) {
             super(name);
             this.resolution = resolution;
@@ -330,6 +350,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 this.format.setValue(dateFormatter.pattern());
                 this.printFormat.setValue(dateFormatter.printPattern());
                 this.locale.setValue(dateFormatter.locale());
+            }
+            if (Mapper.isPluggableDataFormatEnabled(settings)) {
+                // Pluggable data formats serve date queries from the doc-values column and write no
+                // BKD points, so the field is not point-searchable. Default `index` to false; an
+                // explicit `index: true` overwrites this during parameter parsing and is rejected in
+                // build().
+                this.pluggableDataFormat = true;
+                this.index.setValue(false);
             }
         }
 
@@ -371,6 +399,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
+            // Runs after parameter parsing, so a still-true `index` here means the mapping explicitly
+            // set it and overwrote the not-indexed default from the constructor. Enabling `index` on a
+            // pluggable data format index cannot be honoured — no BKD points are written — and would
+            // route queries to a point branch that matches nothing.
+            if (pluggableDataFormat && index.getValue()) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + resolution.type()
+                        + "] cannot set [index] to true on an index using a pluggable data format"
+                );
+            }
             DateFieldType ft = new DateFieldType(
                 buildFullName(context),
                 index.getValue(),
@@ -394,12 +435,26 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(
+            n,
+            Resolution.MILLISECONDS,
+            c.getDateFormatter(),
+            ignoreMalformedByDefault,
+            c.indexVersionCreated(),
+            c.getSettings()
+        );
     });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(
+            n,
+            Resolution.NANOSECONDS,
+            c.getDateFormatter(),
+            ignoreMalformedByDefault,
+            c.indexVersionCreated(),
+            c.getSettings()
+        );
     });
 
     /**

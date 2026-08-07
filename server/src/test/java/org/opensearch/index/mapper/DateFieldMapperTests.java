@@ -1022,4 +1022,75 @@ public class DateFieldMapperTests extends MapperTestCase {
             assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
         }
     }
+
+    private static Settings pluggableSettings() {
+        return Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    /**
+     * On a pluggable-dataformat index no BKD points are written for date fields, so {@code index}
+     * defaults to false and the field reports itself as not searchable — routing queries to the
+     * doc-values column instead of an empty point index.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultsIndexToFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /** {@code date_nanos} resolves through a separate type parser, so it is covered explicitly. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultsIndexToFalseForDateNanos() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> b.field("type", "date_nanos")));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /** An explicit {@code index: false} is accepted on a pluggable-dataformat index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatAcceptsExplicitIndexFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /**
+     * An explicit {@code index: true} cannot be honoured on a pluggable-dataformat index — no point
+     * index is written — so the mapping is rejected rather than silently producing a field whose
+     * queries match nothing.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRejectsExplicitIndexTrue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(pluggableSettings(), fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }))
+        );
+        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+    }
+
+    /** The rejection names the concrete resolution so {@code date_nanos} is not reported as {@code date}. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRejectsExplicitIndexTrueForDateNanos() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(pluggableSettings(), fieldMapping(b -> b.field("type", "date_nanos").field("index", true)))
+        );
+        assertThat(e.getMessage(), containsString("of type [date_nanos]"));
+    }
+
+    /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
+    public void testNonPluggableDataFormatKeepsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isSearchable());
+
+        MapperService explicit = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        }));
+        assertTrue(explicit.fieldType("field").isSearchable());
+    }
 }

@@ -57,6 +57,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -114,7 +115,19 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final boolean ignoreMalformedByDefault;
         private final Version indexCreatedVersion;
 
+        /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructor that receives index settings, so builders created
+         * for internal field types — derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        private boolean pluggableDataFormat;
+
         public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+            this(name, ignoreMalformedByDefault, indexCreatedVersion, Settings.EMPTY);
+        }
+
+        public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion, Settings settings) {
             super(name);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
@@ -124,6 +137,13 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+            if (Mapper.isPluggableDataFormatEnabled(settings)) {
+                // Pluggable data formats serve IP queries from the doc-values column and write no BKD
+                // points, so the field is not point-searchable. Default `index` to false; an explicit
+                // `index: true` overwrites this during parameter parsing and is rejected in build().
+                this.pluggableDataFormat = true;
+                this.indexed.setValue(false);
+            }
         }
 
         Builder nullValue(String nullValue) {
@@ -158,6 +178,19 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            // Runs after parameter parsing, so a still-true `index` here means the mapping explicitly
+            // set it and overwrote the not-indexed default from the constructor. Enabling `index` on a
+            // pluggable data format index cannot be honoured — no BKD points are written — and would
+            // route queries to a point branch that matches nothing.
+            if (pluggableDataFormat && indexed.getValue()) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + CONTENT_TYPE
+                        + "] cannot set [index] to true on an index using a pluggable data format"
+                );
+            }
             return new IpFieldMapper(
                 name,
                 new IpFieldType(
@@ -183,7 +216,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated(), c.getSettings());
     });
 
     @Override

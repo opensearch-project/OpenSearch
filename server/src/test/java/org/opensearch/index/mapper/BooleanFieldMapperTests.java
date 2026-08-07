@@ -57,6 +57,8 @@ import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     private static final String FIELD_NAME = "field";
@@ -445,5 +447,58 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 .anyMatch(e -> e.getKey().name().equals(fieldName) && expectedValue.equals(e.getValue()));
             assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
         }
+    }
+
+    private static Settings pluggableSettings() {
+        return Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    /**
+     * On a pluggable-dataformat index the Lucene secondary writes no terms for boolean fields, so
+     * {@code index} defaults to false and the field reports itself as not searchable — routing
+     * queries to the doc-values column instead of an empty inverted index.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultsIndexToFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /** An explicit {@code index: false} is accepted on a pluggable-dataformat index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatAcceptsExplicitIndexFalse() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+    }
+
+    /**
+     * An explicit {@code index: true} cannot be honoured on a pluggable-dataformat index, so the
+     * mapping is rejected rather than silently producing a field whose queries match nothing.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRejectsExplicitIndexTrue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(pluggableSettings(), fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }))
+        );
+        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+    }
+
+    /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
+    public void testNonPluggableDataFormatKeepsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isSearchable());
+
+        MapperService explicit = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        }));
+        assertTrue(explicit.fieldType("field").isSearchable());
     }
 }
