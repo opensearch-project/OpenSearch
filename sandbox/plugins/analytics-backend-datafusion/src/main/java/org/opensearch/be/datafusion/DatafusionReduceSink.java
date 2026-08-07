@@ -406,10 +406,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                     // EOF didn't unblock the drain (e.g. the native plan is stuck for
                     // another reason). Fall back to a hard cancel so close() cannot
                     // hang, then give teardown a short grace period.
-                    logger.warn(
-                        "[reduce-sink] reduce did not finish after input EOF; falling back to cancel: taskId={}",
-                        ctx.taskId()
-                    );
+                    logger.warn("[reduce-sink] reduce did not finish after input EOF; falling back to cancel: taskId={}", ctx.taskId());
                     fireCancelQuery();
                     if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
                         logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
