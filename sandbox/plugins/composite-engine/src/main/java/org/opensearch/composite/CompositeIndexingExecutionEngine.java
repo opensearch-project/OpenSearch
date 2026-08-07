@@ -274,6 +274,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             secResults.add(engine.refresh(perFormatInput));
         }
 
+        Set<Long> allDropped = new HashSet<>(primary.droppedGenerations());
+        for (RefreshResult secResult : secResults) {
+            allDropped.addAll(secResult.droppedGenerations());
+        }
+
         // Assemble per-gen segments from all formats
         Map<DataFormat, RefreshResult> resultsByFormat = new LinkedHashMap<>();
         resultsByFormat.put(primaryEngine.getDataFormat(), primary);
@@ -350,7 +355,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                                 .addAll(pendingDeletionPerFormat.getValue());
                         }
 
-                        return new RefreshResult(List.copyOf(result));
+                        return new RefreshResult(List.copyOf(result), allDropped);
                     }
                 } catch (Exception e) {
                     // Merge-on-refresh is best-effort. On failure, fall back to normal per-writer
@@ -364,7 +369,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         // No merge on refresh — pass through all segments
         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().size() >= 1 + secondaryEngines.size())
             : "refresh result segments must contain all configured formats";
-        return new RefreshResult(List.copyOf(newSegments));
+        return new RefreshResult(List.copyOf(newSegments), allDropped);
     }
 
     private static @NonNull Map<String, Collection<String>> getFilesToDelete(List<Segment> segmentsToPurge) {

@@ -30,14 +30,12 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.store.Store;
 import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongFunction;
 
 /**
  * Lucene-based implementation of {@link DeleteExecutionEngine} that tracks per-generation
@@ -53,8 +51,12 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
     private final IndexWriter parentWriter;
-    private final ConcurrentMap<String, Long> idToGen;
+    private final ConcurrentMap<String, GenRow> idToGen;
     private final Store store;
+
+    /** Generation + insertion rowId where a document currently lives in an active child writer. */
+    private record GenRow(long generation, long rowId) {
+    }
 
     public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
@@ -67,14 +69,12 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public Deleter createDeleter(Writer<?> writer) {
-        LuceneWriter luceneWriter = writer.getWriterForFormat(LuceneDataFormat.LUCENE_FORMAT_NAME)
-            .map(w -> (LuceneWriter) w)
-            .orElseThrow(
-                () -> new IllegalArgumentException("Cannot create deleter: no Lucene writer found for generation=" + writer.generation())
-            );
-        Deleter deleter = new DeleterImpl<>(luceneWriter);
-        generationToDeleterMap.put(writer.generation(), deleter);
-        return deleter;
+        return writer.getWriterForFormat(LuceneDataFormat.LUCENE_FORMAT_NAME).map(w -> {
+            LuceneWriter luceneWriter = (LuceneWriter) w;
+            Deleter deleter = new DeleterImpl<>(luceneWriter);
+            generationToDeleterMap.put(writer.generation(), deleter);
+            return deleter;
+        }).orElse(null);
     }
 
     @Override
@@ -83,29 +83,28 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
+    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
         long start = System.nanoTime();
         try {
             Deleter currentDeleter = generationToDeleterMap.get(deleteInput.generation());
-            assert currentDeleter != null && currentDeleter.isActive()
-                : "current-gen deleter must exist and be active while caller holds the writer lock; gen=" + deleteInput.generation();
+            if (currentDeleter == null) {
+                throw new IllegalArgumentException(
+                    "Update/delete is not supported for this index: no delete-applicable data format "
+                        + "(requires a format such as Lucene)"
+                );
+            }
+            assert currentDeleter.isActive() : "current-gen deleter must be active while caller holds the writer lock; gen="
+                + deleteInput.generation();
 
-            // TODO: If not present then record buffered deletes.
             currentDeleter.recordBufferedDeletes(deleteInput.id());
-            Long previousGen = lookupGen(deleteInput.id());
-            if (previousGen != null) {
-                Closeable previousWriterLock = writerByGenSupplier.apply(previousGen);
-                if (previousWriterLock != null) {
-                    // It means previous writer is active here.
-                    try {
-                        Deleter deleter = generationToDeleterMap.get(previousGen);
-                        return deleter.deleteDoc(deleteInput);
-                    } finally {
-                        previousWriterLock.close();
-                    }
+            GenRow previous = idToGen.get(deleteInput.id());
+            if (previous != null) {
+                Deleter previousDeleter = generationToDeleterMap.get(previous.generation());
+                if (previousDeleter != null) {
+                    previousDeleter.recordPositionalDelete(previous.rowId());
+                    return new DeleteResult.Success(1L, 1L, 1L);
                 }
             }
-
             return new DeleteResult.Success(1L, 1L, 1L);
         } finally {
             LuceneStatsProvider provider = (LuceneStatsProvider) DataFormatStatsProviderRegistry.INSTANCE.get(
@@ -128,8 +127,7 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public void close() throws IOException {
-        // TODO: Fix this.
-
+        // Engine shutdown: close all deleters and drop tracking.
         for (Deleter deleter : generationToDeleterMap.values()) {
             deleter.close();
         }
@@ -138,18 +136,14 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
         idToGen.clear();
     }
 
-    private Long lookupGen(String id) {
-        return idToGen.get(id);
-    }
-
     @Override
-    public void recordWrite(String id, long generation) {
-        idToGen.put(id, generation);
+    public void recordWrite(String id, long generation, long rowId) {
+        idToGen.put(id, new GenRow(generation, rowId));
     }
 
     @Override
     public boolean onWriterCheckedOut(long generation) throws IOException {
-        idToGen.entrySet().removeIf(e -> e.getValue() == generation);
+        idToGen.entrySet().removeIf(e -> e.getValue().generation() == generation);
 
         Deleter deleter = generationToDeleterMap.remove(generation);
         if (deleter == null) {

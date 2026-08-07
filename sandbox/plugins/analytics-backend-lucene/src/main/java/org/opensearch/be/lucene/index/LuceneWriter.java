@@ -60,7 +60,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 
 /**
@@ -104,6 +106,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Directory directory;
     private final IndexWriter indexWriter;
     private final Set<LuceneWriter> registry;
+    /** Row ids to mark deleted during flush. */
+    private final Queue<Long> positionalDeletes = new ConcurrentLinkedQueue<>();
     private long mappingVersion;
     private volatile long docCount;
     private volatile boolean flushed;
@@ -279,6 +283,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     }
 
     /**
+     * Buffers an insertion row id to be marked deleted during this writer's flush.
+     */
+    @Override
+    public void recordPositionalDelete(long insertionRowId) {
+        positionalDeletes.add(insertionRowId);
+    }
+
+    /**
      * Force-merges all buffered documents into exactly one segment, commits the IndexWriter,
      * and returns a {@link FileInfos} describing the resulting segment files in the temp directory.
      * <p>
@@ -313,6 +325,10 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             );
             indexWriter.flush();
 
+            // Sort permutation from the primary (null if unsorted), used by applyPositionalDeletes to
+            // map insertion row ids to their post-reorder positions.
+            RowIdMapping mapping = null;
+
             // If sort permutation is provided, configure the reorder merge policy
             if (flushInput.hasRowIdMapping()) {
                 // RowIdMapping shouldn't be available if index has sort configurations.
@@ -326,7 +342,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                             + "]"
                     );
                 }
-                RowIdMapping mapping = flushInput.rowIdMapping();
+                mapping = flushInput.rowIdMapping();
                 if (mapping.size() != docCount) {
                     throw new IllegalStateException(
                         "RowIdMapping size ["
@@ -361,6 +377,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 docCount,
                 forceMergeDurationMs
             );
+
+            // Apply the buffered positional deletes to the reordered segment; the commit below persists them with the reorder.
+            applyPositionalDeletes(mapping);
 
             long commitStartNanos = System.nanoTime();
             indexWriter.commit();
@@ -450,6 +469,48 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         if (currentCodec instanceof LuceneWriterCodec lwc) {
             lwc.enableRowIdRewrite();
         }
+    }
+
+    /**
+     * Applies the row ids buffered by {@link #recordPositionalDelete(long)} as {@code liveDocs}-only deletes: rows
+     * are marked not-live but stay physically present, keeping this segment 1:1 (offset-aligned) with Parquet.
+     * No-op when nothing was recorded.
+     *
+     * @param mapping insertion-order to post-reorder permutation for a sorted flush, or {@code null} when unsorted
+     *     (the recorded position is already the doc id)
+     * @throws IOException if opening the NRT reader or buffering a delete fails
+     * @throws IllegalStateException if the single-segment invariant is broken or a doc id cannot be resolved
+     *     ({@link IndexWriter#tryDeleteDocument} returned {@code -1})
+     */
+    private void applyPositionalDeletes(RowIdMapping mapping) throws IOException {
+        if (positionalDeletes.isEmpty()) {
+            return;
+        }
+        indexWriter.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+        int deleted = 0;
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            assert reader.leaves().size() == 1 : "expected exactly 1 segment after forceMerge, got " + reader.leaves().size();
+            LeafReader leaf = reader.leaves().get(0).reader();
+            Long insertionRowId;
+            while ((insertionRowId = positionalDeletes.poll()) != null) {
+                // Post-reorder position (identity when unsorted); equals the doc id (see assertRowIdsSequential).
+                long position = mapping != null ? mapping.getNewRowId(insertionRowId, RowIdMapping.SINGLE_GEN) : insertionRowId;
+                assert position >= 0 : "positional delete resolved to a negative row id (insertionRowId=" + insertionRowId + ")";
+                if (indexWriter.tryDeleteDocument(leaf, (int) position) == -1) {
+                    throw new IllegalStateException(
+                        "tryDeleteDocument failed for position="
+                            + position
+                            + " (insertionRowId="
+                            + insertionRowId
+                            + ") on writer generation ["
+                            + writerGeneration
+                            + "]; segment must not have merged under NoMergePolicy"
+                    );
+                }
+                deleted++;
+            }
+        }
+        logger.debug("applyPositionalDeletes: generation={}, marked {} row(s) deleted (liveDocs-only)", writerGeneration, deleted);
     }
 
     /**
@@ -685,10 +746,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         @Override
         public void setMergeInfo(SegmentCommitInfo info) {
+            // No generation stamp here — LuceneWriterCodec stamps the real one on every .si write (after
+            // setMergeInfo), so one here would be overwritten. Override kept only to guard against a bogus re-stamp.
             super.setMergeInfo(info);
-            if (info != null) {
-                info.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(0));
-            }
         }
     }
 

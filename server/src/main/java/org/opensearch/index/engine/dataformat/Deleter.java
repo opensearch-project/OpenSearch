@@ -48,4 +48,15 @@ public interface Deleter extends Closeable {
     boolean recordBufferedDeletes(String id);
 
     boolean isActive();
+
+    /**
+     * Records a positional (row-id) delete, applied as a liveDocs-only delete during the paired
+     * {@link Writer}'s flush (retained through any reorder, 1:1 with the primary format). Formats
+     * without positional deletes leave this unsupported.
+     *
+     * @param rowId insertion row id within the paired writer's generation
+     */
+    default void recordPositionalDelete(long rowId) {
+        throw new UnsupportedOperationException("Positional delete is not supported by this deleter");
+    }
 }

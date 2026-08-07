@@ -353,25 +353,23 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         }
                     }
                 }
-
-                // After addIndexes, open an NRT reader to discover the actual file names
-                // for the newly added segments. Lucene renames files during addIndexes,
-                // so the original temp directory file names are no longer valid.
+            }
+            // After addIndexes, open an NRT reader to discover the actual file names
+            // for the newly added segments. Lucene renames files during addIndexes,
+            // so the original temp directory file names are no longer valid.
+            Set<Long> liveGenerations = new HashSet<>();
+            if (sourceDirectories.isEmpty() == false || refreshInput.existingSegments().isEmpty() == false) {
                 Path sharedDir = store.shardPath().resolveIndex();
-
                 try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
-                    List<LeafReaderContext> leaves = reader.leaves();
-
-                    for (int i = 0; i < leaves.size(); i++) {
-                        LeafReaderContext ctx = leaves.get(i);
+                    for (LeafReaderContext ctx : reader.leaves()) {
                         if (ctx.reader() instanceof SegmentReader segReader) {
                             SegmentCommitInfo segInfo = segReader.getSegmentInfo();
                             String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
                             if (genAttr == null) {
                                 continue;
                             }
-
                             long writerGen = Long.parseLong(genAttr);
+                            liveGenerations.add(writerGen);
                             if (!writerGenerations.contains(writerGen)) {
                                 continue;
                             }
@@ -392,7 +390,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         }
                     }
                 }
-                assert writerGenerations.isEmpty() : "Could not get segments from all writers";
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
 
@@ -408,7 +405,14 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 }
             }
 
-            return new RefreshResult(List.copyOf(resultSegments));
+            Set<Long> droppedGenerations = new HashSet<>();
+            for (Segment segment : refreshInput.existingSegments()) {
+                if (liveGenerations.contains(segment.generation()) == false) {
+                    droppedGenerations.add(segment.generation());
+                }
+            }
+
+            return new RefreshResult(List.copyOf(resultSegments), droppedGenerations);
         } finally {
             stats.incRefreshTotal();
             stats.addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - refreshStart));

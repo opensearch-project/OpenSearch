@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.LongFunction;
 
 /**
  * Engine for executing delete operations for a specific data format.
@@ -65,9 +64,18 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      * @return the result of the delete operation
      * @throws IOException if an I/O error occurs during deletion
      */
-    DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException;
+    DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException;
 
-    void recordWrite(String id, long generation);
+    /**
+     * Records that document {@code id} now lives at {@code rowId} within the active writer
+     * {@code generation}. The rowId is the insertion position (0-based) within that
+     * generation's segment.
+     *
+     * @param id         the document id
+     * @param generation the writer generation the document was written to
+     * @param rowId      the insertion row id within that generation
+     */
+    void recordWrite(String id, long generation, long rowId);
 
     /**
      * Called by the writer pool when a writer is permanently removed from the pool.
