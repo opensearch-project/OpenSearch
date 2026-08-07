@@ -66,6 +66,154 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MultiValueModeTests extends OpenSearchTestCase {
 
+    // GITHUB#17140 / #21537: the nested select(...parentDocs, childDocs...) returned an
+    // AbstractNumericDocValues that overrode only advanceExact, not advance(int). The point-based
+    // sort optimization makes NumericComparator's competitive iterator call advance() during early
+    // termination (track_total_hits:false), which hit the base UnsupportedOperationException. This
+    // test exercises advance() on the nested long/date select; it throws UOE without the fix.
+    public void testNestedSelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final long[] array = new long[] { 10, 20, 30, 40 };
+        final SortedNumericDocValues values = DocValues.singleton(new AbstractNumericDocValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return docId;
+            }
+
+            @Override
+            public long longValue() {
+                return array[docId];
+            }
+        });
+        // parents at doc 1 and 3; children at doc 0 and 2.
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDocValues selected = MultiValueMode.MIN.select(
+            values,
+            0L,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        // The competitive iterator calls advance(int). Before the fix this threw
+        // UnsupportedOperationException from the base AbstractNumericDocValues. Per the contract here,
+        // every doc has a value (advanceExact always returns true), so advance(target) returns target
+        // and docID() reflects it; past the last doc it returns NO_MORE_DOCS.
+        assertEquals(1, selected.advance(1));
+        assertEquals(1, selected.docID());
+        assertEquals(3, selected.advance(3));
+        assertEquals(3, selected.docID());
+        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    // GITHUB#17140 / #21537: the same advance() gap existed on the nested unsigned-long, binary, and
+    // sorted (keyword) selects. The unsigned-long select mirrors the numeric one (dense: every parent
+    // doc has a value). Verifies advance() no longer throws and positions correctly.
+    public void testNestedUnsignedLongSelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final long[] array = new long[] { 10, 20, 30, 40 };
+        final SortedNumericUnsignedLongValues values = new SortedNumericUnsignedLongValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public long nextValue() {
+                return array[docId];
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public int docID() {
+                return docId;
+            }
+        };
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDocValues selected = MultiValueMode.MIN.select(
+            values,
+            0L,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        assertEquals(1, selected.advance(1));
+        assertEquals(3, selected.advance(3));
+        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    // GITHUB#17140: the nested double select advances by parent doc (like the other nested selects),
+    // not by advancing the child values iterator. Verifies advance() positions on the target parent doc.
+    public void testNestedDoubleSelectAdvanceIsAligned() throws Exception {
+        final int numDocs = 4;
+        final double[] array = new double[] { 10.0, 20.0, 30.0, 40.0 };
+        final SortedNumericDoubleValues values = new SortedNumericDoubleValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) {
+                this.docId = target;
+                return true;
+            }
+
+            @Override
+            public double nextValue() {
+                return array[docId];
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final NumericDoubleValues selected = MultiValueMode.MIN.select(
+            values,
+            0.0,
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        assertEquals(1, selected.advance(1));
+        assertEquals(3, selected.advance(3));
+        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
     @FunctionalInterface
     private interface Supplier<T> {
         T get() throws IOException;
