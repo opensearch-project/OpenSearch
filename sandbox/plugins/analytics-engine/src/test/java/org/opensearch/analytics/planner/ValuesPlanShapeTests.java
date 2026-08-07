@@ -10,9 +10,13 @@ package org.opensearch.analytics.planner;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalUnion;
@@ -22,6 +26,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.HashSet;
@@ -147,6 +152,64 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
             OpenSearchProject(c=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], +($0, $1))], viableBackends=[[mock-parquet]])
               OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
             """, result);
+    }
+
+    /**
+     * Rule-level check for {@link OpenSearchValuesCharNormalizeRule}: a Values with mixed-length CHAR
+     * literals ("Alice" CHAR(5), "Bob" CHAR(3)) plus an INTEGER column is rewritten to a casting
+     * Project (restoring the ORIGINAL CHAR row type) over a Values whose char column and char literals
+     * are now precision-unspecified VARCHAR (-> Substrait Str). The integer column and its literals are
+     * left untouched. Applying the rule directly (not the full marking pipeline) keeps the assertion
+     * on the rule's own output shape and off backend CAST-viability marking.
+     */
+    public void testCharValues_NormalizedToVarcharUnderCastingProject() {
+        RelDataType charType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), true);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", charType).add("age", intType).build();
+        RexLiteral alice = (RexLiteral) rexBuilder.makeLiteral("Alice", typeFactory.createSqlType(SqlTypeName.CHAR, 5), false);
+        RexLiteral bob = (RexLiteral) rexBuilder.makeLiteral("Bob", typeFactory.createSqlType(SqlTypeName.CHAR, 3), false);
+        RexLiteral thirty = (RexLiteral) rexBuilder.makeLiteral(30, intType, true);
+        RexLiteral twentyFive = (RexLiteral) rexBuilder.makeLiteral(25, intType, true);
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(alice, thirty),
+            ImmutableList.of(bob, twentyFive)
+        );
+        RelNode values = LogicalValues.create(cluster, rowType, tuples);
+
+        HepProgramBuilder programBuilder = new HepProgramBuilder();
+        programBuilder.addRuleInstance(new OpenSearchValuesCharNormalizeRule());
+        HepPlanner planner = new HepPlanner(programBuilder.build());
+        planner.setRoot(values);
+        RelNode result = planner.findBestExp();
+
+        assertTrue("top node must be a casting Project", result instanceof Project);
+        assertEquals(
+            "projected char column keeps the ORIGINAL CHAR type",
+            SqlTypeName.CHAR,
+            result.getRowType().getFieldList().get(0).getType().getSqlTypeName()
+        );
+        assertEquals(
+            "int column type unchanged",
+            SqlTypeName.INTEGER,
+            result.getRowType().getFieldList().get(1).getType().getSqlTypeName()
+        );
+
+        RelNode input = result.getInput(0);
+        assertTrue("input must be a Values", input instanceof Values);
+        RelDataType normalizedName = input.getRowType().getFieldList().get(0).getType();
+        assertEquals("char column normalized to VARCHAR", SqlTypeName.VARCHAR, normalizedName.getSqlTypeName());
+        assertEquals(
+            "normalized VARCHAR must be precision-unspecified",
+            RelDataType.PRECISION_NOT_SPECIFIED,
+            normalizedName.getPrecision()
+        );
+        assertEquals("int column stays INTEGER", SqlTypeName.INTEGER, input.getRowType().getFieldList().get(1).getType().getSqlTypeName());
+
+        Values normalized = (Values) input;
+        for (List<RexLiteral> tuple : normalized.getTuples()) {
+            assertEquals("char literal rebuilt as VARCHAR", SqlTypeName.VARCHAR, tuple.get(0).getType().getSqlTypeName());
+            assertEquals("int literal stays INTEGER", SqlTypeName.INTEGER, tuple.get(1).getType().getSqlTypeName());
+        }
     }
 
 }

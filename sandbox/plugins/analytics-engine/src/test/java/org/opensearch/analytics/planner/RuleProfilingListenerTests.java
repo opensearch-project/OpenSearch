@@ -39,6 +39,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",
+        "values-char-normalize",
         "marking",
         "agg-literal-arg-split",
         "cbo"

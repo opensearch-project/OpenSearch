@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
@@ -19,9 +20,11 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -849,4 +852,40 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
+    // -- VirtualTable (inline Values) CHAR/VARCHAR -> Str normalization (PR #22554) --
+
+    /**
+     * With the CHAR/VARCHAR normalization moved to the analytics-engine RBO layer
+     * ({@code OpenSearchValuesCharNormalizeRule}), the convertor is generic again: an ALREADY-VARCHAR
+     * (precision-unspecified) Values converts straight through isthmus to a VirtualTable whose char
+     * column AND every row cell are Str, while the integer column stays i32. A raw CHAR Values would
+     * now correctly fail isthmus's row-conforms-to-schema check; the pre-marking rule is what feeds
+     * this convertor VARCHAR.
+     */
+    public void testVirtualTable_VarcharValues_ConvertsToStrGenerically() throws Exception {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", varchar).add("age", intType).build();
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Alice"),
+                (RexLiteral) rexBuilder.makeLiteral(30, intType, false)
+            ),
+            ImmutableList.of(
+                RexLiteral.fromJdbcString(varchar, SqlTypeName.CHAR, "Bob"),
+                (RexLiteral) rexBuilder.makeLiteral(25, intType, false)
+            )
+        );
+        LogicalValues values = (LogicalValues) LogicalValues.create(cluster, rowType, tuples);
+        ReadRel read = rootRel(decodeSubstrait(newConvertor().convertFragment(values))).getRead();
+        assertTrue("must be a VirtualTable", read.hasVirtualTable());
+        assertTrue("varchar column -> Str schema", read.getBaseSchema().getStruct().getTypes(0).hasString());
+        assertTrue("int column stays numeric (i32)", read.getBaseSchema().getStruct().getTypes(1).hasI32());
+        assertEquals("two rows", 2, read.getVirtualTable().getExpressionsCount());
+        for (int r = 0; r < 2; r++) {
+            Expression.Nested.Struct row = read.getVirtualTable().getExpressions(r);
+            assertTrue("row " + r + " char cell must be a string literal", row.getFields(0).getLiteral().hasString());
+        }
+        assertEquals("int cell stays i32", 30, read.getVirtualTable().getExpressions(0).getFields(1).getLiteral().getI32());
+    }
 }
