@@ -746,6 +746,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 if (rewritten == null) return bound;
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
+
         };
         // Same APPROX_COUNT_DISTINCT filter as aggConverter — let our `approx_distinct` entry win.
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(
@@ -760,6 +761,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
                     .collect(ImmutableList.toImmutableList());
             }
+
         };
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
