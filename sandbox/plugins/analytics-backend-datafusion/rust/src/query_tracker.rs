@@ -327,33 +327,33 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
 
     for entry in QUERY_REGISTRY.iter() {
         for tracker in entry.value() {
-        let bytes_raw = tracker.memory_pool.current_bytes();
-        let completed = tracker.is_completed();
-        if sample_logged < 5 {
-            sample_logged += 1;
-        }
-        if completed {
-            continue;
-        }
-        let bytes = usize_to_i64_saturating(bytes_raw);
-        if bytes == 0 {
-            continue;
-        }
-        if heap.len() < n {
-            heap.push(Reverse(HeapEntry {
-                bytes,
-                tracker: Arc::clone(tracker),
-            }));
-        } else if let Some(Reverse(min)) = heap.peek() {
-            // Strictly greater: equal-byte ties keep the first-seen entry.
-            if bytes > min.bytes {
-                heap.pop();
+            let bytes_raw = tracker.memory_pool.current_bytes();
+            let completed = tracker.is_completed();
+            if sample_logged < 5 {
+                sample_logged += 1;
+            }
+            if completed {
+                continue;
+            }
+            let bytes = usize_to_i64_saturating(bytes_raw);
+            if bytes == 0 {
+                continue;
+            }
+            if heap.len() < n {
                 heap.push(Reverse(HeapEntry {
                     bytes,
                     tracker: Arc::clone(tracker),
                 }));
+            } else if let Some(Reverse(min)) = heap.peek() {
+                // Strictly greater: equal-byte ties keep the first-seen entry.
+                if bytes > min.bytes {
+                    heap.pop();
+                    heap.push(Reverse(HeapEntry {
+                        bytes,
+                        tracker: Arc::clone(tracker),
+                    }));
+                }
             }
-        }
         }
     }
 
@@ -444,9 +444,11 @@ pub fn cancel_query(context_id: i64) {
 ///
 /// No-op if no runtime handle is registered or the query is unknown.
 pub fn flush_cpu_runtime(context_id: i64) {
-    let rt_handle = QUERY_REGISTRY
-        .get(&context_id)
-        .and_then(|trackers| trackers.last().and_then(|t| t.cpu_runtime_handle.get().cloned()));
+    let rt_handle = QUERY_REGISTRY.get(&context_id).and_then(|trackers| {
+        trackers
+            .last()
+            .and_then(|t| t.cpu_runtime_handle.get().cloned())
+    });
 
     if let Some(handle) = rt_handle {
         flush_cpu_runtime_with_handle(&handle, context_id);
@@ -484,9 +486,11 @@ pub fn flush_cpu_runtime_with_handle(handle: &tokio::runtime::Handle, context_id
 /// `stream_close` to grab the handle before the tracker is dropped (which
 /// removes it from the registry).
 pub fn take_cpu_runtime_handle(context_id: i64) -> Option<tokio::runtime::Handle> {
-    QUERY_REGISTRY
-        .get(&context_id)
-        .and_then(|trackers| trackers.last().and_then(|t| t.cpu_runtime_handle.get().cloned()))
+    QUERY_REGISTRY.get(&context_id).and_then(|trackers| {
+        trackers
+            .last()
+            .and_then(|t| t.cpu_runtime_handle.get().cloned())
+    })
 }
 
 /// Clone a cancellation token for the given context_id, if registered.
@@ -688,8 +692,7 @@ impl Drop for QueryTrackingContext {
                 let now_empty = entry.is_empty();
                 drop(entry);
                 if now_empty {
-                    QUERY_REGISTRY
-                        .remove_if(&tracker.context_id, |_, v| v.is_empty());
+                    QUERY_REGISTRY.remove_if(&tracker.context_id, |_, v| v.is_empty());
                 }
             }
 
@@ -877,9 +880,19 @@ mod tests {
         let ctx_id = 50_002;
         let _ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
-        let t1 = QUERY_REGISTRY.get(&ctx_id).unwrap().last().unwrap().wall_secs();
+        let t1 = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .wall_secs();
         thread::sleep(Duration::from_millis(50));
-        let t2 = QUERY_REGISTRY.get(&ctx_id).unwrap().last().unwrap().wall_secs();
+        let t2 = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .wall_secs();
         assert!(t2 - t1 >= 0.04);
 
         drop(_ctx);
