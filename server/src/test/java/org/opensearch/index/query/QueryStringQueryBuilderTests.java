@@ -1271,6 +1271,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(new MatchNoDocsQuery(""), query);
     }
 
+    public void testLenientDefaultBehaviorWithWildcardFields() throws IOException {
+        QueryShardContext context = createShardContext();
+
+        // wildcard fields should respect context default, not force lenient=true
+        QueryStringQueryBuilder query = new QueryStringQueryBuilder("hello").defaultField("*");
+        
+        if (context.queryStringLenient()) {
+            Query result = query.toQuery(context);
+            assertNotNull("Should execute when context default is lenient=true", result);
+        } else {
+            Exception e = expectThrows(Exception.class, () -> query.toQuery(context));
+            assertTrue(
+                "Should throw exception when context default is lenient=false",
+                e.getMessage().contains("Can't parse boolean value") || e.getMessage().contains("Cannot search on field")
+            );
+        }
+    }
+
     public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {
         // Default unmapped field
         Query query = new QueryStringQueryBuilder("hello").field("unmapped_field").lenient(true).toQuery(createShardContext());
