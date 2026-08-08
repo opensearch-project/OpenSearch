@@ -25,6 +25,8 @@ use crate::memory::merge_pool;
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
+/// `live_docs_per_input` is parallel to `input_files`; a `None` (or absent) entry
+/// disables filtering for that file (zero-copy fast path).
 pub fn merge_sorted(
     input_files: &[String],
     output_path: &str,
@@ -33,6 +35,7 @@ pub fn merge_sorted(
     reverse_sorts: &[bool],
     nulls_first: &[bool],
     output_writer_generation: i64,
+    live_docs_per_input: &[Option<Vec<u64>>],
 ) -> super::MergeResult<super::MergeOutput> {
     let mut reservation =
         MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
@@ -45,10 +48,13 @@ pub fn merge_sorted(
         nulls_first,
         output_writer_generation,
         &mut reservation,
+        live_docs_per_input,
     )
 }
 
 /// Performs a streaming k-way merge using the provided memory reservation.
+/// `live_docs_per_input` is parallel to `input_files`; a `None` (or absent) entry
+/// disables filtering for that file (zero-copy fast path).
 pub fn merge_sorted_with_pool(
     input_files: &[String],
     output_path: &str,
@@ -58,6 +64,7 @@ pub fn merge_sorted_with_pool(
     nulls_first: &[bool],
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
+    live_docs_per_input: &[Option<Vec<u64>>],
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -110,6 +117,10 @@ pub fn merge_sorted_with_pool(
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
+        let live_bits = live_docs_per_input
+            .get(file_id)
+            .and_then(|opt| opt.as_ref())
+            .map(|bits| Arc::new(bits.clone()));
         let (cursor, projected_schema, parquet_descr, generation, row_count) = FileCursor::new(
             path,
             file_id,
@@ -118,6 +129,7 @@ pub fn merge_sorted_with_pool(
             batch_size,
             deferred_threshold,
             reservation,
+            live_bits,
         )?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
@@ -149,14 +161,16 @@ pub fn merge_sorted_with_pool(
         .collect();
 
     // Row-ID mapping: pre-allocate the flat mapping array and compute offsets
-    // from file metadata row counts (known before reading any data).
+    // from file metadata row counts (known before reading any data). The mapping
+    // is indexed by absolute source row id; dead (deleted) rows keep the -1
+    // sentinel since they are never emitted.
     let total_rows: usize = file_row_counts.iter().sum();
     let mapping_bytes = total_rows * std::mem::size_of::<i64>();
     // Reserve for row-ID mapping Vec<i64> — total_rows × 8 bytes, allocated next line
     reservation
         .request(mapping_bytes)
         .map_err(|e| super::MergeError::Logic(format!("Merge pool exceeded (mapping): {}", e)))?;
-    let mut mapping: Vec<i64> = vec![0i64; total_rows];
+    let mut mapping: Vec<i64> = vec![-1i64; total_rows];
     let mut gen_keys: Vec<i64> = Vec::with_capacity(num_cursors);
     let mut gen_offsets: Vec<i32> = Vec::with_capacity(num_cursors);
     let mut gen_sizes: Vec<i32> = Vec::with_capacity(num_cursors);
@@ -170,8 +184,6 @@ pub fn merge_sorted_with_pool(
         offset += size;
     }
 
-    // Per-file counters: tracks how many rows have been emitted from each file
-    let mut rows_emitted_per_file: Vec<usize> = vec![0; num_cursors];
     let mut new_row_id: i64 = 0;
 
     log_debug!(
@@ -184,6 +196,10 @@ pub fn merge_sorted_with_pool(
     let reverse_sorts_arc = Arc::new(reverse_sorts.to_vec());
     let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(num_cursors);
     for cursor in &cursors {
+        // Cursors with all-dead data are already exhausted — skip.
+        if cursor.sort_batch.is_none() {
+            continue;
+        }
         let sv = cursor.current_sort_values()?;
         heap.push(HeapItem {
             sort_values: sv,
@@ -202,15 +218,22 @@ pub fn merge_sorted_with_pool(
             let col_mapping = &col_mappings[file_id];
             let file_offset = gen_offsets[file_id] as usize;
             loop {
-                let remaining = cursor.batch_height() - cursor.row_idx;
+                let start_idx = cursor.row_idx;
+                let base_row_id = cursor.base_row_id;
+                let remaining = cursor.batch_height() - start_idx;
                 if remaining > 0 {
-                    let slice = cursor.take_slice(cursor.row_idx, remaining, reservation)?;
-                    for _ in 0..remaining {
-                        mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                        rows_emitted_per_file[file_id] += 1;
-                        new_row_id += 1;
+                    let slice = cursor.take_slice(start_idx, remaining, reservation)?;
+                    // Build mapping for surviving rows (indexed by absolute source row id).
+                    for i in 0..remaining {
+                        let abs = base_row_id + (start_idx + i) as u64;
+                        if cursor.is_row_id_alive(abs) {
+                            mapping[file_offset + abs as usize] = new_row_id;
+                            new_row_id += 1;
+                        }
                     }
-                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                    if slice.num_rows() > 0 {
+                        ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                    }
                 }
                 if !cursor.advance_past_batch(reservation)? {
                     break;
@@ -230,14 +253,20 @@ pub fn merge_sorted_with_pool(
             // TIER 2: Entire remaining batch fits before heap top
             let last_val = cursor.last_sort_values()?;
             if cmp_sort_values(&last_val, heap_top, reverse_sorts) != Ordering::Greater {
-                let remaining = cursor.batch_height() - cursor.row_idx;
-                let slice = cursor.take_slice(cursor.row_idx, remaining, reservation)?;
-                for _ in 0..remaining {
-                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                    rows_emitted_per_file[file_id] += 1;
-                    new_row_id += 1;
+                let start_idx = cursor.row_idx;
+                let base_row_id = cursor.base_row_id;
+                let remaining = cursor.batch_height() - start_idx;
+                let slice = cursor.take_slice(start_idx, remaining, reservation)?;
+                for i in 0..remaining {
+                    let abs = base_row_id + (start_idx + i) as u64;
+                    if cursor.is_row_id_alive(abs) {
+                        mapping[file_offset + abs as usize] = new_row_id;
+                        new_row_id += 1;
+                    }
                 }
-                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                if slice.num_rows() > 0 {
+                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                }
 
                 if !cursor.advance_past_batch(reservation)? {
                     break;
@@ -257,6 +286,7 @@ pub fn merge_sorted_with_pool(
 
             // TIER 3: Binary search for the exact boundary
             let run_start = cursor.row_idx;
+            let base_row_id = cursor.base_row_id;
             let batch_h = cursor.batch_height();
             let batch = cursor.sort_batch.as_ref().unwrap();
 
@@ -284,12 +314,16 @@ pub fn merge_sorted_with_pool(
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
                 let slice = cursor.take_slice(run_start, run_len, reservation)?;
-                for _ in 0..run_len {
-                    mapping[file_offset + rows_emitted_per_file[file_id]] = new_row_id;
-                    rows_emitted_per_file[file_id] += 1;
-                    new_row_id += 1;
+                for i in 0..run_len {
+                    let abs = base_row_id + (run_start + i) as u64;
+                    if cursor.is_row_id_alive(abs) {
+                        mapping[file_offset + abs as usize] = new_row_id;
+                        new_row_id += 1;
+                    }
                 }
-                ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                if slice.num_rows() > 0 {
+                    ctx.push_batch(col_mapping.pad_batch(&slice)?)?;
+                }
             }
 
             cursor.row_idx = run_end;
