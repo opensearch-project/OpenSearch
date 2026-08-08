@@ -8,8 +8,10 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
@@ -74,6 +76,8 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
 public class MultiTermsAggregator extends DeferableBucketAggregator implements StarTreePreComputeCollector {
 
     private final BytesKeyedBucketOrds bucketOrds;
+    private final MultiTermsBucketOrds ordinalBucketOrds;
+    private final List<ValuesSource.Bytes.WithOrdinals> ordinalSources;
     private final MultiTermsValuesSource multiTermsValue;
     private final boolean showTermDocCountError;
     private final List<DocValueFormat> formats;
@@ -99,9 +103,20 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        MultiTermsBucketOrds ordinalBucketOrds
     ) throws IOException {
         super(name, factories, context, parent, metadata);
+        this.ordinalBucketOrds = ordinalBucketOrds;
+        if (ordinalBucketOrds != null) {
+            List<ValuesSource.Bytes.WithOrdinals> ordSources = new ArrayList<>(rawValuesSources.size());
+            for (ValuesSource vs : rawValuesSources) {
+                ordSources.add((ValuesSource.Bytes.WithOrdinals) vs);
+            }
+            this.ordinalSources = ordSources;
+        } else {
+            this.ordinalSources = null;
+        }
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
         this.multiTermsValue = new MultiTermsValuesSource(rawValuesSources, internalValuesSources);
         this.showTermDocCountError = showTermDocCountError;
@@ -140,45 +155,36 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
+
+        // Resolve SortedSetDocValues for ordinal lookup if using ordinal path.
+        // Because these sources are WithOrdinals, calling lookupOrd(globalOrd) on the
+        // SortedSetDocValues obtained from any leaf returns the correct BytesRef for that
+        // global ordinal (the global-ord -> term mapping is shared across the whole index).
+        // Same pattern used in GlobalOrdinalsStringTermsAggregator.
+        SortedSetDocValues[] globalOrdsForLookup = null;
+        if (ordinalBucketOrds != null) {
+            globalOrdsForLookup = new SortedSetDocValues[ordinalSources.size()];
+            List<LeafReaderContext> leaves = context.searcher().getTopReaderContext().leaves();
+            LeafReaderContext leafCtx = leaves.isEmpty() ? null : leaves.get(0);
+            for (int i = 0; i < ordinalSources.size(); i++) {
+                globalOrdsForLookup[i] = leafCtx == null ? DocValues.emptySortedSet() : ordinalSources.get(i).globalOrdinalsValues(leafCtx);
+            }
+        }
+
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             checkCancelled();
             collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
-            long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
-            int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
-            PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
-            InternalMultiTerms.Bucket spare = null;
-            BytesRef dest = null;
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder = () -> InternalMultiTerms.Bucket.EMPTY(
-                showTermDocCountError,
-                formats
-            );
-            while (ordsEnum.next()) {
-                long docCount = bucketDocCount(ordsEnum.ord());
-                otherDocCounts[ordIdx] += docCount;
-                if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                    continue;
-                }
-                if (spare == null) {
-                    spare = emptyBucketBuilder.get();
-                    dest = new BytesRef();
-                }
-
-                ordsEnum.readValue(dest);
-
-                spare.termValues = decode(dest);
-                spare.docCount = docCount;
-                spare.bucketOrd = ordsEnum.ord();
-                spare = ordered.insertWithOverflow(spare);
-            }
-
-            // Get the top buckets
-            InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[ordered.size()];
-            topBucketsPerOrd[ordIdx] = bucketsForOrd;
-            for (int b = ordered.size() - 1; b >= 0; --b) {
-                topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+            if (ordinalBucketOrds != null) {
+                topBucketsPerOrd[ordIdx] = buildOrdinalBuckets(
+                    owningBucketOrds[ordIdx],
+                    localBucketCountThresholds,
+                    otherDocCounts,
+                    ordIdx,
+                    globalOrdsForLookup
+                );
+            } else {
+                topBucketsPerOrd[ordIdx] = buildBytesBuckets(owningBucketOrds[ordIdx], localBucketCountThresholds, otherDocCounts, ordIdx);
             }
         }
 
@@ -189,6 +195,102 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
             result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
         }
         return result;
+    }
+
+    /**
+     * Build top buckets from the ordinal-based path by resolving packed ordinals
+     * back to term values via {@code lookupOrd()}.
+     */
+    private InternalMultiTerms.Bucket[] buildOrdinalBuckets(
+        long owningBucketOrd,
+        LocalBucketCountThresholds localBucketCountThresholds,
+        long[] otherDocCounts,
+        int ordIdx,
+        SortedSetDocValues[] globalOrdsForLookup
+    ) throws IOException {
+        long bucketsInOrd = ordinalBucketOrds.bucketsInOrd(owningBucketOrd);
+        int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
+        PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        InternalMultiTerms.Bucket spare = null;
+        CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder = () -> InternalMultiTerms.Bucket.EMPTY(
+            showTermDocCountError,
+            formats
+        );
+        MultiTermsBucketOrds.BucketOrdsEnum ordsEnum = ordinalBucketOrds.ordsEnum(owningBucketOrd);
+        while (ordsEnum.next()) {
+            long docCount = bucketDocCount(ordsEnum.ord());
+            otherDocCounts[ordIdx] += docCount;
+            if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                continue;
+            }
+            if (spare == null) {
+                spare = emptyBucketBuilder.get();
+            }
+
+            long[] ordinals = ordsEnum.ordinals();
+            List<Object> termValues = new ArrayList<>(ordinals.length);
+            for (int i = 0; i < ordinals.length; i++) {
+                termValues.add(BytesRef.deepCopyOf(globalOrdsForLookup[i].lookupOrd(ordinals[i])));
+            }
+
+            spare.termValues = termValues;
+            spare.docCount = docCount;
+            spare.bucketOrd = ordsEnum.ord();
+            spare = ordered.insertWithOverflow(spare);
+        }
+
+        InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[ordered.size()];
+        for (int b = ordered.size() - 1; b >= 0; --b) {
+            bucketsForOrd[b] = ordered.pop();
+            otherDocCounts[ordIdx] -= bucketsForOrd[b].getDocCount();
+        }
+        return bucketsForOrd;
+    }
+
+    /**
+     * Build top buckets from the existing bytes-based path.
+     */
+    private InternalMultiTerms.Bucket[] buildBytesBuckets(
+        long owningBucketOrd,
+        LocalBucketCountThresholds localBucketCountThresholds,
+        long[] otherDocCounts,
+        int ordIdx
+    ) throws IOException {
+        long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
+        int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
+        PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        InternalMultiTerms.Bucket spare = null;
+        BytesRef dest = null;
+        BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+        CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder = () -> InternalMultiTerms.Bucket.EMPTY(
+            showTermDocCountError,
+            formats
+        );
+        while (ordsEnum.next()) {
+            long docCount = bucketDocCount(ordsEnum.ord());
+            otherDocCounts[ordIdx] += docCount;
+            if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                continue;
+            }
+            if (spare == null) {
+                spare = emptyBucketBuilder.get();
+                dest = new BytesRef();
+            }
+
+            ordsEnum.readValue(dest);
+
+            spare.termValues = decode(dest);
+            spare.docCount = docCount;
+            spare.bucketOrd = ordsEnum.ord();
+            spare = ordered.insertWithOverflow(spare);
+        }
+
+        InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[ordered.size()];
+        for (int b = ordered.size() - 1; b >= 0; --b) {
+            bucketsForOrd[b] = ordered.pop();
+            otherDocCounts[ordIdx] -= bucketsForOrd[b].getDocCount();
+        }
+        return bucketsForOrd;
     }
 
     InternalMultiTerms buildResult(long owningBucketOrd, long otherDocCount, InternalMultiTerms.Bucket[] topBuckets) {
@@ -233,11 +335,70 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        if (ordinalBucketOrds != null) {
+            return getOrdinalLeafCollector(ctx, sub);
+        }
         MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx, bucketOrds, this, sub);
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 collector.apply(doc, owningBucketOrd);
+            }
+        };
+    }
+
+    /**
+     * Creates a leaf collector that collects global ordinals directly instead of
+     * serialized term values. Generates the cartesian product of ordinal tuples
+     * across all fields for each document.
+     */
+    private LeafBucketCollector getOrdinalLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        int numFields = ordinalSources.size();
+        SortedSetDocValues[] globalOrds = new SortedSetDocValues[numFields];
+        for (int i = 0; i < numFields; i++) {
+            globalOrds[i] = ordinalSources.get(i).globalOrdinalsValues(ctx);
+        }
+        return new LeafBucketCollector() {
+            private final long[] ordTuple = new long[numFields];
+            // Reusable scratch buffer: one long[] per field, grown on demand.
+            private final long[][] ordinalSets = new long[numFields][];
+            // Per-field valid-element counts for the current doc.
+            private final int[] counts = new int[numFields];
+
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < numFields; i++) {
+                    if (globalOrds[i].advanceExact(doc) == false) {
+                        return; // missing value in any field → skip doc
+                    }
+                    int count = globalOrds[i].docValueCount();
+                    if (ordinalSets[i] == null || ordinalSets[i].length < count) {
+                        ordinalSets[i] = new long[count];
+                    }
+                    for (int j = 0; j < count; j++) {
+                        ordinalSets[i][j] = globalOrds[i].nextOrd();
+                    }
+                    counts[i] = count;
+                }
+                generateOrdinalCombinations(0, owningBucketOrd, doc, sub);
+            }
+
+            private void generateOrdinalCombinations(int depth, long owningBucketOrd, int doc, LeafBucketCollector sub) throws IOException {
+                if (depth == numFields) {
+                    long bucketOrd = ordinalBucketOrds.add(owningBucketOrd, ordTuple);
+                    if (bucketOrd < 0) {
+                        collectExistingBucket(sub, doc, -1 - bucketOrd);
+                    } else {
+                        collectBucket(sub, doc, bucketOrd);
+                    }
+                    return;
+                }
+                long[] fieldOrds = ordinalSets[depth];
+                int count = counts[depth];
+                for (int k = 0; k < count; k++) {
+                    ordTuple[depth] = fieldOrds[k];
+                    generateOrdinalCombinations(depth + 1, owningBucketOrd, doc, sub);
+                }
             }
         };
     }
@@ -378,9 +539,17 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         );
     }
 
+    /**
+     * Returns the ordinal-based bucket ords, or {@code null} if the bytes-based path is active.
+     * Package-private for testing.
+     */
+    MultiTermsBucketOrds getOrdinalBucketOrds() {
+        return ordinalBucketOrds;
+    }
+
     @Override
     protected void doClose() {
-        Releasables.close(bucketOrds, multiTermsValue);
+        Releasables.close(bucketOrds, ordinalBucketOrds, multiTermsValue);
     }
 
     private static List<Object> decode(BytesRef bytesRef) {
@@ -409,16 +578,77 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
         if (bucketCountThresholds.getMinDocCount() != 0) {
             return;
         }
-        if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
+        if (ordinalBucketOrds != null) {
+            if (InternalOrder.isCountDesc(order)
+                && ordinalBucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
+                return;
+            }
+            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                collectZeroDocOrdinals(ctx, owningBucketOrd);
+            }
+        } else {
+            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
+                return;
+            }
+            // we need to fill-in the blanks
+            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                // brute force
+                MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx, bucketOrds, null, null);
+                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    collector.apply(docId, owningBucketOrd);
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds all ordinal tuples from a leaf to the ordinal bucket ords without
+     * collecting sub-aggregators or incrementing doc counts. Used for zero-doc
+     * entry filling when minDocCount is 0.
+     */
+    private void collectZeroDocOrdinals(LeafReaderContext ctx, long owningBucketOrd) throws IOException {
+        int numFields = ordinalSources.size();
+        SortedSetDocValues[] globalOrds = new SortedSetDocValues[numFields];
+        for (int i = 0; i < numFields; i++) {
+            globalOrds[i] = ordinalSources.get(i).globalOrdinalsValues(ctx);
+        }
+        long[] ordTuple = new long[numFields];
+        long[][] ordinalSets = new long[numFields][];
+        int[] counts = new int[numFields];
+        int maxDoc = ctx.reader().maxDoc();
+        for (int docId = 0; docId < maxDoc; ++docId) {
+            boolean skip = false;
+            for (int i = 0; i < numFields; i++) {
+                if (globalOrds[i].advanceExact(docId) == false) {
+                    skip = true;
+                    break;
+                }
+                int count = globalOrds[i].docValueCount();
+                if (ordinalSets[i] == null || ordinalSets[i].length < count) {
+                    ordinalSets[i] = new long[count];
+                }
+                for (int j = 0; j < count; j++) {
+                    ordinalSets[i][j] = globalOrds[i].nextOrd();
+                }
+                counts[i] = count;
+            }
+            if (skip) {
+                continue;
+            }
+            addOrdinalCombinations(ordinalSets, counts, 0, ordTuple, owningBucketOrd);
+        }
+    }
+
+    private void addOrdinalCombinations(long[][] ordinalSets, int[] counts, int depth, long[] current, long owningBucketOrd) {
+        if (depth == ordinalSets.length) {
+            ordinalBucketOrds.add(owningBucketOrd, current);
             return;
         }
-        // we need to fill-in the blanks
-        for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
-            // brute force
-            MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx, bucketOrds, null, null);
-            for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                collector.apply(docId, owningBucketOrd);
-            }
+        long[] fieldOrds = ordinalSets[depth];
+        int count = counts[depth];
+        for (int k = 0; k < count; k++) {
+            current[depth] = fieldOrds[k];
+            addOrdinalCombinations(ordinalSets, counts, depth + 1, current, owningBucketOrd);
         }
     }
 
