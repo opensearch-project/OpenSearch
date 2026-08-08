@@ -200,9 +200,26 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 logging.setShowStandardStreams(Util.getBooleanProperty("tests.output", false));
             });
 
-            if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "1800000!");
+            if (System.getProperty("tests.timeoutSuite") == null) {
+                // Default suite timeout is 20 minutes (1200000ms) as set by @TimeoutSuite annotation.
+                long baseTimeout = 20L * 60 * 1000;
+
+                if (OS.current().equals(OS.WINDOWS)) {
+                    // Override the suite timeout to 30 mins for windows, because it has the most
+                    // inefficient filesystem known to man.
+                    baseTimeout = 30L * 60 * 1000;
+                }
+
+                // Scale suite timeout based on test iterations to prevent false timeouts
+                // when using -Dtests.iters=N (see https://github.com/opensearch-project/OpenSearch/issues/5630)
+                String itersStr = System.getProperty("tests.iters");
+                int iters = (itersStr != null) ? Integer.parseInt(itersStr) : 1;
+                iters = Math.max(1, iters);
+
+                if (OS.current().equals(OS.WINDOWS) || iters > 1) {
+                    long timeout = baseTimeout * iters;
+                    test.systemProperty("tests.timeoutSuite", timeout + "!");
+                }
             }
 
             /*
