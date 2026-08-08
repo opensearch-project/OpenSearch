@@ -322,11 +322,26 @@ async fn get_or_build_offset_index(
                 set.insert(c);
             }
             // Repeated (nested) leaves must always get a REAL OffsetIndex.
-            // The placeholder fabricates a single page with `first_row_index = 0` spanning
-            // `num_rows` ROWS. For a repeated leaf, pages hold VALUES and rows != values, so a
-            // reader deriving a value range from that fake row boundary reads the wrong bytes
-            // ("Src size is incorrect" / "StructArrayReader out of sync"). Placeholders are only
-            // sound for max_rep_level == 0 columns.
+            //
+            // `placeholder_for` below fabricates a single page spanning the column chunk and
+            // claiming `num_rows` ROWS. Parquet defines `first_row_index` in rows and requires
+            // pages to begin on row boundaries (repetition_level = 0), but the pages of a
+            // *repeated* leaf hold VALUES — and rows != values. A reader deriving a byte/value
+            // range from that fabricated boundary reads the wrong bytes, surfacing as
+            // "StructArrayReader out of sync in read_records" or a decompressor error such as
+            // zstd's "Src size is incorrect".
+            //
+            // Making the placeholder itself nested-aware was tried and does NOT work: no
+            // single-page location can describe a repeated leaf, because the row->value mapping
+            // it would have to encode is exactly the information the real page index carries.
+            // (Pointing the page at `data_page_offset()` instead of `byte_range()` looks correct
+            // in isolation but still fails end-to-end.) So the only sound options are a real
+            // OffsetIndex or no page index at all; scoping these columns in is the cheaper of
+            // the two, and costs only the nested columns' entries.
+            //
+            // The blast radius is small: OffsetIndex is the cheap fixed-width half of the page
+            // index (no per-page string min/max), and only columns with max_rep_level > 0 lose
+            // their placeholder. The ColumnIndex scoping that motivates this cache is untouched.
             let descr = footer_meta.file_metadata().schema_descr();
             for c in 0..num_cols {
                 if descr.column(c).max_rep_level() > 0 {
