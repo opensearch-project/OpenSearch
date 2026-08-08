@@ -10,6 +10,7 @@ package org.opensearch.analytics.planner;
 
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.rel.type.RelDataTypeSystemImpl;
@@ -76,5 +77,47 @@ public class ArrowCalciteTypesTests extends OpenSearchTestCase {
     /** Default-precision TIMESTAMP (precision 0) keeps the legacy MILLISECOND mapping. */
     public void testTimestampDefaultPrecisionMapsToMillisecond() {
         assertEquals(new ArrowType.Timestamp(TimeUnit.MILLISECOND, null), ArrowCalciteTypes.toArrow(type(SqlTypeName.TIMESTAMP)));
+    }
+
+    /**
+     * A multi-valued column (index.parquet.multi_value.field) is typed ARRAY in the Calcite schema
+     * and is a real LIST column on disk. Previously this threw "Unsupported Calcite type: ARRAY".
+     */
+    public void testArrayMapsToList() {
+        RelDataType arrayOfVarchar = TYPE_FACTORY.createArrayType(type(SqlTypeName.VARCHAR), -1);
+        assertEquals(ArrowType.List.INSTANCE, ArrowCalciteTypes.toArrow(arrayOfVarchar));
+    }
+
+    /**
+     * An Arrow list carries its element type on the Field, not the ArrowType, so toArrowField must
+     * be used wherever a Field is built — toArrow alone cannot express the element type.
+     */
+    public void testToArrowFieldCarriesElementType() {
+        RelDataType arrayOfVarchar = TYPE_FACTORY.createArrayType(type(SqlTypeName.VARCHAR), -1);
+        Field field = ArrowCalciteTypes.toArrowField("tags", arrayOfVarchar);
+
+        assertEquals("tags", field.getName());
+        assertEquals(ArrowType.List.INSTANCE, field.getType());
+        assertEquals(1, field.getChildren().size());
+        // Must match the write side's ParquetField.LIST_ELEMENT_NAME so the coordinator's expected
+        // schema lines up with what the data nodes emit.
+        assertEquals("element", field.getChildren().get(0).getName());
+        assertEquals(ArrowType.Utf8View.INSTANCE, field.getChildren().get(0).getType());
+    }
+
+    /** Scalar columns keep the pre-existing flat Field shape. */
+    public void testToArrowFieldScalarHasNoChildren() {
+        Field field = ArrowCalciteTypes.toArrowField("age", type(SqlTypeName.INTEGER));
+        assertEquals(new ArrowType.Int(32, true), field.getType());
+        assertTrue(field.getChildren().isEmpty());
+    }
+
+    /** Nested arrays recurse rather than losing the inner element type. */
+    public void testToArrowFieldNestedArray() {
+        RelDataType inner = TYPE_FACTORY.createArrayType(type(SqlTypeName.BIGINT), -1);
+        Field field = ArrowCalciteTypes.toArrowField("matrix", TYPE_FACTORY.createArrayType(inner, -1));
+        Field child = field.getChildren().get(0);
+        assertEquals(ArrowType.List.INSTANCE, child.getType());
+        assertEquals(new ArrowType.Int(64, true), child.getChildren().get(0).getType());
     }
 }

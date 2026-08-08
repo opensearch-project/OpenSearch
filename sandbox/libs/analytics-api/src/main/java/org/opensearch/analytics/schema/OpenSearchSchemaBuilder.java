@@ -22,15 +22,19 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Builds a Calcite {@link SchemaPlus} from OpenSearch {@link ClusterState} index mappings.
@@ -39,6 +43,19 @@ import java.util.Map;
  * Navigates: IndexMetadata -> MappingMetadata -> sourceAsMap() -> "properties" -> per-field "type".
  */
 public class OpenSearchSchemaBuilder {
+
+    /**
+     * Mirror of the parquet plugin's {@code index.parquet.multi_value.field} setting.
+     * <p>
+     * Declared locally rather than referenced: analytics-api must not depend on the parquet
+     * data-format plugin. Keep the key in sync with {@code ParquetSettings.MULTI_VALUE_FIELD_SETTING}.
+     */
+    private static final Setting<List<String>> MULTI_VALUE_FIELD_SETTING = Setting.listSetting(
+        "index.parquet.multi_value.field",
+        List.of(),
+        Function.identity(),
+        Setting.Property.IndexScope
+    );
 
     private OpenSearchSchemaBuilder() {}
 
@@ -141,7 +158,11 @@ public class OpenSearchSchemaBuilder {
             }
         }
         LinkedHashMap<String, Object> merged = new LinkedHashMap<>();
+        Set<String> multiValueFields = new HashSet<>();
         for (IndexMetadata index : backing) {
+            // Cardinality is an index setting, not a mapping property: a field written as a Parquet
+            // LIST column must be typed ARRAY here or the planner would bind it as its element type.
+            multiValueFields.addAll(MULTI_VALUE_FIELD_SETTING.get(index.getSettings()));
             MappingMetadata mapping = index.mapping();
             if (mapping == null) {
                 continue;
@@ -155,7 +176,7 @@ public class OpenSearchSchemaBuilder {
         if (merged.isEmpty()) {
             return null;
         }
-        return buildTable(merged);
+        return buildTable(merged, multiValueFields);
     }
 
     /**
@@ -292,12 +313,12 @@ public class OpenSearchSchemaBuilder {
         return typeFactory.createTypeWithNullability(base, true);
     }
 
-    private static AbstractTable buildTable(Map<String, Object> properties) {
+    private static AbstractTable buildTable(Map<String, Object> properties, Set<String> multiValueFields) {
         return new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory typeFactory) {
                 RelDataTypeFactory.Builder builder = typeFactory.builder();
-                addLeafFields(builder, typeFactory, properties, "");
+                addLeafFields(builder, typeFactory, properties, "", multiValueFields);
                 return builder.build();
             }
         };
@@ -308,7 +329,8 @@ public class OpenSearchSchemaBuilder {
         RelDataTypeFactory.Builder builder,
         RelDataTypeFactory typeFactory,
         Map<String, Object> properties,
-        String pathPrefix
+        String pathPrefix,
+        Set<String> multiValueFields
     ) {
         for (Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
             String fieldName = pathPrefix.isEmpty() ? fieldEntry.getKey() : pathPrefix + "." + fieldEntry.getKey();
@@ -319,7 +341,7 @@ public class OpenSearchSchemaBuilder {
             if (fieldType == null || "object".equals(fieldType)) {
                 Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
                 if (nested != null) {
-                    addLeafFields(builder, typeFactory, nested, fieldName);
+                    addLeafFields(builder, typeFactory, nested, fieldName, multiValueFields);
                 }
                 continue;
             }
@@ -334,6 +356,10 @@ public class OpenSearchSchemaBuilder {
                 // column; a query referencing it surfaces a Calcite "column not found" via the
                 // validator rather than a planning-time IllegalArgumentException.
                 continue;
+            }
+            if (multiValueFields.contains(fieldName)) {
+                // Nullable so a document without the field (a null list) matches the column type.
+                columnType = typeFactory.createTypeWithNullability(typeFactory.createArrayType(columnType, -1), true);
             }
             builder.add(fieldName, columnType);
         }

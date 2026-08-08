@@ -27,6 +27,7 @@ import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Builds Apache Arrow schemas from OpenSearch MapperService field mappings.
@@ -38,12 +39,25 @@ public final class ArrowSchemaBuilder {
     private ArrowSchemaBuilder() {}
 
     /**
-     * Creates an Arrow Schema from the MapperService.
+     * Creates an Arrow Schema from the MapperService, with no multi-valued fields.
+     *
      * @param mapperService the mapper service containing field mappings
-     * TODO - Get the mapping version while creating the schema
      */
     public static Schema getSchema(MapperService mapperService) {
+        return getSchema(mapperService, Set.of());
+    }
+
+    /**
+     * Creates an Arrow Schema from the MapperService.
+     *
+     * @param mapperService the mapper service containing field mappings
+     * @param multiValueFields names of fields to emit as {@code LIST<element>} columns, from
+     *                         {@code index.parquet.multi_value.field}
+     * TODO - Get the mapping version while creating the schema
+     */
+    public static Schema getSchema(MapperService mapperService, Set<String> multiValueFields) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
+        Objects.requireNonNull(multiValueFields, "multiValueFields cannot be null");
         List<Field> fields = new ArrayList<>();
         DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
         if (documentMapper != null) {
@@ -55,8 +69,9 @@ public final class ArrowSchemaBuilder {
 
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
-                    fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
-                    handleNormalizedField(mapper, documentMapper, fields, parquetField);
+                    boolean multiValue = multiValueFields.contains(mapper.name());
+                    fields.add(parquetField.toArrowField(mapper.name(), multiValue));
+                    handleNormalizedField(mapper, documentMapper, fields, parquetField, multiValue);
                 } else {
                     logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 }
@@ -69,11 +84,19 @@ public final class ArrowSchemaBuilder {
         return new Schema(fields);
     }
 
-    private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {
+    private static void handleNormalizedField(
+        Mapper mapper,
+        DocumentMapper documentMapper,
+        List<Field> fields,
+        ParquetField parquetField,
+        boolean multiValue
+    ) {
         if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
             if (!documentMapper.mappers().isMultiField(mapper.name()) && keywordFieldMapper.getRawValueFieldType() != null) {
                 KeywordFieldMapper.KeywordFieldType rawValueField = keywordFieldMapper.getRawValueFieldType();
-                fields.add(new Field(rawValueField.name(), parquetField.getFieldType(), null));
+                // The raw-value companion holds the pre-normalization source for derived source, so
+                // it must mirror the parent's cardinality or source reconstruction would lose values.
+                fields.add(parquetField.toArrowField(rawValueField.name(), multiValue));
             }
         }
     }

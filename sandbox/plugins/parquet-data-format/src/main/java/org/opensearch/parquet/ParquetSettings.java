@@ -24,6 +24,7 @@ import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -498,6 +499,27 @@ public final class ParquetSettings {
     );
 
     /**
+     * Fields to store as Arrow/Parquet LIST columns so they can hold multiple values per document.
+     * <p>
+     * OpenSearch mappings do not declare cardinality — an array is a property of an individual
+     * document, not of the mapping — but a Parquet column's type is fixed for the whole file. This
+     * setting is the explicit declaration that bridges the two: a field named here is written as
+     * {@code LIST<element>} and accepts any number of values, while every other field keeps its
+     * scalar column and continues to reject multi-valued input.
+     * <p>
+     * Final (index-scope) because the column type is baked into every Parquet file the index
+     * writes; flipping it on an existing index would leave older files with a scalar column that
+     * no longer matches the mapping.
+     */
+    public static final Setting<List<String>> MULTI_VALUE_FIELD_SETTING = Setting.listSetting(
+        "index.parquet.multi_value.field",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    /**
      * Group setting for per-type encoding configuration (cluster-level fallback).
      * Usage: parquet.type_encoding.{arrow_type}.encoding=DELTA_BINARY_PACKED
      * e.g. parquet.type_encoding.int64.encoding=DELTA_BINARY_PACKED
@@ -654,6 +676,29 @@ public final class ParquetSettings {
         return buildFieldMap(ENCODING_FIELD_SETTING.get(settings), ENCODING_VALUE_SETTING.get(settings), "encoding");
     }
 
+    /**
+     * Returns the names of fields declared as multi-valued via {@link #MULTI_VALUE_FIELD_SETTING}.
+     *
+     * @param settings the index settings
+     * @return an unmodifiable set of field names, empty if none are declared
+     */
+    public static Set<String> getMultiValueFields(Settings settings) {
+        List<String> fields = MULTI_VALUE_FIELD_SETTING.get(settings);
+        if (fields.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> result = new HashSet<>(fields.size());
+        for (String field : fields) {
+            if (field.isBlank()) {
+                throw new IllegalArgumentException("index.parquet.multi_value.field must not contain blank entries");
+            }
+            if (result.add(field) == false) {
+                throw new IllegalArgumentException("Duplicate field '" + field + "' in index.parquet.multi_value.field");
+            }
+        }
+        return Collections.unmodifiableSet(result);
+    }
+
     public static Map<String, String> getFieldCompressions(Settings settings) {
         return buildFieldMap(COMPRESSION_FIELD_SETTING.get(settings), COMPRESSION_VALUE_SETTING.get(settings), "compression");
     }
@@ -786,6 +831,18 @@ public final class ParquetSettings {
     }
 
     /**
+     * Returns the type that encoding and compression settings apply to for a field. For a LIST
+     * column that is the element type, because Parquet encodes the leaf, not the list wrapper —
+     * validating against {@code ArrowType.List} would wrongly accept every encoding.
+     */
+    private static ArrowType elementTypeOf(Field field) {
+        if (field.getType() instanceof ArrowType.List && field.getChildren().isEmpty() == false) {
+            return field.getChildren().get(0).getType();
+        }
+        return field.getType();
+    }
+
+    /**
      * Validates that field-level configurations are compatible with their Arrow types in the schema.
      */
     public static void validateFieldConfigurations(
@@ -796,7 +853,7 @@ public final class ParquetSettings {
     ) {
         Map<String, ArrowType> arrowTypes = new HashMap<>();
         for (Field field : schema.getFields()) {
-            arrowTypes.put(field.getName(), field.getType());
+            arrowTypes.put(field.getName(), elementTypeOf(field));
         }
 
         // Validate encoding configurations
@@ -860,6 +917,7 @@ public final class ParquetSettings {
             COMPRESSION_VALUE_SETTING,
             BLOOM_FILTER_ENABLED_FIELD_SETTING,
             BLOOM_FILTER_ENABLED_VALUE_SETTING,
+            MULTI_VALUE_FIELD_SETTING,
             TYPE_ENCODING_SETTINGS,
             TYPE_COMPRESSION_SETTINGS,
             TYPE_BLOOM_FILTER_SETTINGS
