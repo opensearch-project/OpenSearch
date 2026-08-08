@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_READ_BLOCK_AUTO_RELEASE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -1170,6 +1171,101 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         monitor.onNewInfo(clusterInfo(builder, Map.of(), shardSizes));
         assertFalse(indicesToMarkReadOnly.get().isEmpty());
         assertFalse(indicesToBlockRead.get().isEmpty());
+    }
+
+    public void testReadBlockAutoRelease() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test_index")
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+                    .put("index.routing.allocation.require._id", "warm_node")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test_index")).build();
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+        final ClusterState clusterStateWithReadBlock = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .blocks(ClusterBlocks.builder().addBlocks(indexMetadataBuilder.build()).build())
+                .build(),
+            allocation
+        );
+        assertTrue(clusterStateWithReadBlock.blocks().hasIndexBlock("test_index", IndexMetadata.INDEX_READ_BLOCK));
+
+        // With auto-release enabled (default), the monitor should release the read block when disk usage is healthy
+        AtomicReference<Set<String>> releasedReadBlocks = new AtomicReference<>();
+        Settings autoReleaseEnabled = Settings.builder().put(CLUSTER_READ_BLOCK_AUTO_RELEASE.getKey(), true).build();
+        DiskThresholdMonitor monitorAutoReleaseEnabled = new DiskThresholdMonitor(
+            autoReleaseEnabled,
+            () -> clusterStateWithReadBlock,
+            new ClusterSettings(autoReleaseEnabled, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(null),
+            () -> 2.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    releasedReadBlocks.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+        Map<String, DiskUsage> healthyUsage = new HashMap<>();
+        healthyUsage.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 100));
+        monitorAutoReleaseEnabled.onNewInfo(clusterInfo(healthyUsage, Map.of(), Map.of()));
+        assertNotNull(releasedReadBlocks.get());
+        assertTrue(releasedReadBlocks.get().contains("test_index"));
+
+        // With auto-release disabled, the monitor should NOT release the read block
+        releasedReadBlocks.set(null);
+        Settings autoReleaseDisabled = Settings.builder().put(CLUSTER_READ_BLOCK_AUTO_RELEASE.getKey(), false).build();
+        DiskThresholdMonitor monitorAutoReleaseDisabled = new DiskThresholdMonitor(
+            autoReleaseDisabled,
+            () -> clusterStateWithReadBlock,
+            new ClusterSettings(autoReleaseDisabled, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(null),
+            () -> 2.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    releasedReadBlocks.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+        monitorAutoReleaseDisabled.onNewInfo(clusterInfo(healthyUsage, Map.of(), Map.of()));
+        assertNull(releasedReadBlocks.get());
     }
 
     public void testWarmNodeFileCacheIndexThresholdBreach() {
