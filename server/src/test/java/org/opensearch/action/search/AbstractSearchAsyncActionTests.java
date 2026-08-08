@@ -900,7 +900,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            false
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

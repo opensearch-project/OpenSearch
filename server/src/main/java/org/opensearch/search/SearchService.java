@@ -251,6 +251,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * Node-level feature flag that enables the node-level QUERY phase fan-out skeleton. When
+     * disabled (the default) the coordinator falls back to the legacy per-shard fan-out path.
+     */
+    public static final Setting<Boolean> NODE_LEVEL_QUERY_FANOUT_ENABLED = Setting.boolSetting(
+        "search.node_level_query_fanout.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -501,6 +512,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile boolean allowDerivedField;
 
+    private volatile boolean nodeLevelQueryFanoutEnabled;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -598,6 +611,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
+        nodeLevelQueryFanoutEnabled = NODE_LEVEL_QUERY_FANOUT_ENABLED.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(NODE_LEVEL_QUERY_FANOUT_ENABLED, this::setNodeLevelQueryFanoutEnabled);
+
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
@@ -683,6 +700,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    public void setNodeLevelQueryFanoutEnabled(boolean nodeLevelQueryFanoutEnabled) {
+        this.nodeLevelQueryFanoutEnabled = nodeLevelQueryFanoutEnabled;
+    }
+
+    public boolean nodeLevelQueryFanoutEnabled() {
+        return nodeLevelQueryFanoutEnabled;
     }
 
     @Override

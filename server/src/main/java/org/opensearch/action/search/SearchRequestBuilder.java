@@ -576,6 +576,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Sets whether this request should use node-level query fanout. If unset, the cluster-level setting is used.
+     */
+    public SearchRequestBuilder setNodeLevelQueryFanout(Boolean nodeLevelQueryFanout) {
+        request.nodeLevelQueryFanout(nodeLevelQueryFanout);
+        return this;
+    }
+
+    /**
      * Should the query be profiled. Defaults to <code>false</code>
      */
     public SearchRequestBuilder setProfile(boolean profile) {
