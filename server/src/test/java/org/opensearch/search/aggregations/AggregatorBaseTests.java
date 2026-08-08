@@ -136,6 +136,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
             indexed,
             false,
             true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             resolution,
             null,
