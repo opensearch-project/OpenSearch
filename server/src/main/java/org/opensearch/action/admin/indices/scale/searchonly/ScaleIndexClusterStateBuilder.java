@@ -129,6 +129,22 @@ class ScaleIndexClusterStateBuilder {
     }
 
     /**
+     * Removes the temporary block created while preparing a scale-down operation.
+     *
+     * @param currentState the current cluster state
+     * @param index        the name of the index whose temporary block should be removed
+     * @param scaleBlock   the exact temporary block added for this operation
+     * @return the modified cluster state with the temporary block removed
+     */
+    ClusterState buildScaleDownFailureState(ClusterState currentState, String index, ClusterBlock scaleBlock) {
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+
+        blocksBuilder.removeIndexBlock(index, scaleBlock);
+
+        return ClusterState.builder(currentState).blocks(blocksBuilder).build();
+    }
+
+    /**
      * Updates the routing table for a scale-down operation, removing non-search-only shards.
      * <p>
      * This method preserves only the search-only replica shards in the routing table,
