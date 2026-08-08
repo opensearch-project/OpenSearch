@@ -12,6 +12,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
@@ -48,6 +49,11 @@ public class TermsQueryTranslator implements QueryTranslator {
         }
 
         String fieldName = termsQuery.fieldName();
+        // WHY reject: terms on _id would compare raw strings against Uid-encoded stored bytes
+        // and silently return zero hits. Direct users to the ids query instead.
+        if (IdFieldMapper.NAME.equals(fieldName)) {
+            throw new ConversionException("Terms query on _id is not supported; use the ids query instead");
+        }
         List<?> values = termsQuery.values();
 
         if (values == null || values.isEmpty()) {
