@@ -321,33 +321,6 @@ async fn get_or_build_offset_index(
             for &c in proj_cols {
                 set.insert(c);
             }
-            // Repeated (nested) leaves must always get a REAL OffsetIndex.
-            //
-            // `placeholder_for` below fabricates a single page spanning the column chunk and
-            // claiming `num_rows` ROWS. Parquet defines `first_row_index` in rows and requires
-            // pages to begin on row boundaries (repetition_level = 0), but the pages of a
-            // *repeated* leaf hold VALUES — and rows != values. A reader deriving a byte/value
-            // range from that fabricated boundary reads the wrong bytes, surfacing as
-            // "StructArrayReader out of sync in read_records" or a decompressor error such as
-            // zstd's "Src size is incorrect".
-            //
-            // Making the placeholder itself nested-aware was tried and does NOT work: no
-            // single-page location can describe a repeated leaf, because the row->value mapping
-            // it would have to encode is exactly the information the real page index carries.
-            // (Pointing the page at `data_page_offset()` instead of `byte_range()` looks correct
-            // in isolation but still fails end-to-end.) So the only sound options are a real
-            // OffsetIndex or no page index at all; scoping these columns in is the cheaper of
-            // the two, and costs only the nested columns' entries.
-            //
-            // The blast radius is small: OffsetIndex is the cheap fixed-width half of the page
-            // index (no per-page string min/max), and only columns with max_rep_level > 0 lose
-            // their placeholder. The ColumnIndex scoping that motivates this cache is untouched.
-            let descr = footer_meta.file_metadata().schema_descr();
-            for c in 0..num_cols {
-                if descr.column(c).max_rep_level() > 0 {
-                    set.insert(c);
-                }
-            }
             debug_assert!(
                 set.iter().all(|&c| c < num_cols),
                 "column index out of bounds (num_cols={num_cols}): {set:?}"
@@ -370,6 +343,17 @@ async fn get_or_build_offset_index(
     // (count/agg, SingleCollector prefetch, schema-evolved files). A one-page
     // placeholder is always safe to dereference and makes pruning conservatively
     // keep the whole RG (1 page = all rows → can't prune), never a wrong result.
+    //
+    // NOTE on nested (repeated) leaves: a placeholder can NEVER validly describe one —
+    // `first_row_index` is defined in ROWS and pages must begin on row boundaries
+    // (repetition_level = 0), but a repeated leaf's pages hold VALUES, and rows != values.
+    // The row→value mapping a correct entry would need is exactly the information the real
+    // page index carries (a `data_page_offset()`-based variant was tried; it fails
+    // end-to-end). Placeholders on nested leaves are therefore safe ONLY while the column
+    // is never read, which `column_schema_resolver::resolve_with_schema` guarantees by
+    // mapping every *referenced* nested column to its real leaves (arrow-rs's
+    // `parquet_column` silently drops nested fields, which previously left referenced LIST
+    // columns placeholdered → "Src size is incorrect" / "StructArrayReader out of sync").
     //
     // The single page MUST carry the column chunk's REAL byte offset+size, not
     // (0, 0). When a row selection actually READS a placeholdered column (e.g. a
