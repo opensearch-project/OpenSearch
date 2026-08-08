@@ -34,6 +34,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -154,7 +155,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
         // Stress test: 100 ids must survive serialization/deserialization round-trip
         String[] ids = new String[100];
         for (int i = 0; i < 100; i++) {
-            ids[i] = String.format("doc%03d", i);
+            ids[i] = String.format(Locale.ROOT, "doc%03d", i);
         }
         RexCall call = buildIdsRexCall(ids);
         List<FieldStorageInfo> fieldStorage = List.of(
@@ -169,7 +170,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
             assertEquals(100, idsQb.ids().size());
             // Verify all 100 zero-padded ids are present
             for (int i = 0; i < 100; i++) {
-                String expected = String.format("doc%03d", i);
+                String expected = String.format(Locale.ROOT, "doc%03d", i);
                 assertTrue("Must contain " + expected, idsQb.ids().contains(expected));
             }
         }
