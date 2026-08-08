@@ -426,7 +426,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
                 if (docRequest != null) {
                     if (updateRequest.docAsUpsert()) {
-                        indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, docRequest, metadata);
+                        // Defer ALL ingest pipeline execution until after UpdateHelper.prepare on the primary
+                        // (see TransportShardBulkAction). Pipelines must run on the full document — either the
+                        // upsert doc on create, or the merged source on update — to match the single Update API.
+                        // Mark as resolved with NOOP here so coordinating-node ingest skips this partial doc.
+                        // TransportShardBulkAction re-resolves after prepare. See #10864.
+                        if (docRequest.isPipelineResolved() == false) {
+                            docRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                            docRequest.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);
+                            docRequest.setSystemIngestPipeline(IngestService.NOOP_PIPELINE_NAME);
+                            docRequest.isPipelineResolved(true);
+                        }
                     } else {
                         // In the case when doc as upsert is false or not defined, we only resolve system ingest pipelines.
                         // This is to preserve backwards compatibility where default and final pipelines are NOT resolved
