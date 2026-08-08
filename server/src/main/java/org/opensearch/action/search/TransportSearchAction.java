@@ -173,6 +173,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
+    /**
+     * Cluster-level setting for the force-execution queue threshold used in async search fork decisions.
+     * When set to -1 (default), force execution is always applied (backward-compatible behavior).
+     * When set to a non-negative value N, force execution is applied only if the search thread pool
+     * queue size is less than N.
+     */
+    public static final String SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY = "search.force_execution_queue_threshold";
+    public static final Setting<Integer> SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD = Setting.intSetting(
+        SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD_KEY,
+        -1,
+        -1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     final NodeClient client;
     private final ThreadPool threadPool;
     final ClusterService clusterService;
@@ -193,6 +208,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private TaskResourceTrackingService taskResourceTrackingService;
 
     private final SearchIndexPruningService searchIndexPruningService;
+
+    volatile int forceExecutionQueueThreshold;
 
     @Inject
     public TransportSearchAction(
@@ -240,6 +257,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterService.getClusterSettings(),
             new ClusterStateFieldDomainProvider()
         );
+        this.forceExecutionQueueThreshold = SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.get(clusterService.getSettings());
+
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD, this::setForceExecutionQueueThreshold);
+    }
+
+    private void setForceExecutionQueueThreshold(int threshold) {
+        this.forceExecutionQueueThreshold = threshold;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -421,7 +446,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest.getMaxConcurrentShardRequests(),
                     clusters,
                     searchRequestContext,
-                    tracer
+                    tracer,
+                    forceExecutionQueueThreshold
                 ) {
                     @Override
                     protected void executePhaseOnShard(
@@ -1390,7 +1416,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ),
                 clusters,
                 searchRequestContext,
-                tracer
+                tracer,
+                forceExecutionQueueThreshold
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1423,7 +1450,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         searchRequestContext,
-                        tracer
+                        tracer,
+                        forceExecutionQueueThreshold
                     );
                     break;
                 case QUERY_THEN_FETCH:
@@ -1445,7 +1473,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         searchRequestContext,
-                        tracer
+                        tracer,
+                        forceExecutionQueueThreshold
                     );
                     break;
                 default:
