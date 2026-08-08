@@ -104,10 +104,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                 StreamInput rawInput = StreamInput.wrap(expr.getExpressionBytes());
                 StreamInput input = new NamedWriteableAwareStreamInput(rawInput, registry);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                // Rewrite FieldExistsQuery → a postings-only equivalent: the lucene-secondary segment
-                // has no doc_values/norms (they live in the parquet primary), so a FieldExistsQuery
-                // built from an _exists_ clause (PPL `search field!=value`) would throw at rewrite().
-                Query query = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(context));
+                Query query = LuceneQueryConversionUtils.compileQueryForSecondary(queryBuilder, context);
                 queries.put(expr.getAnnotationId(), query);
             } catch (IOException exception) {
                 throw new IllegalStateException(
