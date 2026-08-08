@@ -11,6 +11,8 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import java.util.Map;
 
 /** Translates MAX metric aggregation to Calcite. */
 public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregationBuilder> {
@@ -31,5 +33,11 @@ public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregation
     @Override
     protected String getFieldName(MaxAggregationBuilder agg) {
         return agg.field();
+    }
+
+    @Override
+    public InternalAggregation toInternalAggregation(String name, Map<String, Object> values) {
+        // TODO: Implement conversion from DataFusion result to InternalMax
+        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for MaxMetricTranslator");
     }
 }
