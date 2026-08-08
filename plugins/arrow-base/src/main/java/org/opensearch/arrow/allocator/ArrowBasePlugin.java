@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.allocator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,6 +57,8 @@ import java.util.function.Supplier;
  * {@link ArrowNativeAllocator} and its classloader.
  */
 public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
+
+    private static final Logger logger = LogManager.getLogger(ArrowBasePlugin.class);
 
     /** Creates the plugin. */
     public ArrowBasePlugin() {}
@@ -189,22 +193,26 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the query pool. Default is 2% of budget. */
+    /** @deprecated The query pool is unbounded (registered as a special unmanaged pool); this has no effect. */
+    @Deprecated
     public static final Setting<Long> QUERY_MIN_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_QUERY_MIN,
         s -> derivePoolMinDefault(s, 2),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_QUERY_MIN),
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.Deprecated
     );
 
-    /** Maximum bytes the query pool can allocate. Default is 5% of budget. */
+    /** @deprecated The query pool is unbounded (registered as a special unmanaged pool); this has no effect. */
+    @Deprecated
     public static final Setting<Long> QUERY_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_QUERY_MAX,
         s -> derivePoolMaxDefault(s, 5),
         s -> parseNonNegativeLong(s, NativeAllocatorPoolConfig.SETTING_QUERY_MAX),
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.Deprecated
     );
 
     // ─── Instance state ──────────────────────────────────────────────────────────
@@ -303,12 +311,10 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
             allocator.setBudget(nativeBudget);
         }
 
-        // Validate min < max for each pool
+        // Validate min < max for enforced pools
         validateMinMax(NativeAllocatorPoolConfig.POOL_FLIGHT, FLIGHT_MIN_SETTING.get(settings), FLIGHT_MAX_SETTING.get(settings));
         validateMinMax(NativeAllocatorPoolConfig.POOL_INGEST, INGEST_MIN_SETTING.get(settings), INGEST_MAX_SETTING.get(settings));
-        validateMinMax(NativeAllocatorPoolConfig.POOL_QUERY, QUERY_MIN_SETTING.get(settings), QUERY_MAX_SETTING.get(settings));
-
-        // Create pools (always start at max)
+        // Create pools (always start at max).
         allocator.getOrCreatePool(
             NativeAllocatorPoolConfig.POOL_FLIGHT,
             FLIGHT_MIN_SETTING.get(settings),
@@ -321,20 +327,31 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
             INGEST_MAX_SETTING.get(settings),
             PoolGroup.INDEXING
         );
-        allocator.getOrCreatePool(
-            NativeAllocatorPoolConfig.POOL_QUERY,
-            QUERY_MIN_SETTING.get(settings),
-            QUERY_MAX_SETTING.get(settings),
-            PoolGroup.SEARCH
-        );
+        // POOL_QUERY is unmanaged/unbounded: the C-Data importer retains a ref BEFORE calling
+        // allocateBytes, so any OOM permanently leaks the native batch. Real enforcement lives
+        // Rust-side (DataFusion MemoryPool). Do NOT add a limit or AllocationListener here.
+        allocator.registerUnmanagedPool(NativeAllocatorPoolConfig.POOL_QUERY, PoolGroup.SEARCH);
 
-        // Register dynamic setting consumers for min/max changes
+        // Register dynamic setting consumers for min/max changes (enforced pools only)
         cs.addSettingsUpdateConsumer(FLIGHT_MIN_SETTING, newMin -> allocator.setPoolMin(NativeAllocatorPoolConfig.POOL_FLIGHT, newMin));
         cs.addSettingsUpdateConsumer(FLIGHT_MAX_SETTING, newMax -> allocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_FLIGHT, newMax));
         cs.addSettingsUpdateConsumer(INGEST_MIN_SETTING, newMin -> allocator.setPoolMin(NativeAllocatorPoolConfig.POOL_INGEST, newMin));
         cs.addSettingsUpdateConsumer(INGEST_MAX_SETTING, newMax -> allocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, newMax));
-        cs.addSettingsUpdateConsumer(QUERY_MIN_SETTING, newMin -> allocator.setPoolMin(NativeAllocatorPoolConfig.POOL_QUERY, newMin));
-        cs.addSettingsUpdateConsumer(QUERY_MAX_SETTING, newMax -> allocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_QUERY, newMax));
+        // QUERY min/max are deprecated no-ops — the pool is unbounded. Warn if explicitly configured.
+        if (QUERY_MIN_SETTING.exists(settings) || QUERY_MAX_SETTING.exists(settings)) {
+            logger.warn(
+                "native.allocator.pool.query.min/max are configured but have NO EFFECT: the query pool is "
+                    + "unbounded (native enforcement lives Rust-side). Remove these settings."
+            );
+        }
+        cs.addSettingsUpdateConsumer(
+            QUERY_MIN_SETTING,
+            v -> logger.warn("native.allocator.pool.query.min has no effect: query pool is unbounded")
+        );
+        cs.addSettingsUpdateConsumer(
+            QUERY_MAX_SETTING,
+            v -> logger.warn("native.allocator.pool.query.max has no effect: query pool is unbounded")
+        );
 
         // Register dynamic consumer for rebalancer enable/disable
         cs.addSettingsUpdateConsumer(REBALANCER_ENABLED_SETTING, enabled -> {
