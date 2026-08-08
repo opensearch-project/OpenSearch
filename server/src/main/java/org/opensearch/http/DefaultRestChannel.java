@@ -40,6 +40,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -147,12 +148,13 @@ class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
-            opaque = request.header(X_OPAQUE_ID);
+            opaque = RequestUtils.sanitizeHeaderValue(request.header(X_OPAQUE_ID));
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
             }
-            if (request.header(X_REQUEST_ID) != null) {
-                setHeaderField(httpResponse, X_REQUEST_ID, request.header(X_REQUEST_ID));
+            final String requestId = RequestUtils.sanitizeHeaderValue(request.header(X_REQUEST_ID));
+            if (requestId != null) {
+                setHeaderField(httpResponse, X_REQUEST_ID, requestId);
             }
 
             // Add all custom headers

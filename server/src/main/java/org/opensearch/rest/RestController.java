@@ -440,10 +440,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     );
                     return;
                 } else {
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                    String headerValue = String.join(",", distinctHeaderValues);
+                    // Normalize client-provided correlation headers so downstream log output stays single-line
+                    if (Task.X_REQUEST_ID.equals(name) || Task.X_OPAQUE_ID.equals(name)) {
+                        headerValue = RequestUtils.sanitizeHeaderValue(headerValue);
+                    }
+                    threadContext.putHeader(name, headerValue);
                     // Validate request-id header if present
-                    if (Task.X_REQUEST_ID.equals(restHeader.getName())) {
-                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst(), requestIdMaxLength);
+                    if (Task.X_REQUEST_ID.equals(name)) {
+                        RequestUtils.validateRequestId(headerValue, requestIdMaxLength);
                     }
                 }
             }
