@@ -37,6 +37,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
@@ -136,7 +137,7 @@ public class IdsQueryTranslatorTests extends OpenSearchTestCase {
         // Stress test: 100 ids to verify no Calcite operand-count ceiling is hit
         String[] ids = new String[100];
         for (int i = 0; i < 100; i++) {
-            ids[i] = String.format("doc%03d", i);
+            ids[i] = String.format(Locale.ROOT, "doc%03d", i);
         }
         RexNode result = translator.convert(QueryBuilders.idsQuery().addIds(ids), ctx);
 
