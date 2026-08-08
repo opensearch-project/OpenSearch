@@ -100,6 +100,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private volatile long perQueryBufferLimit;
     private volatile int maxShardsPerQuery;
     private volatile int maxConcurrentShardRequestsPerNode;
+    private volatile int maxPlanDepth;
     private volatile boolean preferMetadataDriver;
     private final PlannerSettings plannerSettings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -152,6 +153,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
                 v -> maxConcurrentShardRequestsPerNode = v
             );
+        this.maxPlanDepth = AnalyticsQuerySettings.MAX_PLAN_DEPTH.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_PLAN_DEPTH, v -> maxPlanDepth = v);
         this.preferMetadataDriver = AnalyticsPlugin.PREFER_METADATA_DRIVER.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.PREFER_METADATA_DRIVER, v -> preferMetadataDriver = v);
@@ -182,7 +185,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // permissions before any planning work begins. The AnalyticsQueryRequest
         // implements IndicesRequest.Replaceable, exposing target indices extracted
         // from the RelNode's TableScan nodes.
-        String[] indices = RelNodeUtils.extractIndices(logicalFragment);
+        String[] indices = RelNodeUtils.extractIndices(logicalFragment, maxPlanDepth);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices);
         applyParentTask(request, queryCtx);
         client.execute(
@@ -197,7 +200,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Route through the framework action (profile=true) just like execute(), so a profiling
         // query runs under the framework-provided, cancellable task rather than detached on
         // searchExecutor. The SecurityFilter also evaluates index permissions on this path.
-        String[] indices = RelNodeUtils.extractIndices(logicalFragment);
+        String[] indices = RelNodeUtils.extractIndices(logicalFragment, maxPlanDepth);
         AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, queryCtx, indices, true);
         applyParentTask(request, queryCtx);
         client.execute(
