@@ -72,6 +72,7 @@ public class RemoteFsTranslog extends Translog {
     protected final TranslogTransferManager translogTransferManager;
     protected final FileTransferTracker fileTransferTracker;
     protected final BooleanSupplier startedPrimarySupplier;
+    protected final ThreadPool threadPool;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
@@ -91,6 +92,9 @@ public class RemoteFsTranslog extends Translog {
 
     // Semaphore used to allow only single remote generation to happen at a time
     protected final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
+
+    private final AtomicBoolean remotePurgeInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean remotePurgePending = new AtomicBoolean(false);
 
     // These permits exist to allow any inflight background triggered upload.
     private static final int SYNC_PERMIT = 1;
@@ -126,6 +130,7 @@ public class RemoteFsTranslog extends Translog {
             channelFactory
         );
         logger = Loggers.getLogger(getClass(), shardId);
+        this.threadPool = threadPool;
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
@@ -600,12 +605,22 @@ public class RemoteFsTranslog extends Translog {
             return;
         }
 
+        if (tryScheduleRemotePurge() == false) {
+            return;
+        }
+
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
         // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
         // We try to acquire 2 permits and if we can not, we return from here itself.
         if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+            completeRemotePurgeScheduling();
             return;
         }
+
+        Runnable onRemotePurgeComplete = () -> {
+            remoteGenerationDeletionPermits.release();
+            completeRemotePurgeCycle();
+        };
 
         // cleans up remote translog files not referenced in latest uploaded metadata.
         // This enables us to restore translog from the metadata in case of failover or relocation.
@@ -618,17 +633,46 @@ public class RemoteFsTranslog extends Translog {
         }
         if (generationsToDelete.isEmpty() == false) {
             try {
-                deleteRemoteGeneration(generationsToDelete);
+                deleteRemoteGeneration(generationsToDelete, onRemotePurgeComplete);
             } catch (Exception e) {
                 logger.error("Exception in delete generations flow", e);
-                // Release permit that is meant for metadata files and return
-                remoteGenerationDeletionPermits.release();
+                remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                completeRemotePurgeCycle();
                 return;
             }
-            translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync(onRemotePurgeComplete);
             deleteStaleRemotePrimaryTerms();
         } else {
             remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+            completeRemotePurgeCycle();
+        }
+    }
+
+    protected boolean tryScheduleRemotePurge() {
+        if (remotePurgeInProgress.compareAndSet(false, true)) {
+            return true;
+        }
+        remotePurgePending.set(true);
+        return false;
+    }
+
+    protected void completeRemotePurgeScheduling() {
+        remotePurgeInProgress.set(false);
+    }
+
+    protected void completeRemotePurgeCycle() {
+        if (remoteGenerationDeletionPermits.availablePermits() != REMOTE_DELETION_PERMITS) {
+            return;
+        }
+        completeRemotePurgeScheduling();
+        if (remotePurgePending.getAndSet(false)) {
+            threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+                try {
+                    trimUnreferencedReaders(false);
+                } catch (IOException e) {
+                    logger.error("Exception while continuing remote translog purge", e);
+                }
+            });
         }
     }
 
@@ -636,12 +680,8 @@ public class RemoteFsTranslog extends Translog {
      * Deletes remote translog and metadata files asynchronously corresponding to the generations.
      * @param generations generations to be deleted.
      */
-    private void deleteRemoteGeneration(Set<Long> generations) {
-        translogTransferManager.deleteGenerationAsync(
-            primaryTermSupplier.getAsLong(),
-            generations,
-            remoteGenerationDeletionPermits::release
-        );
+    private void deleteRemoteGeneration(Set<Long> generations, Runnable onCompletion) {
+        translogTransferManager.deleteGenerationAsync(primaryTermSupplier.getAsLong(), generations, onCompletion);
     }
 
     /**
