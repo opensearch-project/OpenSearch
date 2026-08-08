@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
@@ -374,10 +376,21 @@ public class RustBridge {
             RowIdMapping rowIdMapping = null;
             if (permAddr != 0 && permLen > 0) {
                 try {
-                    long[] mappingArray = MemorySegment.ofAddress(permAddr)
-                        .reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize())
-                        .toArray(ValueLayout.JAVA_LONG);
-                    rowIdMapping = new PackedRowIdMapping(mappingArray, true);
+                    // Read element-by-element from native memory, building both forward and reverse
+                    MemorySegment permSegment = MemorySegment.ofAddress(permAddr).reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize());
+                    int size = (int) permLen;
+                    PackedLongValues.Builder forwardBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                    long[] reverseArray = new long[size];
+                    for (int i = 0; i < size; i++) {
+                        long newId = permSegment.getAtIndex(ValueLayout.JAVA_LONG, i);
+                        forwardBuilder.add(newId);
+                        reverseArray[(int) newId] = i;
+                    }
+                    PackedLongValues.Builder reverseBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                    for (long val : reverseArray) {
+                        reverseBuilder.add(val);
+                    }
+                    rowIdMapping = new PackedRowIdMapping(forwardBuilder.build(), reverseBuilder.build());
                 } finally {
                     NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
                 }
@@ -609,7 +622,7 @@ public class RustBridge {
                 0
             );
 
-            RowIdMapping rowIdMapping = readAndFreeMergeResult(
+            Map<Long, RowIdMapping> rowIdMappings = readAndFreeMergeResult(
                 outMappingPtr,
                 outMappingLen,
                 outGenKeysPtr,
@@ -622,13 +635,13 @@ public class RustBridge {
             long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
             long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
 
-            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
+            return new MergeFilesResult(rowIdMappings, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }
     }
 
-    private static RowIdMapping readAndFreeMergeResult(
+    private static Map<Long, RowIdMapping> readAndFreeMergeResult(
         MemorySegment outMappingPtr,
         MemorySegment outMappingLen,
         MemorySegment outGenKeysPtr,
@@ -644,12 +657,10 @@ public class RustBridge {
         long genCount = outGenCount.get(ValueLayout.JAVA_LONG, 0);
 
         try {
-            // Read mapping array (i64[])
-            long[] mappingArray = MemorySegment.ofAddress(mappingAddr)
-                .reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize())
-                .toArray(ValueLayout.JAVA_LONG);
+            // Create a view over the native mapping array — no bulk copy
+            MemorySegment fullSegment = MemorySegment.ofAddress(mappingAddr).reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize());
 
-            // Read generation keys (i64[]), offsets (i32[]), sizes (i32[])
+            // Read generation metadata (small arrays, OK to copy)
             long[] genKeys = MemorySegment.ofAddress(genKeysAddr)
                 .reinterpret(genCount * ValueLayout.JAVA_LONG.byteSize())
                 .toArray(ValueLayout.JAVA_LONG);
@@ -660,14 +671,20 @@ public class RustBridge {
                 .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
                 .toArray(ValueLayout.JAVA_INT);
 
-            Map<Long, Integer> offsetMap = new HashMap<>((int) genCount);
-            Map<Long, Integer> sizeMap = new HashMap<>((int) genCount);
+            // Build one PackedRowIdMapping per generation by reading element-by-element
+            // directly from native memory into PackedLongValues — no intermediate long[] allocation
+            Map<Long, RowIdMapping> result = new HashMap<>((int) genCount);
             for (int i = 0; i < (int) genCount; i++) {
-                offsetMap.put(genKeys[i], genOffsets[i]);
-                sizeMap.put(genKeys[i], genSizes[i]);
+                int offset = genOffsets[i];
+                int size = genSizes[i];
+                PackedLongValues.Builder builder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                for (int j = 0; j < size; j++) {
+                    builder.add(fullSegment.getAtIndex(ValueLayout.JAVA_LONG, offset + j));
+                }
+                result.put(genKeys[i], new PackedRowIdMapping(builder.build(), null));
             }
 
-            return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
+            return result;
         } finally {
             NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
         }
