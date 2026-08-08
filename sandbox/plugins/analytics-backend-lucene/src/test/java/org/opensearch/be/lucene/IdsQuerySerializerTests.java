@@ -150,6 +150,31 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
         assertTrue("Registry must contain ScalarFunction.IDS; keys: " + serializers.keySet(), serializers.containsKey(ScalarFunction.IDS));
     }
 
+    public void testSerializeLargeIdListRoundTrips() throws IOException {
+        // Stress test: 100 ids must survive serialization/deserialization round-trip
+        String[] ids = new String[100];
+        for (int i = 0; i < 100; i++) {
+            ids[i] = String.format("doc%03d", i);
+        }
+        RexCall call = buildIdsRexCall(ids);
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
+        );
+
+        DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            IdsQueryBuilder idsQb = (IdsQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals(100, idsQb.ids().size());
+            // Verify all 100 zero-padded ids are present
+            for (int i = 0; i < 100; i++) {
+                String expected = String.format("doc%03d", i);
+                assertTrue("Must contain " + expected, idsQb.ids().contains(expected));
+            }
+        }
+    }
+
     /**
      * Builds an IDS RexCall in the fieldless shape: IDS(MAP('values.0', 'id0'), MAP('values.1', 'id1'), ...)
      */
