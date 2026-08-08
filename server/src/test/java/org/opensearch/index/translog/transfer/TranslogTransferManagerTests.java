@@ -819,6 +819,37 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertTlogCkpDownloadStatsWithMetadata();
     }
 
+    public void testDownloadTranslogWithPrefixedMetadata() throws IOException {
+        isTranslogMetadataEnabled = true;
+        translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            isTranslogMetadataEnabled
+        );
+        Path location = createTempDir();
+        assertFalse(Files.exists(location.resolve("translog-23.tlog")));
+        assertFalse(Files.exists(location.resolve("translog-23.ckp")));
+        Map<String, String> metadata = new HashMap<>();
+        String ckpDataString = Base64.getEncoder().encodeToString(ckpBytes);
+        metadata.put("X-Amz-Meta-Ckp-Data", ckpDataString);
+        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), metadata);
+        });
+        translogTransferManager.downloadTranslog("12", "23", location);
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
+        verify(transferService, times(1)).downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"));
+        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
+        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
+        assertTlogCkpDownloadStatsWithMetadata();
+    }
+
     private void mockDownloadBlobWithMetadataResponse() throws IOException {
         Map<String, String> metadata = new HashMap<>();
         String ckpDataString = Base64.getEncoder().encodeToString(ckpBytes);
