@@ -35,9 +35,11 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Unit tests for {@link IdsQueryTranslator}.
@@ -106,8 +108,55 @@ public class IdsQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue("Error must mention _name; got: " + ex.getMessage(), ex.getMessage().contains("_name"));
     }
 
+    public void testDuplicateIdsAreDeduplicated() throws ConversionException {
+        // IdsQueryBuilder.ids() returns a Set, so duplicates are collapsed before translation.
+        RexNode result = translator.convert(QueryBuilders.idsQuery().addIds("doc1", "doc1", "doc2"), ctx);
+
+        assertTrue("Expected RexCall, got: " + result.getClass(), result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals("IDS", call.getOperator().getName());
+        // Only 2 unique ids → exactly 2 value MAP operands
+        assertEquals(2, call.getOperands().size());
+
+        // Extract the id values from each MAP('values.N', id) operand
+        Set<String> ids = new HashSet<>();
+        for (RexNode operand : call.getOperands()) {
+            RexCall mapCall = (RexCall) operand;
+            RexLiteral valueLiteral = (RexLiteral) mapCall.getOperands().get(1);
+            ids.add(valueLiteral.getValueAs(String.class));
+        }
+        assertEquals(Set.of("doc1", "doc2"), ids);
+    }
+
     public void testReportsCorrectQueryType() {
         assertEquals(IdsQueryBuilder.class, translator.getQueryType());
+    }
+
+    public void testLargeIdListProducesCorrectOperands() throws ConversionException {
+        // Stress test: 100 ids to verify no Calcite operand-count ceiling is hit
+        String[] ids = new String[100];
+        for (int i = 0; i < 100; i++) {
+            ids[i] = String.format("doc%03d", i);
+        }
+        RexNode result = translator.convert(QueryBuilders.idsQuery().addIds(ids), ctx);
+
+        assertTrue("Expected RexCall, got: " + result.getClass(), result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals("IDS", call.getOperator().getName());
+        assertEquals(100, call.getOperands().size());
+
+        // Ids are sorted before emission; spot-check first and last operands
+        RexCall firstMap = (RexCall) call.getOperands().get(0);
+        RexLiteral firstKey = (RexLiteral) firstMap.getOperands().get(0);
+        RexLiteral firstValue = (RexLiteral) firstMap.getOperands().get(1);
+        assertEquals("values.0", firstKey.getValueAs(String.class));
+        assertEquals("doc000", firstValue.getValueAs(String.class));
+
+        RexCall lastMap = (RexCall) call.getOperands().get(99);
+        RexLiteral lastKey = (RexLiteral) lastMap.getOperands().get(0);
+        RexLiteral lastValue = (RexLiteral) lastMap.getOperands().get(1);
+        assertEquals("values.99", lastKey.getValueAs(String.class));
+        assertEquals("doc099", lastValue.getValueAs(String.class));
     }
 
     /** Creates a ConversionContext with a simple schema (no _id column needed). */
