@@ -528,6 +528,29 @@ public final class IndexSettings {
     );
 
     /**
+     * The name of the target index to dual-write documents to. When set, write operations on this index
+     * will be mirrored to the specified target index. An empty string means dual-write is disabled.
+     */
+    public static final Setting<String> INDEX_DUAL_WRITE_INDEX_NAME_SETTING = Setting.simpleString(
+        "index.dual_write.index_name",
+        "",
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Controls whether soft-deletes are enabled on the dual-write target index.
+     * Only meaningful when {@link #INDEX_DUAL_WRITE_INDEX_NAME_SETTING} is configured.
+     * Defaults to {@code true}.
+     */
+    public static final Setting<Boolean> INDEX_DUAL_WRITE_SOFT_DELETES_ENABLED_SETTING = Setting.boolSetting(
+        "index.dual_write.soft_deletes_enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
      * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
      * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
@@ -975,6 +998,8 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private volatile String dualWriteIndexName;
+    private volatile boolean dualWriteSoftDeletesEnabled;
     private final boolean contextAwareEnabled;
     private int maxRetryOnLookupMapAcquisitionException;
     private volatile long softDeleteRetentionOperations;
@@ -1198,6 +1223,8 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        dualWriteIndexName = scopedSettings.get(INDEX_DUAL_WRITE_INDEX_NAME_SETTING);
+        dualWriteSoftDeletesEnabled = scopedSettings.get(INDEX_DUAL_WRITE_SOFT_DELETES_ENABLED_SETTING);
         contextAwareEnabled = scopedSettings.get(INDEX_CONTEXT_AWARE_ENABLED_SETTING);
         maxRetryOnLookupMapAcquisitionException = scopedSettings.get(INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION);
         assert softDeleteEnabled || version.before(Version.V_2_0_0) : "soft deletes must be enabled in version " + version;
@@ -1364,6 +1391,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DUAL_WRITE_INDEX_NAME_SETTING, this::setDualWriteIndexName);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DUAL_WRITE_SOFT_DELETES_ENABLED_SETTING, this::setDualWriteSoftDeletesEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_UNREFERENCED_FILE_CLEANUP, this::setShouldCleanupUnreferencedFiles);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -2186,6 +2215,28 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    /**
+     * Returns the name of the dual-write target index, or an empty string if dual-write is disabled.
+     */
+    public String getDualWriteIndexName() {
+        return dualWriteIndexName;
+    }
+
+    private void setDualWriteIndexName(String dualWriteIndexName) {
+        this.dualWriteIndexName = dualWriteIndexName;
+    }
+
+    /**
+     * Returns <code>true</code> if soft-deletes are enabled on the dual-write target index.
+     */
+    public boolean isDualWriteSoftDeletesEnabled() {
+        return dualWriteSoftDeletesEnabled;
+    }
+
+    private void setDualWriteSoftDeletesEnabled(boolean dualWriteSoftDeletesEnabled) {
+        this.dualWriteSoftDeletesEnabled = dualWriteSoftDeletesEnabled;
     }
 
     /**

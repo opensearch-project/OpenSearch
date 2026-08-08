@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
@@ -173,6 +174,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
             ),
             null,
             new SystemIndices(emptyMap()),
+            mock(UpdateHelper.class),
             NoopTracer.INSTANCE
         ) {
             @Override
