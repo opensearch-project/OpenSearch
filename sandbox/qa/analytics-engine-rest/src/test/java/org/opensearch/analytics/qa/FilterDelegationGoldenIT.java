@@ -169,9 +169,9 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
         OR_DUAL_DELEGATED_NATIVE(29, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
 
         // NOT(leaf) (3)
-        NOT_DUAL(30, lucene(), df("CONJUNCTIVE")),
+        NOT_DUAL(30, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
         NOT_NATIVE(31, df(null), df(null)),
-        NOT_DELEGATED(32, lucene(), df("CONJUNCTIVE")),
+        NOT_DELEGATED(32, df("CONJUNCTIVE"), df("CONJUNCTIVE")),
 
         // Mixed connectors, depth 2 (6)
         MIXED_OR_OF_ANDS_OF_DUALS(33, lucene(), df("CONJUNCTIVE")),
@@ -179,7 +179,7 @@ public class FilterDelegationGoldenIT extends AnalyticsRestTestCase {
         MIXED_OR_OF_DUAL_DELEGATED_ANDS(35, lucene(), df("CONJUNCTIVE")),
         MIXED_AND_OF_DUAL_DELEGATED_ORS(36, lucene(), df("CONJUNCTIVE")),
         MIXED_OR_OF_AND_OF_DUALS_AND_NATIVE(37, df("INTERLEAVED_BOOLEAN_EXPRESSION"), df("INTERLEAVED_BOOLEAN_EXPRESSION")),
-        MIXED_NOT_OF_AND_OF_DUALS(38, lucene(), df("CONJUNCTIVE"));
+        MIXED_NOT_OF_AND_OF_DUALS(38, df("CONJUNCTIVE"), df("CONJUNCTIVE"));
 
         final int queryNumber;
         final Map<Boolean, ChosenBackendandTreeShape> cells;
