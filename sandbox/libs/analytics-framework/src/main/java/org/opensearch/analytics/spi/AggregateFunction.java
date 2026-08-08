@@ -139,6 +139,11 @@ public enum AggregateFunction {
 
     /** Case-insensitive name lookup; throws if not recognized. */
     public static AggregateFunction fromNameOrError(String name) {
+        // mvcombine's ARRAY_AGG uses the LIST decomposition; element type is preserved in
+        // PplAggregateCallRewriter (LOCAL_ARRAY_AGG_TYPED_OP).
+        if (name.equalsIgnoreCase("ARRAY_AGG")) {
+            return LIST;
+        }
         try {
             return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
