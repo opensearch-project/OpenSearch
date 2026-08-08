@@ -378,7 +378,8 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchSort(sort0=[$1], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
                             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                              OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
@@ -479,7 +480,8 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                           OpenSearchSort(sort0=[$0], dir0=[DESC], fetch=[30], viableBackends=[[mock-parquet]])
                             OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                              OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                              OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

@@ -169,14 +169,17 @@ public class UnionPlanShapeTests extends PlanShapeTestBase {
         );
         RelNode plan = makeAggregate(union, ImmutableBitSet.of(0), countStarCall(union));
         RelNode result = runPlanner(plan, unionContextSingleIndex("test_index", 2));
+        // Field trimming inserts Project(status) above each arm's scan — count-by-key needs only the group key.
         assertPlanShape(
             """
                 OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

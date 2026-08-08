@@ -9,6 +9,7 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
@@ -22,6 +23,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -183,6 +185,16 @@ public class RelNodeUtils {
             out.addAll(findAllNodes(input, type));
         }
         return out;
+    }
+
+    /**
+     * Debug-dumps a labelled plan via {@code logger}, guarding the expensive
+     * {@link RelOptUtil#toString} behind the level check so it is skipped when debug is off.
+     */
+    public static void logPlan(Logger logger, String label, RelNode plan) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}:\n{}", label, RelOptUtil.toString(plan));
+        }
     }
 
     /**
