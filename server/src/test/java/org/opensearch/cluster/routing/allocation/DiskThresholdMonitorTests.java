@@ -865,6 +865,79 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         assertEquals(countUnblockBlocksCalled.get(), 1);
     }
 
+    public void testReadBlockAutoReleaseDisabled() {
+        AtomicReference<Set<String>> indicesToBlockRead = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test_read_block")
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Metadata metadata = Metadata.builder().put(indexMetadata, false).build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test_read_block")).build();
+
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+                .build(),
+            allocation
+        );
+
+        assertTrue(clusterState.blocks().indexBlocked(ClusterBlockLevel.READ, "test_read_block"));
+
+        Settings settings = Settings.builder().put("cluster.blocks.read.auto_release", false).build();
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            settings,
+            () -> clusterState,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(clusterState),
+            () -> 2.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock) {
+                    indicesToBlockRead.set(indicesToUpdate);
+                } else {
+                    indicesToReleaseReadBlock.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // Node is healthy (free space 40 > 30 threshold)
+        Map<String, DiskUsage> builder = new HashMap<>();
+        builder.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 40));
+
+        monitor.onNewInfo(clusterInfo(builder));
+
+        // Since auto-release is disabled, indicesToReleaseReadBlock should remain null even though node is healthy
+        assertNull(indicesToReleaseReadBlock.get());
+    }
+
     public void testWarmNodeLowStageWatermarkBreach() {
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
