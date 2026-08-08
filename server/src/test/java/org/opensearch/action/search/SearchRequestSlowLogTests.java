@@ -36,25 +36,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
 import org.opensearch.common.logging.SlowLogLevel;
+import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -427,5 +438,45 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             assertThat(ex, hasToString(containsString(expected)));
             assertThat(ex, instanceOf(IllegalArgumentException.class));
         }
+    }
+
+    public void testSearchRequestSlowLog_PlaceHolderWithSource() throws IOException {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
+            Stream.of(
+                searchModule.getNamedXContents().stream(),
+                ClusterModule.getNamedXWriteables().stream()
+            ).flatMap(Function.identity()).collect(toList())
+        );
+        String searchBody = "{\"query\":{\"match_all\":{}},\"script_fields\":{}}";
+        SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(
+            XContentType.JSON.xContent().createParser(
+                xContentRegistry,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                searchBody
+            )
+        );
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(
+            new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+            searchRequest,
+            () -> null
+        );
+        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
+            searchPhaseContext,
+            10,
+            searchRequestContext
+        );
+
+        assertThat(p.getValueFor("took"), equalTo("10nanos"));
+        assertThat(p.getValueFor("took_millis"), equalTo("0"));
+        assertThat(p.getValueFor("phase_took"), equalTo("{}"));
+        assertThat(p.getValueFor("total_hits"), equalTo("-1"));
+        assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
+        assertThat(p.getValueFor("shards"), equalTo(""));
+        assertThat(p.getValueFor("indices"), equalTo("[]"));
+        assertThat(p.getFormattedMessage(), containsString("source[{\"query\":{\"match_all\":{\"boost\":1.0}},\"script_fields\":{}}]"));
+        assertThat(p.getValueFor("id"), equalTo(null));
     }
 }

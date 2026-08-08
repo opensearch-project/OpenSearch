@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
@@ -45,8 +46,12 @@ import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -62,7 +67,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -290,6 +298,37 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
+        // Makes sure that output doesn't contain any new lines
+        assertThat(p.getFormattedMessage(), not(containsString("\n")));
+        assertThat(p.getFormattedMessage(), endsWith("request_id[sample_request_id]"));
+    }
+
+    public void testSlowLogSearchContextPlaceHolder() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
+            Stream.of(
+                searchModule.getNamedXContents().stream(),
+                ClusterModule.getNamedXWriteables().stream()
+            ).flatMap(Function.identity()).collect(toList())
+        );
+        String searchBody = "{\"query\":{\"match_all\":{}},\"script_fields\":{}}";
+        SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(
+            XContentType.JSON.xContent().createParser(
+                xContentRegistry,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                searchBody
+            )
+        );
+
+        searchContext.request().source(searchSourceBuilder);
+        searchContext.setTask(
+            new SearchShardTask(0, "n/a", "n/a", "test", null, Map.of(Task.X_OPAQUE_ID, "my_id", Task.X_REQUEST_ID, "sample_request_id"))
+        );
+
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
