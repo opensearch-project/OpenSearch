@@ -159,6 +159,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.index.search.QueryParserHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -515,6 +516,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final Executor indexSearcherExecutor;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
+    private volatile int fieldExpansionLimit;
+
+    public int getFieldExpansionLimit() {
+        return fieldExpansionLimit;
+    }
+
     private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilers;
 
     public SearchService(
@@ -583,7 +590,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
         IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
+        this.fieldExpansionLimit = INDICES_MAX_CLAUSE_COUNT_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, value -> {
+            IndexSearcher.setMaxClauseCount(value);
+            this.fieldExpansionLimit = value;
+            });
 
         QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
         clusterService.getClusterSettings()
@@ -599,6 +611,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
+
+        QueryParserHelper.setSearchService(this);
 
         this.pluginProfilers = pluginProfilers;
 
