@@ -206,4 +206,12 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
         );
         assertTrue(ex.getMessage().contains("not yet supported"));
     }
+
+    public void testRejectsIdField() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("_id", "abc123"), ctx)
+        );
+        assertTrue("Error must direct users to the ids query; got: " + ex.getMessage(), ex.getMessage().contains("ids"));
+    }
 }
