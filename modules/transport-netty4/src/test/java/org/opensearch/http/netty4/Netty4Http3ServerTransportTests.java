@@ -95,6 +95,8 @@ public class Netty4Http3ServerTransportTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
+        assumeThat("HTTP/3 tests use native QUIC TLS and cannot run in a FIPS JVM", inFipsJvm(), is(false));
+
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
