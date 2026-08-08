@@ -28,10 +28,17 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
@@ -50,12 +57,61 @@ import io.substrait.extension.SimpleExtension;
  */
 public class NativeBridgeLocalSessionTests extends OpenSearchTestCase {
 
+    // Spill dirs handed to the native runtime, deleted best-effort in tearDown. NOT Lucene temp dirs
+    // (see createRuntime) — the test owns their teardown so it never races the native cleanup thread.
+    private final List<Path> spillDirs = new ArrayList<>();
+
     private NativeRuntimeHandle createRuntime() {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        // Deliberately NOT createTempDir(): createGlobalRuntime renames the spill dir's entries to
+        // "<name>.stale" and deletes them on a detached background thread that closeGlobalRuntime does
+        // not join. Lucene's TestRuleTemporaryFilesCleanup does a strict recursive rm of every temp
+        // dir at suite end; if the spill dir were Lucene-tracked, that rm races the native deleter and
+        // fails with NoSuchFileException on a "*.stale" file. Using an untracked OS temp dir makes the
+        // native thread the sole owner; we reap it best-effort in tearDown.
+        // Root at java.io.tmpdir (an explicit location, as forbidden-apis requires) rather than the
+        // no-location Files.createTempDirectory(String) overload — and NOT Lucene's createTempDir.
+        Path spillDir;
+        try {
+            spillDir = Files.createTempDirectory(PathUtils.get(System.getProperty("java.io.tmpdir")), "datafusion-spill");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        spillDirs.add(spillDir);
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         return new NativeRuntimeHandle(runtimePtr);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        // Best-effort, race-tolerant delete. The runtime is already closed by each test, so the native
+        // cleanup thread has been triggered but may still be unlinking "*.stale" entries concurrently.
+        // We must NOT use the strict IOUtils.rm here (it throws NoSuchFileException on a file the native
+        // thread deleted first — the very bug this test hit). Swallow per-entry failures; the OS reaps
+        // the temp root either way.
+        for (Path dir : spillDirs) {
+            deleteBestEffort(dir);
+        }
+        spillDirs.clear();
+        super.tearDown();
+    }
+
+    private static void deleteBestEffort(Path root) {
+        if (Files.notExists(root)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                    // Concurrent native cleanup may have removed it, or a child reappeared mid-walk.
+                }
+            });
+        } catch (IOException ignored) {
+            // Directory vanished under us (native thread finished the wipe) — nothing left to do.
+        }
     }
 
     /**
