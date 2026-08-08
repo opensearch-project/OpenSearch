@@ -89,6 +89,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -2385,11 +2386,17 @@ public class InternalEngine extends Engine {
             : "DirectoryReader must be an instance of OpenSearchDirectoryReader";
         boolean success = false;
         try {
+            final DocumentMapper documentMapper = config().getDocumentMapperForTypeSupplier().get().getDocumentMapper();
             final Engine.Searcher newSearcher = IndexShard.wrapSearcher(
                 searcher,
                 reader -> DerivedSourceDirectoryReader.wrap(
                     reader,
-                    config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                    leafReaderContext -> documentMapper.root()
+                        .derivedSourceProvider(
+                            leafReaderContext,
+                            config().getDerivedSourceBitSetProducerFactory(),
+                            documentMapper.hasNestedObjects()
+                        )
                 )
             );
             success = true;

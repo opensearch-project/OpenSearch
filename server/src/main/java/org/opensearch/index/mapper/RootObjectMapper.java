@@ -33,9 +33,13 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -62,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -765,13 +770,43 @@ public class RootObjectMapper extends ObjectMapper {
         return false;
     }
 
+    public CheckedFunction<Integer, BytesReference, IOException> derivedSourceProvider(
+        LeafReaderContext leafReaderContext,
+        Function<Query, BitSetProducer> bitSetProducer,
+        boolean hasNested
+    ) {
+        return docId -> deriveSource(docId, leafReaderContext, bitSetProducer, hasNested);
+    }
+
+    /**
+     * Use {@link #derivedSourceProvider(LeafReaderContext, Function, boolean)} to support nested mappings.
+     */
+    @Deprecated
     public BytesReference deriveSource(LeafReader leafReader, int docId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         try {
-            Iterator<Mapper> mappers = this.iterator();
-            while (mappers.hasNext()) {
-                Mapper mapper = mappers.next();
+            for (Mapper mapper : this) {
                 mapper.deriveSource(builder, leafReader, docId);
+            }
+        } catch (Exception e) {
+            throw new OpenSearchException("Failed to derive source for doc id [" + docId + "]", e);
+        } finally {
+            builder.endObject();
+        }
+        return BytesReference.bytes(builder);
+    }
+
+    private BytesReference deriveSource(
+        int docId,
+        LeafReaderContext leafReaderContext,
+        Function<Query, BitSetProducer> bitSetProducer,
+        boolean hasNested
+    ) throws IOException {
+        DerivedSourceContext context = new DerivedSourceContext(leafReaderContext, bitSetProducer, hasNested, docId);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        try {
+            for (Mapper mapper : this) {
+                mapper.deriveSource(builder, context);
             }
         } catch (Exception e) {
             throw new OpenSearchException("Failed to derive source for doc id [" + docId + "]", e);

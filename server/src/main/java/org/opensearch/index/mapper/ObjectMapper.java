@@ -1085,8 +1085,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void canDeriveSource() {
-        if (!this.enabled.value() || this.nested.isNested()) {
-            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        if (!this.enabled.value()) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled");
         }
         for (final Mapper mapper : this.mappers.values()) {
             mapper.canDeriveSource();
@@ -1098,6 +1098,40 @@ public class ObjectMapper extends Mapper implements Cloneable {
         builder.startObject(simpleName());
         for (final Mapper mapper : this.mappers.values()) {
             mapper.deriveSource(builder, leafReader, docId);
+        }
+        builder.endObject();
+    }
+
+    @Override
+    void deriveSource(XContentBuilder builder, DerivedSourceContext context) throws IOException {
+        if (this.nested.isNested()) {
+            List<Integer> nestedDocIds = context.nestedDocs(this);
+            if (nestedDocIds.isEmpty()) {
+                return;
+            }
+            builder.startArray(simpleName());
+            int previousParentDocId = context.currentPreviousParentDocId();
+            for (int nestedDocId : nestedDocIds) {
+                int parentDocId = context.currentDocId();
+                int parentPreviousParentDocId = context.currentPreviousParentDocId();
+                builder.startObject();
+                context.switchDoc(nestedDocId, previousParentDocId);
+                try {
+                    for (final Mapper mapper : this.mappers.values()) {
+                        mapper.deriveSource(builder, context);
+                    }
+                } finally {
+                    context.switchDoc(parentDocId, parentPreviousParentDocId);
+                }
+                builder.endObject();
+                previousParentDocId = nestedDocId;
+            }
+            builder.endArray();
+            return;
+        }
+        builder.startObject(simpleName());
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.deriveSource(builder, context);
         }
         builder.endObject();
     }
