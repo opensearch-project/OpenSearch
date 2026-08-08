@@ -926,7 +926,8 @@ public class Node implements Closeable {
                     List.of(remoteIndexPathUploader),
                     namedWriteableRegistry,
                     // Supplier for current cluster state application duration in ms (0 if idle)
-                    () -> clusterService.getClusterApplierService().getCurrentApplicationDurationMs()
+                    () -> clusterService.getClusterApplierService().getCurrentApplicationDurationMs(),
+                    systemIndices
                 );
                 remoteClusterStateCleanupManager = remoteClusterStateService.getCleanupManager();
             } else {
