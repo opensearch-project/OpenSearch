@@ -1022,4 +1022,47 @@ public class DateFieldMapperTests extends MapperTestCase {
             assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
         }
     }
+
+    public void testDerivedSourceKeep_DefaultIsNone() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_Arrays() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays")));
+        DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_InvalidValue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "invalid")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Unknown value [invalid] for field [derived_source_keep]"));
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreTrue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays").field("store", true))
+        );
+        DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreFalse() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays").field("store", false))
+            )
+        );
+    }
+
+    public void testCanDeriveSource_WithArraysMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("derived_source_keep", "arrays")));
+        DateFieldMapper fieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        fieldMapper.canDeriveSource();
+    }
 }

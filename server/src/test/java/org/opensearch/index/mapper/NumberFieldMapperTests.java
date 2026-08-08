@@ -876,4 +876,47 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
         }
     }
+
+    public void testDerivedSourceKeep_DefaultIsNone() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long")));
+        NumberFieldMapper fieldMapper = (NumberFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_Arrays() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays")));
+        NumberFieldMapper fieldMapper = (NumberFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_InvalidValue() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "invalid")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Unknown value [invalid] for field [derived_source_keep]"));
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreTrue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays").field("store", true))
+        );
+        NumberFieldMapper fieldMapper = (NumberFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+    }
+
+    public void testDerivedSourceKeep_ArraysWithStoreFalse() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays").field("store", false))
+            )
+        );
+    }
+
+    public void testCanDeriveSource_WithArraysMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("derived_source_keep", "arrays")));
+        NumberFieldMapper fieldMapper = (NumberFieldMapper) mapper.mappers().getMapper("field");
+        fieldMapper.canDeriveSource();
+    }
 }
