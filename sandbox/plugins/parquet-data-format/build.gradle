@@ -53,6 +53,51 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
+// ---- JMH benchmark source set ----
+// Microbenchmarks for the indexing hot path (e.g. ParquetDocumentInput.addField). Lives here because the
+// shared :benchmarks module only depends on :server and cannot reach this JDK-25-gated sandbox plugin.
+sourceSets {
+  jmh {
+    java.srcDirs = ['src/jmh/java']
+    compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+  }
+}
+
+dependencies {
+  jmhImplementation "org.openjdk.jmh:jmh-core:${versions.jmh}"
+  jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:${versions.jmh}"
+  // The plugin declares :server (and other provided deps) as compileOnly — the OpenSearch runtime supplies
+  // them in production. The JMH fork has no such runtime, so put the ones the benchmarks touch on its own
+  // runtime classpath explicitly.
+  jmhImplementation project(':server')
+  jmhImplementation project(':sandbox:libs:plugin-stats-spi')
+}
+
+// JMH generated code uses forbidden APIs — skip checking the jmh source set.
+tasks.matching { it.name == 'forbiddenApisJmh' }.configureEach { enabled = false }
+
+// Wire the JMH benchmark annotation processor.
+tasks.named('compileJmhJava').configure {
+  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+}
+
+// Convenience task: ./gradlew -Dsandbox.enabled=true :sandbox:plugins:parquet-data-format:jmh [-Pjmh.includes=<regex>]
+tasks.register('jmh', JavaExec) {
+  dependsOn jmhClasses
+  mainClass = 'org.openjdk.jmh.Main'
+  classpath = sourceSets.jmh.runtimeClasspath
+  if (project.hasProperty('jmh.includes')) {
+    args project.property('jmh.includes')
+  }
+}
+
+spotless {
+  java {
+    targetExclude 'src/jmh/generated/**/*.java'
+  }
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /netty-.*/, to: 'netty'
