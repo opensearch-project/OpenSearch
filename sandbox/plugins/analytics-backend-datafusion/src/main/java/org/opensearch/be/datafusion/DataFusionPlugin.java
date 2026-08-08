@@ -60,6 +60,7 @@ import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.DocumentLookupProvider;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -101,7 +102,8 @@ public class DataFusionPlugin extends Plugin
         AnalyticsSearchBackendPlugin,
         ActionPlugin,
         CircuitBreakerPlugin,
-        DocumentLookupProvider {
+        DocumentLookupProvider,
+        ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 

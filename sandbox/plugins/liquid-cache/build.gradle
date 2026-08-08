@@ -1,0 +1,109 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Liquid Cache: in-memory decoded-batch Parquet cache exposed as a pluggable DataFusion session optimizer.'
+  classname = 'org.opensearch.liquidcache.LiquidCachePlugin'
+  // Extends the DataFusion back-end so the shared native library (which contains
+  // liquid cache when built with -PliquidCache) and the native-bridge SPI are
+  // visible on this plugin's classloader chain at runtime.
+  extendedPlugins = ['analytics-backend-datafusion']
+}
+
+java {
+  sourceCompatibility = JavaVersion.toVersion(25)
+  targetCompatibility = JavaVersion.toVersion(25)
+}
+
+dependencies {
+  // Shared native bridge lib (SymbolLookup, NativeCall). Provided at runtime by the
+  // parent analytics-backend-datafusion plugin (which bundles dataformat-native) via
+  // the extendedPlugins classloader chain — compileOnly here so we do NOT re-bundle
+  // it and cause jar hell when both plugins are installed on the same node.
+  compileOnly project(':sandbox:libs:dataformat-native')
+
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+  testImplementation project(':test:framework')
+  testImplementation project(':sandbox:libs:dataformat-native')
+}
+
+test {
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
+  jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Rust unit tests for the liquid-cache crates (core + datafusion + glue).
+// Run as part of `check` so `./gradlew check` exercises them.
+// ═══════════════════════════════════════════════════════════════════
+// Liquid cache is its own standalone Cargo workspace (not part of the shared
+// dataformat-native workspace). The toolchain is pinned via rust-toolchain.toml
+// in the crate root.
+def rustWorkspaceDir = file("${projectDir}/src/main/rust")
+
+task cargoTest(type: Exec) {
+  description = 'Run Rust unit tests for the liquid-cache crates'
+  group = 'verification'
+  workingDir rustWorkspaceDir
+
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) { cargoExecutable = path; break }
+  }
+
+  // datafusion-substrait's build script needs protoc; ensure Homebrew bin is on PATH.
+  def protoc = ['/opt/homebrew/bin/protoc', '/usr/local/bin/protoc'].find { new File(it).exists() }
+  if (protoc != null) {
+    environment 'PROTOC', protoc
+    environment 'PATH', new File(protoc).parent + File.pathSeparator + System.getenv('PATH')
+  }
+
+  commandLine cargoExecutable, 'test',
+    '-p', 'opensearch-liquid-cache-core',
+    '-p', 'opensearch-liquid-cache-datafusion',
+    '-p', 'opensearch-liquid-cache',
+    '--lib'
+
+  inputs.files fileTree("${projectDir}/src/main/rust/src")
+  inputs.files fileTree("${projectDir}/src/main/rust/core/src")
+  inputs.files fileTree("${projectDir}/src/main/rust/datafusion/src")
+  outputs.file "${projectDir}/src/main/rust/target/gradle-cargoTest.stamp"
+  doLast {
+    file("${projectDir}/src/main/rust/target").mkdirs()
+    file("${projectDir}/src/main/rust/target/gradle-cargoTest.stamp").text = new Date().toString()
+  }
+}
+
+check.dependsOn cargoTest
+
+// Liquid cache is compiled INTO the shared analytics engine native library when
+// that library is built with -PliquidCache (see dataformat-native/build.gradle).
+// There is no separate provider cdylib to build or bundle here; this plugin only
+// binds the lc_* symbols from the engine library at runtime.
+
+// missingJavadoc hardcodes --release 21 which hides FFM types (stable since JDK 22).
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+  enabled = false
+}
+
+testingConventions.enabled = false
+
+tasks.named('forbiddenPatterns').configure {
+  exclude '**/*.parquet'
+  exclude '**/*.dylib'
+  exclude '**/*.so'
+  exclude '**/*.dll'
+}

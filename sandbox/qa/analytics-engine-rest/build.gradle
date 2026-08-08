@@ -15,6 +15,14 @@ apply plugin: 'opensearch.rest-test'
 // analytics-backend-datafusion targets JDK 25; match it here for dependency resolution.
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
+evaluationDependsOn(':sandbox:plugins:liquid-cache')
+
+tasks.withType(org.opensearch.gradle.test.RestIntegTestTask).configureEach {
+    // Liquid cache is compiled into the engine native library; build it (pass
+    // -PliquidCache to include the cache) before the cluster starts.
+    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
 repositories {
   maven {
     name = 'OpenSearch Snapshots'
@@ -34,6 +42,7 @@ configurations {
 dependencies {
     testImplementation project(':sandbox:plugins:analytics-engine')
     testImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    testImplementation project(':sandbox:plugins:liquid-cache')
     testImplementation project(':sandbox:plugins:analytics-backend-lucene')
     testImplementation project(':sandbox:plugins:dsl-query-executor')
     testImplementation project(':sandbox:plugins:composite-engine')
@@ -62,6 +71,7 @@ def configureAnalyticsCluster = { cluster ->
     cluster.plugin ':plugins:arrow-flight-rpc'
     cluster.plugin ':sandbox:plugins:analytics-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'
+    cluster.plugin ':sandbox:plugins:liquid-cache'
     cluster.plugin ':sandbox:plugins:composite-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-lucene'
     cluster.plugin ':sandbox:plugins:dsl-query-executor'
@@ -104,6 +114,8 @@ def configureAnalyticsCluster = { cluster ->
     // analytics-engine path (bypassing the per-index lookup that doesn't handle aliases,
     // wildcards, or comma-lists).
     cluster.setting 'cluster.pluggable.dataformat', 'composite'
+
+    cluster.systemProperty 'opensearch.experimental.feature.liquid_cache.enabled', 'true'
 
     // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
     cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'

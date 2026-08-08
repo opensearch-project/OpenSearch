@@ -264,6 +264,16 @@ pub async unsafe fn create_session_context(
             )));
     }
 
+    // Liquid Cache (optional): engage on the listing-table path via the cache's
+    // own physical optimizer when the feature is compiled in and enabled. The
+    // session is rebuilt per query, so the enabled check tracks dynamic settings.
+    #[cfg(feature = "liquid_cache")]
+    if opensearch_liquid_cache::LiquidOnlyRuntime::is_enabled_globally() {
+        if let Some(rule) = opensearch_liquid_cache::LiquidOnlyRuntime::optimizer_globally() {
+            state_builder = state_builder.with_physical_optimizer_rule(rule);
+        }
+    }
+
     let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
