@@ -7,7 +7,8 @@
  */
 
 use std::fs::File;
-use std::sync::OnceLock;
+use std::io::Write;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use parquet::file::metadata::ParquetMetaData;
 use parquet::file::writer::SerializedFileWriter;
@@ -17,6 +18,7 @@ use rayon::ThreadPool;
 use crate::crc_writer::CrcWriter;
 use crate::log_error;
 use crate::rate_limited_writer::RateLimitedWriter;
+use crate::store_io::StoreSyncWriter;
 use native_bridge_common::log_info;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
@@ -80,8 +82,61 @@ fn get_io_runtime(num_threads: Option<usize>) -> &'static Runtime {
 // IO task protocol
 // =============================================================================
 
-/// Writer type used by the IO task: CRC → rate-limit → file.
-pub type MergeWriter = CrcWriter<RateLimitedWriter<File>>;
+/// Shared cell used to surface the store multipart-completion (`shutdown`) result out of
+/// [`MergeSink`]'s `Drop`, so the IO task can propagate an upload failure instead of silently
+/// losing it.
+pub type ShutdownCell = Arc<Mutex<Option<std::io::Result<()>>>>;
+
+/// Final output sink for the merge: a local file, or a store-backed multipart upload.
+///
+/// The store variant streams through `object_store`'s `BufWriter` (bridged to sync I/O). The
+/// multipart upload is only finalized on `shutdown()`, which is invoked from `Drop` — this fires
+/// when `SerializedFileWriter::close()` consumes and drops the writer chain. Any shutdown error is
+/// recorded into the shared `result` cell for the IO task to propagate.
+pub enum MergeSink {
+    Local(File),
+    Store {
+        bridge: Option<StoreSyncWriter>,
+        result: ShutdownCell,
+    },
+}
+
+impl Write for MergeSink {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            MergeSink::Local(f) => f.write(buf),
+            MergeSink::Store { bridge, .. } => bridge
+                .as_mut()
+                .expect("MergeSink store writer used after finalize")
+                .write(buf),
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            MergeSink::Local(f) => f.flush(),
+            MergeSink::Store { bridge, .. } => bridge
+                .as_mut()
+                .expect("MergeSink store writer used after finalize")
+                .flush(),
+        }
+    }
+}
+
+impl Drop for MergeSink {
+    fn drop(&mut self) {
+        if let MergeSink::Store { bridge, result } = self {
+            if let Some(mut b) = bridge.take() {
+                // Complete the multipart upload (for LocalFileSystem this renames the temp into
+                // place). Record the result so the IO task can surface a failure.
+                let r = b.shutdown();
+                *result.lock().unwrap() = Some(r);
+            }
+        }
+    }
+}
+
+/// Writer type used by the IO task: CRC → rate-limit → sink (local file or store multipart).
+pub type MergeWriter = CrcWriter<RateLimitedWriter<MergeSink>>;
 
 /// Commands sent from the merge loop to the background IO task.
 pub enum IoCommand {
@@ -109,6 +164,7 @@ pub fn spawn_io_task(
     writer: SerializedFileWriter<MergeWriter>,
     crc_handle: crate::crc_writer::CrcHandle,
     io_threads: Option<usize>,
+    store_shutdown: Option<ShutdownCell>,
 ) -> tokio_mpsc::Sender<IoCommand> {
     let (tx, mut rx) = tokio_mpsc::channel::<IoCommand>(IO_CHANNEL_BUFFER);
 
@@ -170,8 +226,16 @@ pub fn spawn_io_task(
 
                     let w = writer.take().unwrap();
                     let crc = crc_handle.clone();
+                    let store_shutdown = store_shutdown.clone();
                     let result = tokio::task::spawn_blocking(move || {
                         let metadata = w.close().map_err(MergeError::from)?;
+                        // `w` is dropped by close(); for the store sink that ran `shutdown()` to
+                        // finalize the multipart upload — propagate any failure.
+                        if let Some(cell) = &store_shutdown {
+                            if let Some(res) = cell.lock().unwrap().take() {
+                                res.map_err(MergeError::Io)?;
+                            }
+                        }
                         let crc32 = crc.crc32();
                         log_info!(
                             "[RUST] IO task close: version={}, num_rows={}, created_by={:?}, crc32={:#010x}",

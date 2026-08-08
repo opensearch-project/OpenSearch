@@ -94,6 +94,26 @@ public class VSRManager implements AutoCloseable {
     }
 
     /**
+     * Creates a new VSRManager (async writes) bound to a shard-scoped ObjectStore.
+     *
+     * @param storePtr shard ObjectStore handle ({@code os_create_local_store} pointer), or 0 for
+     *                 the legacy local-file path
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        long writerGeneration,
+        ParquetShardStatsTracker stats,
+        long storePtr
+    ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats, storePtr);
+    }
+
+    /**
      * Creates a new VSRManager with asynchronous background writes and no stats collection.
      */
     public VSRManager(
@@ -169,6 +189,27 @@ public class VSRManager implements AutoCloseable {
         long writerGeneration,
         ParquetShardStatsTracker stats
     ) {
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, writerGeneration, stats, 0L);
+    }
+
+    /**
+     * Creates a new VSRManager bound to a shard-scoped ObjectStore.
+     *
+     * @param storePtr shard ObjectStore handle ({@code os_create_local_store} pointer), or 0 for
+     *                 the legacy local-file path
+     */
+    public VSRManager(
+        String fileName,
+        IndexSettings indexSettings,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        boolean runAsync,
+        long writerGeneration,
+        ParquetShardStatsTracker stats,
+        long storePtr
+    ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;
         this.writerGeneration = writerGeneration;
@@ -177,7 +218,7 @@ public class VSRManager implements AutoCloseable {
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
-        this.writer = new NativeParquetWriter(fileName, stats);
+        this.writer = new NativeParquetWriter(fileName, stats, storePtr);
     }
 
     /**
@@ -370,12 +411,23 @@ public class VSRManager implements AutoCloseable {
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         } finally {
             try {
+                if (writer != null) {
+                    writer.close();
+                }
                 vsrPool.close();
             } catch (Exception e) {
-                logger.error("Error releasing VSR pool during close for {}: {}", fileName, e.getMessage());
+                logger.error("Error releasing Writer/VSR pool during close for {}: {}", fileName, e.getMessage());
             }
             managedVSR.set(null);
         }
+    }
+
+    /**
+     * Returns the native (Rust-side) memory reserved by this manager's writer, or 0 if the writer
+     * was never initialized or has been finalized/freed.
+     */
+    public long getNativeBytesUsed() {
+        return writer == null ? 0L : writer.getNativeBytesUsed();
     }
 
     /**

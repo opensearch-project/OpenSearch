@@ -6,17 +6,18 @@
  * compatible open source license.
  */
 
-use std::fs::File;
 use std::sync::{Arc, Mutex};
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use object_store::ObjectStore;
+use parquet::arrow::ProjectionMask;
 use parquet::schema::types::SchemaDescriptor;
 
 use super::error::{MergeError, MergeResult};
 use super::heap::{get_sort_values, SortKey};
 use super::io_task::get_merge_pool;
+use super::reader::{build_source, read_source_meta, BatchSource};
 use super::schema::projection_indices_excluding_row_id;
 
 use native_bridge_common::memory_pool::MemoryReservation;
@@ -28,13 +29,13 @@ use native_bridge_common::memory_pool::MemoryReservation;
 /// uses two readers: a sort-only reader for the merge heap and a data reader
 /// loaded on demand. Otherwise uses a single all-column reader.
 pub struct FileCursor {
-    sort_reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
+    sort_reader: Arc<Mutex<BatchSource>>,
     sort_prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,
     sort_prefetch_tx: std::sync::mpsc::SyncSender<Option<MergeResult<RecordBatch>>>,
     sort_prefetch_pending: bool,
     pub sort_batch: Option<RecordBatch>,
 
-    data_reader: Option<parquet::arrow::arrow_reader::ParquetRecordBatchReader>,
+    data_reader: Option<BatchSource>,
     data_batch: Option<RecordBatch>,
     sort_batch_index: usize,
     data_batch_index: usize,
@@ -58,17 +59,11 @@ impl FileCursor {
         batch_size: usize,
         deferred_threshold: usize,
         reservation: &mut MemoryReservation,
+        store: &Option<Arc<dyn ObjectStore>>,
     ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
-        // Open file and read metadata
-        let file = File::open(path)?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-        let schema = builder.schema().clone();
-        let writer_generation = crate::writer_properties_builder::read_writer_generation(
-            builder.metadata().file_metadata(),
-            file_id,
-        );
-        let total_row_count = builder.metadata().file_metadata().num_rows() as usize;
-        let parquet_schema_descr = builder.parquet_schema().clone();
+        // Read metadata (local file or store object)
+        let (schema, parquet_schema_descr, writer_generation, total_row_count) =
+            read_source_meta(store, path, file_id)?;
 
         // Resolve sort column types
         let sort_col_types: Vec<ArrowDataType> = sort_columns
@@ -112,39 +107,22 @@ impl FileCursor {
         let data_projection_indices = projection_indices_excluding_row_id(&schema);
 
         // Build sort reader (sort-only in deferred, all-columns in eager)
-        let file1 = File::open(path)?;
-        let builder1 = ParquetRecordBatchReaderBuilder::try_new(file1)?;
         let sort_projection = if deferred {
             let sort_indices: Vec<usize> = sort_columns
                 .iter()
                 .filter_map(|c| schema.fields().iter().position(|f| f.name() == c.as_str()))
                 .collect();
-            parquet::arrow::ProjectionMask::roots(builder1.parquet_schema(), sort_indices)
+            ProjectionMask::roots(&parquet_schema_descr, sort_indices)
         } else {
-            parquet::arrow::ProjectionMask::roots(
-                builder1.parquet_schema(),
-                data_projection_indices.clone(),
-            )
+            ProjectionMask::roots(&parquet_schema_descr, data_projection_indices.clone())
         };
-        let mut sort_reader = builder1
-            .with_batch_size(batch_size)
-            .with_projection(sort_projection)
-            .build()?;
+        let mut sort_reader = build_source(store, path, batch_size, sort_projection)?;
 
         // Build data reader (only in deferred mode)
         let data_reader = if deferred {
-            let file2 = File::open(path)?;
-            let builder2 = ParquetRecordBatchReaderBuilder::try_new(file2)?;
-            let data_proj = parquet::arrow::ProjectionMask::roots(
-                builder2.parquet_schema(),
-                data_projection_indices.clone(),
-            );
-            Some(
-                builder2
-                    .with_batch_size(batch_size)
-                    .with_projection(data_proj)
-                    .build()?,
-            )
+            let data_proj =
+                ProjectionMask::roots(&parquet_schema_descr, data_projection_indices.clone());
+            Some(build_source(store, path, batch_size, data_proj)?)
         } else {
             None
         };
@@ -158,9 +136,9 @@ impl FileCursor {
         ));
 
         // Read first sort batch
-        let first_sort_batch = match sort_reader.next() {
+        let first_sort_batch = match sort_reader.next_batch() {
             Some(Ok(b)) if b.num_rows() > 0 => b,
-            Some(Err(e)) => return Err(e.into()),
+            Some(Err(e)) => return Err(e),
             _ => {
                 return Err(MergeError::Logic(format!(
                     "File '{}' (cursor {}) yielded no rows",
@@ -235,9 +213,9 @@ impl FileCursor {
         let tx = self.sort_prefetch_tx.clone();
         get_merge_pool(None).spawn(move || {
             let mut reader = reader.lock().unwrap();
-            let result = match reader.next() {
+            let result = match reader.next_batch() {
                 Some(Ok(batch)) if batch.num_rows() > 0 => Some(Ok(batch)),
-                Some(Err(e)) => Some(Err(MergeError::Arrow(e))),
+                Some(Err(e)) => Some(Err(e)),
                 _ => None,
             };
             let _ = tx.send(result);
@@ -330,7 +308,7 @@ impl FileCursor {
         self.data_batch = None;
 
         while self.data_batch_index <= self.sort_batch_index {
-            match reader.next() {
+            match reader.next_batch() {
                 Some(Ok(batch)) => {
                     if batch.num_rows() == 0 {
                         return Err(MergeError::Logic(format!(
@@ -359,7 +337,7 @@ impl FileCursor {
                     // Skipped batch — discard
                     self.data_batch_index += 1;
                 }
-                Some(Err(e)) => return Err(e.into()),
+                Some(Err(e)) => return Err(e),
                 None => {
                     return Err(MergeError::Logic(format!(
                         "Data reader exhausted at position {}, needed sort_batch_index={}",

@@ -59,6 +59,56 @@ unsafe fn arc_from_ptr(ptr: i64) -> Result<Arc<TieredObjectStore>, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Generic ObjectStore handle lifecycle (write-path, shard-scoped)
+// ---------------------------------------------------------------------------
+//
+// These entry points mint a plain `Box<Arc<dyn ObjectStore>>` handle that the
+// parquet write/merge paths use as a shard-scoped sink/source. For hot indices
+// this is a `LocalFileSystem` rooted at the shard directory; the warm path can
+// later hand back the same-shaped handle backed by a `TieredObjectStore`, so
+// consumers (writer/merge/search) never change.
+//
+// Ownership model: the engine owns the master handle and is the ONLY caller of
+// `os_destroy_store` (exactly once, at shard close). Consumers (parquet
+// writer/merge) clone the `Arc` inline from the raw box pointer so the store
+// outlives any in-flight op.
+
+/// Create a local filesystem `ObjectStore` rooted at `path`, returned as a
+/// `Box<Arc<dyn ObjectStore>>` raw pointer (i64). Object paths are then plain
+/// filenames relative to `path`. Free with [`os_destroy_store`].
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn os_create_local_store(path_ptr: *const u8, path_len: i64) -> i64 {
+    let path = str_from_raw(path_ptr, path_len)
+        .map_err(|e| format!("os_create_local_store path: {}", e))?;
+    let store: Arc<dyn ObjectStore> = Arc::new(
+        object_store::local::LocalFileSystem::new_with_prefix(path).map_err(|e| {
+            format!(
+                "os_create_local_store: failed to open LocalFileSystem at '{}': {}",
+                path, e
+            )
+        })?,
+    );
+    let ptr = Box::into_raw(Box::new(store)) as i64;
+    native_bridge_common::log_info!("ffm: os_create_local_store root='{}' ok", path);
+    Ok(ptr)
+}
+
+/// Drop a `Box<Arc<dyn ObjectStore>>` created by [`os_create_local_store`],
+/// decrementing the `Arc` strong count. Must be called exactly once, by the
+/// engine, at shard close. Outstanding consumer clones keep the store alive.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn os_destroy_store(handle: i64) -> i64 {
+    if handle == NULL_PTR {
+        return Err("os_destroy_store: null pointer (0)".to_string());
+    }
+    let _ = Box::from_raw(handle as *mut Arc<dyn ObjectStore>);
+    native_bridge_common::log_info!("ffm: os_destroy_store ok");
+    Ok(0)
+}
+
+// ---------------------------------------------------------------------------
 // Public FFM exports
 // ---------------------------------------------------------------------------
 
