@@ -31,7 +31,7 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 dependencies {
-  api 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  api "info.picocli:picocli:${versions.picocli}"
   api project(':libs:opensearch-common')
 
   testImplementation(project(":test:framework")) {
