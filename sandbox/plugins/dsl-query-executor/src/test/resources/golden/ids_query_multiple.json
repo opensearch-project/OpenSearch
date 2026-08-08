@@ -1,0 +1,36 @@
+{
+  "testName": "ids_query_multiple",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "ids": {
+        "values": ["doc1", "doc2", "doc3"]
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[IDS(MAP('values.0', 'doc1'), MAP('values.1', 'doc2'), MAP('values.2', 'doc3'))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price"],
+  "mockResultRows": [
+    ["laptop", 999],
+    ["phone", 699]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

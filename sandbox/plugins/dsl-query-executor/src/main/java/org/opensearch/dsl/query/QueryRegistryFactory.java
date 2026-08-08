@@ -22,6 +22,7 @@ public class QueryRegistryFactory {
         registry.register(new TermsQueryTranslator());
         registry.register(new MatchAllQueryTranslator());
         registry.register(new ExistsQueryTranslator());
+        registry.register(new IdsQueryTranslator());
         // TODO: add other query translators
         return registry;
     }
