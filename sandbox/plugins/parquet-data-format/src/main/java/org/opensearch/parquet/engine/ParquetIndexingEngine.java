@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
@@ -75,12 +76,19 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     /** File extension for Parquet files. */
     static final String FILE_NAME_EXT = ".parquet";
 
+    /**
+     * Prefix of the companion field a keyword mapper emits to carry the pre-normalization raw value
+     * for derived source. Mirrors {@code KeywordFieldMapper.buildRawKeywordValueFieldType}.
+     */
+    private static final String IGNORED_SOURCE_PREFIX = "_ignored_source.";
+
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
     private Supplier<Schema> schemaSupplier;
     private Supplier<Long> mappingVersionSupplier;
     private volatile long cachedSchemaVersion = -1;
     private volatile Schema cachedSchema;
+    private final Set<String> multiValueFields;
     private final ArrowBufferPool bufferPool;
     private final IndexSettings indexSettings;
     private final Settings nodeSettings;
@@ -115,10 +123,40 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat,
             shardPath,
             schemaSupplier,
+            Set.of(),
             mappingVersionSupplier,
             indexSettings,
             threadPool,
             new PrecomputedChecksumStrategy(),
+            nativeAllocator
+        );
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with an externally provided checksum strategy and no
+     * multi-valued fields.
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
+    ) {
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            Set.of(),
+            mappingVersionSupplier,
+            indexSettings,
+            threadPool,
+            checksumStrategy,
             nativeAllocator
         );
     }
@@ -141,6 +179,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
+        Set<String> multiValueFields,
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
@@ -150,6 +189,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
+        this.multiValueFields = Set.copyOf(multiValueFields);
         this.mappingVersionSupplier = mappingVersionSupplier;
         this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
         this.indexSettings = indexSettings;
@@ -318,7 +358,23 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public ParquetDocumentInput newDocumentInput() {
-        return new ParquetDocumentInput();
+        return new ParquetDocumentInput(this::isMultiValueField);
+    }
+
+    /**
+     * Whether a field name is backed by a Parquet LIST column.
+     * <p>
+     * Also matches the {@code _ignored_source.<field>} companion a keyword field emits for derived
+     * source: {@code ArrowSchemaBuilder} gives that companion the parent's cardinality, so the
+     * document input must accumulate its values the same way or the two would disagree — the
+     * companion would reject the second value while its own column expects a list.
+     */
+    private boolean isMultiValueField(String fieldName) {
+        if (multiValueFields.contains(fieldName)) {
+            return true;
+        }
+        return fieldName.startsWith(IGNORED_SOURCE_PREFIX)
+            && multiValueFields.contains(fieldName.substring(IGNORED_SOURCE_PREFIX.length()));
     }
 
     @Override

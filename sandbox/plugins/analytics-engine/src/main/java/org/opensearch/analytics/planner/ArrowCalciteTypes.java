@@ -11,7 +11,12 @@ package org.opensearch.analytics.planner;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.sql.type.SqlTypeName;
+
+import java.util.List;
 
 /**
  * Bidirectional Arrow ↔ Calcite type converter for single types.
@@ -49,7 +54,29 @@ public final class ArrowCalciteTypes {
             // TODO: TIMESTAMP_WITH_LOCAL_TIME_ZONE, DATE, TIME, DECIMAL still missing.
             // precision 9 ⇒ date_nanos; else date — must match the wire unit shards emit (Stitcher copyFromSafe).
             case TIMESTAMP -> new ArrowType.Timestamp(t.getPrecision() == 9 ? TimeUnit.NANOSECOND : TimeUnit.MILLISECOND, null);
+            case ARRAY -> ArrowType.List.INSTANCE;
             default -> throw new IllegalArgumentException("Unsupported Calcite type: " + t.getSqlTypeName());
         };
+    }
+
+    /**
+     * Convert a Calcite {@link RelDataType} to a named Arrow {@link Field}, recursing into ARRAY
+     * component types.
+     * <p>
+     * {@link #toArrow} returns a bare {@link ArrowType}, which cannot express a list's element
+     * type — an Arrow list carries its child on the {@code Field}, not the {@code ArrowType}. Use
+     * this whenever a {@code Field} is being built, so multi-valued columns keep their element type.
+     */
+    public static Field toArrowField(String name, RelDataType t) {
+        if (t.getSqlTypeName() == SqlTypeName.ARRAY) {
+            RelDataType componentType = t.getComponentType();
+            if (componentType == null) {
+                throw new IllegalArgumentException("ARRAY type for field [" + name + "] has no component type");
+            }
+            // Element name must match the write side (ParquetField.LIST_ELEMENT_NAME) so the
+            // coordinator's expected schema matches what the data nodes emit.
+            return new Field(name, FieldType.nullable(ArrowType.List.INSTANCE), List.of(toArrowField("element", componentType)));
+        }
+        return Field.nullable(name, toArrow(t));
     }
 }

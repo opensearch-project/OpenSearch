@@ -573,7 +573,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             @Override
             public Set<ScanCapability> scanCapabilities() {
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
-                return Set.of(new ScanCapability.DocValues(formats, Set.copyOf(SUPPORTED_FIELD_TYPES)));
+                // ARRAY is scannable even though it is absent from SUPPORTED_FIELD_TYPES (which
+                // gates filter/sort/aggregate, where array semantics are undefined). A field
+                // declared in index.parquet.multi_value.field is a real LIST column on disk, and
+                // OpenSearchTableScanRule requires the scan backend to cover every column in the
+                // row type — without this, one multi-valued column would disqualify DataFusion
+                // from scanning the whole index.
+                Set<FieldType> scanTypes = new HashSet<>(SUPPORTED_FIELD_TYPES);
+                scanTypes.add(FieldType.ARRAY);
+                return Set.of(new ScanCapability.DocValues(formats, Set.copyOf(scanTypes)));
             }
 
             @Override

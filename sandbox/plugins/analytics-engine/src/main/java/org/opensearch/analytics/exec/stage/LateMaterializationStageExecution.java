@@ -362,7 +362,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         List<RelDataTypeField> aboveFields = wrapper.getAboveAnchorPhysicalFields();
         List<Field> outputFields = new ArrayList<>(aboveFields.size());
         for (RelDataTypeField f : aboveFields) {
-            outputFields.add(Field.nullable(f.getName(), ArrowCalciteTypes.toArrow(f.getType())));
+            outputFields.add(ArrowCalciteTypes.toArrowField(f.getName(), f.getType()));
         }
 
         // Fetch projection sent to the data node: ___row_id (required by the data-node

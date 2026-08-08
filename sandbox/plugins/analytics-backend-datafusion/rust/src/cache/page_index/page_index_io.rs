@@ -321,6 +321,18 @@ async fn get_or_build_offset_index(
             for &c in proj_cols {
                 set.insert(c);
             }
+            // Repeated (nested) leaves must always get a REAL OffsetIndex.
+            // The placeholder fabricates a single page with `first_row_index = 0` spanning
+            // `num_rows` ROWS. For a repeated leaf, pages hold VALUES and rows != values, so a
+            // reader deriving a value range from that fake row boundary reads the wrong bytes
+            // ("Src size is incorrect" / "StructArrayReader out of sync"). Placeholders are only
+            // sound for max_rep_level == 0 columns.
+            let descr = footer_meta.file_metadata().schema_descr();
+            for c in 0..num_cols {
+                if descr.column(c).max_rep_level() > 0 {
+                    set.insert(c);
+                }
+            }
             debug_assert!(
                 set.iter().all(|&c| c < num_cols),
                 "column index out of bounds (num_cols={num_cols}): {set:?}"

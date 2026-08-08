@@ -157,6 +157,12 @@ final class PplAggregateCallRewriter {
             }
             case "LIST", "VALUES" -> {
                 // arg0 type distinguishes PARTIAL (raw element → array_agg) from FINAL (array → list_merge).
+                //
+                // A multi-valued source column (index.parquet.multi_value.field) is also list-typed,
+                // so it takes the list_merge branch on BOTH halves — which is the behaviour we want:
+                // list_merge un-nests, so `list(tags)` over a multi-valued `tags` flattens every
+                // document's values into one array instead of producing an array of arrays. Routing
+                // such a column to array_agg would instead nest it one level deeper.
                 if (call.getArgList().isEmpty()) {
                     return call;
                 }
