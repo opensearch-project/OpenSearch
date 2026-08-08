@@ -108,7 +108,6 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
@@ -1404,12 +1403,6 @@ final class DefaultSearchContext extends SearchContext {
     public void evaluateRequestShouldUseIntraSegmentSearch() {
         String partitionStrategy = getPartitionStrategy();
         if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
-            requestShouldUseIntraSegmentSearch.set(false);
-            return;
-        }
-        // StarTree precomputes aggregations at index time - intra-segment adds no benefit
-        if (aggregations() != null && StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
-            logger.debug("partition strategy decision: StarTree detected, disabling intra-segment");
             requestShouldUseIntraSegmentSearch.set(false);
             return;
         }
