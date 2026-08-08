@@ -178,7 +178,16 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
             final Map<String, Long> shardSizes,
             final Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, Map.of(), nodeResourceUsageStats);
+            super(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                null,
+                reservedSpace,
+                Map.of(),
+                nodeResourceUsageStats,
+                Map.of()
+            );
         }
 
         @Override
