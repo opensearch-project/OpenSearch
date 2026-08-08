@@ -21,8 +21,7 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -39,8 +38,18 @@ import java.util.Set;
 public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
+
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Detects duplicate single-valued fields, keyed by field <b>name</b>. Two {@code addField} calls with the
+     * same name necessarily carry the same {@link MappedFieldType} instance — the mapping layer forbids two
+     * mappers sharing a name (see {@code MappingLookup}) — so name-equality dedup is equivalent to the previous
+     * object-identity dedup. Keying on the name String rather than the field-type object avoids
+     * {@code System.identityHashCode} on the bulk-indexing hot path: {@code MappedFieldType} inherits
+     * {@code Object.hashCode()} (identity → {@code JVM_IHashCode}), whereas {@code String.hashCode()} is cached.
+     * O(n) in field count, so no quadratic blow-up on wide documents.
+     */
+    private final Set<String> seenFieldNames = new HashSet<>();
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -54,7 +63,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }
-        if (dedup.add(fieldType) == false) {
+        if (seenFieldNames.add(fieldType.name()) == false) {
             throw new MapperParsingException(
                 "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
             );
@@ -91,6 +100,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     public void close() {
         isClosed = true;
         collectedFields.clear();
+        seenFieldNames.clear();
         rowId = -1;
     }
 

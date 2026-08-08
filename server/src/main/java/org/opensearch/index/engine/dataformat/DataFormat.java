@@ -25,6 +25,16 @@ import java.util.Set;
 @ExperimentalApi
 public abstract class DataFormat {
     /**
+     * Cached {@link #hashCode()}. Computed lazily from {@link #name()} on first use and reused
+     * thereafter. {@code DataFormat} instances are effectively immutable (one instance per unique
+     * name), so the value is stable. The field is not {@code volatile}: concurrent callers may each
+     * recompute it, but they all derive the same value from the same {@code name()}, so the race is
+     * benign. {@code 0} means "not yet computed" — a name whose hash is genuinely {@code 0} simply
+     * recomputes each call, which is correct if marginally slower for that one degenerate case.
+     */
+    private int hash;
+
+    /**
      * Returns the unique name of this data format.
      *
      * @return the data format name
@@ -55,6 +65,11 @@ public abstract class DataFormat {
 
     @Override
     public final int hashCode() {
-        return Objects.hashCode(name());
+        int h = hash;
+        if (h == 0) {
+            h = Objects.hashCode(name());
+            hash = h;
+        }
+        return h;
     }
 }
