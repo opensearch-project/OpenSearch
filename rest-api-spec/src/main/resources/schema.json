@@ -253,7 +253,7 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["DELETE", "GET", "HEAD", "POST", "PUT"],
+                        "enum": ["DELETE", "GET", "HEAD", "POST", "PUT", "QUERY"],
                         "minLength": 1
                     }
                 },
