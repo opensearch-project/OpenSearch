@@ -77,6 +77,11 @@ task buildRustLibrary(type: Exec) {
 
     def cargoArgs = [cargoExecutable, 'build', '-p', 'opensearch-native-lib']
     if (buildType == 'release') { cargoArgs.add('--release') }
+    // Liquid Cache: -PliquidCache (or LIQUID_CACHE=1) turns on the liquid_cache cargo feature (off by default).
+    if (project.hasProperty('liquidCache') || System.getenv('LIQUID_CACHE') == '1') {
+        logger.lifecycle('Liquid Cache: feature enabled')
+        cargoArgs.addAll(['--features', 'opensearch-datafusion/liquid_cache'])
+    }
     commandLine cargoArgs
 
     inputs.files fileTree("${rustWorkspaceDir}/common/src")
