@@ -40,8 +40,10 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -363,6 +365,100 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(buckets.get(1).getDocCount(), equalTo(2L));
                     assertThat(buckets.get(2).getKeyAsString(), equalTo("rare"));
                     assertThat(buckets.get(2).getDocCount(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    /**
+     * Reproduces the bug where {@link StreamStringTermsAggregator} ignores the
+     * {@code owningBucketOrd} passed into its leaf collector, so when it runs as a
+     * sub-aggregator under a parent terms aggregator every parent bucket ends up
+     * with the same inner buckets. Collects six docs across two simulated parent
+     * bucket ordinals and asserts the two resulting aggregations diverge.
+     */
+    public void testBuildAggregationsBatchScopesPerOwningBucketOrd() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // docs 0,1,2 -> apple ; docs 3,4 -> banana ; doc 5 -> cherry
+                for (String term : new String[] { "apple", "apple", "apple", "banana", "banana", "cherry" }) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef(term)));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .order(BucketOrder.key(true));
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        CardinalityUpperBound.MANY,
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+
+                    // Drive collection manually so we can hand different owningBucketOrds
+                    // to the aggregator, mimicking a parent terms aggregator with two
+                    // parent buckets: ord 0 gets the "apple" docs, ord 1 gets the rest.
+                    LeafBucketCollector leafCollector = aggregator.getLeafCollector(
+                        indexSearcher.getIndexReader().leaves().get(0),
+                        LeafBucketCollector.NO_OP_COLLECTOR
+                    );
+                    leafCollector.collect(0, 0L);
+                    leafCollector.collect(1, 0L);
+                    leafCollector.collect(2, 0L);
+                    leafCollector.collect(3, 1L);
+                    leafCollector.collect(4, 1L);
+                    leafCollector.collect(5, 1L);
+                    aggregator.postCollection();
+
+                    InternalAggregation[] results = aggregator.buildAggregations(new long[] { 0L, 1L });
+                    assertThat(results.length, equalTo(2));
+
+                    StringTerms parent0 = (StringTerms) results[0];
+                    StringTerms parent1 = (StringTerms) results[1];
+
+                    // Parent 0 saw only "apple" docs.
+                    List<StringTerms.Bucket> p0Buckets = parent0.getBuckets();
+                    assertThat("parent 0 should only contain apple", p0Buckets.size(), equalTo(1));
+                    assertThat(p0Buckets.get(0).getKeyAsString(), equalTo("apple"));
+                    assertThat(p0Buckets.get(0).getDocCount(), equalTo(3L));
+
+                    // Parent 1 saw the banana + cherry docs.
+                    List<StringTerms.Bucket> p1Buckets = parent1.getBuckets();
+                    assertThat("parent 1 should contain banana and cherry", p1Buckets.size(), equalTo(2));
+                    StringTerms.Bucket banana = p1Buckets.stream()
+                        .filter(b -> b.getKeyAsString().equals("banana"))
+                        .findFirst()
+                        .orElse(null);
+                    StringTerms.Bucket cherry = p1Buckets.stream()
+                        .filter(b -> b.getKeyAsString().equals("cherry"))
+                        .findFirst()
+                        .orElse(null);
+                    assertThat(banana, notNullValue());
+                    assertThat(banana.getDocCount(), equalTo(2L));
+                    assertThat(cherry, notNullValue());
+                    assertThat(cherry.getDocCount(), equalTo(1L));
+
+                    // And finally: the two parents must not share identical inner results.
+                    assertThat(
+                        "parent 0 and parent 1 must produce distinct inner bucket sets",
+                        p0Buckets.size() == p1Buckets.size() && p0Buckets.get(0).getKeyAsString().equals(p1Buckets.get(0).getKeyAsString()),
+                        equalTo(false)
+                    );
                 }
             }
         }
