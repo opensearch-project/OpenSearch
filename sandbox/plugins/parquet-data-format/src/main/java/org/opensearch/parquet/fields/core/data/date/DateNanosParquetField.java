@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data.date;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -15,7 +16,6 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 import java.util.Set;
 
@@ -28,8 +28,8 @@ public class DateNanosParquetField extends ParquetField {
     public DateNanosParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((TimeStampNanoVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (long) parseValue);
+    protected void addToGroup(MappedFieldType mappedFieldType, FieldVector vector, int rowIndex, Object parseValue) {
+        ((TimeStampNanoVector) vector).setSafe(rowIndex, (long) parseValue);
     }
 
     @Override

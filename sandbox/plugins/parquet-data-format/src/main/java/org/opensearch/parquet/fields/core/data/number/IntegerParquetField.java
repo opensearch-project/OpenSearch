@@ -8,11 +8,11 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 32-bit signed integer values using {@link IntVector}.
@@ -23,8 +23,8 @@ public class IntegerParquetField extends NumericParquetField {
     public IntegerParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((IntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Integer) parseValue);
+    protected void addToGroup(MappedFieldType mappedFieldType, FieldVector vector, int rowIndex, Object parseValue) {
+        ((IntVector) vector).setSafe(rowIndex, (Integer) parseValue);
     }
 
     @Override

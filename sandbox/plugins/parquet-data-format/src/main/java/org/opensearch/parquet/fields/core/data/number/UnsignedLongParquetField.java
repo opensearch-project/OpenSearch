@@ -8,11 +8,11 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 64-bit unsigned long values using {@link UInt8Vector}.
@@ -23,8 +23,8 @@ public class UnsignedLongParquetField extends NumericParquetField {
     public UnsignedLongParquetField() {}
 
     @Override
-    protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((UInt8Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), ((Number) parseValue).longValue());
+    protected void addToGroup(MappedFieldType mappedFieldType, FieldVector vector, int rowIndex, Object parseValue) {
+        ((UInt8Vector) vector).setSafe(rowIndex, ((Number) parseValue).longValue());
     }
 
     @Override
