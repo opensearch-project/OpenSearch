@@ -33,7 +33,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.LinkedHashMap;
@@ -680,7 +679,7 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     }
 
     /**
-     * A field listed in {@code index.parquet.multi_value.field} is stored as a Parquet LIST column,
+     * A field mapped with {@code multi_value: true} is stored as a Parquet LIST column,
      * so the Calcite schema must type it ARRAY&lt;element&gt; rather than as its bare element type.
      */
     public void testMultiValueFieldIsTypedAsArray() throws Exception {
@@ -732,16 +731,17 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         boolean first = true;
         for (Map.Entry<String, String> field : ordered.entrySet()) {
             if (!first) mappingJson.append(",");
-            mappingJson.append("\"").append(field.getKey()).append("\":{\"type\":\"").append(field.getValue()).append("\"}");
+            mappingJson.append("\"").append(field.getKey()).append("\":{\"type\":\"").append(field.getValue()).append("\"");
+            if (multiValueFields.contains(field.getKey())) {
+                mappingJson.append(",\"multi_value\":true");
+            }
+            mappingJson.append("}");
             first = false;
         }
         mappingJson.append("}}");
 
-        Settings.Builder indexSettings = Settings.builder().put(settings(Version.CURRENT).build());
-        indexSettings.putList("index.parquet.multi_value.field", multiValueFields);
-
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(indexSettings)
+            .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putMapping(mappingJson.toString())

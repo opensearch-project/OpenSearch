@@ -575,7 +575,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 // ARRAY is scannable even though it is absent from SUPPORTED_FIELD_TYPES (which
                 // gates filter/sort/aggregate, where array semantics are undefined). A field
-                // declared in index.parquet.multi_value.field is a real LIST column on disk, and
+                // mapped with `multi_value: true` is a real LIST column on disk, and
                 // OpenSearchTableScanRule requires the scan backend to cover every column in the
                 // row type — without this, one multi-valued column would disqualify DataFusion
                 // from scanning the whole index.

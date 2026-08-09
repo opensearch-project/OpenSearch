@@ -80,7 +80,7 @@ public class ArrowCalciteTypesTests extends OpenSearchTestCase {
     }
 
     /**
-     * A multi-valued column (index.parquet.multi_value.field) is typed ARRAY in the Calcite schema
+     * A multi-valued column ({@code multi_value: true} mapping parameter) is typed ARRAY in the Calcite schema
      * and is a real LIST column on disk. Previously this threw "Unsupported Calcite type: ARRAY".
      */
     public void testArrayMapsToList() {

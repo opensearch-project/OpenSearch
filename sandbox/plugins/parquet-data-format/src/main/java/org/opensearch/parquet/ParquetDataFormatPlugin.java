@@ -67,7 +67,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -200,14 +199,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
 
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineConfig) {
-        // Final index setting, so resolve once per engine rather than on every schema rebuild.
-        Set<String> multiValueFields = ParquetSettings.getMultiValueFields(engineConfig.indexSettings().getSettings());
         return new ParquetIndexingEngine(
             settings,
             PARQUET_DATA_FORMAT,
             engineConfig.store().shardPath(),
-            () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService(), multiValueFields),
-            multiValueFields,
+            () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
             () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
             engineConfig.indexSettings(),
             threadPool,

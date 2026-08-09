@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * <p>OpenSearch mappings do not declare cardinality — an array is a property of an individual
  * document — but an Arrow/Parquet column's type is fixed for the whole file. A field listed in
- * {@code index.parquet.multi_value.field} is therefore written as an Arrow {@code LIST<element>}
+ * mapped with {@code multi_value: true} is therefore written as an Arrow {@code LIST<element>}
  * column, and only such a field accepts more than one value per document.
  *
  * <p>This test exercises the full path that unit tests cannot: the mapper splitting a JSON array
@@ -253,66 +253,29 @@ public class MultiValueFieldIT extends AnalyticsRestTestCase {
         String responseBody = bodyOf(e);
         assertTrue(
             "rejection must mention multiple values and point at the setting, got: " + responseBody,
-            responseBody.contains("multiple values") && responseBody.contains("index.parquet.multi_value.field")
+            responseBody.contains("multiple values") && responseBody.contains("multi_value")
         );
     }
 
-    /** Declaring a field that does not exist in the mapping must fail index creation outright. */
-    public void testUnknownMultiValueFieldRejectedAtIndexCreation() throws Exception {
-        String indexName = INDEX + "_unknown";
+    /** Declaring {@code multi_value} on a type without list support must fail index creation. */
+    public void testMultiValueOnUnsupportedTypeRejectedAtIndexCreation() throws Exception {
+        String indexName = INDEX + "_unsupported";
         try {
             client().performRequest(new Request("DELETE", "/" + indexName));
         } catch (Exception ignored) {}
 
+        // `binary` is stored by the parquet format but has no list support (no addToVector).
         Request create = new Request("PUT", "/" + indexName);
         create.setJsonEntity(
             "{\"settings\":{"
                 + compositeSettings()
-                + ",\"index.parquet.multi_value.field\":[\"does_not_exist\"]},"
-                + "\"mappings\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}"
+                + "},"
+                + "\"mappings\":{\"properties\":{\"blob\":{\"type\":\"binary\",\"store\":true,\"multi_value\":true}}}}"
         );
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(create));
         String responseBody = bodyOf(e);
-        assertTrue("expected a clear index-creation failure, got: " + responseBody, responseBody.contains("does_not_exist"));
-    }
-
-
-    /**
-     * Pins the root cause: the LIST decode failure is caused by the **scoped page-index cache**.
-     * <p>
-     * With {@code datafusion.scoped_page_index.enabled=false} the identical filtered query — same
-     * indexed executor, same {@code RowSelection}, same file — decodes the LIST column correctly.
-     * With it enabled (the default) the same query fails. The scoped cache fetches page-index bytes
-     * per column and is only used by the indexed path, which is why
-     * {@link #testListColumnViaListingTablePath} never hits it.
-     * <p>
-     * This test is the control for {@link #testListColumnViaIndexedPath}: it must keep passing, and
-     * when the scoped page-index bug is fixed that one should start passing too. It also documents
-     * the operational workaround — disabling the setting makes multi-valued reads work today.
-     */
-    @SuppressWarnings("unchecked")
-    public void testIndexedPathWorksWithScopedPageIndexDisabled() throws Exception {
-        provision();
-        Request put = new Request("PUT", "/_cluster/settings");
-        put.setJsonEntity("{\"persistent\":{\"datafusion.scoped_page_index.enabled\":false}}");
-        client().performRequest(put);
-        try {
-            Map<String, Object> result = executePpl("source = " + INDEX + " | where id = 'multi' | fields tags");
-            List<String> columns = extractColumnNames(result);
-            List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
-            assertEquals(1, rows.size());
-            Object cell = rows.get(0).get(columns.indexOf("tags"));
-            assertEquals(
-                "with the scoped page-index cache disabled the LIST column must decode",
-                List.of("beta", "alpha", "beta"),
-                ((List<Object>) cell).stream().map(String::valueOf).toList()
-            );
-        } finally {
-            Request reset = new Request("PUT", "/_cluster/settings");
-            reset.setJsonEntity("{\"persistent\":{\"datafusion.scoped_page_index.enabled\":null}}");
-            client().performRequest(reset);
-        }
+        assertTrue("expected a clear index-creation failure, got: " + responseBody, responseBody.contains("multi_value"));
     }
 
     private static String bodyOf(ResponseException e) throws java.io.IOException {
@@ -343,13 +306,12 @@ public class MultiValueFieldIT extends AnalyticsRestTestCase {
         String mapping = "{"
             + "\"settings\": {"
             + compositeSettings()
-            + ",\"index.parquet.multi_value.field\": [\"tags\"]"
             + "},"
             + "\"mappings\": {"
             + "  \"properties\": {"
             + "    \"id\":   { \"type\": \"keyword\" },"
             + "    \"name\": { \"type\": \"keyword\" },"
-            + "    \"tags\": { \"type\": \"keyword\" }"
+            + "    \"tags\": { \"type\": \"keyword\", \"multi_value\": true }"
             + "  }"
             + "}"
             + "}";

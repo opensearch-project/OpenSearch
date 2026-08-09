@@ -540,13 +540,14 @@ public class VSRManagerTests extends ParquetBaseTests {
             manager.reconcileSchema(schemaWithMultiValue("tags"));
 
             KeywordFieldMapper.KeywordFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+            tags.setMultiValued(true);
             assignTestCapabilities(tags, PARQUET_FORMAT);
             NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
             assignTestCapabilities(valField, PARQUET_FORMAT);
 
             // Row 0: three values including a duplicate. Row 1: field absent entirely.
             // Row 2: a single value. Covers the three cardinalities in one file.
-            ParquetDocumentInput doc0 = new ParquetDocumentInput("tags"::equals);
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
             populateMetadataFields(doc0);
             doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
             doc0.addField(valField, 1);
@@ -555,13 +556,13 @@ public class VSRManagerTests extends ParquetBaseTests {
             doc0.addField(tags, "b");
             manager.addDocument(doc0);
 
-            ParquetDocumentInput doc1 = new ParquetDocumentInput("tags"::equals);
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
             populateMetadataFields(doc1);
             doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
             doc1.addField(valField, 2);
             manager.addDocument(doc1);
 
-            ParquetDocumentInput doc2 = new ParquetDocumentInput("tags"::equals);
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
             populateMetadataFields(doc2);
             doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
             doc2.addField(valField, 3);
@@ -592,7 +593,7 @@ public class VSRManagerTests extends ParquetBaseTests {
             // An explicit "tags": [] parses to zero addField calls, so the writer never sees the
             // field and the row is null — same as absent. Documented here so the distinction
             // between [] and absent is a deliberate, tested choice rather than an accident.
-            ParquetDocumentInput doc = new ParquetDocumentInput("tags"::equals);
+            ParquetDocumentInput doc = new ParquetDocumentInput();
             populateMetadataFields(doc);
             doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
             doc.addField(valField, 1);

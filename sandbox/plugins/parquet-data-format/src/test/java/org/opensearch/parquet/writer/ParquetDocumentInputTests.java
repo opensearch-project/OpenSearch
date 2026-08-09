@@ -88,9 +88,10 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
     }
 
     public void testDeclaredMultiValueFieldAccumulatesValuesInOrder() {
-        ParquetDocumentInput input = new ParquetDocumentInput("tags"::equals);
+        ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
         assignTestCapabilities(tags, PARQUET_FORMAT);
 
         // The document parser reports one addField call per array element.
@@ -109,9 +110,10 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
     }
 
     public void testDeclaredMultiValueFieldWithSingleValueIsStillAList() {
-        ParquetDocumentInput input = new ParquetDocumentInput("tags"::equals);
+        ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
         assignTestCapabilities(tags, PARQUET_FORMAT);
 
         input.addField(tags, "solo");
@@ -125,20 +127,21 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
     }
 
     public void testUndeclaredFieldStillRejectsMultipleValues() {
-        ParquetDocumentInput input = new ParquetDocumentInput("tags"::equals);
+        ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType other = new KeywordFieldMapper.KeywordFieldType("other");
         assignTestCapabilities(other, PARQUET_FORMAT);
 
         input.addField(other, "one");
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> input.addField(other, "two"));
-        assertTrue(e.getMessage().contains("index.parquet.multi_value.field"));
+        assertTrue(e.getMessage().contains("multi_value"));
     }
 
     public void testMultiValueFieldCountIsValueCountNotEntryCount() {
-        ParquetDocumentInput input = new ParquetDocumentInput("tags"::equals);
+        ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
         assignTestCapabilities(tags, PARQUET_FORMAT);
         input.addField(tags, "x");
         input.addField(tags, "y");
@@ -153,12 +156,13 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
 
     public void testDerivedSourceCompanionFieldFollowsParentCardinality() {
         // KeywordFieldMapper emits "_ignored_source.<field>" alongside the parent when a normalizer
-        // or ignore_above alters the value. ArrowSchemaBuilder gives that companion the parent's
-        // cardinality, so the document input must accumulate its values too — otherwise it would
-        // reject the second value while its own column expects a list.
-        ParquetDocumentInput input = new ParquetDocumentInput(name -> name.equals("tags") || name.equals("_ignored_source.tags"));
+        // or ignore_above alters the value, and buildRawKeywordValueFieldType copies the parent's
+        // multi_value flag onto it, so the document input must accumulate its values too —
+        // otherwise it would reject the second value while its own column expects a list.
+        ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
         MappedFieldType rawValue = new KeywordFieldMapper.KeywordFieldType("_ignored_source.tags");
+        rawValue.setMultiValued(true);
         assignTestCapabilities(rawValue, PARQUET_FORMAT);
 
         input.addField(rawValue, "RAW-ONE");

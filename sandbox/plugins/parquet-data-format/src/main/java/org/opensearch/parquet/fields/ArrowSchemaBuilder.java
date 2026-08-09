@@ -14,9 +14,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -27,7 +29,6 @@ import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Builds Apache Arrow schemas from OpenSearch MapperService field mappings.
@@ -39,25 +40,17 @@ public final class ArrowSchemaBuilder {
     private ArrowSchemaBuilder() {}
 
     /**
-     * Creates an Arrow Schema from the MapperService, with no multi-valued fields.
+     * Creates an Arrow Schema from the MapperService.
+     *
+     * <p>A field whose mapper declares {@code multi_value: true}
+     * ({@link MappedFieldType#isMultiValued()}) is emitted as a {@code LIST<element>} column;
+     * every other field keeps its scalar column.
+     * TODO - Get the mapping version while creating the schema
      *
      * @param mapperService the mapper service containing field mappings
      */
     public static Schema getSchema(MapperService mapperService) {
-        return getSchema(mapperService, Set.of());
-    }
-
-    /**
-     * Creates an Arrow Schema from the MapperService.
-     *
-     * @param mapperService the mapper service containing field mappings
-     * @param multiValueFields names of fields to emit as {@code LIST<element>} columns, from
-     *                         {@code index.parquet.multi_value.field}
-     * TODO - Get the mapping version while creating the schema
-     */
-    public static Schema getSchema(MapperService mapperService, Set<String> multiValueFields) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
-        Objects.requireNonNull(multiValueFields, "multiValueFields cannot be null");
         List<Field> fields = new ArrayList<>();
         DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
         if (documentMapper != null) {
@@ -69,7 +62,16 @@ public final class ArrowSchemaBuilder {
 
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
-                    boolean multiValue = multiValueFields.contains(mapper.name());
+                    boolean multiValue = isMultiValued(mapper);
+                    if (multiValue && parquetField.supportsMultiValue() == false) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + mapper.name()
+                                + "] of type ["
+                                + mapper.typeName()
+                                + "] does not support [multi_value] storage in the parquet data format"
+                        );
+                    }
                     fields.add(parquetField.toArrowField(mapper.name(), multiValue));
                     handleNormalizedField(mapper, documentMapper, fields, parquetField, multiValue);
                 } else {
@@ -99,6 +101,11 @@ public final class ArrowSchemaBuilder {
                 fields.add(parquetField.toArrowField(rawValueField.name(), multiValue));
             }
         }
+    }
+
+    /** Reads the {@code multi_value} declaration from the mapper's field type. */
+    private static boolean isMultiValued(Mapper mapper) {
+        return mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isMultiValued();
     }
 
     private static boolean isUnsupportedMetadataField(Mapper mapper) {

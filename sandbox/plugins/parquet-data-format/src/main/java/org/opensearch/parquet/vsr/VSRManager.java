@@ -185,8 +185,8 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Cardinality is decided at the {@link ParquetDocumentInput} layer: fields declared in
-     * {@code index.parquet.multi_value.field} accumulate every value into one list-valued pair,
+     * Cardinality is decided at the {@link ParquetDocumentInput} layer: fields mapped with
+     * {@code multi_value: true} accumulate every value into one list-valued pair,
      * and all other fields still reject a second value.
      *
      * @param doc the document input containing field-value pairs

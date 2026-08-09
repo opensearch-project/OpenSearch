@@ -19,15 +19,12 @@ import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
-import org.opensearch.parquet.ParquetSettings;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Document input for the Parquet data format.
@@ -44,24 +41,8 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
     private final Map<MappedFieldType, FieldValuePair> seen = new IdentityHashMap<>();
-    private final Predicate<String> isMultiValueField;
     private long rowId = -1;
     private boolean isClosed = false;
-
-    /** Creates a document input that rejects multiple values for every field. */
-    public ParquetDocumentInput() {
-        this(fieldName -> false);
-    }
-
-    /**
-     * Creates a document input.
-     *
-     * @param isMultiValueField tells whether a field is declared multi-valued (backed by a Parquet
-     *                          LIST column) and may therefore accumulate more than one value
-     */
-    public ParquetDocumentInput(Predicate<String> isMultiValueField) {
-        this.isMultiValueField = Objects.requireNonNull(isMultiValueField, "isMultiValueField cannot be null");
-    }
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
@@ -75,9 +56,9 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         }
         FieldValuePair existing = seen.get(fieldType);
         if (existing == null) {
-            // Declared multi-value fields start out as a list of one so the value shape reaching the
-            // VSR is the same whether the document had one value or several.
-            FieldValuePair pair = isMultiValueField.test(fieldType.name())
+            // Fields declared `multi_value: true` in the mapping start out as a list of one so the
+            // value shape reaching the VSR is the same whether the document had one value or several.
+            FieldValuePair pair = fieldType.isMultiValued()
                 ? FieldValuePair.multiValued(fieldType, value)
                 : new FieldValuePair(fieldType, value);
             seen.put(fieldType, pair);
@@ -90,9 +71,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
                     + fieldType.name()
                     + "] of type: ["
                     + fieldType.typeName()
-                    + "]. Declare it in ["
-                    + ParquetSettings.MULTI_VALUE_FIELD_SETTING.getKey()
-                    + "] to store multiple values."
+                    + "]. Set [multi_value: true] on the field mapping to store multiple values."
             );
         }
         existing.addValue(value);
