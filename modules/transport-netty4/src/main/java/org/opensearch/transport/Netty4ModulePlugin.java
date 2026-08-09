@@ -82,6 +82,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            Netty4HttpServerTransport.SETTING_HTTP_PIPELINE_DEPTH,
             Netty4Transport.WORKER_COUNT,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
