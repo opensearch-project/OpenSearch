@@ -18,13 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Serializer for the IDS delegated predicate. Constructs a vanilla {@link IdsQueryBuilder}
- * and delegates encoding to {@code IdFieldType.termsQuery} (via {@code IdsQueryBuilder.doToQuery}).
- *
- * <p>WHY no {@code Uid.encodeId} here: the serializer hands off to vanilla's {@link IdsQueryBuilder},
- * so encoding happens inside {@code IdFieldType.termsQuery} ({@code IdFieldMapper.java:179}) where
- * it belongs. Coupling the serializer to the internal encoding scheme creates a fragile dependency
- * whose drift produces silently wrong results rather than compile errors.
+ * Serializer for the IDS delegated predicate.
+ * Encoding is left to vanilla's {@code IdFieldType.termsQuery} via {@link IdsQueryBuilder#doToQuery}.
  */
 public class IdsQuerySerializer extends AbstractQuerySerializer {
 

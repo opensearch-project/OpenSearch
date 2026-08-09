@@ -34,8 +34,7 @@ public class TermQueryTranslator implements QueryTranslator {
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         TermQueryBuilder termQuery = (TermQueryBuilder) query;
         String fieldName = termQuery.fieldName();
-        // WHY reject: term on _id would compare a raw string against Uid-encoded stored bytes
-        // and silently return zero hits. Direct users to the ids query instead.
+        // Replaces a generic field-not-found error with an actionable one naming the ids query.
         if (IdFieldMapper.NAME.equals(fieldName)) {
             throw new ConversionException("Term query on _id is not supported; use the ids query instead");
         }

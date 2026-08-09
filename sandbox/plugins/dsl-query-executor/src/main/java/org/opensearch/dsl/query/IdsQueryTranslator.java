@@ -27,12 +27,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Converts an {@link IdsQueryBuilder} to a Calcite RexCall suitable for Lucene delegation.
- *
- * <p>Produces a FIELDLESS call shaped as {@code IDS(MAP('values.0', 'id0'), MAP('values.1', 'id1'), ...)}
- * where each id is a separate indexed MAP key to preserve lossless multi-value encoding
- * (ids may legally contain commas). No field operand is emitted because the ids query operates
- * on the implicit _id metadata field which is not part of the user-visible row type.
+ * Converts an {@link IdsQueryBuilder} to a fieldless {@code IDS(MAP('values.N', id), ...)} RexCall.
+ * One indexed MAP operand per id because an {@code _id} may contain a comma.
  */
 public class IdsQueryTranslator implements QueryTranslator {
 
@@ -55,9 +51,7 @@ public class IdsQueryTranslator implements QueryTranslator {
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         IdsQueryBuilder idsQuery = (IdsQueryBuilder) query;
 
-        // Reject unsupported parameters.
-        // Audit: IdsQueryBuilder exposes ids(), boost(), queryName(). No types field exists
-        // (removed in OpenSearch 2.0; strict ObjectParser rejects it at parse time).
+        // Audit: ids(), boost(), queryName() accounted for; types rejected by strict parser before reaching here.
         if (idsQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             throw new ConversionException("Ids query does not support non-default boost");
         }
@@ -65,8 +59,7 @@ public class IdsQueryTranslator implements QueryTranslator {
             throw new ConversionException("Ids query does not support _name");
         }
 
-        // Empty values → match-nothing.
-        // WHY: mirrors IdsQueryBuilder.doRewrite line 157 which replaces with MatchNoneQueryBuilder.
+        // Mirrors IdsQueryBuilder.doRewrite rewriting empty ids to MatchNoneQueryBuilder.
         Set<String> ids = idsQuery.ids();
         if (ids.isEmpty()) {
             return ctx.getRexBuilder().makeLiteral(false);
@@ -74,13 +67,7 @@ public class IdsQueryTranslator implements QueryTranslator {
 
         RexBuilder rex = ctx.getRexBuilder();
 
-        // Build RexCall: IDS(MAP('values.0', 'id0'), MAP('values.1', 'id1'), ...)
-        // WHY indexed MAP keys: the only lossless multi-value encoding that travels through
-        // the existing extractOptionalParams contract (string keys + string values in MAP pairs).
-        // Comma-joining is lossy for ids containing commas.
-        // WHY no field operand: the ids query targets the implicit _id metadata field which is
-        // not part of the user-visible Calcite row type. OpenSearchFilterRule's FULL_TEXT
-        // no-field-reference path routes this to capability matching against FieldType.TEXT.
+        // Indexed MAP keys because comma-joining is lossy for ids containing commas.
         List<RexNode> operands = new ArrayList<>(ids.size());
 
         // Sort for deterministic plan output (IdsQueryBuilder.ids() is a HashSet with no order guarantee).

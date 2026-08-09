@@ -49,8 +49,7 @@ public class TermsQueryTranslator implements QueryTranslator {
         }
 
         String fieldName = termsQuery.fieldName();
-        // WHY reject: terms on _id would compare raw strings against Uid-encoded stored bytes
-        // and silently return zero hits. Direct users to the ids query instead.
+        // Replaces a generic field-not-found error with an actionable one naming the ids query.
         if (IdFieldMapper.NAME.equals(fieldName)) {
             throw new ConversionException("Terms query on _id is not supported; use the ids query instead");
         }
