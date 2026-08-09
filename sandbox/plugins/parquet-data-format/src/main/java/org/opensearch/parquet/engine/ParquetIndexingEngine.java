@@ -318,7 +318,18 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public ParquetDocumentInput newDocumentInput() {
-        return new ParquetDocumentInput();
+        // Pre-size the input from the mapped-field count so its per-document collections never resize
+        // (the dedup set's HashMap table copies were a measurable slice of an ingest allocation profile).
+        // The schema walk is expensive, so it is cached and only rebuilt when the mapping version changes;
+        // the version read itself is a cheap metadata lookup.
+        long mappingVersion = mappingVersionSupplier.get();
+        Schema schema = cachedSchema;
+        if (schema == null || mappingVersion != cachedSchemaVersion) {
+            schema = schemaSupplier.get();
+            cachedSchema = schema;
+            cachedSchemaVersion = mappingVersion;
+        }
+        return new ParquetDocumentInput(schema.getFields().size());
     }
 
     @Override

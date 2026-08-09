@@ -39,7 +39,10 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
 
-    private final List<FieldValuePair> collectedFields = new ArrayList<>();
+    /** Default expected field count when the caller has no sizing hint. */
+    static final int DEFAULT_EXPECTED_FIELDS = 16;
+
+    private final List<FieldValuePair> collectedFields;
     /**
      * Detects duplicate single-valued fields, keyed by field <b>name</b>. Two {@code addField} calls with the
      * same name necessarily carry the same {@link MappedFieldType} instance — the mapping layer forbids two
@@ -49,9 +52,32 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
      * {@code Object.hashCode()} (identity → {@code JVM_IHashCode}), whereas {@code String.hashCode()} is cached.
      * O(n) in field count, so no quadratic blow-up on wide documents.
      */
-    private final Set<String> seenFieldNames = new HashSet<>();
+    private final Set<String> seenFieldNames;
     private long rowId = -1;
     private boolean isClosed = false;
+
+    /** Creates a document input with the default sizing hint. */
+    public ParquetDocumentInput() {
+        this(DEFAULT_EXPECTED_FIELDS);
+    }
+
+    /**
+     * Creates a document input pre-sized for the expected number of fields.
+     * <p>
+     * One instance is allocated per document at bulk-indexing rates, and the dedup set's incremental
+     * {@code HashMap} table resizes (16 → ... → 256 for a ~100-field document) were a measurable slice of an
+     * ingest allocation profile. Pre-sizing from the mapped-field count eliminates the resize copies; callers
+     * with no hint get the default.
+     *
+     * @param expectedFields expected number of fields this document will carry (typically the mapped field
+     *                       count of the index; an upper bound is fine, values below 1 fall back to the default)
+     */
+    public ParquetDocumentInput(int expectedFields) {
+        int expected = expectedFields > 0 ? expectedFields : DEFAULT_EXPECTED_FIELDS;
+        this.collectedFields = new ArrayList<>(expected);
+        // HashSet resizes above capacity * 0.75; size so `expected` inserts never trigger a resize.
+        this.seenFieldNames = new HashSet<>(expected * 4 / 3 + 1);
+    }
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {

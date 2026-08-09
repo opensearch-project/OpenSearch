@@ -113,9 +113,26 @@ public class ParquetDocumentInputBenchmark {
         }
     }
 
-    /** Shipped code path: the real {@link ParquetDocumentInput#addField} with linear-scan dedup. */
+    /**
+     * Shipped code path: the real {@link ParquetDocumentInput#addField}, pre-sized from the field count as
+     * {@code ParquetIndexingEngine.newDocumentInput} does (no dedup-set/list resize allocations).
+     */
     @Benchmark
     public void current(Blackhole bh) {
+        ParquetDocumentInput input = new ParquetDocumentInput(fieldTypes.length);
+        for (int i = 0; i < fieldTypes.length; i++) {
+            input.addField(fieldTypes[i], values[i]);
+        }
+        bh.consume(input.getFinalInput());
+        input.close();
+    }
+
+    /**
+     * Same real {@code addField} but default-sized collections — isolates the allocation cost of incremental
+     * {@code HashMap}/{@code ArrayList} resizes that pre-sizing removes (visible in {@code -prof gc} B/op).
+     */
+    @Benchmark
+    public void currentUnsized(Blackhole bh) {
         ParquetDocumentInput input = new ParquetDocumentInput();
         for (int i = 0; i < fieldTypes.length; i++) {
             input.addField(fieldTypes[i], values[i]);
