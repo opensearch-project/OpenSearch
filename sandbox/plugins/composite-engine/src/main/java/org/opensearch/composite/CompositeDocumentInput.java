@@ -33,6 +33,15 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     private final DocumentInput<?> primaryDocumentInput;
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
+    /**
+     * Flat snapshots of {@link #secondaryDocumentInputs}, taken once at construction. {@code addField} and
+     * {@code setRowId} run once per field per document on the bulk-indexing hot path; iterating the map there
+     * allocates an entry-set iterator and walks the backing table (an {@code IdentityHashMap} in practice —
+     * its sparse-table iterator was a visible CPU frame in ingest profiles) on every call. The map is
+     * immutable after construction, so the arrays are always in sync with it.
+     */
+    private final DataFormat[] secondaryFormats;
+    private final DocumentInput<?>[] secondaryInputs;
     private long rowId = -1L;
 
     /**
@@ -52,6 +61,14 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         this.secondaryDocumentInputs = Collections.unmodifiableMap(
             Objects.requireNonNull(secondaryDocumentInputs, "secondaryDocumentInputs must not be null")
         );
+        this.secondaryFormats = new DataFormat[secondaryDocumentInputs.size()];
+        this.secondaryInputs = new DocumentInput<?>[secondaryDocumentInputs.size()];
+        int i = 0;
+        for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
+            secondaryFormats[i] = entry.getKey();
+            secondaryInputs[i] = entry.getValue();
+            i++;
+        }
     }
 
     @Override
@@ -64,12 +81,12 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
                 e
             );
         }
-        for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
+        for (int i = 0; i < secondaryInputs.length; i++) {
             try {
-                entry.getValue().addField(fieldType, value);
+                secondaryInputs[i].addField(fieldType, value);
             } catch (Exception e) {
                 throw new IllegalStateException(
-                    "Failed to add field [" + fieldType.name() + "] in secondary format [" + entry.getKey().name() + "]",
+                    "Failed to add field [" + fieldType.name() + "] in secondary format [" + secondaryFormats[i].name() + "]",
                     e
                 );
             }
@@ -79,8 +96,8 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         primaryDocumentInput.setRowId(rowIdFieldName, rowId);
-        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            input.setRowId(rowIdFieldName, rowId);
+        for (int i = 0; i < secondaryInputs.length; i++) {
+            secondaryInputs[i].setRowId(rowIdFieldName, rowId);
         }
         this.rowId = rowId;
     }
