@@ -257,6 +257,111 @@ public class MultiValueFieldIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * A {@code multi_value} field cannot be an {@code index.sort.field}: a multi-valued cell has
+     * no single value to sort on, so creation must fail immediately with an error naming the
+     * field, rather than surfacing later as a native merge failure.
+     */
+    public void testMultiValueFieldRejectedAsIndexSortField() throws Exception {
+        String indexName = INDEX + "_sorted";
+        try {
+            client().performRequest(new Request("DELETE", "/" + indexName));
+        } catch (Exception ignored) {}
+
+        Request create = new Request("PUT", "/" + indexName);
+        create.setJsonEntity(
+            "{\"settings\":{"
+                + compositeSettings()
+                + ",\"index.sort.field\": [\"tags\"]"
+                + "},"
+                + "\"mappings\":{\"properties\":{\"tags\":{\"type\":\"keyword\",\"multi_value\":true}}}}"
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(create));
+        String responseBody = bodyOf(e);
+        assertTrue(
+            "rejection must name the field and the sort setting, got: " + responseBody,
+            responseBody.contains("tags") && responseBody.contains("index.sort.field") && responseBody.contains("multi_value")
+        );
+    }
+
+    /**
+     * Scalar equality on a multi-valued column is rejected by the PPL analyzer (in the SQL
+     * plugin, before this repo's planner runs) with a message that names the types involved.
+     * Pinned so a regression to an internal planner error is caught. The supported contains
+     * filter is {@link #testMvfindIsTheContainsFilter()}.
+     */
+    public void testEqualsOnMultiValueColumnFailsComprehensibly() throws Exception {
+        provision();
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> executePpl("source = " + INDEX + " | where tags = 'alpha' | fields id")
+        );
+        String responseBody = bodyOf(e);
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertTrue(
+            "the rejection must explain the type mismatch, got: " + responseBody,
+            responseBody.contains("EQUAL") && responseBody.contains("ARRAY")
+        );
+    }
+
+    /**
+     * {@code mvfind(field, value) >= 0} is the working contains-filter over a multi-valued
+     * column: the predicate reaches DataFusion's mvfind UDF with the LIST column intact.
+     */
+    @SuppressWarnings("unchecked")
+    public void testMvfindIsTheContainsFilter() throws Exception {
+        provision();
+
+        Map<String, Object> result = executePpl("source = " + INDEX + " | where mvfind(tags, 'alpha') >= 0 | fields id");
+        List<String> columns = extractColumnNames(result);
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertEquals("only the doc containing 'alpha' must match", 1, rows.size());
+        assertEquals("multi", String.valueOf(rows.get(0).get(columns.indexOf("id"))));
+
+        // Element-count predicates work the same way.
+        Map<String, Object> byLen = executePpl("source = " + INDEX + " | where array_length(tags) > 2 | fields id");
+        List<List<Object>> lenRows = (List<List<Object>>) byLen.get("datarows");
+        assertEquals(1, lenRows.size());
+        assertEquals("multi", String.valueOf(lenRows.get(0).get(extractColumnNames(byLen).indexOf("id"))));
+    }
+
+    /**
+     * Sorting by a multi-valued column works and is deterministic: null list first, then
+     * lexicographic by elements (Arrow RowConverter list ordering). Pinned as a behavioral
+     * contract — if this is ever deemed unwanted it should become an explicit rejection,
+     * not silently change order.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSortByMultiValueColumnIsLexicographic() throws Exception {
+        provision();
+
+        Map<String, Object> result = executePpl("source = " + INDEX + " | sort tags | fields id");
+        List<String> columns = extractColumnNames(result);
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        List<String> ids = rows.stream().map(r -> String.valueOf(r.get(columns.indexOf("id")))).toList();
+        // null < ["beta","alpha","beta"] < ["solo"]
+        assertEquals(List.of("absent", "multi", "single"), ids);
+    }
+
+    /**
+     * {@code stats count() by <multi_value field>} groups by the WHOLE array value, not per
+     * element (per-element bucketing needs an unnest, which PPL does not expose here). Pinned
+     * so the semantics are a documented contract rather than an accident.
+     */
+    @SuppressWarnings("unchecked")
+    public void testGroupByMultiValueColumnGroupsByWholeArray() throws Exception {
+        provision();
+
+        Map<String, Object> result = executePpl("source = " + INDEX + " | stats count() as c by tags");
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertEquals("three distinct array values -> three groups", 3, rows.size());
+        for (List<Object> row : rows) {
+            assertEquals("every group holds exactly one doc", 1, ((Number) row.get(0)).intValue());
+        }
+    }
+
     /** Declaring {@code multi_value} on a type without list support must fail index creation. */
     public void testMultiValueOnUnsupportedTypeRejectedAtIndexCreation() throws Exception {
         String indexName = INDEX + "_unsupported";

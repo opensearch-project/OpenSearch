@@ -11,6 +11,8 @@ package org.opensearch.parquet;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 
@@ -42,12 +44,37 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
             return;
         }
 
+        validateSortFieldsAreSingleValued(mapperService, indexSettings);
+
         // Building the schema validates the mapping's `multi_value` declarations: getSchema throws
         // for a field whose type has no list support, turning what would otherwise be a
         // per-document indexing failure into an immediate error at creation time.
         Schema schema = ArrowSchemaBuilder.getSchema(mapperService);
         if (hasParquetSettings) {
             ParquetSettings.validateFieldConfigurations(fieldEncodings, fieldCompressions, fieldBloomFilterEnabled, schema);
+        }
+    }
+
+    /**
+     * Rejects {@code index.sort.field} entries that are mapped {@code multi_value: true}.
+     * <p>
+     * An index sort needs one total order over rows, but a multi-valued cell has no canonical
+     * scalar to order by — any of min/max/lexicographic would be a silent choice the user never
+     * made. Lucene rejects index sorting on multi-valued fields for the same reason; failing here
+     * keeps parity and turns what would otherwise be a merge-time failure (the native k-way merge
+     * cannot compare LIST sort keys) into an immediate, actionable error at creation time.
+     */
+    private static void validateSortFieldsAreSingleValued(MapperService mapperService, IndexSettings indexSettings) {
+        for (String sortField : IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings())) {
+            MappedFieldType fieldType = mapperService.fieldType(sortField);
+            if (fieldType != null && fieldType.isMultiValued()) {
+                throw new IllegalArgumentException(
+                    "Cannot use field ["
+                        + sortField
+                        + "] in [index.sort.field]: the field is mapped [multi_value: true] and a "
+                        + "multi-valued field has no single value to sort on"
+                );
+            }
         }
     }
 }
