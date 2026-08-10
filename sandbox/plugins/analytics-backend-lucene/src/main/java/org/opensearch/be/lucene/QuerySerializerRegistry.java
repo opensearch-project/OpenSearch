@@ -23,6 +23,7 @@ import org.opensearch.be.lucene.serializers.MultiMatchSerializer;
 import org.opensearch.be.lucene.serializers.NotEqualsSerializer;
 import org.opensearch.be.lucene.serializers.QuerySerializer;
 import org.opensearch.be.lucene.serializers.QueryStringSerializer;
+import org.opensearch.be.lucene.serializers.RegexpQueryDslSerializer;
 import org.opensearch.be.lucene.serializers.RegexpSerializer;
 import org.opensearch.be.lucene.serializers.SargSerializer;
 import org.opensearch.be.lucene.serializers.SimpleQueryStringSerializer;
@@ -58,6 +59,7 @@ final class QuerySerializerRegistry {
         Map.entry(ScalarFunction.LESS_THAN, new ComparisonSerializer()),
         Map.entry(ScalarFunction.LESS_THAN_OR_EQUAL, new ComparisonSerializer()),
         Map.entry(ScalarFunction.REGEXP, new RegexpSerializer()),
+        Map.entry(ScalarFunction.REGEXP_QUERY, new RegexpQueryDslSerializer()),
         Map.entry(ScalarFunction.SARG_PREDICATE, new SargSerializer())
     );
 
