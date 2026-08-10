@@ -467,4 +467,103 @@ public class MultiValueFieldDurabilityIT extends DataFormatAwareReplicationBaseI
             ((List<Object>) tags).stream().map(String::valueOf).toList()
         );
     }
+
+    /**
+     * A bulk request interleaving valid and invalid multi-valued documents.
+     *
+     * <p>The single-document partial-failure test proves the rollback undoes one row. Bulk is the
+     * realistic ingest path and is stricter: {@code CompositeWriter} rolls each touched writer back
+     * to the composite's running {@code acceptedRows}, so within one batch every rejected item must
+     * rewind to exactly the count its predecessors established. An off-by-one there would corrupt
+     * the neighbours in the same batch rather than the failing document — and for a LIST column it
+     * would also leave the child vector's offsets pointing past the surviving rows.
+     *
+     * <p>Invalid items carry a {@code tags} element over Lucene's {@code MAX_TERM_LENGTH}: parquet
+     * accepts the row (advancing list offsets) and lucene rejects it, so the failure is asymmetric
+     * across the two formats. The valid neighbours must all be acknowledged with their arrays
+     * exactly intact, and the invalid ones must appear in neither format.
+     *
+     * <p>Scope note: this asserts the OUTCOME (neighbours intact, writes resume). It does not by
+     * itself pin the rollback arithmetic — injecting {@code rollbackTo(target + 1)} leaves this test
+     * green, because {@code ParquetWriter.rollbackTo} rejects a target above its own
+     * {@code acceptedRows} only when it exceeds it, and after the failing doc the composite's target
+     * happens to equal the writer's count. The arithmetic itself is guarded there by explicit
+     * range checks ("Cannot rollback to N: only M rows admitted" and the exactly-one-doc limit)
+     * and is covered by unit tests on {@code ParquetWriter}/{@code VSRManager}; the mutation is
+     * therefore masked by those guards rather than by a gap in coverage.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBulkWithMixedValidAndInvalidArrayDocuments() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createMvIndex(0);
+        ensureGreen(MV_INDEX);
+
+        String hugeTerm = randomAlphaOfLength(40000);
+        // Interleave good/bad so a bad item sits first, between, and last — each position exercises
+        // a different neighbour relationship for the rollback.
+        List<List<String>> goodArrays = List.of(List.of("g0", "dup", "dup"), List.of("g1"), List.of(), List.of("g3", "x", "y", "z"));
+
+        org.opensearch.action.bulk.BulkRequestBuilder bulk = client().prepareBulk();
+        // bad, good0, good1, bad, good2, good3, bad
+        bulk.add(client().prepareIndex(MV_INDEX).setSource("{\"id\":\"bad0\",\"tags\":[\"" + hugeTerm + "\"]}", XContentType.JSON));
+        bulk.add(goodRequest("g0", goodArrays.get(0)));
+        bulk.add(goodRequest("g1", goodArrays.get(1)));
+        bulk.add(client().prepareIndex(MV_INDEX).setSource("{\"id\":\"bad1\",\"tags\":[\"ok\",\"" + hugeTerm + "\"]}", XContentType.JSON));
+        bulk.add(goodRequest("g2", goodArrays.get(2)));
+        bulk.add(goodRequest("g3", goodArrays.get(3)));
+        bulk.add(client().prepareIndex(MV_INDEX).setSource("{\"id\":\"bad2\",\"tags\":[\"" + hugeTerm + "\"]}", XContentType.JSON));
+
+        org.opensearch.action.bulk.BulkResponse response = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertTrue("the oversized-term items must fail", response.hasFailures());
+
+        // Collect the ids the cluster actually acknowledged, keyed by the logical id in the source.
+        Map<String, String> ackedIdByLogical = new java.util.HashMap<>();
+        int failed = 0;
+        for (org.opensearch.action.bulk.BulkItemResponse item : response.getItems()) {
+            if (item.isFailed()) {
+                failed++;
+            } else {
+                ackedIdByLogical.put(logicalIdOf(item.getId()), item.getId());
+            }
+        }
+        assertEquals("exactly the three oversized items must fail", 3, failed);
+        assertEquals("every valid item must be acknowledged", goodArrays.size(), ackedIdByLogical.size());
+
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+
+        // Each surviving neighbour must carry exactly its own array — this is what an off-by-one
+        // rollback inside the batch would break.
+        for (int i = 0; i < goodArrays.size(); i++) {
+            String logical = "g" + i;
+            String docId = ackedIdByLogical.get(logical);
+            assertNotNull("valid document [" + logical + "] must have been acknowledged", docId);
+            Map<String, Object> source = client().prepareGet(MV_INDEX, docId).setRealtime(false).get().getSourceAsMap();
+            Object tags = source.get("tags");
+            List<String> got = tags == null ? List.of() : ((List<Object>) tags).stream().map(String::valueOf).toList();
+            assertEquals("bulk neighbour [" + logical + "] lost or gained values", goodArrays.get(i), got);
+        }
+
+        // Writes must still work afterwards, proving the VSR was left consistent.
+        idToFixture.clear();
+        indexFixtures(WriteRequest.RefreshPolicy.IMMEDIATE);
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+        assertArraysIntact("after bulk with rejected items");
+    }
+
+    /** Builds a valid multi-valued index request whose source carries {@code logicalId}. */
+    private org.opensearch.action.index.IndexRequestBuilder goodRequest(String logicalId, List<String> tags) {
+        StringBuilder json = new StringBuilder("{\"id\":\"").append(logicalId).append("\",\"tags\":[");
+        for (int i = 0; i < tags.size(); i++) {
+            if (i > 0) json.append(",");
+            json.append("\"").append(tags.get(i)).append("\"");
+        }
+        json.append("]}");
+        return client().prepareIndex(MV_INDEX).setSource(json.toString(), XContentType.JSON);
+    }
+
+    /** Reads the logical {@code id} field back out of an acknowledged document. */
+    private String logicalIdOf(String docId) {
+        return String.valueOf(client().prepareGet(MV_INDEX, docId).setRealtime(true).get().getSourceAsMap().get("id"));
+    }
 }
