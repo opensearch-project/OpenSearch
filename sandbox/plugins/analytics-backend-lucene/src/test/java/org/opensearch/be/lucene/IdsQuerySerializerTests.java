@@ -194,4 +194,76 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
 
         return (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
     }
+
+    public void testUnexpectedKeyThrowsIllegalArgument() {
+        // An IDS call containing a non-values key must be rejected
+        List<RexNode> operands = new ArrayList<>();
+        operands.add(
+            rexBuilder.makeCall(
+                SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                rexBuilder.makeLiteral("values.0"),
+                rexBuilder.makeLiteral("id0")
+            )
+        );
+        operands.add(
+            rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, rexBuilder.makeLiteral("boost"), rexBuilder.makeLiteral("2.0"))
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
+        );
+
+        IdsQuerySerializer serializer = new IdsQuerySerializer();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, fieldStorage));
+        assertTrue("Exception must name the offending key; was: " + ex.getMessage(), ex.getMessage().contains("boost"));
+    }
+
+    public void testNonContiguousIndicesThrowsIllegalArgument() {
+        // Indices starting at 1 instead of 0 must be rejected (guards against operand-start-index mismatch)
+        List<RexNode> operands = new ArrayList<>();
+        operands.add(
+            rexBuilder.makeCall(
+                SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                rexBuilder.makeLiteral("values.1"),
+                rexBuilder.makeLiteral("id1")
+            )
+        );
+        operands.add(
+            rexBuilder.makeCall(
+                SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+                rexBuilder.makeLiteral("values.2"),
+                rexBuilder.makeLiteral("id2")
+            )
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
+        );
+
+        IdsQuerySerializer serializer = new IdsQuerySerializer();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, fieldStorage));
+        assertTrue("Exception must mention contiguous range; was: " + ex.getMessage(), ex.getMessage().contains("contiguous"));
+    }
+
+    public void testSerializeIdsWithSpecialCharacters() throws IOException {
+        // Character edge-case: single quote, non-ASCII, and space in ids must survive round-trip
+        String quoteId = "it's";
+        String unicodeId = "\u00fc\u00f1\u00ee-id";
+        String spaceId = "id with space";
+        RexCall call = buildIdsRexCall(quoteId, unicodeId, spaceId);
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
+        );
+
+        DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            IdsQueryBuilder idsQb = (IdsQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals(3, idsQb.ids().size());
+            assertTrue("Must contain single-quote id", idsQb.ids().contains(quoteId));
+            assertTrue("Must contain unicode id", idsQb.ids().contains(unicodeId));
+            assertTrue("Must contain space id", idsQb.ids().contains(spaceId));
+        }
+    }
 }

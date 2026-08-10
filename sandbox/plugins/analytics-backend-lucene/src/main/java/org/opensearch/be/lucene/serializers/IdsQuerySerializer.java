@@ -15,7 +15,11 @@ import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Serializer for the IDS delegated predicate.
@@ -31,14 +35,34 @@ public class IdsQuerySerializer extends AbstractQuerySerializer {
         // Starting at operand index 0 (no field operand — the ids query is fieldless).
         Map<String, String> params = ConversionUtils.extractOptionalParams(call, 0);
 
+        // Invariant: every key must be a values.<int> operand — reject unexpected keys loudly
+        List<String> invalidKeys = params.keySet().stream().filter(k -> !k.startsWith(VALUES_PREFIX)).collect(Collectors.toList());
+        if (!invalidKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "IDS call accepts only values.<int> operands but found: %s", invalidKeys)
+            );
+        }
+
         IdsQueryBuilder builder = new IdsQueryBuilder();
         // Collect values in index order for deterministic behaviour
         String[] ids = params.entrySet()
             .stream()
-            .filter(e -> e.getKey().startsWith(VALUES_PREFIX))
             .sorted((a, b) -> Integer.compare(parseValueIndex(a.getKey()), parseValueIndex(b.getKey())))
             .map(Map.Entry::getValue)
             .toArray(String[]::new);
+
+        // Contiguity check: catches an operand-start-index mismatch silently dropping the first id
+        TreeSet<Integer> indices = params.keySet()
+            .stream()
+            .map(IdsQuerySerializer::parseValueIndex)
+            .collect(Collectors.toCollection(TreeSet::new));
+        TreeSet<Integer> expected = IntStream.range(0, params.size()).boxed().collect(Collectors.toCollection(TreeSet::new));
+        if (!indices.equals(expected)) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "IDS operand indices must be contiguous 0..%d but got: %s", params.size() - 1, indices)
+            );
+        }
+
         builder.addIds(ids);
         return builder;
     }
