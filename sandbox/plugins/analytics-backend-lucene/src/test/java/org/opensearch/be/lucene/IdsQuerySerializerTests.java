@@ -21,7 +21,6 @@ import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.be.lucene.serializers.IdsQuerySerializer;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
@@ -68,9 +67,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
 
     public void testSerializeSingleId() throws IOException {
         RexCall call = buildIdsRexCall("doc1");
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
         byte[] serialized = serializer.serialize(call, fieldStorage);
@@ -85,9 +82,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
 
     public void testSerializeMultipleIdsPreservesOrder() throws IOException {
         RexCall call = buildIdsRexCall("alpha", "beta", "gamma");
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
         byte[] serialized = serializer.serialize(call, fieldStorage);
@@ -104,9 +99,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
     public void testSerializeIdContainingComma() throws IOException {
         String commaId = "doc,with,commas";
         RexCall call = buildIdsRexCall(commaId, "normal-id");
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
         byte[] serialized = serializer.serialize(call, fieldStorage);
@@ -137,9 +130,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
             )
         );
         RexCall call = (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         IdsQuerySerializer serializer = new IdsQuerySerializer();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, fieldStorage));
@@ -158,9 +149,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
             ids[i] = String.format(Locale.ROOT, "doc%03d", i);
         }
         RexCall call = buildIdsRexCall(ids);
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
         byte[] serialized = serializer.serialize(call, fieldStorage);
@@ -209,9 +198,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
             rexBuilder.makeCall(SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR, rexBuilder.makeLiteral("boost"), rexBuilder.makeLiteral("2.0"))
         );
         RexCall call = (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         IdsQuerySerializer serializer = new IdsQuerySerializer();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, fieldStorage));
@@ -236,9 +223,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
             )
         );
         RexCall call = (RexCall) rexBuilder.makeCall(IDS_FUNCTION, operands);
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         IdsQuerySerializer serializer = new IdsQuerySerializer();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> serializer.buildQueryBuilder(call, fieldStorage));
@@ -251,9 +236,7 @@ public class IdsQuerySerializerTests extends OpenSearchTestCase {
         String unicodeId = "\u00fc\u00f1\u00ee-id";
         String spaceId = "id with space";
         RexCall call = buildIdsRexCall(quoteId, unicodeId, spaceId);
-        List<FieldStorageInfo> fieldStorage = List.of(
-            new FieldStorageInfo("_id", "binary", FieldType.BINARY, List.of("composite-parquet"), List.of("lucene"), List.of(), false)
-        );
+        List<FieldStorageInfo> fieldStorage = List.of();
 
         DelegatedPredicateSerializer serializer = new IdsQuerySerializer();
         byte[] serialized = serializer.serialize(call, fieldStorage);

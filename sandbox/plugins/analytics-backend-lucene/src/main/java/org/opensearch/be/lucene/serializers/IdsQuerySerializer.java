@@ -17,9 +17,7 @@ import org.opensearch.index.query.QueryBuilder;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Serializer for the IDS delegated predicate.
@@ -43,26 +41,31 @@ public class IdsQuerySerializer extends AbstractQuerySerializer {
             );
         }
 
-        IdsQueryBuilder builder = new IdsQueryBuilder();
         // Collect values in index order for deterministic behaviour
-        String[] ids = params.entrySet()
+        List<Map.Entry<String, String>> sorted = params.entrySet()
             .stream()
             .sorted((a, b) -> Integer.compare(parseValueIndex(a.getKey()), parseValueIndex(b.getKey())))
-            .map(Map.Entry::getValue)
-            .toArray(String[]::new);
+            .collect(Collectors.toList());
 
         // Contiguity check: catches an operand-start-index mismatch silently dropping the first id
-        TreeSet<Integer> indices = params.keySet()
-            .stream()
-            .map(IdsQuerySerializer::parseValueIndex)
-            .collect(Collectors.toCollection(TreeSet::new));
-        TreeSet<Integer> expected = IntStream.range(0, params.size()).boxed().collect(Collectors.toCollection(TreeSet::new));
-        if (!indices.equals(expected)) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "IDS operand indices must be contiguous 0..%d but got: %s", params.size() - 1, indices)
-            );
+        String[] ids = new String[sorted.size()];
+        for (int i = 0; i < sorted.size(); i++) {
+            int idx = parseValueIndex(sorted.get(i).getKey());
+            if (idx != i) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "IDS operand indices must be contiguous 0..%d but got non-contiguous index %d at position %d",
+                        sorted.size() - 1,
+                        idx,
+                        i
+                    )
+                );
+            }
+            ids[i] = sorted.get(i).getValue();
         }
 
+        IdsQueryBuilder builder = new IdsQueryBuilder();
         builder.addIds(ids);
         return builder;
     }
