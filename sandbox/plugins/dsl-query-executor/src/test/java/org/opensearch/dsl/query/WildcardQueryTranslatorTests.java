@@ -9,6 +9,7 @@
 package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
@@ -18,141 +19,140 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchTestCase;
 
+/**
+ * Tests for {@link WildcardQueryTranslator} — asserts delegation via WILDCARD_QUERY_DSL RexCall
+ * with the Lucene wildcard pattern emitted unchanged.
+ */
 public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
 
     private final WildcardQueryTranslator translator = new WildcardQueryTranslator();
     private final ConversionContext ctx = TestUtils.createContext();
 
-    public void testReportsCorrectQueryType() {
-        assertEquals(org.opensearch.index.query.WildcardQueryBuilder.class, translator.getQueryType());
-    }
+    // ── RexCall shape assertions ────────────────────────────────────────────────
 
-    public void testWildcardWithAsterisk() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "lap*"), ctx);
+    public void testEmitsWildcardQueryDslRexCall() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*pt?p"), ctx);
 
-        assertTrue(result instanceof RexCall);
+        assertTrue("Result must be a RexCall", result instanceof RexCall);
         RexCall call = (RexCall) result;
-        assertEquals(SqlKind.LIKE, call.getKind());
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals("WILDCARD_QUERY_DSL", call.getOperator().getName());
+        assertEquals(SqlKind.OTHER_FUNCTION, call.getKind());
     }
 
-    public void testWildcardWithQuestionMark() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l?ptop"), ctx);
-
-        assertTrue(result instanceof RexCall);
+    public void testFieldOperandContainsInputRef() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*"), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l_ptop", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall fieldMap = (RexCall) call.getOperands().get(0);
+        assertEquals("MAP", fieldMap.getOperator().getName());
+        RexLiteral fieldKey = (RexLiteral) fieldMap.getOperands().get(0);
+        assertEquals("field", fieldKey.getValueAs(String.class));
+        assertTrue("field value must be an InputRef", fieldMap.getOperands().get(1) instanceof RexInputRef);
+        RexInputRef inputRef = (RexInputRef) fieldMap.getOperands().get(1);
+        assertEquals(0, inputRef.getIndex()); // 'name' is index 0
     }
 
-    public void testWildcardWithBothWildcards() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l?p*"), ctx);
-
-        assertTrue(result instanceof RexCall);
+    public void testQueryOperandContainsLiteralPattern() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*pt?p"), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l_p%", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        assertEquals("MAP", queryMap.getOperator().getName());
+        RexLiteral queryKey = (RexLiteral) queryMap.getOperands().get(0);
+        assertEquals("query", queryKey.getValueAs(String.class));
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals("l*pt?p", queryValue.getValueAs(String.class));
     }
 
-    public void testWildcardWithMultipleAsterisks() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*lap*top*"), ctx);
+    // ── Verbatim passthrough — pattern is emitted UNCHANGED ─────────────────────
 
-        assertTrue(result instanceof RexCall);
+    public void testWildcardPatternPassedVerbatim() throws ConversionException {
+        // Lucene wildcard pattern: *, ?, escaped backslash — all pass through untouched
+        String pattern = "test\\*file\\?name\\\\end";
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", pattern), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("%lap%top%", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals(pattern, queryValue.getValueAs(String.class));
     }
 
-    public void testWildcardWithMultipleQuestionMarks() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l??top"), ctx);
-
-        assertTrue(result instanceof RexCall);
+    public void testPatternWithSqlMetacharsPassedVerbatim() throws ConversionException {
+        // SQL metacharacters % and _ are NOT special in Lucene wildcard syntax — pass through unchanged
+        String pattern = "50%_done*";
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", pattern), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("l__top", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals(pattern, queryValue.getValueAs(String.class));
     }
 
-    public void testWildcardCaseInsensitive() throws ConversionException {
+    public void testPatternWithBackslashPassedVerbatim() throws ConversionException {
+        // A pattern with backslash-escaped chars — no conversion occurs
+        String pattern = "C:\\Users\\test";
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", pattern), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals(pattern, queryValue.getValueAs(String.class));
+    }
+
+    public void testEmptyPatternPassedVerbatim() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", ""), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals("", queryValue.getValueAs(String.class));
+    }
+
+    // ── case_insensitive param ──────────────────────────────────────────────────
+
+    public void testCaseInsensitiveEmitsParam() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "LAP*").caseInsensitive(true), ctx);
-
-        assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
 
-        // First operand should be LOWER(field)
-        RexNode fieldExpr = call.getOperands().get(0);
-        assertTrue(fieldExpr instanceof RexCall);
-        assertEquals("LOWER", ((RexCall) fieldExpr).getOperator().getName());
-
-        // Pattern should be lowercased
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("lap%", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals(3, call.getOperands().size());
+        RexCall paramMap = (RexCall) call.getOperands().get(2);
+        assertEquals("MAP", paramMap.getOperator().getName());
+        RexLiteral paramKey = (RexLiteral) paramMap.getOperands().get(0);
+        assertEquals("case_insensitive", paramKey.getValueAs(String.class));
+        RexLiteral paramValue = (RexLiteral) paramMap.getOperands().get(1);
+        assertEquals("true", paramValue.getValueAs(String.class));
     }
 
-    public void testWildcardEscapesPercent() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "50%*"), ctx);
-
-        assertTrue(result instanceof RexCall);
+    public void testCaseSensitiveHasNoExtraOperand() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*"), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("50\\%%", ((RexLiteral) pattern).getValueAs(String.class));
+        assertEquals(2, call.getOperands().size());
     }
 
-    public void testWildcardEscapesUnderscore() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "test_*"), ctx);
-
-        assertTrue(result instanceof RexCall);
+    public void testCaseInsensitivePatternNotLowered() throws ConversionException {
+        // Pattern should NOT be lowercased — case_insensitive is now a param, not LOWER() wrapping
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "LAP*").caseInsensitive(true), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("test\\_%", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals("LAP*", queryValue.getValueAs(String.class));
     }
 
-    public void testWildcardEscapesBackslash() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "path\\*"), ctx);
+    // ── VARCHAR field-type gate ─────────────────────────────────────────────────
 
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("path\\\\%", ((RexLiteral) pattern).getValueAs(String.class));
+    public void testWildcardThrowsForNonStringField() {
+        // MappedFieldType.wildcardQuery:309-317 rejects non-keyword/text fields
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("price", "12*"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("keyword and text"));
+        assertTrue(ex.getMessage().contains("price"));
     }
 
-    public void testWildcardWithNoWildcards() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "laptop"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("laptop", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithOnlyAsterisk() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("%", ((RexLiteral) pattern).getValueAs(String.class));
-    }
-
-    public void testWildcardWithOnlyQuestionMark() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "?"), ctx);
-
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("_", ((RexLiteral) pattern).getValueAs(String.class));
-    }
+    // ── Parameter rejection ─────────────────────────────────────────────────────
 
     public void testWildcardThrowsForNonexistentField() {
         ConversionException ex = expectThrows(
@@ -171,32 +171,112 @@ public class WildcardQueryTranslatorTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("not supported"));
     }
 
-    public void testWildcardThrowsForRewriteParameter() {
+    public void testWildcardThrowsForRewriteParameter() throws ConversionException {
+        // Rewrite is now passed through (H2 disposition) — no longer rejected.
+        // Validation occurs on the data node via QueryParsers.parseRewriteMethod.
+        translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx);
+    }
+
+    // ── Field resolution ────────────────────────────────────────────────────────
+
+    public void testFieldResolutionUsesCorrectIndex() throws ConversionException {
+        // 'brand' is at index 2 in the test schema
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("brand", "app*"), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall fieldMap = (RexCall) call.getOperands().get(0);
+        RexInputRef inputRef = (RexInputRef) fieldMap.getOperands().get(1);
+        assertEquals(2, inputRef.getIndex());
+    }
+
+    // ── Rewrite pass-through (H2 disposition) ───────────────────────────────────
+
+    /**
+     * The rewrite parameter must be passed through as a MAP operand rather than rejected.
+     */
+    public void testRewriteParameterEmitsMapOperand() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx);
+        RexCall call = (RexCall) result;
+
+        // Should have 3 operands: field, query, rewrite param
+        assertEquals(3, call.getOperands().size());
+        RexCall paramMap = (RexCall) call.getOperands().get(2);
+        assertEquals("MAP", paramMap.getOperator().getName());
+        RexLiteral paramKey = (RexLiteral) paramMap.getOperands().get(0);
+        assertEquals("rewrite", paramKey.getValueAs(String.class));
+        RexLiteral paramValue = (RexLiteral) paramMap.getOperands().get(1);
+        assertEquals("constant_score", paramValue.getValueAs(String.class));
+    }
+
+    // ── Boost rejection regression guard ────────────────────────────────────────
+
+    /**
+     * Boost must remain rejected with ConversionException — regression guard for the approved disposition.
+     */
+    public void testBoostParameterRejectedWithConversionException() {
         ConversionException ex = expectThrows(
             ConversionException.class,
-            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").rewrite("constant_score"), ctx)
+            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").boost(1.5f), ctx)
         );
-        assertTrue(ex.getMessage().contains("rewrite"));
-        assertTrue(ex.getMessage().contains("not supported"));
+        assertTrue("Must mention 'boost', got: " + ex.getMessage(), ex.getMessage().contains("boost"));
+        assertTrue("Must mention 'not supported', got: " + ex.getMessage(), ex.getMessage().contains("not supported"));
     }
 
-    public void testWildcardWithComplexPattern() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a*b?c*d"), ctx);
+    // ── _name rejection ────────────────────────────────────────────────────────
 
-        assertTrue(result instanceof RexCall);
-        RexCall call = (RexCall) result;
-
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("a%b_c%d", ((RexLiteral) pattern).getValueAs(String.class));
+    /**
+     * _name must be rejected with ConversionException — matched_queries is not surfaced in SQL.
+     */
+    public void testNameParameterRejectedWithConversionException() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.wildcardQuery("name", "lap*").queryName("my_wildcard"), ctx)
+        );
+        assertEquals("Wildcard query parameter '_name' is not supported", ex.getMessage());
     }
 
-    public void testWildcardWithMixedEscaping() throws ConversionException {
-        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "a%b_c\\d*e?"), ctx);
+    // ── Behaviour-pinning: leading wildcard emitted verbatim (M3) ───────────────
 
-        assertTrue(result instanceof RexCall);
+    /**
+     * Behaviour-pinning test: a leading-wildcard pattern is emitted verbatim — no rewriting or rejection.
+     */
+    public void testLeadingWildcardPatternEmittedVerbatim() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "*checkout"), ctx);
         RexCall call = (RexCall) result;
 
-        RexNode pattern = call.getOperands().get(1);
-        assertEquals("a\\%b\\_c\\\\d%e_", ((RexLiteral) pattern).getValueAs(String.class));
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals("*checkout", queryValue.getValueAs(String.class));
+    }
+
+    // ── Behaviour-pinning: case_insensitive explicitly false ────────────────────
+
+    /**
+     * Behaviour-pinning test: explicitly setting case_insensitive to false emits no case_insensitive
+     * param operand — the translator only emits the param when true.
+     */
+    public void testExplicitCaseInsensitiveFalseEmitsNoParam() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", "l*").caseInsensitive(false), ctx);
+        RexCall call = (RexCall) result;
+
+        // Only 2 operands: field and query — no case_insensitive param when value is false
+        assertEquals(2, call.getOperands().size());
+    }
+
+    // ── Behaviour-pinning: unicode pattern emitted verbatim (L1) ────────────────
+
+    /**
+     * Behaviour-pinning test: a unicode pattern containing German sharp s (ß) and accented characters
+     * is emitted verbatim — documents that case folding is now Lucene's ASCII-only behaviour
+     * rather than our old LOWER() wrapping.
+     */
+    public void testUnicodePatternWithSharpSEmittedVerbatim() throws ConversionException {
+        String unicodePattern = "straße*über?";
+        RexNode result = translator.convert(QueryBuilders.wildcardQuery("name", unicodePattern), ctx);
+        RexCall call = (RexCall) result;
+
+        RexCall queryMap = (RexCall) call.getOperands().get(1);
+        RexLiteral queryValue = (RexLiteral) queryMap.getOperands().get(1);
+        assertEquals(unicodePattern, queryValue.getValueAs(String.class));
     }
 }
