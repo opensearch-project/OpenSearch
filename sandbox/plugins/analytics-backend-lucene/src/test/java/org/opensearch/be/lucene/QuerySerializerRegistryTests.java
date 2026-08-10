@@ -1042,6 +1042,16 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    // --- REGEXP_QUERY registry test ---
+
+    /**
+     * Tests REGEXP_QUERY is present in the QuerySerializerRegistry key set.
+     */
+    public void testRegexpQuerySerializerRegistered() {
+        assertTrue("REGEXP_QUERY must be registered in QuerySerializerRegistry", serializers.containsKey(ScalarFunction.REGEXP_QUERY));
+        assertNotNull(serializers.get(ScalarFunction.REGEXP_QUERY));
+    }
+
     // --- Helper methods ---
 
     /**
