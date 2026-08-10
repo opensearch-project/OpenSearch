@@ -12,7 +12,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 
@@ -34,10 +33,6 @@ public class TermQueryTranslator implements QueryTranslator {
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         TermQueryBuilder termQuery = (TermQueryBuilder) query;
         String fieldName = termQuery.fieldName();
-        // Replaces a generic field-not-found error with an actionable one naming the ids query.
-        if (IdFieldMapper.NAME.equals(fieldName)) {
-            throw new ConversionException("Term query on _id is not supported; use the ids query instead");
-        }
         Object value = termQuery.value();
 
         RexNode fieldRef = ctx.makeFieldRef(fieldName);

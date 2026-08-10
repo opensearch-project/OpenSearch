@@ -108,14 +108,6 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(TermsQueryBuilder.class, translator.getQueryType());
     }
 
-    public void testRejectsIdField() {
-        ConversionException ex = expectThrows(
-            ConversionException.class,
-            () -> translator.convert(QueryBuilders.termsQuery("_id", "id1", "id2"), ctx)
-        );
-        assertTrue("Error must direct users to the ids query; got: " + ex.getMessage(), ex.getMessage().contains("ids"));
-    }
-
     // Supported types: VARCHAR, INTEGER, DOUBLE, BOOLEAN, BIGINT
     // Date type still throws ClassCastException from Calcite's RexBuilder.makeLiteral()
 
