@@ -10,9 +10,11 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -20,41 +22,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Converts a {@link BoolQueryBuilder} to Calcite logical expressions (RexNode).
- * <p>
- * Supports all bool query clauses:
- * <ul>
- *   <li><b>must</b> - Required clauses combined with AND logic</li>
- *   <li><b>should</b> - Optional clauses combined with OR logic, controlled by minimum_should_match</li>
- *   <li><b>must_not</b> - Exclusion clauses wrapped with NOT logic</li>
- *   <li><b>filter</b> - Filtering clauses combined with AND logic (no scoring)</li>
- * </ul>
- * <p>
- * <b>minimum_should_match</b> parameter supports:
- * <ul>
- *   <li>Non-negative integer: exact number of clauses (e.g., "2")</li>
- *   <li>Negative integer: total minus this number (e.g., "-1" with 3 clauses = 2 required)</li>
- *   <li>Non-negative percentage: percentage of total, rounded down (e.g., "70%" with 4 clauses = 2 required)</li>
- *   <li>Negative percentage: can miss this percentage (e.g., "-30%" with 4 clauses = 3 required)</li>
- *   <li>Single combination: threshold-based (e.g., "2&lt;75%")</li>
- *   <li>Multiple combinations: multiple thresholds (e.g., "3&lt;-1 5&lt;50%")</li>
- * </ul>
- * <p>
- * Optimizations:
- * <ul>
- *   <li>Flattens nested AND/OR structures to satisfy Calcite's RexUtil.isFlat requirement</li>
- *   <li>Eliminates double negations: NOT(NOT(a)) → a</li>
- * </ul>
+ * Converts a {@link BoolQueryBuilder} to a Calcite {@link RexNode}.
+ *
+ * <p>For minimum_should_match with 1 less-than k less-than n, emits an enumerated form:
+ * OR over every k-sized subset of the should-children, each subset an AND. The planner
+ * recurses only through AND/OR/NOT, so every child must sit in its own AND/OR-delimited
+ * leaf for a Lucene-delegated child to resolve a backend in OpenSearchFilterRule.
+ *
+ * <p>Rejects non-default boost (AbstractQueryBuilder.toQuery wraps in BoostQuery),
+ * non-null _name (AbstractQueryBuilder.toQuery registers for matched_queries), and
+ * returns FALSE literal for pure-negative bools with adjust_pure_negative=false (legacy match-none).
  */
 public class BoolQueryTranslator implements QueryTranslator {
 
+    /**
+     * Maximum total leaf occurrences in the enumerated minimum_should_match form.
+     * Total = C(n,k) x k. When children are Lucene-delegated relevance calls, every leaf
+     * occurrence becomes a clause in a Lucene BooleanQuery; default max_clause_count is 1024.
+     * Exceeding this cap throws ConversionException so the request falls back to the non-Calcite
+     * execution path. The cap is conservative for native-only children (term predicates never
+     * become Lucene clauses but still count); distinguishing delegated from native children was
+     * deliberately avoided to keep the translator backend-agnostic.
+     */
+    private static final int MAX_LEAF_OCCURRENCES = 1024;
+
     private final QueryRegistry queryRegistry;
 
-    /**
-     * Creates a new bool query translator.
-     *
-     * @param queryRegistry the registry for recursively converting nested queries
-     */
     public BoolQueryTranslator(QueryRegistry queryRegistry) {
         this.queryRegistry = queryRegistry;
     }
@@ -64,323 +57,209 @@ public class BoolQueryTranslator implements QueryTranslator {
         return BoolQueryBuilder.class;
     }
 
-    /**
-     * Converts a bool query to a Calcite RexNode.
-     * <p>
-     * Processes clauses in order: must, filter, should, must_not, then combines them with AND.
-     * Empty bool queries return a boolean true literal.
-     *
-     * @param query the bool query to convert
-     * @param ctx the conversion context with schema and RexBuilder
-     * @return the resulting RexNode representing the bool query logic
-     * @throws ConversionException if any nested query conversion fails
-     */
+    /** @throws ConversionException if boost or _name is non-default, or if nested conversion fails */
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
+
+        // Citation: AbstractQueryBuilder.toQuery lines 130-139 (boost wrapping + named query registration).
+        if (boolQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            throw new ConversionException("Bool query does not support non-default boost");
+        }
+        if (boolQuery.queryName() != null) {
+            throw new ConversionException("Bool query does not support _name");
+        }
+        // Citation: BoolQueryBuilder.doToQuery:338 only calls fixNegativeQueryIfNeeded when
+        // adjustPureNegative is true. Citation: Queries.isNegativeQuery:113-119 requires every
+        // clause to be prohibited. Citation: Queries.fixNegativeQueryIfNeeded:121-130 injects
+        // MatchAllDocsQuery as FILTER.
+        boolean isPureNegative = boolQuery.must().isEmpty()
+            && boolQuery.filter().isEmpty()
+            && boolQuery.should().isEmpty()
+            && !boolQuery.mustNot().isEmpty();
+        if (isPureNegative && !boolQuery.adjustPureNegative()) {
+            return ctx.getRexBuilder().makeLiteral(false);
+        }
+
         List<RexNode> conditions = new ArrayList<>();
 
-        // Must clauses (AND)
         for (QueryBuilder mustClause : boolQuery.must()) {
-            RexNode condition = queryRegistry.convert(mustClause, ctx);
-            if (condition != null) {
-                conditions.add(condition);
-            }
+            conditions.add(queryRegistry.convert(mustClause, ctx));
         }
 
-        // Filter clauses (AND)
         for (QueryBuilder filterClause : boolQuery.filter()) {
-            RexNode condition = queryRegistry.convert(filterClause, ctx);
-            if (condition != null) {
-                conditions.add(condition);
-            }
+            conditions.add(queryRegistry.convert(filterClause, ctx));
         }
 
-        // Should clauses with minimum_should_match
         if (!boolQuery.should().isEmpty()) {
             RexNode shouldCondition = processShouldClauses(boolQuery, ctx);
             if (shouldCondition != null) {
+                if (shouldCondition.isAlwaysFalse()) {
+                    return ctx.getRexBuilder().makeLiteral(false);
+                }
                 conditions.add(shouldCondition);
             }
         }
 
-        // Must_not clauses (NOT)
+        // WHY IS_NOT_TRUE: Under SQL three-valued logic NOT(NULL) evaluates to NULL (falsy in a
+        // filter), excluding rows whose field is missing. Lucene must_not INCLUDES those rows.
+        // IS_NOT_TRUE(condition) returns TRUE when condition is NULL, preserving that semantics.
+        //
+        // WHY this works for Lucene-delegated children: DelegatedRelevanceCallHelper declares a
+        // non-nullable BOOLEAN return type, letting Calcite's ReduceExpressionsRule rewrite
+        // IS_NOT_TRUE(call) to NOT(call), which the planner then recurses through.
         for (QueryBuilder mustNotClause : boolQuery.mustNot()) {
             RexNode condition = queryRegistry.convert(mustNotClause, ctx);
-            if (condition != null) {
-                // Optimize double negation: NOT(NOT(a)) -> a
-                if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.NOT) {
-                    conditions.add(((RexCall) condition).getOperands().get(0));
-                } else {
-                    conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.NOT, condition));
-                }
-            }
-        }
-
-        // Flatten nested ANDs to satisfy Calcite's RexUtil.isFlat requirement
-        List<RexNode> flattenedConditions = flattenConditions(conditions, SqlStdOperatorTable.AND);
-
-        if (flattenedConditions.isEmpty()) {
-            return ctx.getRexBuilder().makeLiteral(true);
-        } else if (flattenedConditions.size() == 1) {
-            return flattenedConditions.get(0);
-        } else {
-            return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, flattenedConditions);
-        }
-    }
-
-    /**
-     * Flattens nested conditions with the same operator to satisfy Calcite's RexUtil.isFlat requirement.
-     * <p>
-     * Examples:
-     * <ul>
-     *   <li>AND(AND(a, b), c) → AND(a, b, c)</li>
-     *   <li>OR(OR(a, b), c) → OR(a, b, c)</li>
-     * </ul>
-     * Note: NOT operations are not flattened as NOT(NOT(a)) has different semantics.
-     *
-     * @param conditions the list of conditions to flatten
-     * @param operator the operator to flatten (AND or OR)
-     * @return flattened list of conditions
-     */
-    private List<RexNode> flattenConditions(List<RexNode> conditions, org.apache.calcite.sql.SqlOperator operator) {
-        List<RexNode> flattened = new ArrayList<>();
-        for (RexNode condition : conditions) {
-            if (condition instanceof RexCall && ((RexCall) condition).getOperator() == operator) {
-                flattened.addAll(((RexCall) condition).getOperands());
+            if (condition instanceof RexCall && ((RexCall) condition).getOperator() == SqlStdOperatorTable.IS_NOT_TRUE) {
+                // Double-negation: IS_NOT_TRUE(IS_NOT_TRUE(x)) is equivalent to x under filter
+                // evaluation (a filter discards rows whose predicate is not TRUE).
+                conditions.add(((RexCall) condition).getOperands().get(0));
             } else {
-                flattened.add(condition);
+                conditions.add(ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_TRUE, condition));
             }
         }
-        return flattened;
+
+        if (conditions.isEmpty()) {
+            // Citation: BoolQueryBuilder.doRewrite line ~279.
+            return ctx.getRexBuilder().makeLiteral(true);
+        }
+        return RexUtil.composeConjunction(ctx.getRexBuilder(), conditions);
     }
 
-    /**
-     * Processes should clauses with minimum_should_match logic.
-     * <p>
-     * Default behavior:
-     * <ul>
-     *   <li>Without must/filter: at least 1 should clause must match</li>
-     *   <li>With must/filter: should clauses are optional (unless minimum_should_match is set)</li>
-     * </ul>
-     *
-     * @param boolQuery the bool query containing should clauses
-     * @param ctx the conversion context
-     * @return RexNode representing the should clause logic, or null if should clauses are optional
-     * @throws ConversionException if nested query conversion fails
-     */
+    /** @return RexNode for should logic, FALSE if MSM is unsatisfiable, or null if optional */
     private RexNode processShouldClauses(BoolQueryBuilder boolQuery, ConversionContext ctx) throws ConversionException {
         List<QueryBuilder> shouldClauses = boolQuery.should();
         int totalShould = shouldClauses.size();
 
-        // If there are must/filter clauses, should is optional unless minimum_should_match is set
         boolean hasRequired = !boolQuery.must().isEmpty() || !boolQuery.filter().isEmpty();
         String minimumShouldMatch = boolQuery.minimumShouldMatch();
 
-        int requiredMatches = calculateRequiredMatches(minimumShouldMatch, totalShould, hasRequired);
+        int requiredMatches = MinimumShouldMatchParser.calculateRequiredMatches(minimumShouldMatch, totalShould, hasRequired);
 
         if (requiredMatches == 0) {
-            return null; // Should clauses are optional
+            return null;
+        }
+
+        // Legacy Lucene accepts MSM > shouldCount but matches nothing.
+        // Witnessed: BoolQueryBuilderTests.testMinShouldMatchBiggerThanNumberOfShouldClauses.
+        if (requiredMatches > totalShould) {
+            return ctx.getRexBuilder().makeLiteral(false);
         }
 
         List<RexNode> shouldConditions = new ArrayList<>();
         for (QueryBuilder shouldClause : shouldClauses) {
-            RexNode condition = queryRegistry.convert(shouldClause, ctx);
-            if (condition != null) {
-                shouldConditions.add(condition);
-            }
+            shouldConditions.add(queryRegistry.convert(shouldClause, ctx));
         }
 
         if (shouldConditions.isEmpty()) {
             return null;
         }
 
+        if (requiredMatches > shouldConditions.size()) {
+            return ctx.getRexBuilder().makeLiteral(false);
+        }
+
+        if (requiredMatches == shouldConditions.size()) {
+            return RexUtil.composeConjunction(ctx.getRexBuilder(), shouldConditions);
+        }
+
         if (requiredMatches == 1) {
-            // Flatten nested ORs
-            List<RexNode> flatOr = flattenConditions(shouldConditions, SqlStdOperatorTable.OR);
-            return flatOr.size() == 1 ? flatOr.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.OR, flatOr);
+            return RexUtil.composeDisjunction(ctx.getRexBuilder(), shouldConditions);
         }
 
         return createMinimumMatchCondition(shouldConditions, requiredMatches, ctx);
     }
 
     /**
-     * Calculates the required number of should clauses that must match based on minimum_should_match parameter.
-     * <p>
-     * Supports multiple formats:
-     * <ul>
-     *   <li>null/empty: returns 0 if must/filter present, otherwise 1</li>
-     *   <li>"2": exactly 2 clauses must match</li>
-     *   <li>"-1": total - 1 clauses must match</li>
-     *   <li>"70%": 70% of clauses (rounded down) must match</li>
-     *   <li>"-30%": can miss 30% of clauses</li>
-     *   <li>"2&lt;75%": if total ≤ 2 match all, else 75%</li>
-     *   <li>"3&lt;-1 5&lt;50%": multiple thresholds</li>
-     * </ul>
+     * Creates the enumerated form for minimum_should_match when 1 less-than required less-than n.
      *
-     * @param minimumShouldMatch the minimum_should_match parameter value
-     * @param totalShould total number of should clauses
-     * @param hasRequired true if must or filter clauses are present
-     * @return number of should clauses that must match
+     * @throws ConversionException if leaf-occurrence count C(n,k) x k exceeds MAX_LEAF_OCCURRENCES
      */
-    int calculateRequiredMatches(String minimumShouldMatch, int totalShould, boolean hasRequired) {
-        if (minimumShouldMatch == null || minimumShouldMatch.isEmpty()) {
-            return hasRequired ? 0 : 1;
-        }
+    private RexNode createMinimumMatchCondition(List<RexNode> conditions, int required, ConversionContext ctx) throws ConversionException {
+        int n = conditions.size();
+        int k = required;
 
-        // Multiple combinations: "3<-1 5<50%"
-        if (minimumShouldMatch.contains(" ")) {
-            return parseMultipleCombinations(minimumShouldMatch, totalShould);
-        }
-
-        // Single combination: "2<75%"
-        if (minimumShouldMatch.contains("<")) {
-            return parseCombination(minimumShouldMatch, totalShould);
-        }
-
-        // Percentage: "70%" or "-30%"
-        if (minimumShouldMatch.endsWith("%")) {
-            return parsePercentage(minimumShouldMatch, totalShould);
-        }
-
-        // Integer: "2" or "-1"
-        return parseInteger(minimumShouldMatch, totalShould);
-    }
-
-    /**
-     * Parses an integer minimum_should_match value.
-     * Non-negative values are returned as-is. Negative values are subtracted from total.
-     *
-     * @param value the integer string (e.g., "2" or "-1")
-     * @param total total number of should clauses
-     * @return required number of matches
-     */
-    private int parseInteger(String value, int total) {
-        int num = Integer.parseInt(value);
-        return num >= 0 ? num : Math.max(0, total + num);
-    }
-
-    /**
-     * Parses a percentage minimum_should_match value.
-     * Non-negative percentages are applied directly. Negative percentages represent allowed misses.
-     *
-     * @param value the percentage string (e.g., "70%" or "-30%")
-     * @param total total number of should clauses
-     * @return required number of matches (rounded down)
-     */
-    private int parsePercentage(String value, int total) {
-        double percent = Double.parseDouble(value.substring(0, value.length() - 1));
-        if (percent >= 0) {
-            return (int) Math.floor(total * percent / 100.0);
-        } else {
-            int allowed = (int) Math.floor(total * (-percent) / 100.0);
-            return Math.max(0, total - allowed);
-        }
-    }
-
-    /**
-     * Parses a single combination minimum_should_match value (e.g., "2&lt;75%").
-     * If total ≤ threshold, all clauses must match. Otherwise, applies the specified value.
-     *
-     * @param value the combination string (e.g., "2&lt;75%")
-     * @param total total number of should clauses
-     * @return required number of matches
-     */
-    private int parseCombination(String value, int total) {
-        String[] parts = value.split("<");
-        int threshold = Integer.parseInt(parts[0]);
-        if (total <= threshold) {
-            return total;
-        }
-        return parts[1].endsWith("%") ? parsePercentage(parts[1], total) : parseInteger(parts[1], total);
-    }
-
-    /**
-     * Parses multiple combinations minimum_should_match value (e.g., "3&lt;-1 5&lt;50%").
-     * Applies the appropriate rule based on which threshold range the total falls into.
-     *
-     * @param value the combinations string (e.g., "3&lt;-1 5&lt;50%")
-     * @param total total number of should clauses
-     * @return required number of matches
-     */
-    private int parseMultipleCombinations(String value, int total) {
-        String[] combinations = value.trim().split("\\s+");
-        for (int i = 0; i < combinations.length; i++) {
-            String combination = combinations[i];
-            String[] parts = combination.split("<");
-            int threshold = Integer.parseInt(parts[0]);
-
-            if (total <= threshold) {
-                return total;
-            }
-
-            // If this is the last combination or we're in the range for this combination
-            if (i == combinations.length - 1) {
-                return parts[1].endsWith("%") ? parsePercentage(parts[1], total) : parseInteger(parts[1], total);
-            }
-
-            // Check if we're in the range for the next threshold
-            if (i + 1 < combinations.length) {
-                String[] nextParts = combinations[i + 1].split("<");
-                int nextThreshold = Integer.parseInt(nextParts[0]);
-                if (total <= nextThreshold) {
-                    return parts[1].endsWith("%") ? parsePercentage(parts[1], total) : parseInteger(parts[1], total);
-                }
-            }
-        }
-        return total;
-    }
-
-    /**
-     * Creates a RexNode representing the minimum_should_match condition when required &gt; 1.
-     * Generates all C(n,k) combinations where n = total conditions, k = required matches.
-     * <p>
-     * Example: 3 conditions with 2 required generates: (a AND b) OR (a AND c) OR (b AND c)
-     * <p>
-     * Performance note: Large clause counts with high required matches can generate many combinations.
-     * For example, C(10,5) = 252, C(20,10) = 184,756.
-     *
-     * @param conditions the list of should clause conditions
-     * @param required number of conditions that must match
-     * @param ctx the conversion context
-     * @return RexNode representing all valid combinations
-     */
-    private RexNode createMinimumMatchCondition(List<RexNode> conditions, int required, ConversionContext ctx) {
-        List<RexNode> combinations = new ArrayList<>();
-        generateCombinations(conditions, required, 0, new ArrayList<>(), combinations, ctx);
-        return combinations.size() == 1 ? combinations.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.OR, combinations);
-    }
-
-    /**
-     * Recursively generates all C(n,k) combinations of conditions using backtracking.
-     * Each combination of size k is combined with AND, and all combinations are collected for OR.
-     *
-     * @param conditions all available conditions
-     * @param required number of conditions needed per combination
-     * @param start starting index for this recursion level
-     * @param current current combination being built
-     * @param result accumulator for all generated combinations
-     * @param ctx the conversion context
-     */
-    private void generateCombinations(
-        List<RexNode> conditions,
-        int required,
-        int start,
-        List<RexNode> current,
-        List<RexNode> result,
-        ConversionContext ctx
-    ) {
-        if (current.size() == required) {
-            result.add(
-                current.size() == 1 ? current.get(0) : ctx.getRexBuilder().makeCall(SqlStdOperatorTable.AND, new ArrayList<>(current))
+        long combinations = computeCombinationsCapped(n, k);
+        long leafOccurrences = combinations * k;
+        if (leafOccurrences > MAX_LEAF_OCCURRENCES) {
+            throw new ConversionException(
+                "minimum_should_match leaf-occurrence count exceeds limit: C("
+                    + n
+                    + ", "
+                    + k
+                    + ") = "
+                    + combinations
+                    + ", leaf occurrences = "
+                    + leafOccurrences
+                    + " exceeds maximum "
+                    + MAX_LEAF_OCCURRENCES
             );
-            return;
         }
 
-        for (int i = start; i <= conditions.size() - (required - current.size()); i++) {
-            current.add(conditions.get(i));
-            generateCombinations(conditions, required, i + 1, current, result, ctx);
-            current.remove(current.size() - 1);
+        var rexBuilder = ctx.getRexBuilder();
+
+        List<RexNode> subsets = new ArrayList<>((int) combinations);
+        int[] indices = new int[k];
+        for (int i = 0; i < k; i++) {
+            indices[i] = i;
         }
+
+        while (true) {
+            List<RexNode> andChildren = new ArrayList<>(k);
+            for (int idx : indices) {
+                andChildren.add(conditions.get(idx));
+            }
+            RexNode andNode = RexUtil.composeConjunction(rexBuilder, andChildren);
+            subsets.add(andNode);
+
+            if (!nextCombination(indices, n)) {
+                break;
+            }
+        }
+
+        // composeDisjunction deduplicates operands and absorbs FALSE literals — duplicate
+        // should-clauses produce fewer than C(n,k) operands (identical subsets collapse).
+        // Correct: the logical truth table is unchanged when duplicates are present.
+        return RexUtil.composeDisjunction(rexBuilder, subsets);
+    }
+
+    /** Advances indices to the next k-subset in lexicographic order; returns false if exhausted. */
+    private boolean nextCombination(int[] indices, int n) {
+        int k = indices.length;
+        int i = k - 1;
+        while (i >= 0 && indices[i] == n - k + i) {
+            i--;
+        }
+        if (i < 0) {
+            return false;
+        }
+        indices[i]++;
+        for (int j = i + 1; j < k; j++) {
+            indices[j] = indices[j - 1] + 1;
+        }
+        return true;
+    }
+
+    /**
+     * Computes C(n,k) with early bail when result x k exceeds MAX_LEAF_OCCURRENCES.
+     *
+     * <p>Uses binomial symmetry C(n,k) = C(n, n-k) so the incremental running value never
+     * peaks at C(n, n/2) — without this, an early bail could reject a case whose final value
+     * is under the cap.
+     */
+    private long computeCombinationsCapped(int n, int k) {
+        int kOrig = k;
+        if (k > n - k) {
+            k = n - k;
+        }
+        long result = 1;
+        for (int i = 0; i < k; i++) {
+            result = result * (n - i) / (i + 1);
+            // Overflow-safe: kOrig >= 2 on the enumerated path (1 < k < n).
+            if (result > MAX_LEAF_OCCURRENCES / kOrig) {
+                return result;
+            }
+        }
+        return result;
     }
 }
