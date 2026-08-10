@@ -156,3 +156,17 @@ scalar_functions:
           - value: "varchar<L1>"
             name: separator
         return: "string?"
+
+  - name: array_has
+    description: >-
+      True when any element of the array equals the value (element equality, not regex).
+      Emitted for `=` on a multi_value field — Calcite's
+      {@code SqlLibraryOperators.ARRAY_CONTAINS} renames to this for DataFusion — giving
+      the same contains semantics a Lucene term query has on a multi-valued field.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: any1
+            name: element
+        return: "boolean?"

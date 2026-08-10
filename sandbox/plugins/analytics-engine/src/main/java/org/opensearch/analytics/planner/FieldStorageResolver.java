@@ -152,10 +152,18 @@ public class FieldStorageResolver {
             throw new IllegalStateException("Field [" + fieldName + "] has no storage in any format");
         }
 
+        // A field mapped `multi_value: true` is stored as a Parquet LIST column and typed ARRAY
+        // in the Calcite schema (OpenSearchSchemaBuilder); the capability type must agree, or
+        // every per-field capability lookup (scan, filter) would check the element type against
+        // ops registered for ARRAY — e.g. `tags = 'x'` resolves to ARRAY_CONTAINS, which is
+        // declared for FieldType.ARRAY, not KEYWORD.
+        FieldType capabilityType = Boolean.TRUE.equals(fieldProps.get("multi_value"))
+            ? FieldType.ARRAY
+            : FieldType.fromMappingType(fieldType);
         return new FieldStorageInfo(
             fieldName,
             fieldType,
-            FieldType.fromMappingType(fieldType),
+            capabilityType,
             docValueFormats,
             indexFormats,
             storedFieldFormats,

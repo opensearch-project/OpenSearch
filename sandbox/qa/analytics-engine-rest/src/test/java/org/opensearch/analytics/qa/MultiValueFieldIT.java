@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.ResponseException;
 
@@ -286,24 +287,44 @@ public class MultiValueFieldIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Scalar equality on a multi-valued column is rejected by the PPL analyzer (in the SQL
-     * plugin, before this repo's planner runs) with a message that names the types involved.
-     * Pinned so a regression to an internal planner error is caught. The supported contains
-     * filter is {@link #testMvfindIsTheContainsFilter()}.
+     * {@code where tags = 'x'} on a multi-valued column means CONTAINS — a document matches when
+     * ANY element equals the value — exactly like a Lucene term query on a multi-valued field.
+     * The PPL frontend rewrites `=` over an ARRAY column to ARRAY_CONTAINS, which DataFusion
+     * executes natively as array_has (element equality, not regex).
      */
-    public void testEqualsOnMultiValueColumnFailsComprehensibly() throws Exception {
+    @SuppressWarnings("unchecked")
+    @AwaitsFix(
+        bugUrl = "Requires the SQL-plugin side of the contains rewrite: PPLFuncImpTable must register "
+            + "EQUAL/NOTEQUAL overloads for [ARRAY<T>, scalar] resolving to ARRAY_CONTAINS "
+            + "(opensearch-project/sql PR pending; verified end-to-end against a local "
+            + "unified-query build). Until that ships in the 3.8.0.0-SNAPSHOT this cluster "
+            + "installs, the PPL analyzer rejects `tags = 'x'` with EQUAL...[ARRAY,STRING]."
+    )
+    public void testEqualsOnMultiValueColumnMeansContains() throws Exception {
         provision();
 
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> executePpl("source = " + INDEX + " | where tags = 'alpha' | fields id")
-        );
-        String responseBody = bodyOf(e);
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertTrue(
-            "the rejection must explain the type mismatch, got: " + responseBody,
-            responseBody.contains("EQUAL") && responseBody.contains("ARRAY")
-        );
+        Map<String, Object> result = executePpl("source = " + INDEX + " | where tags = 'alpha' | fields id");
+        List<String> columns = extractColumnNames(result);
+        List<List<Object>> rows = (List<List<Object>>) result.get("datarows");
+        assertEquals("only the doc containing 'alpha' must match", 1, rows.size());
+        assertEquals("multi", String.valueOf(rows.get(0).get(columns.indexOf("id"))));
+
+        // A value present in a single-element list also matches.
+        Map<String, Object> solo = executePpl("source = " + INDEX + " | where tags = 'solo' | fields id");
+        List<List<Object>> soloRows = (List<List<Object>>) solo.get("datarows");
+        assertEquals(1, soloRows.size());
+        assertEquals("single", String.valueOf(soloRows.get(0).get(extractColumnNames(solo).indexOf("id"))));
+
+        // Element equality is exact — no substring/regex semantics.
+        Map<String, Object> none = executePpl("source = " + INDEX + " | where tags = 'alp' | fields id");
+        assertEquals(0, ((List<List<Object>>) none.get("datarows")).size());
+
+        // != is NOT(contains): docs whose list lacks the value. NULL lists are excluded by SQL
+        // three-valued logic, mirroring Lucene where a doc without the field never matches a term.
+        Map<String, Object> neq = executePpl("source = " + INDEX + " | where tags != 'alpha' | fields id");
+        List<List<Object>> neqRows = (List<List<Object>>) neq.get("datarows");
+        assertEquals("only the non-null list lacking 'alpha' matches", 1, neqRows.size());
+        assertEquals("single", String.valueOf(neqRows.get(0).get(extractColumnNames(neq).indexOf("id"))));
     }
 
     /**
