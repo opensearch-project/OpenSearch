@@ -272,8 +272,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             .findFirst();
 
         if (optionalWorkloadGroup.isPresent()
-            && (optionalWorkloadGroup.get().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.SOFT
-                && !nodeDuressTrackers.isNodeInDuress())) return;
+            && (optionalWorkloadGroup.get().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.MONITOR
+                || (optionalWorkloadGroup.get().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.SOFT
+                    && !nodeDuressTrackers.isNodeInDuress()))) return;
 
         optionalWorkloadGroup.ifPresent(workloadGroup -> {
             boolean reject = false;

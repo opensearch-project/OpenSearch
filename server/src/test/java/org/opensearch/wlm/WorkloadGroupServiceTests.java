@@ -268,6 +268,35 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         verify(spyState, never()).getResourceState();
     }
 
+    public void testRejectIfNeeded_whenWorkloadGroupIsMonitorMode() {
+        Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
+            "testWorkloadGroup",
+            WORKLOAD_GROUP_ID,
+            MutableWorkloadGroupFragment.ResiliencyMode.MONITOR,
+            Map.of(ResourceType.CPU, 0.10)
+        );
+        mockWorkloadGroupStateMap = new HashMap<>();
+        WorkloadGroupState spyState = spy(new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put(WORKLOAD_GROUP_ID, spyState);
+
+        mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
+
+        workloadGroupService = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            activeWorkloadGroups,
+            new HashSet<>()
+        );
+        workloadGroupService.rejectIfNeeded(WORKLOAD_GROUP_ID);
+
+        // MONITOR mode should never reject - verify no resource state access for rejection
+        verify(spyState, never()).getResourceState();
+    }
+
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andNotBreaching() {
         WorkloadGroup testWorkloadGroup = getWorkloadGroup(
             "testWorkloadGroup",
