@@ -146,7 +146,7 @@ public class CanMatchPreFilterPhase {
                         @Override
                         public void handleException(TransportException exp) {
                             // Fail-open: include this target on any transport error
-                            logger.debug(
+                            logger.error(
                                 () -> "can-match: transport error for shard " + shardTarget.shardId() + ", keeping (fail-open)",
                                 exp
                             );
@@ -161,7 +161,7 @@ public class CanMatchPreFilterPhase {
                 );
             } catch (Exception e) {
                 // Fail-open: connection failure or other exception
-                logger.debug("can-match: dispatch failed for shard {}, keeping (fail-open): {}", shardTarget.shardId(), e.getMessage());
+                logger.error("can-match: dispatch failed for shard {}, keeping (fail-open): {}", shardTarget.shardId(), e.getMessage());
                 completion.keep(target, null, pending);
             }
         }

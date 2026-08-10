@@ -292,7 +292,7 @@ public final class CanMatchFilterExtractor {
             LocalDate date = LocalDate.parse(str);
             return date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         } catch (Exception e) {
-            logger.debug("[can-match-extractor] Failed to parse timestamp string '{}': {}", str, e.getMessage());
+            logger.error("[can-match-extractor] Failed to parse timestamp string '{}': {}", str, e.getMessage());
             return Long.MIN_VALUE;
         }
     }
