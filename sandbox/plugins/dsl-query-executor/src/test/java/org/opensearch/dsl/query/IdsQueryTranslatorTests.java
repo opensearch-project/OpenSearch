@@ -85,7 +85,7 @@ public class IdsQueryTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testEmptyValuesProducesFalseLiteral() throws ConversionException {
-        // Empty values array → match-nothing (mirrors IdsQueryBuilder.doRewrite:157)
+        // Empty values array → match-nothing (mirrors IdsQueryBuilder.doRewrite)
         RexNode result = translator.convert(QueryBuilders.idsQuery(), ctx);
 
         assertTrue("Expected RexLiteral FALSE, got: " + result, result instanceof RexLiteral);
@@ -158,6 +158,28 @@ public class IdsQueryTranslatorTests extends OpenSearchTestCase {
         RexLiteral lastValue = (RexLiteral) lastMap.getOperands().get(1);
         assertEquals("values.99", lastKey.getValueAs(String.class));
         assertEquals("doc099", lastValue.getValueAs(String.class));
+    }
+
+    public void testIdsWithSpecialCharactersRoundTrip() throws ConversionException {
+        // Character edge-case: single quote, non-ASCII, and space must survive translation
+        String quoteId = "it's";
+        String unicodeId = "\u00fc\u00f1\u00ee-id";
+        String spaceId = "id with space";
+        RexNode result = translator.convert(QueryBuilders.idsQuery().addIds(quoteId, unicodeId, spaceId), ctx);
+
+        assertTrue("Expected RexCall, got: " + result.getClass(), result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals("IDS", call.getOperator().getName());
+        assertEquals(3, call.getOperands().size());
+
+        // Extract actual id values from MAP operands and verify exact strings survive
+        Set<String> recoveredIds = new HashSet<>();
+        for (RexNode operand : call.getOperands()) {
+            RexCall mapCall = (RexCall) operand;
+            RexLiteral valueLiteral = (RexLiteral) mapCall.getOperands().get(1);
+            recoveredIds.add(valueLiteral.getValueAs(String.class));
+        }
+        assertEquals(Set.of(quoteId, unicodeId, spaceId), recoveredIds);
     }
 
     /** Creates a ConversionContext with a simple schema (no _id column needed). */
