@@ -69,6 +69,13 @@ public enum ScalarFunction {
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP_CONTAINS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     WILDCARD_QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    /**
+     * Delegated regexp query for DSL-origin patterns — passes the Lucene regex verbatim,
+     * no PPL substring wrapping. A separate constant from {@link #REGEXP} is required because
+     * {@code RegexpSerializer} wraps patterns as {@code ".*" + pattern + ".*"} for PPL
+     * substring-match semantics, which would un-anchor every DSL pattern.
+     */
+    REGEXP_QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
