@@ -207,6 +207,10 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNanoTimestampTypeSystemReportsMaxPrecisionNine() {
+        assertEquals(9, DslTypeSystems.NANO_TIMESTAMP.getMaxPrecision(SqlTypeName.TIMESTAMP));
+    }
+
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
         String json;
         try (var builder = JsonXContent.contentBuilder()) {
