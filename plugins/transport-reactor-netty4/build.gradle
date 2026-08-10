@@ -159,7 +159,7 @@ thirdPartyAudit {
     'lzma.sdk.lzma.Encoder',
     'net.jpountz.lz4.LZ4Compressor',
     'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
+    'net.jpountz.lz4.LZ4SafeDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
     'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',

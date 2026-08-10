@@ -76,6 +76,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(Netty4HttpServerTransport.SETTING_HTTP_PIPELINE_DEPTH.getKey(), 1500)
             .build();
     }
 
