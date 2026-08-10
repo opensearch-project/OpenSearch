@@ -347,4 +347,124 @@ public class MultiValueFieldDurabilityIT extends DataFormatAwareReplicationBaseI
             }
         }, 60, java.util.concurrent.TimeUnit.SECONDS);
     }
+
+    /**
+     * Null elements inside an array are dropped, so the stored list is shorter than the JSON.
+     *
+     * <p>{@code KeywordFieldMapper.parseCreateFieldForPluggableFormat} returns early when the parsed
+     * value is null, so a null element never reaches {@code addField} and never becomes a list
+     * element. This matches Lucene, which indexes no term for a null, and it means
+     * {@code array_length(["a",null,"b"])} is 2 — pinned here because the alternative (a null
+     * element preserved in the list) would be an equally defensible design and should not change
+     * silently. A configured {@code null_value} substitutes instead and IS stored.
+     */
+    @SuppressWarnings("unchecked")
+    public void testNullElementsInsideArrayAreDropped() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createMvIndex(0);
+        ensureGreen(MV_INDEX);
+
+        org.opensearch.action.index.IndexResponse resp = client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource("{\"id\":\"nulls\",\"tags\":[\"a\",null,\"b\",null]}", XContentType.JSON)
+            .get();
+        client().admin().indices().prepareRefresh(MV_INDEX).get();
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+
+        Map<String, Object> source = client().prepareGet(MV_INDEX, resp.getId()).setRealtime(false).get().getSourceAsMap();
+        Object tags = source.get("tags");
+        List<String> got = tags == null ? List.of() : ((List<Object>) tags).stream().map(String::valueOf).toList();
+        assertEquals("null elements are dropped, not preserved as null list entries", List.of("a", "b"), got);
+    }
+
+    /**
+     * A single document whose array is far larger than the per-row average the VSR sizes for.
+     *
+     * <p>VSR rotation is driven by ROW count ({@code index.parquet.max_rows_per_vsr}), not by bytes,
+     * so one pathological array grows the child vector without triggering a rotation — the case
+     * where a row-count-based memory bound does not hold. Verifies the write completes and every
+     * element survives the flush rather than being truncated at some buffer boundary.
+     */
+    @SuppressWarnings("unchecked")
+    public void testVeryLargeArrayInSingleDocument() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createMvIndex(0);
+        ensureGreen(MV_INDEX);
+
+        int elementCount = 50_000;
+        StringBuilder json = new StringBuilder("{\"id\":\"big\",\"tags\":[");
+        for (int i = 0; i < elementCount; i++) {
+            if (i > 0) json.append(",");
+            json.append("\"v").append(i).append("\"");
+        }
+        json.append("]}");
+
+        org.opensearch.action.index.IndexResponse resp = client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource(json.toString(), XContentType.JSON)
+            .get();
+        client().admin().indices().prepareRefresh(MV_INDEX).get();
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+
+        Map<String, Object> source = client().prepareGet(MV_INDEX, resp.getId()).setRealtime(false).get().getSourceAsMap();
+        List<Object> tags = (List<Object>) source.get("tags");
+        assertNotNull("large array must be stored", tags);
+        assertEquals("every element must survive", elementCount, tags.size());
+        assertEquals("first element", "v0", String.valueOf(tags.get(0)));
+        assertEquals("last element", "v" + (elementCount - 1), String.valueOf(tags.get(elementCount - 1)));
+    }
+
+    /**
+     * A {@code multi_value} field added by a mapping update on a live index.
+     *
+     * <p>This is the {@code VSRManager.reconcileSchema} path: the new field's vector is created on
+     * the already-active VSR. That code previously rebuilt each Arrow field from name + FieldType
+     * and dropped {@code getChildren()}, which left a LIST column with no element vector to write
+     * into — a bug only a dynamically-added multi-valued field reaches, since an index created with
+     * the field gets its children from the initial schema.
+     */
+    @SuppressWarnings("unchecked")
+    public void testMultiValueFieldAddedByMappingUpdate() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        // Create WITHOUT the tags field.
+        client().admin()
+            .indices()
+            .prepareCreate(MV_INDEX)
+            .setSettings(mvIndexSettings(0))
+            .setMapping("{\"properties\":{\"id\":{\"type\":\"keyword\"}}}")
+            .get();
+        ensureGreen(MV_INDEX);
+
+        // A document in the original schema, so the VSR is already active when the mapping changes.
+        client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource("{\"id\":\"before\"}", XContentType.JSON)
+            .get();
+
+        client().admin()
+            .indices()
+            .preparePutMapping(MV_INDEX)
+            .setSource("{\"properties\":{\"tags\":{\"type\":\"keyword\",\"multi_value\":true}}}", XContentType.JSON)
+            .get();
+
+        // Writing the newly-added LIST column exercises reconcileSchema's child preservation.
+        org.opensearch.action.index.IndexResponse resp = client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource("{\"id\":\"after\",\"tags\":[\"p\",\"q\",\"p\"]}", XContentType.JSON)
+            .get();
+        client().admin().indices().prepareRefresh(MV_INDEX).get();
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+
+        Map<String, Object> source = client().prepareGet(MV_INDEX, resp.getId()).setRealtime(false).get().getSourceAsMap();
+        Object tags = source.get("tags");
+        assertNotNull("dynamically added multi_value field must be stored", tags);
+        assertEquals(
+            "values written into a dynamically added LIST column must survive",
+            List.of("p", "q", "p"),
+            ((List<Object>) tags).stream().map(String::valueOf).toList()
+        );
+    }
 }
