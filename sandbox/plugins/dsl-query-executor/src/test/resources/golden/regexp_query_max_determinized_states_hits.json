@@ -1,0 +1,40 @@
+{
+  "testName": "regexp_query_max_determinized_states_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "regexp": {
+        "name": {
+          "value": "phone[0-9]+",
+          "max_determinized_states": 20000
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[REGEXP_QUERY(MAP('field', $0), MAP('query', 'phone[0-9]+'), MAP('max_determinized_states', '20000'))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["phone123", 699, "BrandB", 4.2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
