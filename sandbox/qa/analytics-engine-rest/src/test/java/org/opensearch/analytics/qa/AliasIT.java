@@ -126,6 +126,40 @@ public class AliasIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * An alias spanning a mapping-less empty index (created with no mapping, never written to)
+     * and a populated index must serve queries from the populated member. The empty index
+     * declares no fields, so it contributes nothing to the schema union or field storage —
+     * regression guard for FieldStorageResolver throwing "No mapping found" on such members.
+     */
+    public void testAliasSpansMappinglessEmptyIndex() throws IOException {
+        String emptyIdx = "alias_mappingless_empty";
+        String dataIdx = "alias_mappingless_data";
+        String alias = "alias_mappingless";
+        // Create the empty member with NO mappings block — index exists but declares no fields.
+        Request create = new Request("PUT", "/" + emptyIdx);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":\"lucene\","
+                + "\"index.number_of_shards\":1,\"index.number_of_replicas\":0}}"
+        );
+        try {
+            client().performRequest(create);
+        } catch (ResponseException re) {
+            if (entityAsString(re.getResponse()).contains("resource_already_exists_exception") == false) {
+                throw re;
+            }
+        }
+        createIndexIfAbsent(dataIdx, "{\"properties\":{\"v\":{\"type\":\"long\"}}}");
+        bulk(dataIdx, "{\"v\":1}\n{\"v\":2}\n{\"v\":3}\n");
+        putAlias(alias, List.of(emptyIdx, dataIdx));
+
+        long count = singleCount("source=" + alias + " | stats count() as c");
+        assertEquals("mapping-less empty member contributes no rows", 3L, count);
+    }
+
+    /**
      * Filter aliases are rejected up-front — the planner can't honor the filter today
      * without weaving it into the Calcite plan, so silently dropping it would return more
      * rows than the user asked for. Better to error with a clear message.
