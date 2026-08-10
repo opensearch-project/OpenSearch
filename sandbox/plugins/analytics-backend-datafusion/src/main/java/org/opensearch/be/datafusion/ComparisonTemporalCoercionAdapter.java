@@ -78,16 +78,23 @@ class ComparisonTemporalCoercionAdapter implements ScalarFunctionAdapter {
 
     /** Cast an {@link IpType} operand to plain {@code VARBINARY}, or return the operand unchanged. */
     private static RexNode castIpTypeToVarbinary(RexNode node, RelOptCluster cluster) {
-        if (!(node.getType() instanceof IpType)) {
+        // Strip any OperatorAnnotation wrapper so the underlying IpType is visible.
+        RexNode stripped = stripAnnotation(node);
+        if (!(stripped.getType() instanceof IpType)) {
             return node;
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varbinary = cluster.getTypeFactory()
             .createTypeWithNullability(
                 cluster.getTypeFactory().createSqlType(SqlTypeName.VARBINARY),
-                node.getType().isNullable()
+                stripped.getType().isNullable()
             );
-        return rexBuilder.makeAbstractCast(varbinary, node);
+        RexNode cast = rexBuilder.makeAbstractCast(varbinary, stripped);
+        // Re-wrap in the original annotation if present.
+        if (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
+            return annotation.withAdaptedOriginal(cast);
+        }
+        return cast;
     }
 
     /** TIME (or wrapped TIME) compared with DATE/TIMESTAMP — rewrite to today-anchored TIMESTAMP, preserving any outer annotation. */
