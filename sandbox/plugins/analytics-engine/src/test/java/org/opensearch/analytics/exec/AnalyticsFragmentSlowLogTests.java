@@ -188,4 +188,72 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
             appender.assertAllExpectationsMatched();
         }
     }
+
+    public void testFragmentSlowLogIncludesMetricsWhenPresent() throws Exception {
+        AnalyticsFragmentSlowLog fragmentSlowLog = new AnalyticsFragmentSlowLog();
+        Logger logger = LogManager.getLogger(AnalyticsFragmentSlowLog.LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        IndexSettings indexSettings = createIndexSettings(TimeValue.timeValueMillis(0));
+        byte[] metricsJson = "{\"physical_plan\":\"ParquetExec: file_groups={1}\",\"bytes_scanned\":1024,\"parquet_read_time\":500}"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "metrics present in log",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    ".*metrics\\[.*physical_plan.*ParquetExec.*bytes_scanned.*1024.*\\].*"
+                )
+            );
+
+            fragmentSlowLog.onFragmentSuccess(
+                "q-metrics",
+                0,
+                "[idx][0]",
+                TimeValue.timeValueMillis(100).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(500, false, 0, null, false, 300, "op-m", metricsJson)
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testFragmentSlowLogOmitsMetricsWhenNull() throws Exception {
+        AnalyticsFragmentSlowLog fragmentSlowLog = new AnalyticsFragmentSlowLog();
+        Logger logger = LogManager.getLogger(AnalyticsFragmentSlowLog.LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        IndexSettings indexSettings = createIndexSettings(TimeValue.timeValueMillis(0));
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no metrics field when null",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    "*metrics[*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "log still fires",
+                    AnalyticsFragmentSlowLog.LOGGER_NAME,
+                    Level.WARN,
+                    ".*query_id\\[q-nometrics\\].*"
+                )
+            );
+
+            fragmentSlowLog.onFragmentSuccess(
+                "q-nometrics",
+                0,
+                "[idx][0]",
+                TimeValue.timeValueMillis(10).nanos(),
+                indexSettings,
+                new FragmentExecutionStats(10, false, 0, null, false, 400, null)
+            );
+            appender.assertAllExpectationsMatched();
+        }
+    }
 }

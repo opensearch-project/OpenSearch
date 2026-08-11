@@ -492,6 +492,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         }
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
+        queryListener.setFullPlan(fullPlan);
 
         // The task is the framework-provided task from doExecute (registered by
         // HandledTransportAction before doExecute, unregistered when the listener completes).
