@@ -111,6 +111,15 @@ public class DiskThresholdMonitor {
      */
     private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
 
+    /**
+     * The names of the indices whose {@code index.blocks.read} block was applied by this monitor rather than by an operator. Because the
+     * monitor reuses the user-facing {@code index.blocks.read} setting, cluster state carries no record of which blocks it owns, so the
+     * distinction is tracked here. It is only consulted when {@link DiskThresholdSettings#INDEX_READ_BLOCK_AUTO_RELEASE} is disabled; on
+     * cluster-manager failover the set starts empty again, which errs towards leaving blocks in place rather than releasing an
+     * operator's.
+     */
+    private final Set<String> indicesWithMonitorAppliedReadBlock = Sets.newConcurrentHashSet();
+
     public DiskThresholdMonitor(
         Settings settings,
         Supplier<ClusterState> clusterStateSupplier,
@@ -494,6 +503,18 @@ public class DiskThresholdMonitor {
     }
 
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
+        final Set<String> indicesToApplyReadBlock = indicesToBlockRead.stream()
+            .filter(index -> !state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+            .collect(Collectors.toSet());
+
+        // Forget indices that no longer carry a read block, then claim the ones this monitor is about to block. An index that
+        // already had the block when the monitor decided to block it is never claimed, so an operator-set block stays unclaimed.
+        indicesWithMonitorAppliedReadBlock.removeIf(
+            index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK) == false
+        );
+        indicesWithMonitorAppliedReadBlock.addAll(indicesToApplyReadBlock);
+
+        final boolean autoReleaseEnabled = diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled();
         final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
             Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
             false
@@ -501,6 +522,8 @@ public class DiskThresholdMonitor {
             .map(Map.Entry::getKey)
             .filter(index -> indicesToBlockRead.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+            // When auto-release is disabled the monitor still cleans up after itself, but leaves operator-set blocks alone.
+            .filter(index -> autoReleaseEnabled || indicesWithMonitorAppliedReadBlock.contains(index))
             .collect(Collectors.toSet());
 
         if (indicesToReleaseReadBlock.isEmpty() == false) {
@@ -510,9 +533,6 @@ public class DiskThresholdMonitor {
             listener.onResponse(null);
         }
 
-        final Set<String> indicesToApplyReadBlock = indicesToBlockRead.stream()
-            .filter(index -> !state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
-            .collect(Collectors.toSet());
         logger.trace("Applying read block on indices: [{}]", indicesToApplyReadBlock);
         if (indicesToApplyReadBlock.isEmpty() == false) {
             updateIndicesReadBlock(indicesToApplyReadBlock, listener, true);
