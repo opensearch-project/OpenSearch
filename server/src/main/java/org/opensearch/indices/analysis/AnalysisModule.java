@@ -38,6 +38,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.NamedRegistry;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -77,6 +78,7 @@ import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public final class AnalysisModule {
     static {
         Settings build = Settings.builder()
@@ -94,6 +96,7 @@ public final class AnalysisModule {
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
 
+    @ExperimentalApi
     public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins) throws IOException {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins);
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = setupHunspellDictionaries(plugins);
@@ -300,6 +303,7 @@ public final class AnalysisModule {
     /**
      * The basic factory interface for analysis components.
      */
+    @ExperimentalApi
     public interface AnalysisProvider<T> {
 
         /**
