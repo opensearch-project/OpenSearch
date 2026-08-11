@@ -41,7 +41,7 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
@@ -52,7 +52,9 @@ public class IndexingClusterManagerFailoverIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
+        // LinkedHashSet (not HashSet) to preserve super.nodePlugins() ordering: the injected sandbox stack
+        // requires arrow-base to initialize before parquet-data-format (component sharing is order-dependent).
+        final LinkedHashSet<Class<? extends Plugin>> classes = new LinkedHashSet<>(super.nodePlugins());
         classes.add(MockTransportService.TestPlugin.class);
         return classes;
     }

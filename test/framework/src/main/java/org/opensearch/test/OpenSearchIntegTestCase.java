@@ -1982,6 +1982,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
             .put(featureFlagSettings());
 
+        // NOTE: sandbox feature flags (STREAM_TRANSPORT / PLUGGABLE_DATAFORMAT) are coupled to the loaded
+        // plugins in getNodeConfigSource()'s un-overridable wrapper, NOT here. Doing it here would be skipped
+        // by the many subclasses that override nodeSettings() without calling super, desyncing the flag from
+        // the plugin (flag off but plugin loaded -> Guice null binding; flag on but plugin absent -> startup fails).
+
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
             builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
@@ -2022,7 +2027,52 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns a collection of plugins that should be loaded on each node.
      */
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.emptyList();
+        // When -Dsandbox.enabled=true is forwarded to the test JVM AND the sandbox plugin classes are on this
+        // module's internalClusterTest classpath, load the parquet/analytics/DSL stack by DEFAULT. Because
+        // nodePlugins() is REPLACE-on-override, any test that declares its own plugins simply does not receive
+        // the stack — so tests that bring their own parquet/FLIGHT plugin can never collide with an injected
+        // one. Resolved reflectively because test:framework cannot depend on the sandbox (JDK 25) plugins; it
+        // is a no-op in any module where those classes are not on the classpath.
+        return sandboxStackPlugins();
+    }
+
+    /** True only when the build forwarded -Dsandbox.enabled=true into the forked test JVM. */
+    private static final boolean SANDBOX_ENABLED = Boolean.parseBoolean(System.getProperty("sandbox.enabled", "false"));
+    private static final String STREAM_TRANSPORT_PLUGIN = "org.opensearch.arrow.flight.transport.FlightStreamPlugin";
+    private static final List<String> SANDBOX_STACK_PLUGINS = List.of(
+        "org.opensearch.arrow.allocator.ArrowBasePlugin",
+        STREAM_TRANSPORT_PLUGIN,
+        "org.opensearch.analytics.AnalyticsPlugin",
+        "org.opensearch.composite.CompositeDataFormatPlugin",
+        "org.opensearch.parquet.ParquetDataFormatPlugin",
+        "org.opensearch.be.datafusion.DataFusionPlugin",
+        "org.opensearch.be.lucene.LucenePlugin",
+        "org.opensearch.dsl.DslQueryExecutorPlugin"
+    );
+    /** Data-format plugins whose presence should turn on PLUGGABLE_DATAFORMAT (the real ones, not test mocks). */
+    private static final Set<String> SANDBOX_DATAFORMAT_PLUGINS = Set.of(
+        "org.opensearch.parquet.ParquetDataFormatPlugin",
+        "org.opensearch.composite.CompositeDataFormatPlugin"
+    );
+
+    /**
+     * The sandbox parquet/analytics/DSL plugin stack, resolved reflectively, or empty when sandbox is not
+     * enabled or the classes are not on this module's classpath. See {@link #nodePlugins()}.
+     */
+    @SuppressWarnings("unchecked")
+    private Collection<Class<? extends Plugin>> sandboxStackPlugins() {
+        if (SANDBOX_ENABLED == false) {
+            return Collections.emptyList();
+        }
+        ArrayList<Class<? extends Plugin>> resolved = new ArrayList<>();
+        for (String className : SANDBOX_STACK_PLUGINS) {
+            try {
+                resolved.add((Class<? extends Plugin>) Class.forName(className));
+            } catch (ClassNotFoundException e) {
+                // Sandbox plugin not on this module's test classpath — skip (no-op for non-sandbox modules).
+            }
+        }
+        return resolved;
     }
 
     /**
@@ -2138,10 +2188,30 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder()
+                Settings.Builder builder = Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal))
-                    .build();
+                    .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal));
+                // Couple the sandbox feature flags to the plugins actually loaded on THIS node. This lives in the
+                // un-overridable wrapper (not the overridable nodeSettings() above) and reads the same nodePlugins()
+                // the framework loads from, so the flag and its plugin are always in lockstep: a node gets
+                // STREAM_TRANSPORT / PLUGGABLE_DATAFORMAT iff the satisfying plugin is present, regardless of whether
+                // a subclass overrides nodeSettings() with or without super.
+                Collection<Class<? extends Plugin>> effectiveNodePlugins = OpenSearchIntegTestCase.this.nodePlugins();
+                if (effectiveNodePlugins.stream().anyMatch(c -> STREAM_TRANSPORT_PLUGIN.equals(c.getName()))) {
+                    builder.put(FeatureFlags.STREAM_TRANSPORT, true);
+                    // Give the Arrow Flight (stream) transport a per-Gradle-worker port range instead of its fixed
+                    // default (aux.transport.transport-flight.port defaults to 9400-9500). All parallel forks share
+                    // that default range, so under many forks the ~100 ports are exhausted -> Flight bind fails ->
+                    // the node aborts mid-startup and leaks its threads -> ThreadLeakControl marks subsequent suites
+                    // in the fork as zombies (skipped). getPortRange() hands each worker a disjoint 100-port slice
+                    // (the same mechanism the main transport uses in single-node tests), eliminating the contention.
+                    // Test-only: production nodes are unaffected and keep the 9400-9500 default.
+                    builder.put("aux.transport.transport-flight.port", getPortRange());
+                }
+                if (effectiveNodePlugins.stream().anyMatch(c -> SANDBOX_DATAFORMAT_PLUGINS.contains(c.getName()))) {
+                    builder.put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true);
+                }
+                return builder.build();
             }
 
             @Override
