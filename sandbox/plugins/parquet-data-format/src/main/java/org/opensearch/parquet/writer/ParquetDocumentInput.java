@@ -58,9 +58,16 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         if (existing == null) {
             // Fields declared `multi_value: true` in the mapping start out as a list of one so the
             // value shape reaching the VSR is the same whether the document had one value or several.
-            FieldValuePair pair = fieldType.isMultiValued()
-                ? FieldValuePair.multiValued(fieldType, value)
-                : new FieldValuePair(fieldType, value);
+            // An explicit empty array (`"field": []`) is signalled by an empty List and seeds a
+            // zero-value pair, so its LIST cell is written empty-but-non-null rather than null.
+            final FieldValuePair pair;
+            if (fieldType.isMultiValued()) {
+                pair = value instanceof List<?> list && list.isEmpty()
+                    ? FieldValuePair.emptyMultiValued(fieldType)
+                    : FieldValuePair.multiValued(fieldType, value);
+            } else {
+                pair = new FieldValuePair(fieldType, value);
+            }
             seen.put(fieldType, pair);
             collectedFields.add(pair);
             return;

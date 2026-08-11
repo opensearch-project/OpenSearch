@@ -126,6 +126,27 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertEquals(List.of("solo"), pair.getValue());
     }
 
+    public void testDeclaredMultiValueFieldWithEmptyArrayIsPresentEmptyList() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
+        assignTestCapabilities(tags, PARQUET_FORMAT);
+
+        // The parser signals an explicit empty array ("tags": []) with an empty List value. It must
+        // seed a present, zero-value list (written as an empty-but-non-null LIST cell) rather than
+        // being dropped, so an empty array stays distinct from an absent field in reconstructed
+        // _source.
+        input.addField(tags, List.of());
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        FieldValuePair pair = findPair(input, "tags");
+        assertTrue(pair.isMultiValued());
+        assertEquals(List.of(), pair.getValue());
+        assertEquals(0, pair.valueCount());
+        assertEquals(0L, input.getFieldCount("tags"));
+    }
+
     public void testUndeclaredFieldStillRejectsMultipleValues() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);

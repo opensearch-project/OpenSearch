@@ -74,6 +74,18 @@ public class FieldValuePair {
     }
 
     /**
+     * Creates a multi-valued FieldValuePair holding zero values, representing an explicit empty
+     * array ({@code "field": []}). It backs a zero-length, non-null LIST cell, which reads back as
+     * {@code []} and so stays distinct from an absent field (a null cell).
+     *
+     * @param fieldType the mapped field type
+     * @return an empty multi-valued pair
+     */
+    public static FieldValuePair emptyMultiValued(MappedFieldType fieldType) {
+        return new FieldValuePair(fieldType, new ArrayList<>(0));
+    }
+
+    /**
      * Appends another value. Only valid on a multi-valued pair.
      *
      * @param nextValue the value to append
