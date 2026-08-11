@@ -1598,7 +1598,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
                 null,
                 reservedSpace,
                 nodeFileCacheStats,
-                nodeResourceUsages
+                nodeResourceUsages,
+                Map.of()
             );
         }
 

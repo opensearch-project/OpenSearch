@@ -1,3 +1,4 @@
+
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -168,7 +169,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 delegate.routingToDataPath,
                 delegate.reservedSpace,
                 delegate.nodeFileCacheStats,
-                delegate.getNodeResourceUsageStats()
+                delegate.getNodeResourceUsageStats(),
+                delegate.getNodeProcessStats()
             );
         }
 
