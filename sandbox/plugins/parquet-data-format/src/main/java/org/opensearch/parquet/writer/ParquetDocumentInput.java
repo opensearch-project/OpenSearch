@@ -21,9 +21,9 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -40,7 +40,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Map<MappedFieldType, FieldValuePair> seen = new IdentityHashMap<>();
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -54,12 +54,27 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }
-        if (dedup.add(fieldType) == false) {
+        FieldValuePair existing = seen.get(fieldType);
+        if (existing == null) {
+            // Fields declared `multi_value: true` in the mapping start out as a list of one so the
+            // value shape reaching the VSR is the same whether the document had one value or several.
+            FieldValuePair pair = fieldType.isMultiValued()
+                ? FieldValuePair.multiValued(fieldType, value)
+                : new FieldValuePair(fieldType, value);
+            seen.put(fieldType, pair);
+            collectedFields.add(pair);
+            return;
+        }
+        if (existing.isMultiValued() == false) {
             throw new MapperParsingException(
-                "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
+                "Cannot accept multiple values for field: ["
+                    + fieldType.name()
+                    + "] of type: ["
+                    + fieldType.typeName()
+                    + "]. Set [multi_value: true] on the field mapping to store multiple values."
             );
         }
-        collectedFields.add(new FieldValuePair(fieldType, value));
+        existing.addValue(value);
     }
 
     @Override
@@ -84,13 +99,19 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     @Override
     public long getFieldCount(String fieldName) {
-        return collectedFields.stream().filter(fvp -> fvp.getFieldType().name().equals(fieldName)).count();
+        // Counts values, not entries: a multi-valued field is one entry holding N values, and
+        // callers (single-value assertions below, the data-stream @timestamp check) mean values.
+        return collectedFields.stream()
+            .filter(fvp -> fvp.getFieldType().name().equals(fieldName))
+            .mapToLong(FieldValuePair::valueCount)
+            .sum();
     }
 
     @Override
     public void close() {
         isClosed = true;
         collectedFields.clear();
+        seen.clear();
         rowId = -1;
     }
 

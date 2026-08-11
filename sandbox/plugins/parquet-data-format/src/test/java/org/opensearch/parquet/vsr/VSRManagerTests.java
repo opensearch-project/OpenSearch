@@ -9,6 +9,8 @@
 package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -28,11 +30,14 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -570,6 +575,138 @@ public class VSRManagerTests extends ParquetBaseTests {
         } finally {
             manager.close();
         }
+    }
+
+    public void testMultiValueFieldWritesListColumn() throws Exception {
+        String filePath = createTempDir().resolve("multi-value.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            // Mapping update introduces a keyword field declared multi-valued, so it arrives as a
+            // LIST<Utf8> rather than a flat Utf8 column.
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+
+            KeywordFieldMapper.KeywordFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+            tags.setMultiValued(true);
+            assignTestCapabilities(tags, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // Row 0: three values including a duplicate. Row 1: field absent entirely.
+            // Row 2: a single value. Covers the three cardinalities in one file.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(tags, "b");
+            doc0.addField(tags, "a");
+            doc0.addField(tags, "b");
+            manager.addDocument(doc0);
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
+            doc2.addField(valField, 3);
+            doc2.addField(tags, "solo");
+            manager.addDocument(doc2);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertEquals(List.of("b", "a", "b"), listElements(listVector, 0));
+            assertTrue("absent field must read back as a null list", listVector.isNull(1));
+            assertEquals(List.of("solo"), listElements(listVector, 2));
+
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(3, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testMultiValueFieldWritesEmptyListDistinctFromAbsent() throws Exception {
+        String filePath = createTempDir().resolve("multi-value-empty.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // An explicit "tags": [] parses to zero addField calls, so the writer never sees the
+            // field and the row is null — same as absent. Documented here so the distinction
+            // between [] and absent is a deliberate, tested choice rather than an accident.
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc.addField(valField, 1);
+            manager.addDocument(doc);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertTrue(listVector.isNull(0));
+            assertEquals(1, manager.flush().numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testReconcileSchemaPreservesListChildren() throws Exception {
+        String filePath = createTempDir().resolve("reconcile-children.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            assertTrue(manager.reconcileSchema(schemaWithMultiValue("tags")));
+
+            // reconcileSchema used to rebuild each Field from name + FieldType, dropping children
+            // and leaving a ListVector with no element vector to write into.
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertNotNull(listVector);
+            // A dropped child would leave the data vector as an uninitialized ZeroVector.
+            assertTrue(
+                "list vector must have a typed element vector, got " + listVector.getDataVector().getClass().getSimpleName(),
+                listVector.getDataVector() instanceof VarCharVector
+            );
+
+            // Assert on the VSR *schema* rather than the vector's own field: Arrow Java renames a
+            // list vector's child to "$data$" internally, but the schema — which is what
+            // exportSchema hands to the native writer, and therefore what determines the Parquet
+            // leaf path "tags.list.element" — keeps the declared name.
+            Field tagsField = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("tags"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals(ArrowType.List.INSTANCE, tagsField.getType());
+            assertEquals(1, tagsField.getChildren().size());
+            assertEquals(ParquetField.LIST_ELEMENT_NAME, tagsField.getChildren().get(0).getName());
+            assertEquals(new ArrowType.Utf8(), tagsField.getChildren().get(0).getType());
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** Reads back the elements of one row of a list vector. */
+    private static List<String> listElements(ListVector listVector, int row) {
+        int start = listVector.getOffsetBuffer().getInt((long) row * 4);
+        int end = listVector.getOffsetBuffer().getInt((long) (row + 1) * 4);
+        VarCharVector data = (VarCharVector) listVector.getDataVector();
+        List<String> values = new ArrayList<>(end - start);
+        for (int i = start; i < end; i++) {
+            values.add(new String(data.get(i), StandardCharsets.UTF_8));
+        }
+        return values;
+    }
+
+    /** Test schema plus metadata fields plus a keyword field declared multi-valued. */
+    private Schema schemaWithMultiValue(String name) {
+        List<Field> fields = new ArrayList<>(schema.getFields());
+        fields.addAll(metadataFields());
+        fields.add(new KeywordParquetField().toArrowField(name, true));
+        return new Schema(fields);
     }
 
     /** Returns a copy of the test schema with one extra field appended (alongside metadata fields). */
