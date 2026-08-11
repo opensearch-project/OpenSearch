@@ -383,6 +383,45 @@ public class MultiValueFieldDurabilityIT extends DataFormatAwareReplicationBaseI
     }
 
     /**
+     * An absent multi_value field and an explicit empty array must stay distinct in reconstructed
+     * {@code _source}.
+     *
+     * <p>These share the same on-disk column, so the writer must encode them differently: an empty
+     * array writes an empty-but-non-null LIST cell (reconstructed as {@code "tags": []}), while an
+     * absent field never calls {@code addField} — so {@code createField} is never invoked for the
+     * column and Arrow leaves the row's validity bit unset, i.e. a null cell (reconstructed by
+     * dropping {@code tags} from {@code _source}). This pins that the row advance in
+     * {@code VSRManager#addDocument} leaves unset list rows null rather than collapsing to empty.
+     */
+    @SuppressWarnings("unchecked")
+    public void testAbsentFieldIsDistinctFromEmptyArray() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createMvIndex(0);
+        ensureGreen(MV_INDEX);
+
+        String emptyId = client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource("{\"id\":\"empty\",\"tags\":[]}", XContentType.JSON)
+            .get()
+            .getId();
+        String absentId = client().prepareIndex(MV_INDEX)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            .setSource("{\"id\":\"absent\"}", XContentType.JSON)
+            .get()
+            .getId();
+        client().admin().indices().prepareRefresh(MV_INDEX).get();
+        client().admin().indices().prepareFlush(MV_INDEX).setForce(true).get();
+
+        Map<String, Object> emptySource = client().prepareGet(MV_INDEX, emptyId).setRealtime(false).get().getSourceAsMap();
+        assertTrue("empty array must reconstruct as a present list", emptySource.get("tags") instanceof List);
+        assertEquals("empty array must be a zero-length list", List.of(), emptySource.get("tags"));
+
+        Map<String, Object> absentSource = client().prepareGet(MV_INDEX, absentId).setRealtime(false).get().getSourceAsMap();
+        assertFalse("absent field must not appear in reconstructed _source", absentSource.containsKey("tags"));
+    }
+
+    /**
      * A single document whose array is far larger than the per-row average the VSR sizes for.
      *
      * <p>VSR rotation is driven by ROW count ({@code index.parquet.max_rows_per_vsr}), not by bytes,

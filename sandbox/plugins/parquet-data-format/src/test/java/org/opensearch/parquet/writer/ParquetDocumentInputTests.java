@@ -147,6 +147,34 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         assertEquals(0L, input.getFieldCount("tags"));
     }
 
+    public void testMultiValueAccumulationKeyedByNameNotInstanceIdentity() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        // Two DISTINCT field-type instances that share a name, as could arise if the parse path ever
+        // handed back a fresh wrapper per array element. Accumulation keys on the name, so both
+        // elements must land in the SAME list rather than the second creating a new pair (which
+        // would silently degrade multi_value to last-value-wins).
+        MappedFieldType first = new KeywordFieldMapper.KeywordFieldType("tags");
+        first.setMultiValued(true);
+        assignTestCapabilities(first, PARQUET_FORMAT);
+        MappedFieldType second = new KeywordFieldMapper.KeywordFieldType("tags");
+        second.setMultiValued(true);
+        assignTestCapabilities(second, PARQUET_FORMAT);
+        assertNotSame(first, second);
+
+        input.addField(first, "a");
+        input.addField(second, "b");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        assertEquals(
+            "both elements must accumulate into one pair",
+            1,
+            input.getFinalInput().stream().filter(p -> p.getFieldType().name().equals("tags")).count()
+        );
+        FieldValuePair pair = findPair(input, "tags");
+        assertEquals(List.of("a", "b"), pair.getValue());
+    }
+
     public void testUndeclaredFieldStillRejectsMultipleValues() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
