@@ -18,6 +18,7 @@ import org.apache.arrow.flight.OSFlightServer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
@@ -25,6 +26,7 @@ import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
@@ -289,19 +291,22 @@ class FlightTransport extends TcpTransport {
 
     @Override
     protected void stopInternal() {
-        try {
-
+        // Each step is isolated so a failure (e.g. an allocator reporting leaked buffers) cannot
+        // skip the remaining teardown — most importantly the event-loop-group shutdowns, whose
+        // threads would otherwise leak.
+        safeStop("flight server", () -> {
             if (flightServer != null) {
                 flightServer.shutdown();
                 flightServer.awaitTermination();
                 flightServer.close();
                 flightServer = null;
             }
-            serverAllocator.close();
-            clientAllocator.close();
-            gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
-            gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
-
+        });
+        safeStop("server allocator", () -> serverAllocator.close());
+        safeStop("client allocator", () -> clientAllocator.close());
+        safeStop("boss event loop group", () -> gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG"));
+        safeStop("worker event loop group", () -> gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG"));
+        safeStop("flight event loops", () -> {
             for (ExecutorService executor : flightEventLoopGroup) {
                 executor.shutdown();
                 try {
@@ -313,11 +318,17 @@ class FlightTransport extends TcpTransport {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (statsCollector != null) {
-                statsCollector.decrementServerChannelsActive();
-            }
+        });
+        if (statsCollector != null) {
+            safeStop("server channel stats", () -> statsCollector.decrementServerChannelsActive());
+        }
+    }
+
+    private void safeStop(String what, CheckedRunnable<Exception> action) {
+        try {
+            action.run();
         } catch (Exception e) {
-            logger.error("Error stopping FlightTransport", e);
+            logger.error(() -> new ParameterizedMessage("Error stopping FlightTransport: failed to stop {}", what), e);
         }
     }
 
