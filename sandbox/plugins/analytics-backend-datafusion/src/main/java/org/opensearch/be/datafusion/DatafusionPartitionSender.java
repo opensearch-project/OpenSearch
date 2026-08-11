@@ -76,6 +76,11 @@ public final class DatafusionPartitionSender extends NativeHandle {
         return receiverDropped;
     }
 
+    /** True once {@link #close()} or {@link #requestEarlyTermination()} has been invoked. */
+    public boolean isCloseRequested() {
+        return closeRequested;
+    }
+
     @Override
     public void close() {
         closeRequested = true;

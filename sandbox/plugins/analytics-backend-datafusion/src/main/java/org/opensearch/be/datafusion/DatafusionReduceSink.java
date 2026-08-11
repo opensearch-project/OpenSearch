@@ -251,14 +251,16 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                 }
                 feedCount.incrementAndGet();
             } catch (IllegalStateException e) {
-                // Sender close raced our send — getPointer() threw BEFORE the native call,
-                // so Rust never took ownership and the FFI structs' release callbacks are
-                // still set. Invoke them explicitly to free the exported buffers back to the
-                // Java allocator. (ArrowArray.close / ArrowSchema.close in the finally below
-                // frees the wrapper but does NOT invoke the C release callback.)
+                // Sender close raced our send — thrown BEFORE the native call, so Rust
+                // never took ownership and the FFI structs' release callbacks are still
+                // set. Invoke them explicitly to free the exported buffers back to the
+                // Java allocator. (ArrowArray.close / ArrowSchema.close in the finally
+                // below frees the wrapper but does NOT invoke the C release callback.)
                 array.release();
                 arrowSchema.release();
-                if (closed) {
+                if (closed || sender.isCloseRequested()) {
+                    // Benign: the sink — or just this input (per-child EOF racing a live
+                    // producer) — stopped accepting batches. Discard, don't fail the stream.
                     logger.debug("[ReduceSink] send-after-close race caught, discarding batch");
                     return;
                 }
