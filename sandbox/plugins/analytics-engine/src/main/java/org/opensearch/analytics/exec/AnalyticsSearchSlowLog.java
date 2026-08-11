@@ -115,6 +115,7 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         private final String querySource;
         private volatile String opaqueId;
         private volatile String requestId;
+        private volatile String fullPlan;
         private long planningTimeMs;
         private final StringBuilder stageTook = new StringBuilder();
 
@@ -125,6 +126,11 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         void setHeaders(String opaqueId, String requestId) {
             this.opaqueId = opaqueId;
             this.requestId = requestId;
+        }
+
+        /** Sets the Calcite logical plan text (from {@code RelOptUtil.toString(plan)}). */
+        void setFullPlan(String fullPlan) {
+            this.fullPlan = fullPlan;
         }
 
         @Override
@@ -148,6 +154,9 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
             sb.append("query_id[").append(queryId).append("], ");
             sb.append("total_rows[").append(totalRows).append("], ");
             sb.append("source[").append(querySource != null ? querySource : "").append("], ");
+            if (fullPlan != null) {
+                sb.append("plan[").append(fullPlan.replace("\n", "\\n")).append("], ");
+            }
             sb.append("id[").append(opaqueId != null ? opaqueId : "").append("], ");
             sb.append("request_id[").append(requestId != null ? requestId : "").append("]");
             logAtLevel(sb.toString(), totalTookInNanos);

@@ -141,6 +141,60 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSlowLogIncludesFullPlan() throws Exception {
+        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
+        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        var wrapped = slowLog.createQueryListener("source = idx | fields name");
+        wrapped.setFullPlan("LogicalProject(name=[$0])\n  OpenSearchTableScan(table=[[idx]])");
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "plan included in log",
+                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
+                    Level.WARN,
+                    ".*plan\\[LogicalProject\\(name=\\[\\$0\\]\\)\\\\n  OpenSearchTableScan\\(table=\\[\\[idx\\]\\]\\)\\].*"
+                )
+            );
+
+            wrapped.onQueryComplete("q-plan", TimeValue.timeValueMillis(10).nanos(), 5);
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testSlowLogOmitsPlanWhenNull() throws Exception {
+        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
+        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        var wrapped = slowLog.createQueryListener("source = idx");
+        // Do NOT call setFullPlan — plan should be omitted
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no plan field when null",
+                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
+                    Level.WARN,
+                    "*plan[*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "log still fires",
+                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
+                    Level.WARN,
+                    ".*query_id\\[q-noplan\\].*"
+                )
+            );
+
+            wrapped.onQueryComplete("q-noplan", TimeValue.timeValueMillis(10).nanos(), 1);
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
     public void testSlowLogWithNullMetadata() throws Exception {
         AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
         Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
