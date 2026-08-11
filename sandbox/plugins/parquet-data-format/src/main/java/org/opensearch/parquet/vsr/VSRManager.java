@@ -370,12 +370,23 @@ public class VSRManager implements AutoCloseable {
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         } finally {
             try {
+                if (writer != null) {
+                    writer.close();
+                }
                 vsrPool.close();
             } catch (Exception e) {
-                logger.error("Error releasing VSR pool during close for {}: {}", fileName, e.getMessage());
+                logger.error("Error releasing Writer/VSR pool during close for {}: {}", fileName, e.getMessage());
             }
             managedVSR.set(null);
         }
+    }
+
+    /**
+     * Returns the native (Rust-side) memory reserved by this manager's writer, or 0 if the writer
+     * was never initialized or has been finalized/freed.
+     */
+    public long getNativeBytesUsed() {
+        return writer == null ? 0L : writer.getNativeBytesUsed();
     }
 
     /**

@@ -47,6 +47,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
@@ -88,6 +90,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
     private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
+
+    /**
+     * Live writers created by this engine, used to sum per-writer native memory in
+     * {@link #getNativeBytesUsed()}. Writers add themselves on creation and remove themselves on
+     * close (via the {@code onClose} hook), so this mirrors the framework's writer pool.
+     */
+    private final Set<ParquetWriter> activeWriters = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -245,7 +254,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         long mappingVersion = mappingVersionSupplier.get();
         Schema schema = getOrBuildSchema();
         Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
-        return new ParquetWriter(
+        ParquetWriter writer = new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
             0L,
@@ -256,8 +265,11 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             checksumStrategy,
-            statsTracker
+            statsTracker,
+            activeWriters::remove
         );
+        activeWriters.add(writer);
+        return writer;
     }
 
     /** Parquet indexing uses only native (off-heap) memory via Arrow buffers and Rust writers, no JVM heap. */
@@ -268,7 +280,11 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public long getNativeBytesUsed() {
-        return bufferPool.getTotalAllocatedBytes() + RustBridge.getFilteredNativeBytesUsed(shardPath.getDataPath().toString());
+        long total = bufferPool.getTotalAllocatedBytes();
+        for (ParquetWriter writer : activeWriters) {
+            total += writer.getNativeBytesUsed();
+        }
+        return total;
     }
 
     @Override
