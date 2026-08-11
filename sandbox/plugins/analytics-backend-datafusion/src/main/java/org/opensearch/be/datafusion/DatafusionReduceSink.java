@@ -363,26 +363,12 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     protected Exception closeImpl() {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
         if (before == SinkState.REDUCING) {
-            // Drain in flight. Close the input senders FIRST: dropping a sender closes
-            // its mpsc channel, which the native plan's streaming input reads as
-            // end-of-input. Pipeline-breaking operators above it (SortExec/TopK) cannot
-            // emit until they see EOF, so without this the drain blocks in streamNext
-            // waiting for output that structurally cannot exist yet, while we block
-            // here waiting for the drain — a cycle only the await timeout used to
-            // break (observed as a constant ~5s stall on every LM query, with the
-            // WARN below firing each time).
-            //
-            // EOF (not cancelQuery) is the correct unblocking mechanism on this path:
-            // close() here means "no more input is coming", not "abort". Cancelling
-            // instead aborts the TopK before it emits and the drain returns the
-            // cancellation sentinel with ZERO rows (verified: projections mixing sort
-            // keys with fetched columns returned 0 rows when this branch cancelled).
-            // fireCancelQuery remains the mechanism for genuine aborts via cancel().
-            //
-            // Signal EOF for every input without cancelling the query. A sender with no active
-            // feed closes immediately; a sender parked on a full channel closes its receiver
-            // first, which unblocks the feed and defers native-sender reclamation until its read
-            // lock is released. This preserves buffered input for the reducer to drain.
+            // Drain in flight: signal per-partition EOF, never cancel. Pipeline breakers
+            // (SortExec/TopK) emit only after end-of-input, so closing the inputs lets the
+            // drain finish naturally with all accepted rows; cancelling here aborted the
+            // plan pre-emit (~5s stall, zero-row results). A sender with a feed in flight
+            // closes its receiver instead — the woken feeder runs the deferred native
+            // close after releasing its read lock. Genuine aborts still use cancel().
             for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
                 try {
                     sender.requestEarlyTermination();
