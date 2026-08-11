@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -26,15 +27,35 @@ public abstract class ParquetField {
     public ParquetField() {}
 
     /**
-     * Writes the parsed field value into the appropriate vector in the managed VSR.
+     * Writes the parsed field value into the given vector at the given row.
+     * <p>
+     * The vector is resolved <b>once</b> by the caller and passed in; implementations must not re-resolve it
+     * by field name — the per-field name lookup ({@code ManagedVSR.getVector} → {@code HashMap.get}) runs once
+     * per field per document on the bulk-indexing hot path and was a visible CPU frame in ingest profiles when
+     * every implementation repeated it.
+     *
      * @param fieldType the mapped field type
-     * @param managedVSR the managed vector schema root
+     * @param vector the resolved field vector to write into
+     * @param rowIndex the row index to write at
      * @param parseValue the parsed value to write
      */
-    protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
+    protected abstract void addToGroup(MappedFieldType fieldType, FieldVector vector, int rowIndex, Object parseValue);
 
     /**
-     * Creates and processes a field entry. Throws if vector not present in VSR.
+     * Creates and processes a field entry against an already-resolved vector.
+     * @param fieldType the mapped field type
+     * @param vector the resolved field vector
+     * @param rowIndex the row index to write at
+     * @param parseValue the parsed value to write
+     */
+    public final void createField(MappedFieldType fieldType, FieldVector vector, int rowIndex, Object parseValue) {
+        assert fieldType != null : "MappedFieldType cannot be null";
+        assert vector != null : "FieldVector cannot be null";
+        addToGroup(fieldType, vector, rowIndex, parseValue);
+    }
+
+    /**
+     * Convenience entry point that resolves the vector by field name. Throws if vector not present in VSR.
      * @param fieldType the mapped field type
      * @param managedVSR the managed vector schema root
      * @param parseValue the parsed value to write
@@ -42,7 +63,11 @@ public abstract class ParquetField {
     public final void createField(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
         assert fieldType != null : "MappedFieldType cannot be null";
         assert managedVSR != null : "ManagedVSR cannot be null";
-        addToGroup(fieldType, managedVSR, parseValue);
+        FieldVector vector = managedVSR.getVector(fieldType.name());
+        if (vector == null) {
+            throw new IllegalStateException("No vector for field [" + fieldType.name() + "] in VSR [" + managedVSR.getId() + "]");
+        }
+        addToGroup(fieldType, vector, managedVSR.getRowCount(), parseValue);
     }
 
     /**

@@ -10,6 +10,7 @@ package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -209,6 +210,7 @@ public class VSRManager implements AutoCloseable {
             );
         }
         ManagedVSR activeVSR = managedVSR.get();
+        int docRowIndex = activeVSR.getRowCount();
         for (FieldValuePair pair : doc.getFinalInput()) {
             MappedFieldType fieldType = pair.getFieldType();
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
@@ -222,7 +224,10 @@ public class VSRManager implements AutoCloseable {
                     "No ParquetField mapping for field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]"
                 );
             }
-            if (activeVSR.getVector(fieldType.name()) == null) {
+            // Resolve the vector once per field and pass it through — implementations must not re-resolve
+            // by name (the duplicate ManagedVSR.getVector lookup was a visible CPU frame in ingest profiles).
+            FieldVector vector = activeVSR.getVector(fieldType.name());
+            if (vector == null) {
                 logger.error(
                     "[Gen: {}] VSR schema mismatch: field [{}] not in active VSR. VSR schema fields: {}",
                     writerGeneration,
@@ -235,7 +240,7 @@ public class VSRManager implements AutoCloseable {
                         + "] — schema reconciliation must run via updateMappingVersion before addDocument"
                 );
             }
-            parquetField.createField(fieldType, activeVSR, pair.getValue());
+            parquetField.createField(fieldType, vector, docRowIndex, pair.getValue());
         }
         int rowIndex = activeVSR.getRowCount();
         BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);

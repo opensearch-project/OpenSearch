@@ -8,11 +8,11 @@
 
 package org.opensearch.parquet.fields.core.metadata;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for index name.
@@ -21,7 +21,7 @@ import org.opensearch.parquet.vsr.ManagedVSR;
 public class IndexParquetField extends ParquetField {
 
     @Override
-    protected void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
+    protected void addToGroup(MappedFieldType fieldType, FieldVector vector, int rowIndex, Object parseValue) {
         throw new IllegalStateException("Index field is not supposed to be added to group");
     }
 
