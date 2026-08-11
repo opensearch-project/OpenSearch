@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -279,7 +280,7 @@ public class CanMatchPruningIT extends OpenSearchIntegTestCase {
      * {@code @timestamp} falls entirely within that day. Returns the comma-separated index list for
      * a multi-index PPL {@code source =} clause.
      */
-    private String createDailyIndices() {
+    private String createDailyIndices() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -322,6 +323,14 @@ public class CanMatchPruningIT extends OpenSearchIntegTestCase {
             commaList.append(index);
         }
         ensureGreen();
+        // Wait until every shard has its documents committed and visible before querying.
+        for (int day = FIRST_DAY; day <= LAST_DAY; day++) {
+            String index = String.format(Locale.ROOT, "%s%02d", DAY_INDEX_PREFIX, day);
+            assertBusy(() -> {
+                PPLResponse response = executePPL("source = " + index + " | fields host");
+                assertEquals("index " + index + " must have " + DOCS_PER_DAY + " visible docs", DOCS_PER_DAY, response.getRows().size());
+            }, 30, TimeUnit.SECONDS);
+        }
         return commaList.toString();
     }
 
