@@ -22,9 +22,16 @@ import java.util.List;
  * written into that vector during document transfer to the VSR.
  *
  * <p>Scalar pairs are immutable and hold exactly one value. Pairs created via
- * {@link #multiValued} back a Parquet LIST column and accumulate values as the document parser
- * reports each array element, so {@link #getValue()} returns a {@code List} for those — including
- * a single-element list when the document happened to supply one value.
+ * {@link #multiValued} back a Parquet LIST column and are <em>mutable</em>: {@link #addValue}
+ * appends as the document parser reports each array element, so {@link #getValue()} returns a
+ * {@code List} for those — including a single-element list when the document supplied one value, or
+ * an empty list for an explicit empty array via {@link #emptyMultiValued}.
+ *
+ * <p>Because multi-valued pairs grow during parsing, a reference must not be read until the
+ * document is finalized. The sole consumer, {@code VSRManager#addDocument}, reads only through
+ * {@link ParquetDocumentInput#getFinalInput()} after the whole document has been parsed, so no
+ * caller observes a partially populated list. Do not cache or hand a pair across threads before
+ * then.
  *
  * <p>The field type must not be null (enforced by constructor); values may be null
  * for nullable fields.

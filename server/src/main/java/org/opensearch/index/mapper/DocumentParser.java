@@ -1559,6 +1559,12 @@ final class DocumentParser {
      *
      * <p>Strictly gated: no-op unless the pluggable data format is enabled and the resolved leaf is
      * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected.
+     *
+     * <p>Reached from every scalar-leaf array route — top-level, nested, and disable_objects arrays
+     * all funnel through {@link #parseNonDynamicArray}. The only array route that bypasses it is a
+     * mapper with {@link FieldMapper#parsesArrayValue()} true (geo/completion), which no
+     * {@code multi_value} type currently is; if that ever changes, that route needs equivalent
+     * empty-array handling or {@code []} would collapse to an absent field there.
      */
     private static void registerEmptyMultiValueArray(ParseContext context, ObjectMapper mapper, String lastFieldName, String[] paths) {
         if (context.indexSettings().isPluggableDataFormatEnabled() == false) {

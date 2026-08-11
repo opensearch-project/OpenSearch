@@ -21,7 +21,7 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +40,12 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
-    private final Map<MappedFieldType, FieldValuePair> seen = new IdentityHashMap<>();
+    // Keyed by field name, not field-type identity: within a single document parse each logical
+    // field (including the derived-source `_ignored_source.*` companion) has a unique name, while
+    // identity would silently miss a match if the parser ever handed back a fresh wrapper per array
+    // element — degrading a multi_value field to last-value-wins or bypassing the scalar duplicate
+    // guard. Name keying makes accumulation robust to that.
+    private final Map<String, FieldValuePair> seen = new HashMap<>();
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -54,7 +59,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
         }
-        FieldValuePair existing = seen.get(fieldType);
+        FieldValuePair existing = seen.get(fieldType.name());
         if (existing == null) {
             // Fields declared `multi_value: true` in the mapping start out as a list of one so the
             // value shape reaching the VSR is the same whether the document had one value or several.
@@ -68,7 +73,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             } else {
                 pair = new FieldValuePair(fieldType, value);
             }
-            seen.put(fieldType, pair);
+            seen.put(fieldType.name(), pair);
             collectedFields.add(pair);
             return;
         }
