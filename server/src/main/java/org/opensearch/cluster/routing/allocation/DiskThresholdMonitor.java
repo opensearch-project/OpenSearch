@@ -495,34 +495,7 @@ public class DiskThresholdMonitor {
     }
 
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
-        final Set<String> indicesToReleaseReadBlock;
-        if (diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled()) {
-            indicesToReleaseReadBlock = StreamSupport.stream(
-                Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
-                false
-            )
-                .map(Map.Entry::getKey)
-                .filter(index -> indicesToBlockRead.contains(index) == false)
-                .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
-                .collect(Collectors.toSet());
-        } else {
-            // When auto-release is disabled, still release indices matching exclude patterns
-            // (by default ".*") to protect system indices from getting stuck in read-only state
-            List<String> excludePatterns = diskThresholdSettings.getIndexReadBlockAutoReleaseExcludePatterns();
-            if (excludePatterns.isEmpty()) {
-                indicesToReleaseReadBlock = Set.of();
-            } else {
-                indicesToReleaseReadBlock = StreamSupport.stream(
-                    Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
-                    false
-                )
-                    .map(Map.Entry::getKey)
-                    .filter(index -> Regex.simpleMatch(excludePatterns, index))
-                    .filter(index -> indicesToBlockRead.contains(index) == false)
-                    .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
-                    .collect(Collectors.toSet());
-            }
-        }
+        final Set<String> indicesToReleaseReadBlock = resolveIndicesToReleaseReadBlock(state, indicesToBlockRead);
 
         if (indicesToReleaseReadBlock.isEmpty() == false) {
             updateIndicesReadBlock(indicesToReleaseReadBlock, listener, false);
@@ -540,6 +513,33 @@ public class DiskThresholdMonitor {
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * Determines which indices should have their read blocks released based on the auto-release setting
+     * and exclude patterns configuration.
+     */
+    private Set<String> resolveIndicesToReleaseReadBlock(ClusterState state, Set<String> indicesToBlockRead) {
+        if (diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled()) {
+            return StreamSupport.stream(Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0), false)
+                .map(Map.Entry::getKey)
+                .filter(index -> indicesToBlockRead.contains(index) == false)
+                .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+                .collect(Collectors.toSet());
+        }
+
+        // When auto-release is disabled, still release indices matching exclude patterns
+        // (by default ".*") to protect system indices from getting stuck in read-only state
+        List<String> excludePatterns = diskThresholdSettings.getIndexReadBlockAutoReleaseExcludePatterns();
+        if (excludePatterns.isEmpty()) {
+            return Set.of();
+        }
+        return StreamSupport.stream(Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0), false)
+            .map(Map.Entry::getKey)
+            .filter(index -> Regex.simpleMatch(excludePatterns, index))
+            .filter(index -> indicesToBlockRead.contains(index) == false)
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+            .collect(Collectors.toSet());
     }
 
     protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
