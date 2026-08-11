@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
-- Updated Netty to 4.1.135.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491), [#21968](https://github.com/opensearch-project/OpenSearch/pull/21968))
+- Updated Netty to 4.1.137.Final ([#21491](https://github.com/opensearch-project/OpenSearch/pull/21491), [#21968](https://github.com/opensearch-project/OpenSearch/pull/21968), [#22692](https://github.com/opensearch-project/OpenSearch/pull/22692))
 - Update bundled JDK to 21.0.12+8 ([#22572](https://github.com/opensearch-project/OpenSearch/issues/22572))
 
 ### Deprecated
