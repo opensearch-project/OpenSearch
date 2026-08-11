@@ -25,6 +25,8 @@ import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.be.lucene.serializers.RegexpQueryDslSerializer;
+import org.opensearch.be.lucene.serializers.RegexpSerializer;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -1050,6 +1052,20 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
     public void testRegexpQuerySerializerRegistered() {
         assertTrue("REGEXP_QUERY must be registered in QuerySerializerRegistry", serializers.containsKey(ScalarFunction.REGEXP_QUERY));
         assertNotNull(serializers.get(ScalarFunction.REGEXP_QUERY));
+    }
+
+    /**
+     * Pins that REGEXP (PPL substring semantics) and REGEXP_QUERY (DSL pass-through) resolve
+     * to distinct serializer types so the DSL path cannot silently reroute REGEXP.
+     */
+    public void testRegexpAndRegexpQueryMapToDistinctSerializers() {
+        DelegatedPredicateSerializer regexpSer = serializers.get(ScalarFunction.REGEXP);
+        DelegatedPredicateSerializer regexpQuerySer = serializers.get(ScalarFunction.REGEXP_QUERY);
+        assertNotNull("REGEXP serializer must be registered", regexpSer);
+        assertNotNull("REGEXP_QUERY serializer must be registered", regexpQuerySer);
+        assertTrue("REGEXP must map to RegexpSerializer", regexpSer instanceof RegexpSerializer);
+        assertTrue("REGEXP_QUERY must map to RegexpQueryDslSerializer", regexpQuerySer instanceof RegexpQueryDslSerializer);
+        assertNotSame("REGEXP and REGEXP_QUERY must be distinct instances", regexpSer, regexpQuerySer);
     }
 
     // --- Helper methods ---
