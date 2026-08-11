@@ -1197,7 +1197,9 @@ final class DocumentParser {
             );
         }
         final String[] paths = resolvePathForParsing(mapper, lastFieldName);
+        boolean sawElement = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            sawElement = true;
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName, paths);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -1216,6 +1218,30 @@ final class DocumentParser {
                 assert token.isValue();
                 parseValue(context, mapper, lastFieldName, token, paths);
             }
+        }
+        if (sawElement == false) {
+            registerEmptyMultiValueArray(context, mapper, lastFieldName, paths);
+        }
+    }
+
+    /**
+     * Records an empty array ({@code "field": []}) for a pluggable-data-format field mapped with
+     * {@code multi_value: true}. The element loop above never fires for an empty array, so without
+     * this the field would be absent from the document input and its LIST column cell would be
+     * written null — collapsing the distinction between {@code []} and a missing field when
+     * {@code _source} is later reconstructed from the columns. Registering an empty list lets the
+     * writer emit a zero-length, non-null list instead.
+     *
+     * <p>Strictly gated: no-op unless the pluggable data format is enabled and the resolved leaf is
+     * a {@code multi_value} {@link FieldMapper}, so stock indexing is unaffected.
+     */
+    private static void registerEmptyMultiValueArray(ParseContext context, ObjectMapper mapper, String lastFieldName, String[] paths) {
+        if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
+            return;
+        }
+        Mapper leaf = getMapper(context, mapper, lastFieldName, paths);
+        if (leaf instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isMultiValued()) {
+            context.documentInput().addField(fieldMapper.fieldType(), List.of());
         }
     }
 

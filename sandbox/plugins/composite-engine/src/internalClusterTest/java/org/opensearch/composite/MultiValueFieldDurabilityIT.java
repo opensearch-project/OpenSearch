@@ -109,7 +109,11 @@ public class MultiValueFieldDurabilityIT extends DataFormatAwareReplicationBaseI
             Map<String, Object> source = resp.getSourceAsMap();
             List<String> want = EXPECTED.get(entry.getValue());
             Object actual = source.get("tags");
-            List<String> got = actual == null ? List.of() : ((List<Object>) actual).stream().map(String::valueOf).toList();
+            // An indexed array — including an explicit empty one (d3 = []) — must be reconstructed as
+            // a present, non-null list: an empty array reads back as [] and stays distinct from an
+            // absent field. Do not coalesce null → [] here, or the empty-vs-absent bug would hide.
+            assertTrue(stage + ": fixture [" + entry.getValue() + "] must reconstruct tags as a list", actual instanceof List);
+            List<String> got = ((List<Object>) actual).stream().map(String::valueOf).toList();
             assertEquals(stage + ": fixture [" + entry.getValue() + "] lost or reordered values", want, got);
         }
     }
