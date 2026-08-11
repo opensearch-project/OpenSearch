@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
@@ -26,9 +28,13 @@ import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.result.SearchResponseBuilder;
+import org.opensearch.search.SearchHits;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -81,10 +87,34 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             final QueryPlans plans;
             final long convertTime;
             try {
-                String indexName = resolveToSingleIndex(request);
+                String[] indices = request.indices();
+                if (indices == null || indices.length == 0) {
+                    throw new IllegalArgumentException("DSL execution requires at least one index expression, but none was specified");
+                }
+
+                // Pre-resolve index expressions using the request's IndicesOptions so that
+                // ignore_unavailable, allow_no_indices and expand_wildcards are honoured.
+                // This also throws IndexNotFoundException (HTTP 404) for a missing concrete index
+                // under default options, matching vanilla SearchRequest behaviour.
+                Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
+
+                if (concreteIndices.length == 0) {
+                    // Zero concrete indices without an exception means the resolver accepted it
+                    // (allow_no_indices=true, the default). Return an empty successful response
+                    // rather than an error — this matches vanilla search behaviour for wildcards
+                    // and patterns that match nothing.
+                    listener.onResponse(emptySearchResponse());
+                    return;
+                }
+
+                // Join already-concrete index names with commas. Passing resolved names
+                // neutralises the schema layer's hardcoded IndicesOptions.lenientExpandOpen()
+                // because there is nothing left to expand — the names are already concrete.
+                String expression = Arrays.stream(concreteIndices).map(Index::getName).collect(Collectors.joining(","));
+
                 long convertStart = System.nanoTime();
                 SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext().schema());
-                plans = converter.convert(request.source(), indexName);
+                plans = converter.convert(request.source(), expression);
                 convertTime = System.nanoTime() - convertStart;
             } catch (Exception e) {
                 logger.error("DSL conversion failed", e);
@@ -111,17 +141,11 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
     // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
     // so this plugin doesn't need its own resolution logic.
-    /**
-     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.
-     * Throws if the resolution yields zero or more than one concrete index.
-     */
-    private String resolveToSingleIndex(SearchRequest request) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
-        if (concreteIndices.length != 1) {
-            throw new IllegalArgumentException(
-                "DSL execution currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
-            );
-        }
-        return concreteIndices[0].getName();
+
+    /** Builds an empty SearchResponse with zero hits and zero shards. */
+    private static SearchResponse emptySearchResponse() {
+        SearchHits hits = SearchHits.empty(true);
+        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 0);
+        return new SearchResponse(sections, null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 }
