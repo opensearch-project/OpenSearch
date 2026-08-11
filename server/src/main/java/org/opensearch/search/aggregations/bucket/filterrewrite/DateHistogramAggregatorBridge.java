@@ -31,7 +31,9 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     int maxRewriteFilters;
 
     protected boolean canOptimize(ValuesSourceConfig config, Rounding rounding) {
-        if (filterRewriteFastPathApplies(config, rounding)) {
+        // Runtime path: FilterRewriteOptimizationContext#canOptimize already gates on parent == null before
+        // reaching here, so parent is passed as null.
+        if (filterRewriteFastPathApplies(null, config, rounding)) {
             this.fieldType = config.fieldType();
             return true;
         }
@@ -39,23 +41,19 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     /**
-     * Whether the date-histogram filter-rewrite fast path applies for this aggregation. Includes the
-     * {@code parent == null} requirement (the fast path only runs for a top-level agg), so aggregator
-     * factories can consult this alone to decide intra-segment eligibility: intra-segment search is used
-     * only when this returns false (the fast path is unavailable and the doc-by-doc fallback, which
-     * parallelizes under intra, runs instead).
+     * Whether the date-histogram filter-rewrite fast path applies for this aggregation. The single source of
+     * truth for the fast-path preconditions — top-level only ({@code parent == null}), UTC rounding (non-UTC
+     * has variable-width buckets), no script/missing, and a searchable date field. Used both at runtime
+     * ({@link #canOptimize}) and by aggregator factories to decide intra-segment eligibility: intra-segment
+     * search is used only when this returns false (the fast path is unavailable and the doc-by-doc fallback,
+     * which parallelizes, runs).
      */
     public static boolean filterRewriteFastPathApplies(Object parent, ValuesSourceConfig config, Rounding rounding) {
         // The fast path (BKD point-tree precompute) only runs for a top-level agg; nested aggs collect
-        // doc-by-doc under their parent's buckets. Mirrors the parent check in FilterRewriteOptimizationContext.
-        return parent == null && filterRewriteFastPathApplies(config, rounding);
-    }
-
-    /**
-     * Field/rounding half of the fast-path check (segment-independent, no side effects). Shared by the
-     * runtime {@link #canOptimize(ValuesSourceConfig, Rounding)} and the parent-aware overload above.
-     */
-    public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, Rounding rounding) {
+        // doc-by-doc under their parent's buckets.
+        if (parent != null) {
+            return false;
+        }
         // The filter rewrite optimized path does not support non-fixed bucket intervals, so exclude non-UTC.
         if (rounding.isUTC() == false) {
             return false;

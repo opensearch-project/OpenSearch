@@ -26,7 +26,9 @@ import java.util.function.Function;
 public abstract class RangeAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
-        if (filterRewriteFastPathApplies(config, ranges)) {
+        // Runtime path: FilterRewriteOptimizationContext#canOptimize already gates on parent == null before
+        // reaching here, so parent is passed as null.
+        if (filterRewriteFastPathApplies(null, config, ranges)) {
             this.fieldType = config.fieldType();
             return true;
         }
@@ -34,23 +36,18 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     /**
-     * Whether the range filter-rewrite fast path applies for this aggregation. Includes the
-     * {@code parent == null} requirement (the fast path only runs for a top-level agg), so the range
-     * aggregator factory can consult this alone to decide intra-segment eligibility: intra-segment search
-     * is used only when this returns false (the fast path is unavailable and the doc-by-doc fallback, which
-     * parallelizes under intra, runs instead).
+     * Whether the range filter-rewrite fast path applies for this aggregation. The single source of truth for
+     * the fast-path preconditions — top-level only ({@code parent == null}), searchable numeric field, no
+     * script/missing, and non-overlapping ranges. Used both at runtime ({@link #canOptimize}) and by the range
+     * aggregator factory to decide intra-segment eligibility: intra-segment search is used only when this
+     * returns false (the fast path is unavailable and the doc-by-doc fallback, which parallelizes, runs).
      */
     public static boolean filterRewriteFastPathApplies(Object parent, ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         // The fast path (BKD point-tree precompute) only runs for a top-level agg; nested aggs collect
-        // doc-by-doc under their parent's buckets. Mirrors the parent check in FilterRewriteOptimizationContext.
-        return parent == null && filterRewriteFastPathApplies(config, ranges);
-    }
-
-    /**
-     * Field/ranges half of the fast-path check (segment-independent, no side effects). Shared by the runtime
-     * {@link #canOptimize(ValuesSourceConfig, RangeAggregator.Range[])} and the parent-aware overload above.
-     */
-    public static boolean filterRewriteFastPathApplies(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
+        // doc-by-doc under their parent's buckets.
+        if (parent != null) {
+            return false;
+        }
         MappedFieldType fieldType = config.fieldType();
         if (fieldType == null || fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) {
             return false;
