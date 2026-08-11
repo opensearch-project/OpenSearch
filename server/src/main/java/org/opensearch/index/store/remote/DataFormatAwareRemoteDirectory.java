@@ -27,7 +27,6 @@ import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
@@ -77,8 +76,6 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
 
     private static final String DEFAULT_FORMAT = "lucene";
 
-    private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
-    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
     private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
     private final FormatBlobRouter formatBlobRouter;
@@ -108,8 +105,6 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             pendingDownloadMergedSegments
         );
         this.formatBlobRouter = new FormatBlobRouter(blobStore, baseBlobPath);
-        this.uploadRateLimiter = uploadRateLimiter;
-        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
         this.logger = logger;
 
@@ -434,21 +429,13 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             final boolean effectiveLowPriority = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
             lowPriorityUpload = effectiveLowPriority;
 
-            // Use slice() instead of clone() so each part gets its own independent
-            // MemorySegment[] array copy (via ArrayUtil.copyOfSubArray in buildSlice).
-            // clone() passes the master's segments[] array by reference to MultiSegmentImpl;
-            // when any clone closes, Arrays.fill(segments, null) corrupts the shared array,
-            // causing AlreadyClosedException on all subsequent provideStream() calls.
-            // slice() always allocates a new array for non-full-range slices, so each part's
-            // close only nullifies its own private copy. No extra mmap; just a new Java object
-            // pointing into the existing mapped region.
-            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = effectiveLowPriority
-                ? (size, position) -> lowPriorityUploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.slice("part@" + position, position, size), size, 0)
-                )
-                : (size, position) -> uploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.slice("part@" + position, position, size), size, 0)
-                );
+            // Part streams are built by the shared base-class helper, which uses slice() (not clone())
+            // so each part gets its own independent MemorySegment[] array copy and closing one part
+            // cannot corrupt the others. See RemoteDirectory#createOffsetRangeInputStreamSupplier and PR #22309.
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier supplier = createOffsetRangeInputStreamSupplier(
+                indexInput,
+                effectiveLowPriority
+            );
 
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 src,

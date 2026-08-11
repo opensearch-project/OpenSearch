@@ -446,15 +446,7 @@ public class RemoteDirectory extends Directory {
             lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
             RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
 
-            if (lowPriorityUpload) {
-                offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
-                );
-            } else {
-                offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
-                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
-                );
-            }
+            offsetRangeInputStreamSupplier = createOffsetRangeInputStreamSupplier(indexInput, lowPriorityUpload);
             RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 src,
                 remoteFileName,
@@ -514,6 +506,35 @@ public class RemoteDirectory extends Directory {
             indexInput.close();
             throw e;
         }
+    }
+
+    /**
+     * Builds the per-part {@link RemoteTransferContainer.OffsetRangeInputStreamSupplier} used to feed the multipart
+     * upload, applying the appropriate rate limiter for the upload priority.
+     *
+     * <p>Each part is backed by an independent {@link IndexInput#slice(String, long, long)} of the master input rather
+     * than a {@link IndexInput#clone()}. This is intentional and must not be changed back to {@code clone()}:
+     * {@code MemorySegmentIndexInput.clone()} shares the master's {@code MemorySegment[]} array by reference, so when
+     * any one part's stream closes, {@code Arrays.fill(segments, null)} corrupts the shared array and every subsequent
+     * {@code provideStream()} for the other parts fails with {@code AlreadyClosedException}. {@code slice()} allocates
+     * an independent array copy (via {@code ArrayUtil.copyOfSubArray} in {@code buildSlice}) for each non-full-range
+     * slice, so closing one part only nullifies its own private copy. No extra mmap is created — each slice is just a
+     * new Java object pointing into the already-mapped region. See PR #22309.
+     *
+     * <p>Because the slice already starts at {@code position}, the returned stream reads from offset {@code 0}.
+     *
+     * @param indexInput        the master {@link IndexInput} for the file being uploaded
+     * @param lowPriorityUpload whether to apply the low-priority rate limiter
+     * @return a supplier that produces an independent, rate-limited stream for each requested part
+     */
+    protected RemoteTransferContainer.OffsetRangeInputStreamSupplier createOffsetRangeInputStreamSupplier(
+        IndexInput indexInput,
+        boolean lowPriorityUpload
+    ) {
+        UnaryOperator<OffsetRangeInputStream> rateLimiter = lowPriorityUpload ? lowPriorityUploadRateLimiter : uploadRateLimiter;
+        return (size, position) -> rateLimiter.apply(
+            new OffsetRangeIndexInputStream(indexInput.slice("part@" + position, position, size), size, 0)
+        );
     }
 
     protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
