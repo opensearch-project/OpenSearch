@@ -227,6 +227,54 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         storeDirectory.close();
     }
 
+    /**
+     * The lifecycle-tracking wrapper (PR #22309, centralized in RemoteDirectory#wrapWithLifecycleTracking) must:
+     * transparently delegate reads and length; survive a double-close without throwing (it delegates close each
+     * time, but tracks and logs the second one as a lifecycle bug); and produce independent, still-readable clones.
+     */
+    public void testWrapWithLifecycleTracking() throws Exception {
+        String filename = "_wrap.bin";
+        byte[] payload = new byte[512];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        Directory storeDirectory = new MMapDirectory(createTempDir());
+        try (IndexOutput out = storeDirectory.createOutput(filename, IOContext.DEFAULT)) {
+            out.writeBytes(payload, payload.length);
+            CodecUtil.writeFooter(out);
+        }
+        storeDirectory.sync(List.of(filename));
+        long fileLength = storeDirectory.fileLength(filename);
+
+        RemoteDirectory remoteDirectory = new RemoteDirectory(mock(AsyncMultiStreamBlobContainer.class));
+        IndexInput raw = storeDirectory.openInput(filename, IOContext.DEFAULT);
+        IndexInput tracked = remoteDirectory.wrapWithLifecycleTracking(raw, filename);
+
+        // Delegates length and reads.
+        assertEquals(fileLength, tracked.length());
+        byte[] head = new byte[payload.length];
+        tracked.readBytes(head, 0, head.length);
+        for (int i = 0; i < payload.length; i++) {
+            assertEquals("byte " + i, payload[i], head[i]);
+        }
+
+        // clone() yields an independent, readable input that seeks without disturbing the master.
+        IndexInput clone = tracked.clone();
+        clone.seek(0);
+        assertEquals(payload[0], clone.readByte());
+        clone.close();
+
+        // Master still usable after clone closes (slice()/clone() independence).
+        tracked.seek(0);
+        assertEquals(payload[0], tracked.readByte());
+
+        // Double-close must not throw (it is tracked and logged, not fatal).
+        tracked.close();
+        tracked.close();
+
+        storeDirectory.close();
+    }
+
     public void testCopyFromWithException() throws IOException, InterruptedException {
         AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
         String filename = "_100.si";

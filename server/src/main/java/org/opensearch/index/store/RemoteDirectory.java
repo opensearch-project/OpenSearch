@@ -436,7 +436,7 @@ public class RemoteDirectory extends Directory {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
-        IndexInput indexInput = from.openInput(src, ioContext);
+        IndexInput indexInput = wrapWithLifecycleTracking(from.openInput(src, ioContext), src);
         try {
             contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = false;
@@ -535,6 +535,69 @@ public class RemoteDirectory extends Directory {
         return (size, position) -> rateLimiter.apply(
             new OffsetRangeIndexInputStream(indexInput.slice("part@" + position, position, size), size, 0)
         );
+    }
+
+    /**
+     * Wraps the master {@link IndexInput} used for a multipart upload with lifecycle tracking that surfaces two
+     * classes of upload-path lifecycle bug:
+     *
+     * <ul>
+     *   <li><b>Double-close</b> — {@link #close()} being invoked more than once means two code paths are releasing
+     *       the same master input. The multipart upload defers the master close to the completion listener (fired
+     *       after publication completes); a second close indicates a leak or an errant close elsewhere.</li>
+     *   <li><b>Use-after-close</b> — a {@link #clone()} (which the part supplier reaches via {@code slice()}) attempted
+     *       after the master has been closed means the master was released before all parts finished, which must not
+     *       happen while parts are still being served.</li>
+     * </ul>
+     *
+     * <p>Both conditions are logged (not thrown) so a latent lifecycle bug is visible in logs without changing upload
+     * behavior. {@code clone()} delegates to the underlying input's {@code clone()} — <b>not</b> {@code super.clone()},
+     * which would inherit {@code Object.clone()} and produce a shallow {@link org.apache.lucene.store.FilterIndexInput}
+     * wrapper sharing the same delegate, causing a spurious double-close when that shallow copy is released. See PR
+     * #22309.
+     *
+     * @param rawIndexInput the freshly opened master {@link IndexInput}
+     * @param src           the source file name, for log context
+     * @return a tracking {@link IndexInput} that delegates to {@code rawIndexInput}
+     */
+    protected IndexInput wrapWithLifecycleTracking(IndexInput rawIndexInput, String src) {
+        final AtomicReference<Boolean> indexInputClosed = new AtomicReference<>(false);
+        return new org.apache.lucene.store.FilterIndexInput("tracked:" + src, rawIndexInput) {
+            @Override
+            public void close() throws IOException {
+                if (indexInputClosed.getAndSet(true)) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "IndexInput for [{}] closed a second time (double-close) on thread [{}]; "
+                                + "possible lifecycle bug in the upload path",
+                            src,
+                            Thread.currentThread().getName()
+                        )
+                    );
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("IndexInput.close() for [{}]", src));
+                }
+                super.close();
+            }
+
+            @Override
+            public IndexInput clone() {
+                if (indexInputClosed.get()) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "IndexInput.slice()/clone() attempted on already-closed IndexInput for [{}] on thread [{}]; "
+                                + "the master was closed before all parts completed",
+                            src,
+                            Thread.currentThread().getName()
+                        )
+                    );
+                }
+                // Delegate to the underlying IndexInput's clone() — NOT super.clone(). FilterIndexInput inherits
+                // Object.clone(), which yields a shallow wrapper sharing the same 'in' field and double-closes it
+                // when released. slice() lands here via FilterIndexInput#slice -> clone of the sliced delegate.
+                return in.clone();
+            }
+        };
     }
 
     protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {

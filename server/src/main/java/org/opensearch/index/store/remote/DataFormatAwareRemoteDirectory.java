@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 
 /**
@@ -375,52 +374,9 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
         } else {
             expectedChecksum = calculateChecksumOfChecksum(from, src);
         }
-        final IndexInput rawIndexInput = from.openInput(src, ioContext);
-        // Wrap to detect double-close and already-closed slice attempts. These indicate
-        // lifecycle bugs — double-close means two code paths are releasing the same input,
-        // and an already-closed slice attempt means the master was closed before all parts
-        // completed (should not happen with the ref count in place).
-        final AtomicReference<Boolean> indexInputClosed = new AtomicReference<>(false);
-        final IndexInput indexInput = new org.apache.lucene.store.FilterIndexInput("tracked:" + src, rawIndexInput) {
-            @Override
-            public void close() throws IOException {
-                if (indexInputClosed.getAndSet(true)) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "IndexInput for [{}] closed a second time (double-close) on thread [{}]; "
-                                + "possible lifecycle bug in the upload path",
-                            src,
-                            Thread.currentThread().getName()
-                        )
-                    );
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("IndexInput.close() for [{}]", src));
-                }
-                super.close();
-            }
-
-            @Override
-            public IndexInput clone() {
-                if (indexInputClosed.get()) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "IndexInput.slice() attempted on already-closed IndexInput for [{}] on thread [{}];"
-                                + " the master was closed before all parts completed",
-                            src,
-                            Thread.currentThread().getName()
-                        )
-                    );
-                }
-                // Delegate to the underlying IndexInput's clone() — NOT super.clone().
-                // FilterIndexInput inherits Object.clone() which produces a shallow wrapper
-                // copy sharing the same 'in' field; that causes double-close when the shallow
-                // copy is closed via OffsetRangeRefCount. The supplier now uses slice() rather
-                // than clone(), so this path is only reached by external callers (if any);
-                // those callers receive an untracked raw clone, which is intentional since
-                // the tracking wrapper is for the master lifecycle only.
-                return in.clone();
-            }
-        };
+        // Wrap the master input with the shared lifecycle tracking (double-close / use-after-close detection)
+        // from the base class. See RemoteDirectory#wrapWithLifecycleTracking and PR #22309.
+        final IndexInput indexInput = wrapWithLifecycleTracking(from.openInput(src, ioContext), src);
         try {
             long contentLength = indexInput.length();
             boolean remoteIntegrityEnabled = (targetContainer instanceof AsyncMultiStreamBlobContainer)
