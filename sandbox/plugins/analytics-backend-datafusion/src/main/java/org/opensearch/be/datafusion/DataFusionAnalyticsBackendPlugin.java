@@ -667,8 +667,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 SecondAdapter second = new SecondAdapter();
                 // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
                 IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
-                // Stateless adapter shared across the six comparison operators.
-                ComparisonTemporalCoercionAdapter comparisonTemporalCoercion = new ComparisonTemporalCoercionAdapter();
+                // Stateless adapter shared across the six comparison operators. Wrapped by
+                // IpComparisonNormalizationAdapter so PPL IP-comparison UDFs (EQUALS_IP etc.) over
+                // VARBINARY ip/binary fields are rewritten to native comparators before temporal
+                // coercion (and before Substrait conversion, which has no EQUALS_IP binding).
+                ScalarFunctionAdapter comparisonTemporalCoercion = new IpComparisonNormalizationAdapter(
+                    new ComparisonTemporalCoercionAdapter()
+                );
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
