@@ -67,6 +67,10 @@ public class StatsCommandIT extends AnalyticsRestTestCase {
         assertRowsEqual("source=" + DATASET.indexName + " | stats sum(num0)", row(10.0));
     }
 
+    public void testStatsIntegralSum() throws IOException {
+        assertRowsEqual("source=" + DATASET.indexName + " | stats sum(int0)", row(68));
+    }
+
     public void testStatsAvg() throws IOException {
         // 10.0 / 8 = 1.25.
         assertRowsEqual("source=" + DATASET.indexName + " | stats avg(num0)", row(1.25));
