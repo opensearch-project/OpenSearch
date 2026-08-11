@@ -24,7 +24,7 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.analytics.planner.RelNodeUtils.MAX_EXTRACT_INDICES_DEPTH;
+import static org.opensearch.analytics.planner.RelNodeUtils.DEFAULT_MAX_PLAN_DEPTH;
 
 /**
  * Unit tests for {@link RelNodeUtils#extractIndices(RelNode)}.
@@ -136,7 +136,7 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         RelBuilder b = builder();
         RelNode node = b.scan("deep_index").build();
         // Wrap in LogicalFilter nodes directly to avoid RelBuilder optimizations.
-        for (int i = 0; i < MAX_EXTRACT_INDICES_DEPTH + 5; i++) {
+        for (int i = 0; i < DEFAULT_MAX_PLAN_DEPTH + 5; i++) {
             RexBuilder rex = node.getCluster().getRexBuilder();
             RexNode condition = rex.makeCall(
                 SqlStdOperatorTable.GREATER_THAN,
@@ -145,7 +145,7 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
             );
             node = LogicalFilter.create(node, condition);
         }
-        // The plan exceeds MAX_EXTRACT_INDICES_DEPTH — should throw rather than silently skip
+        // The plan exceeds DEFAULT_MAX_PLAN_DEPTH — should throw rather than silently skip
         RelNode deepPlan = node;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RelNodeUtils.extractIndices(deepPlan));
         assertTrue(e.getMessage().contains("maximum depth"));

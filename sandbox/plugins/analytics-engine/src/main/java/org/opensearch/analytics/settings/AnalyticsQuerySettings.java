@@ -80,8 +80,21 @@ public final class AnalyticsQuerySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum depth of the Calcite RelNode tree allowed during query planning.
+     * Queries exceeding this depth (e.g. deeply nested JOINs or subqueries) are
+     * rejected with a 400 before execution begins.
+     */
+    public static final Setting<Integer> MAX_PLAN_DEPTH = Setting.intSetting(
+        "analytics.query.max_plan_depth",
+        15,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> all() {
-        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE, MAX_PLAN_DEPTH);
     }
 
     private AnalyticsQuerySettings() {}
