@@ -85,6 +85,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             for (int i = agg.size(); i < termBuckets.size(); i++) {
                 otherDocCount += termBuckets.get(i).getDocCount();
             }
+            // Copy rather than clear the tail in place: releases the full-size backing array.
             termBuckets = new ArrayList<>(termBuckets.subList(0, agg.size()));
         }
 
@@ -97,15 +98,15 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
         );
         return new StringTerms(
             agg.getName(),
-            order,
-            order,
+            order, // reduceOrder: the bucket list is already sorted by it (see sort above)
+            order, // the user-requested display order
             AggregationTranslator.userMetadata(agg),
-            DocValueFormat.RAW,
-            agg.shardSize(),
-            false,
+            DocValueFormat.RAW, // keyword parity: the mapping-resolved format for string keys is RAW
+            agg.shardSize(), // request echo — no shard fan-out on this path
+            false, // no per-bucket doc count error rendering
             otherDocCount,
             termBuckets,
-            0,
+            0, // exact single-plan path: doc_count_error_upper_bound is truly 0
             thresholds
         );
     }
