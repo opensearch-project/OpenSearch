@@ -283,7 +283,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             }
             ScalarFunction scalarFunc = ScalarFunction.fromSqlOperatorWithFallback(scalarFunctionCall.getOperator());
             if (scalarFunc == null) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "Unrecognized scalar function ["
                         + scalarFunctionCall.getOperator().getName()
                         + "] in call ["
