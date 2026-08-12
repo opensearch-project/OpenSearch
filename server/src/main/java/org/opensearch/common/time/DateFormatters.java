@@ -2019,180 +2019,190 @@ public class DateFormatters {
                 );
         }
 
-        if (FormatNames.ISO8601.matches(input)) {
-            return ISO_8601;
-        } else if (FormatNames.BASIC_DATE.matches(input)) {
-            return BASIC_DATE;
-        } else if (FormatNames.BASIC_DATE_TIME.matches(input)) {
-            return BASIC_DATE_TIME;
-        } else if (FormatNames.BASIC_DATE_TIME_NO_MILLIS.matches(input)) {
-            return BASIC_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.BASIC_ORDINAL_DATE.matches(input)) {
-            return BASIC_ORDINAL_DATE;
-        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME.matches(input)) {
-            return BASIC_ORDINAL_DATE_TIME;
-        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            return BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.BASIC_TIME.matches(input)) {
-            return BASIC_TIME;
-        } else if (FormatNames.BASIC_TIME_NO_MILLIS.matches(input)) {
-            return BASIC_TIME_NO_MILLIS;
-        } else if (FormatNames.BASIC_T_TIME.matches(input)) {
-            return BASIC_T_TIME;
-        } else if (FormatNames.BASIC_T_TIME_NO_MILLIS.matches(input)) {
-            return BASIC_T_TIME_NO_MILLIS;
-        } else if (FormatNames.BASIC_WEEK_DATE.matches(input)) {
-            return BASIC_WEEK_DATE;
-        } else if (FormatNames.BASIC_WEEK_DATE_TIME.matches(input)) {
-            return BASIC_WEEK_DATE_TIME;
-        } else if (FormatNames.BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            return BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.DATE.matches(input)) {
-            return DATE;
-        } else if (FormatNames.DATE_HOUR.matches(input)) {
-            return DATE_HOUR;
-        } else if (FormatNames.DATE_HOUR_MINUTE.matches(input)) {
-            return DATE_HOUR_MINUTE;
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND.matches(input)) {
-            return DATE_HOUR_MINUTE_SECOND;
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            return DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            return DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if (FormatNames.DATE_OPTIONAL_TIME.matches(input)) {
-            return DATE_OPTIONAL_TIME;
-        } else if (FormatNames.DATE_TIME.matches(input)) {
-            return DATE_TIME;
-        } else if (FormatNames.DATE_TIME_NO_MILLIS.matches(input)) {
-            return DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.HOUR.matches(input)) {
-            return HOUR;
-        } else if (FormatNames.HOUR_MINUTE.matches(input)) {
-            return HOUR_MINUTE;
-        } else if (FormatNames.HOUR_MINUTE_SECOND.matches(input)) {
-            return HOUR_MINUTE_SECOND;
-        } else if (FormatNames.HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            return HOUR_MINUTE_SECOND_FRACTION;
-        } else if (FormatNames.HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            return HOUR_MINUTE_SECOND_MILLIS;
-        } else if (FormatNames.ORDINAL_DATE.matches(input)) {
-            return ORDINAL_DATE;
-        } else if (FormatNames.ORDINAL_DATE_TIME.matches(input)) {
-            return ORDINAL_DATE_TIME;
-        } else if (FormatNames.ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            return ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.TIME.matches(input)) {
-            return TIME;
-        } else if (FormatNames.TIME_NO_MILLIS.matches(input)) {
-            return TIME_NO_MILLIS;
-        } else if (FormatNames.T_TIME.matches(input)) {
-            return T_TIME;
-        } else if (FormatNames.T_TIME_NO_MILLIS.matches(input)) {
-            return T_TIME_NO_MILLIS;
-        } else if (FormatNames.WEEK_DATE.matches(input)) {
-            return WEEK_DATE;
-        } else if (FormatNames.WEEK_DATE_TIME.matches(input)) {
-            return WEEK_DATE_TIME;
-        } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            return WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.WEEK_YEAR.matches(input)) {
-            deprecationLogger.getOrCompute()
-                .deprecate(
-                    "week_year_format_name",
-                    "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
-                );
-            return WEEK_YEAR;
-        } else if (FormatNames.WEEKYEAR.matches(input)) {
-            return WEEKYEAR;
-        } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
-            return WEEKYEAR_WEEK;
-        } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {
-            return WEEKYEAR_WEEK_DAY;
-        } else if (FormatNames.YEAR.matches(input)) {
-            return YEAR;
-        } else if (FormatNames.YEAR_MONTH.matches(input)) {
-            return YEAR_MONTH;
-        } else if (FormatNames.YEAR_MONTH_DAY.matches(input)) {
-            return YEAR_MONTH_DAY;
-        } else if (FormatNames.EPOCH_SECOND.matches(input)) {
-            return EpochTime.SECONDS_FORMATTER;
-        } else if (FormatNames.EPOCH_MILLIS.matches(input)) {
-            return EpochTime.MILLIS_FORMATTER;
-            // strict date formats here, must be at least 4 digits for year and two for months and two for day
-        } else if (FormatNames.EPOCH_MICROS.matches(input)) {
-            return EpochTime.MICROS_FORMATTER;
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE.matches(input)) {
-            return STRICT_BASIC_WEEK_DATE;
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME.matches(input)) {
-            return STRICT_BASIC_WEEK_DATE_TIME;
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_DATE.matches(input)) {
-            return STRICT_DATE;
-        } else if (FormatNames.STRICT_DATE_HOUR.matches(input)) {
-            return STRICT_DATE_HOUR;
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE.matches(input)) {
-            return STRICT_DATE_HOUR_MINUTE;
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND.matches(input)) {
-            return STRICT_DATE_HOUR_MINUTE_SECOND;
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            return STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME.matches(input)) {
-            return STRICT_DATE_OPTIONAL_TIME;
-        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.matches(input)) {
-            return STRICT_DATE_OPTIONAL_TIME_NANOS;
-        } else if (FormatNames.STRICT_DATE_TIME.matches(input)) {
-            return STRICT_DATE_TIME;
-        } else if (FormatNames.STRICT_DATE_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_HOUR.matches(input)) {
-            return STRICT_HOUR;
-        } else if (FormatNames.STRICT_HOUR_MINUTE.matches(input)) {
-            return STRICT_HOUR_MINUTE;
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND.matches(input)) {
-            return STRICT_HOUR_MINUTE_SECOND;
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            return STRICT_HOUR_MINUTE_SECOND_FRACTION;
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            return STRICT_HOUR_MINUTE_SECOND_MILLIS;
-        } else if (FormatNames.STRICT_ORDINAL_DATE.matches(input)) {
-            return STRICT_ORDINAL_DATE;
-        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME.matches(input)) {
-            return STRICT_ORDINAL_DATE_TIME;
-        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_TIME.matches(input)) {
-            return STRICT_TIME;
-        } else if (FormatNames.STRICT_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_T_TIME.matches(input)) {
-            return STRICT_T_TIME;
-        } else if (FormatNames.STRICT_T_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_T_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_WEEK_DATE.matches(input)) {
-            return STRICT_WEEK_DATE;
-        } else if (FormatNames.STRICT_WEEK_DATE_TIME.matches(input)) {
-            return STRICT_WEEK_DATE_TIME;
-        } else if (FormatNames.STRICT_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            return STRICT_WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_WEEKYEAR.matches(input)) {
-            return STRICT_WEEKYEAR;
-        } else if (FormatNames.STRICT_WEEKYEAR_WEEK.matches(input)) {
-            return STRICT_WEEKYEAR_WEEK;
-        } else if (FormatNames.STRICT_WEEKYEAR_WEEK_DAY.matches(input)) {
-            return STRICT_WEEKYEAR_WEEK_DAY;
-        } else if (FormatNames.STRICT_YEAR.matches(input)) {
-            return STRICT_YEAR;
-        } else if (FormatNames.STRICT_YEAR_MONTH.matches(input)) {
-            return STRICT_YEAR_MONTH;
-        } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
-            return STRICT_YEAR_MONTH_DAY;
-        } else if (FormatNames.RFC3339_LENIENT.matches(input)) {
-            return RFC3339_LENIENT_DATE_FORMATTER;
-        } else {
-            try {
+        // Use the already-resolved FormatNames enum value with an O(1) switch lookup
+        // instead of re-scanning a linear if-else chain that performed up to 120
+        // String.equals() comparisons per call on the date-format hot path.
+        if (formatName != null) {
+            switch (formatName) {
+                case ISO8601:
+                    return ISO_8601;
+                case RFC3339_LENIENT:
+                    return RFC3339_LENIENT_DATE_FORMATTER;
+                case BASIC_DATE:
+                    return BASIC_DATE;
+                case BASIC_DATE_TIME:
+                    return BASIC_DATE_TIME;
+                case BASIC_DATE_TIME_NO_MILLIS:
+                    return BASIC_DATE_TIME_NO_MILLIS;
+                case BASIC_ORDINAL_DATE:
+                    return BASIC_ORDINAL_DATE;
+                case BASIC_ORDINAL_DATE_TIME:
+                    return BASIC_ORDINAL_DATE_TIME;
+                case BASIC_ORDINAL_DATE_TIME_NO_MILLIS:
+                    return BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
+                case BASIC_TIME:
+                    return BASIC_TIME;
+                case BASIC_TIME_NO_MILLIS:
+                    return BASIC_TIME_NO_MILLIS;
+                case BASIC_T_TIME:
+                    return BASIC_T_TIME;
+                case BASIC_T_TIME_NO_MILLIS:
+                    return BASIC_T_TIME_NO_MILLIS;
+                case BASIC_WEEK_DATE:
+                    return BASIC_WEEK_DATE;
+                case BASIC_WEEK_DATE_TIME:
+                    return BASIC_WEEK_DATE_TIME;
+                case BASIC_WEEK_DATE_TIME_NO_MILLIS:
+                    return BASIC_WEEK_DATE_TIME_NO_MILLIS;
+                case DATE:
+                    return DATE;
+                case DATE_HOUR:
+                    return DATE_HOUR;
+                case DATE_HOUR_MINUTE:
+                    return DATE_HOUR_MINUTE;
+                case DATE_HOUR_MINUTE_SECOND:
+                    return DATE_HOUR_MINUTE_SECOND;
+                case DATE_HOUR_MINUTE_SECOND_FRACTION:
+                    return DATE_HOUR_MINUTE_SECOND_FRACTION;
+                case DATE_HOUR_MINUTE_SECOND_MILLIS:
+                    return DATE_HOUR_MINUTE_SECOND_MILLIS;
+                case DATE_OPTIONAL_TIME:
+                    return DATE_OPTIONAL_TIME;
+                case DATE_TIME:
+                    return DATE_TIME;
+                case DATE_TIME_NO_MILLIS:
+                    return DATE_TIME_NO_MILLIS;
+                case HOUR:
+                    return HOUR;
+                case HOUR_MINUTE:
+                    return HOUR_MINUTE;
+                case HOUR_MINUTE_SECOND:
+                    return HOUR_MINUTE_SECOND;
+                case HOUR_MINUTE_SECOND_FRACTION:
+                    return HOUR_MINUTE_SECOND_FRACTION;
+                case HOUR_MINUTE_SECOND_MILLIS:
+                    return HOUR_MINUTE_SECOND_MILLIS;
+                case ORDINAL_DATE:
+                    return ORDINAL_DATE;
+                case ORDINAL_DATE_TIME:
+                    return ORDINAL_DATE_TIME;
+                case ORDINAL_DATE_TIME_NO_MILLIS:
+                    return ORDINAL_DATE_TIME_NO_MILLIS;
+                case TIME:
+                    return TIME;
+                case TIME_NO_MILLIS:
+                    return TIME_NO_MILLIS;
+                case T_TIME:
+                    return T_TIME;
+                case T_TIME_NO_MILLIS:
+                    return T_TIME_NO_MILLIS;
+                case WEEK_DATE:
+                    return WEEK_DATE;
+                case WEEK_DATE_TIME:
+                    return WEEK_DATE_TIME;
+                case WEEK_DATE_TIME_NO_MILLIS:
+                    return WEEK_DATE_TIME_NO_MILLIS;
+                case WEEK_YEAR:
+                    deprecationLogger.getOrCompute()
+                        .deprecate(
+                            "week_year_format_name",
+                            "Format name \"week_year\" is deprecated and will be removed in a future version. "
+                                + "Use \"weekyear\" format instead"
+                        );
+                    return WEEK_YEAR;
+                case WEEKYEAR:
+                    return WEEKYEAR;
+                case WEEK_YEAR_WEEK:
+                    return WEEKYEAR_WEEK;
+                case WEEKYEAR_WEEK_DAY:
+                    return WEEKYEAR_WEEK_DAY;
+                case YEAR:
+                    return YEAR;
+                case YEAR_MONTH:
+                    return YEAR_MONTH;
+                case YEAR_MONTH_DAY:
+                    return YEAR_MONTH_DAY;
+                case EPOCH_SECOND:
+                    return EpochTime.SECONDS_FORMATTER;
+                case EPOCH_MILLIS:
+                    return EpochTime.MILLIS_FORMATTER;
+                // strict date formats here, must be at least 4 digits for year and two for months and two for day
+                case EPOCH_MICROS:
+                    return EpochTime.MICROS_FORMATTER;
+                case STRICT_BASIC_WEEK_DATE:
+                    return STRICT_BASIC_WEEK_DATE;
+                case STRICT_BASIC_WEEK_DATE_TIME:
+                    return STRICT_BASIC_WEEK_DATE_TIME;
+                case STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS:
+                    return STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS;
+                case STRICT_DATE:
+                    return STRICT_DATE;
+                case STRICT_DATE_HOUR:
+                    return STRICT_DATE_HOUR;
+                case STRICT_DATE_HOUR_MINUTE:
+                    return STRICT_DATE_HOUR_MINUTE;
+                case STRICT_DATE_HOUR_MINUTE_SECOND:
+                    return STRICT_DATE_HOUR_MINUTE_SECOND;
+                case STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION:
+                    return STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
+                case STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS:
+                    return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
+                case STRICT_DATE_OPTIONAL_TIME:
+                    return STRICT_DATE_OPTIONAL_TIME;
+                case STRICT_DATE_OPTIONAL_TIME_NANOS:
+                    return STRICT_DATE_OPTIONAL_TIME_NANOS;
+                case STRICT_DATE_TIME:
+                    return STRICT_DATE_TIME;
+                case STRICT_DATE_TIME_NO_MILLIS:
+                    return STRICT_DATE_TIME_NO_MILLIS;
+                case STRICT_HOUR:
+                    return STRICT_HOUR;
+                case STRICT_HOUR_MINUTE:
+                    return STRICT_HOUR_MINUTE;
+                case STRICT_HOUR_MINUTE_SECOND:
+                    return STRICT_HOUR_MINUTE_SECOND;
+                case STRICT_HOUR_MINUTE_SECOND_FRACTION:
+                    return STRICT_HOUR_MINUTE_SECOND_FRACTION;
+                case STRICT_HOUR_MINUTE_SECOND_MILLIS:
+                    return STRICT_HOUR_MINUTE_SECOND_MILLIS;
+                case STRICT_ORDINAL_DATE:
+                    return STRICT_ORDINAL_DATE;
+                case STRICT_ORDINAL_DATE_TIME:
+                    return STRICT_ORDINAL_DATE_TIME;
+                case STRICT_ORDINAL_DATE_TIME_NO_MILLIS:
+                    return STRICT_ORDINAL_DATE_TIME_NO_MILLIS;
+                case STRICT_TIME:
+                    return STRICT_TIME;
+                case STRICT_TIME_NO_MILLIS:
+                    return STRICT_TIME_NO_MILLIS;
+                case STRICT_T_TIME:
+                    return STRICT_T_TIME;
+                case STRICT_T_TIME_NO_MILLIS:
+                    return STRICT_T_TIME_NO_MILLIS;
+                case STRICT_WEEK_DATE:
+                    return STRICT_WEEK_DATE;
+                case STRICT_WEEK_DATE_TIME:
+                    return STRICT_WEEK_DATE_TIME;
+                case STRICT_WEEK_DATE_TIME_NO_MILLIS:
+                    return STRICT_WEEK_DATE_TIME_NO_MILLIS;
+                case STRICT_WEEKYEAR:
+                    return STRICT_WEEKYEAR;
+                case STRICT_WEEKYEAR_WEEK:
+                    return STRICT_WEEKYEAR_WEEK;
+                case STRICT_WEEKYEAR_WEEK_DAY:
+                    return STRICT_WEEKYEAR_WEEK_DAY;
+                case STRICT_YEAR:
+                    return STRICT_YEAR;
+                case STRICT_YEAR_MONTH:
+                    return STRICT_YEAR_MONTH;
+                case STRICT_YEAR_MONTH_DAY:
+                    return STRICT_YEAR_MONTH_DAY;
+                default:
+                    break;
+            }
+        }
+
+        try {
                 return new JavaDateFormatter(
                     input,
                     new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
