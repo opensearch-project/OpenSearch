@@ -8,6 +8,8 @@
 
 package org.opensearch.dsl.query;
 
+import org.opensearch.dsl.query.range.RangeQueryTranslator;
+
 /**
  * Creates a {@link QueryRegistry} populated with all supported query translators.
  */

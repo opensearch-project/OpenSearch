@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.dsl.query;
+package org.opensearch.dsl.query.range;
 
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.common.time.DateFormatter;
@@ -20,7 +20,7 @@ import java.time.ZoneId;
  * date-valued range bounds. Handles date-math expressions, format conversion, timezone
  * application, and inclusivity-keyed rounding per legacy {@code DateFieldMapper.dateRangeQuery}.
  */
-final class RangeDateParsing {
+public final class RangeDateParsing {
 
     /** Maximum nanosecond-representable instant: 2262-04-11T23:47:16.854775807Z. */
     static final Instant MAX_NANOSECOND_INSTANT = Instant.ofEpochSecond(9223372036L, 854775807L);
@@ -30,7 +30,7 @@ final class RangeDateParsing {
     /**
      * Resolution for date field parsing, mirroring legacy DateFieldMapper.Resolution vocabulary.
      */
-    enum DateResolution {
+    public enum DateResolution {
         /** Millisecond resolution: returns epoch-millis with no range guards. */
         MILLISECONDS {
             @Override
@@ -102,7 +102,7 @@ final class RangeDateParsing {
      * @return epoch milliseconds or nanoseconds depending on resolution
      * @throws ConversionException if date parsing fails
      */
-    static Long parseDateValue(String strValue, String format, String timeZone, boolean roundUp, DateResolution resolution)
+    public static Long parseDateValue(String strValue, String format, String timeZone, boolean roundUp, DateResolution resolution)
         throws ConversionException {
         try {
             if ("epoch_millis".equals(format)) {

@@ -27,10 +27,10 @@ import java.util.Map;
  *
  * <p>Both tier maps are populated incrementally as per-type mappers are introduced.
  */
-final class TranslatorMapperRegistry {
+public final class TranslatorMapperRegistry {
 
     /** Singleton instance. */
-    static final TranslatorMapperRegistry INSTANCE = new TranslatorMapperRegistry();
+    public static final TranslatorMapperRegistry INSTANCE = new TranslatorMapperRegistry();
 
     /** Tier 1: UDT marker types keyed on exact class. */
     private final Map<Class<?>, BaseTranslatorMapper> byUdtClass = Map.of(
@@ -67,7 +67,7 @@ final class TranslatorMapperRegistry {
      * @param fieldType the Calcite type of the field
      * @return the appropriate translator mapper, never null
      */
-    BaseTranslatorMapper resolve(RelDataType fieldType) {
+    public BaseTranslatorMapper resolve(RelDataType fieldType) {
         BaseTranslatorMapper udt = byUdtClass.get(fieldType.getClass());
         if (udt != null) {
             return udt;

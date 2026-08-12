@@ -12,6 +12,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.range.BoundRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.dsl.query;
+package org.opensearch.dsl.query.range;
 
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexLiteral;
@@ -16,6 +16,8 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.QueryTranslator;
+import org.opensearch.dsl.query.TranslatorMapperRegistry;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
