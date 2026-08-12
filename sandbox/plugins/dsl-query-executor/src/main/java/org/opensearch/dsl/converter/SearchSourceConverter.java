@@ -26,6 +26,7 @@ import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -42,6 +43,10 @@ import java.util.Properties;
  */
 public class SearchSourceConverter {
 
+    /** Immutable after creation with stateless translators — shared across all requests. */
+    private static final QueryRegistry QUERY_REGISTRY = QueryRegistryFactory.create();
+    private static final AggregationRegistry AGG_REGISTRY = AggregationRegistryFactory.create();
+
     private final RelOptCluster cluster;
     private final CalciteCatalogReader catalogReader;
     private final FilterConverter filterConverter;
@@ -50,7 +55,6 @@ public class SearchSourceConverter {
     private final AggregateConverter aggConverter;
     private final PostAggregateConverter postAggConverter;
     private final AggregationTreeWalker treeWalker;
-    private final AggregationRegistry aggRegistry;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -73,19 +77,18 @@ public class SearchSourceConverter {
             new CalciteConnectionConfigImpl(new Properties())
         );
 
-        this.filterConverter = new FilterConverter(QueryRegistryFactory.create());
+        this.filterConverter = new FilterConverter(QUERY_REGISTRY);
         this.projectConverter = new ProjectConverter();
         this.sortConverter = new SortConverter();
         this.aggConverter = new AggregateConverter();
         this.postAggConverter = new PostAggregateConverter();
 
-        this.aggRegistry = AggregationRegistryFactory.create();
-        this.treeWalker = new AggregationTreeWalker(aggRegistry);
+        this.treeWalker = new AggregationTreeWalker(AGG_REGISTRY);
     }
 
     /** Returns the aggregation registry used by this converter. */
     public AggregationRegistry getAggregationRegistry() {
-        return aggRegistry;
+        return AGG_REGISTRY;
     }
 
     /**
