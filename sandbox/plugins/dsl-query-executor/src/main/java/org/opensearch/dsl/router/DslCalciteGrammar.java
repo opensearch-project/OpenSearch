@@ -10,15 +10,11 @@ package org.opensearch.dsl.router;
 
 import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.query.QueryRegistry;
-import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.dsl.query.QueryTranslator;
+import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
-import org.opensearch.index.query.ExistsQueryBuilder;
-import org.opensearch.index.query.PrefixQueryBuilder;
-import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.index.query.RangeQueryBuilder;
-import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
@@ -43,9 +39,11 @@ import java.util.stream.Stream;
  *
  * <p>v1 scope:
  * <ul>
- *   <li>Query walker with per-parameter checks mirroring each registered query translator.</li>
- *   <li>Aggregation walker with registry check + pipeline-agg rejection; per-parameter checks
- *       per aggregation type are TODO and tracked inside {@code visitAggregation}.</li>
+ *   <li>Query walker with translator-backed leaf validation.</li>
+ *   <li>Aggregation walker with registry check + pipeline-agg rejection. Nested aggregation
+ *       trees are blanket-rejected for now and stay on the codec path until their Calcite /
+ *       DataFusion performance is validated. Per-parameter checks per aggregation type are
+ *       TODO and tracked inside {@code visitAggregation}.</li>
  *   <li>Top-level checks (size, sort, highlight, post_filter, etc.) are TODO — the response
  *       builder's hits are still stubbed, so top-level gating will be added when
  *       {@code buildHits} lands.</li>
@@ -107,67 +105,16 @@ public class DslCalciteGrammar {
             }
         }
 
-        if (!queryRegistry.hasTranslator(q.getClass())) {
+        QueryTranslator translator = queryRegistry.get(q.getClass());
+        if (translator == null) {
             return reject("query:" + q.getName(), issues);
         }
 
-        // Per-parameter restrictions for registered types. Types not listed have
-        // translators that accept anything the class carries — the default arm passes
-        // them through structurally. Examples:
-        //   - TermQueryTranslator: reads only fieldName/value, raises no rejects.
-        //   - MatchAllQueryTranslator: reads nothing, always returns TRUE. Note that a
-        //     null source.query() is treated by the converter as an implicit match_all
-        //     (no filter) and is also accepted — but a null source itself is rejected
-        //     up front (see validate()).
-        return switch (q) {
-            case RangeQueryBuilder r -> visitRangeQuery(r, issues);
-            case TermsQueryBuilder t -> visitTermsQuery(t, issues);
-            case ExistsQueryBuilder e -> visitExistsQuery(e, issues);
-            case PrefixQueryBuilder p -> visitPrefixQuery(p, issues);
-            case WildcardQueryBuilder w -> visitWildcardQuery(w, issues);
-            default -> true;
-        };
-    }
+        ValidationResult validationResult = translator.validate(q);
+        if (!validationResult.isAccepted()) {
+            return reject(validationResult.reasonCode(), issues);
+        }
 
-    /**
-     * Per-parameter checks for {@code wildcard} query, mirroring
-     * {@code WildcardQueryTranslator}'s rejects. Same shape as {@code prefix}:
-     * {@code case_insensitive} is consumed, {@code boost}/{@code rewrite} rejected.
-     */
-    private boolean visitWildcardQuery(WildcardQueryBuilder w, List<String> issues) {
-        if (w.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return reject(WildcardQueryBuilder.NAME + ".boost", issues);
-        }
-        if (w.rewrite() != null) {
-            return reject(WildcardQueryBuilder.NAME + ".rewrite", issues);
-        }
-        return true;
-    }
-
-    /**
-     * Per-parameter checks for {@code prefix} query, mirroring {@code PrefixQueryTranslator}'s
-     * rejects. {@code case_insensitive} is consumed by the translator (folds to LOWER) and
-     * intentionally not rejected here.
-     */
-    private boolean visitPrefixQuery(PrefixQueryBuilder p, List<String> issues) {
-        if (p.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return reject(PrefixQueryBuilder.NAME + ".boost", issues);
-        }
-        if (p.rewrite() != null) {
-            return reject(PrefixQueryBuilder.NAME + ".rewrite", issues);
-        }
-        return true;
-    }
-
-    /**
-     * Per-parameter checks for {@code exists} query, mirroring {@code ExistsQueryTranslator}'s
-     * rejects. Only {@code boost} is checked — the translator silently ignores other params
-     * (including {@code _name}), matching the translator literally.
-     */
-    private boolean visitExistsQuery(ExistsQueryBuilder e, List<String> issues) {
-        if (e.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return reject(ExistsQueryBuilder.NAME + ".boost", issues);
-        }
         return true;
     }
 
@@ -176,54 +123,7 @@ public class DslCalciteGrammar {
      * the first failing child so the reject reason reflects the exact node that broke.
      */
     private boolean visitBool(BoolQueryBuilder b, List<String> issues) {
-        return Stream.of(b.must(), b.filter(), b.should(), b.mustNot())
-            .flatMap(List::stream)
-            .allMatch(inner -> visitQuery(inner, issues));
-    }
-
-    /**
-     * Per-parameter checks for {@code terms} query, mirroring {@code TermsQueryTranslator}'s
-     * rejects. Field-existence and value-type-compatibility stay with the translator.
-     */
-    private boolean visitTermsQuery(TermsQueryBuilder t, List<String> issues) {
-        if (t.termsLookup() != null) {
-            return reject(TermsQueryBuilder.NAME + ".terms_lookup", issues);
-        }
-        if (t.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return reject(TermsQueryBuilder.NAME + ".boost", issues);
-        }
-        if (t.queryName() != null) {
-            return reject(TermsQueryBuilder.NAME + ".name", issues);
-        }
-        if (t.valueType() != TermsQueryBuilder.ValueType.DEFAULT) {
-            return reject(TermsQueryBuilder.NAME + ".value_type:" + t.valueType(), issues);
-        }
-        if (t.values() == null || t.values().isEmpty()) {
-            return reject(TermsQueryBuilder.NAME + ".no_values", issues);
-        }
-        return true;
-    }
-
-    /**
-     * Per-parameter checks for {@code range} query, mirroring {@code RangeQueryTranslator}'s
-     * rejects. Field-existence, binary-field guards, and date_nanos-precision checks stay
-     * with the translator (schema context is not available here).
-     *
-     * <p>The translator also rejects {@code relation=DISJOINT}, but that path is
-     * unreachable: {@link RangeQueryBuilder#relation(String)} rejects {@code DISJOINT} at
-     * construction time, so no such request can ever reach the grammar.
-     */
-    private boolean visitRangeQuery(RangeQueryBuilder r, List<String> issues) {
-        if (r.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            return reject(RangeQueryBuilder.NAME + ".boost", issues);
-        }
-        if (r.queryName() != null) {
-            return reject(RangeQueryBuilder.NAME + ".name", issues);
-        }
-        if (r.from() == null && r.to() == null) {
-            return reject(RangeQueryBuilder.NAME + ".no_bounds", issues);
-        }
-        return true;
+        return Stream.of(b.must(), b.filter(), b.should(), b.mustNot()).flatMap(List::stream).allMatch(inner -> visitQuery(inner, issues));
     }
 
     /**
@@ -262,14 +162,17 @@ public class DslCalciteGrammar {
             return reject("agg:" + agg.getType(), issues);
         }
 
+        if (agg.getSubAggregations() != null && agg.getSubAggregations().isEmpty() == false) {
+            return reject("agg.nested", issues);
+        }
+
         // TODO: per-parameter checks per aggregation type. To be filled in as each
         // aggregation translator (avg/sum/min/max/value_count/stats/extended_stats/terms/...)
         // is reviewed for the exact params it consumes vs silently ignores. Same pattern as
         // the query-side switch above — mirror the translator's rejects here to route to
         // codec early instead of failing at conversion time.
 
-        return visitPipelineAggregations(agg.getPipelineAggregations(), issues)
-            && visitAggregations(agg.getSubAggregations(), issues);
+        return visitPipelineAggregations(agg.getPipelineAggregations(), issues);
     }
 
     private static boolean reject(String reason, List<String> issues) {

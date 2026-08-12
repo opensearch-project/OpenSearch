@@ -30,29 +30,44 @@ public class TermsQueryTranslator implements QueryTranslator {
     }
 
     @Override
-    public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
-
+    public ValidationResult validate(QueryBuilder query) {
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
 
         if (termsQuery.termsLookup() != null) {
-            throw new ConversionException("Terms query does not support terms lookup");
+            return ValidationResult.rejected("terms.terms_lookup", "Terms query does not support terms lookup");
         }
         if (termsQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("Terms query does not support non-default boost");
+            return ValidationResult.rejected("terms.boost", "Terms query does not support non-default boost");
         }
         if (termsQuery.queryName() != null) {
-            throw new ConversionException("Terms query does not support _name");
+            return ValidationResult.rejected("terms.name", "Terms query does not support _name");
         }
         if (termsQuery.valueType() != TermsQueryBuilder.ValueType.DEFAULT) {
-            throw new ConversionException("Terms query does not support non-default value_type");
+            return ValidationResult.rejected(
+                "terms.value_type:" + termsQuery.valueType(),
+                "Terms query does not support non-default value_type"
+            );
+        }
+
+        List<?> values = termsQuery.values();
+        if (values == null || values.isEmpty()) {
+            return ValidationResult.rejected("terms.no_values", "Terms query must have values");
+        }
+
+        return ValidationResult.accepted();
+    }
+
+    @Override
+    public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
+
+        TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
+        ValidationResult validationResult = validate(termsQuery);
+        if (!validationResult.isAccepted()) {
+            throw new ConversionException(validationResult.message());
         }
 
         String fieldName = termsQuery.fieldName();
         List<?> values = termsQuery.values();
-
-        if (values == null || values.isEmpty()) {
-            throw new ConversionException("Terms query must have values");
-        }
 
         RelDataTypeField field = ctx.getRowType().getField(fieldName, false, false);
         if (field == null) {

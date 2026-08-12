@@ -8,7 +8,6 @@
 
 package org.opensearch.dsl.action;
 
-import org.mockito.ArgumentCaptor;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.BulkRequest;
@@ -34,6 +33,8 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.util.List;
 import java.util.Set;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -52,9 +53,7 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
     private final DslCalciteGrammar grammar = mock(DslCalciteGrammar.class);
 
     private SearchActionFilter buildFilter(boolean calciteEnabled) {
-        Settings settings = Settings.builder()
-            .put(DslQueryExecutorSettings.CALCITE_ENABLED.getKey(), calciteEnabled)
-            .build();
+        Settings settings = Settings.builder().put(DslQueryExecutorSettings.CALCITE_ENABLED.getKey(), calciteEnabled).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(DslQueryExecutorSettings.CALCITE_ENABLED));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);

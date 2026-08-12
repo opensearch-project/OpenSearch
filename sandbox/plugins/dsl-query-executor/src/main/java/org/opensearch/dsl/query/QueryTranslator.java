@@ -23,6 +23,19 @@ public interface QueryTranslator {
     Class<? extends QueryBuilder> getQueryType();
 
     /**
+     * Validates the query builder's request shape before routing/conversion.
+     *
+     * <p>Schema-dependent checks should remain in {@link #convert(QueryBuilder, ConversionContext)},
+     * since the routing layer does not have schema context.
+     *
+     * @param query the query builder to validate
+     * @return the validation result
+     */
+    default ValidationResult validate(QueryBuilder query) {
+        return ValidationResult.accepted();
+    }
+
+    /**
      * Converts the query to a Calcite RexNode filter expression.
      *
      * @param query the query builder to convert

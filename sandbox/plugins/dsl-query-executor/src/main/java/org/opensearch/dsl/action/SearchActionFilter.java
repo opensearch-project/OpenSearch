@@ -104,7 +104,7 @@ public class SearchActionFilter implements ActionFilter {
         RouteDecision decision = grammar.validate(searchRequest.source());
 
         if (!decision.supported()) {
-            logger.debug("Grammar rejected _search, falling back to codec: {}", decision.unsupportedFeatures());
+            logger.debug("Grammar rejected _search, falling back to codec: {}", decision.rejectionReasons());
             chain.proceed(task, action, request, listener);
             return;
         }

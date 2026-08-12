@@ -51,6 +51,22 @@ public class ExistsQueryTranslatorTests extends OpenSearchTestCase {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.existsQuery("name").boost(2.0f), ctx));
     }
 
+    public void testValidateRejectsBoost() {
+        ValidationResult result = translator.validate(QueryBuilders.existsQuery("name").boost(2.0f));
+
+        assertFalse(result.isAccepted());
+        assertEquals("exists.boost", result.reasonCode());
+        assertEquals("boost is unsupported for Exists query type", result.message());
+    }
+
+    public void testValidateAcceptsSupportedExistsQuery() {
+        ValidationResult result = translator.validate(QueryBuilders.existsQuery("name"));
+
+        assertTrue(result.isAccepted());
+        assertNull(result.reasonCode());
+        assertNull(result.message());
+    }
+
     public void testReportsCorrectQueryType() {
         assertEquals(ExistsQueryBuilder.class, translator.getQueryType());
     }
