@@ -14,6 +14,8 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -238,5 +240,97 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals(meta, translator.toBucketAggregation(aggWithMeta, List.of()).getMetadata());
         // No meta on the request → none in the response
         assertNull(translator.toBucketAggregation(brandAgg, List.of()).getMetadata());
+
+        // Typed key paths echo meta too
+        TermsAggregationBuilder numWithMeta = new TermsAggregationBuilder("by_price").field("price");
+        numWithMeta.setMetadata(meta);
+        List<BucketEntry> numeric = List.of(new BucketEntry(List.of(1L), 1, InternalAggregations.EMPTY));
+        assertEquals(meta, translator.toBucketAggregation(numWithMeta, numeric).getMetadata());
+    }
+
+    public void testIntegralKeysProduceLongTermsWithNumericKeys() {
+        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(42L), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(7), 2, InternalAggregations.EMPTY)
+        );
+
+        InternalAggregation agg = translator.toBucketAggregation(priceAgg, entries);
+
+        assertTrue(agg instanceof LongTerms);
+        LongTerms terms = (LongTerms) agg;
+        assertEquals(42L, terms.getBuckets().get(0).getKey());
+        assertEquals("42", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(7L, terms.getBuckets().get(1).getKey());
+    }
+
+    public void testFloatingKeysProduceDoubleTerms() {
+        TermsAggregationBuilder ratingAgg = new TermsAggregationBuilder("by_rating").field("rating");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(1.5), 3, InternalAggregations.EMPTY));
+
+        InternalAggregation agg = translator.toBucketAggregation(ratingAgg, entries);
+
+        assertTrue(agg instanceof DoubleTerms);
+        assertEquals(1.5, ((DoubleTerms) agg).getBuckets().get(0).getKey());
+    }
+
+    public void testBooleanKeysRenderLikeClassicBooleanTerms() {
+        TermsAggregationBuilder boolAgg = new TermsAggregationBuilder("by_flag").field("flag");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(true), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(false), 2, InternalAggregations.EMPTY)
+        );
+
+        LongTerms terms = (LongTerms) translator.toBucketAggregation(boolAgg, entries);
+
+        assertEquals(1L, terms.getBuckets().get(0).getKey());
+        assertEquals("true", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals(0L, terms.getBuckets().get(1).getKey());
+        assertEquals("false", terms.getBuckets().get(1).getKeyAsString());
+    }
+
+    public void testBinaryKeysDecodeToIpAddressStrings() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(new byte[] { 10, 0, 0, 1 }), 3, InternalAggregations.EMPTY),
+            new BucketEntry(
+                List.of(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 10, 0, 0, 2 }),
+                2,
+                InternalAggregations.EMPTY
+            )
+        );
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+
+        assertEquals("10.0.0.1", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals("10.0.0.2", terms.getBuckets().get(1).getKeyAsString());
+    }
+
+    public void testUndecodableBinaryKeyFallsBackToBase64() {
+        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(new byte[] { 1, 2, 3 }), 1, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+
+        assertEquals("AQID", terms.getBuckets().get(0).getKeyAsString());
+    }
+
+    /** Order, size truncation, and sum_other_doc_count apply to typed key paths too. */
+    public void testNumericKeysRespectOrderSizeAndOtherDocCount() {
+        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price").size(2);
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of(100L), 1, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(200L), 5, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(300L), 2, InternalAggregations.EMPTY),
+            new BucketEntry(List.of(400L), 3, InternalAggregations.EMPTY)
+        );
+
+        LongTerms terms = (LongTerms) translator.toBucketAggregation(priceAgg, entries);
+
+        // Default order: count desc; size=2 keeps 200(5) and 400(3); 300(2)+100(1) become "other"
+        assertEquals(2, terms.getBuckets().size());
+        assertEquals(200L, terms.getBuckets().get(0).getKey());
+        assertEquals(400L, terms.getBuckets().get(1).getKey());
+        assertEquals(3L, terms.getSumOfOtherDocCounts());
     }
 }
