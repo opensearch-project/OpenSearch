@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
@@ -169,7 +170,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -220,7 +222,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
         final ClusterState simulatedState,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
-        final AliasValidator aliasValidator
+        final AliasValidator aliasValidator,
+        final boolean clusterPluggableDataFormatEnabled
     ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
@@ -230,13 +233,19 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
         );
 
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
-        Settings dummySettings = Settings.builder()
+        Settings.Builder dummySettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        // When a pluggable data format is the cluster-wide default, simulate the mapping as a
+        // pluggable index would see it — unless the template opts out explicitly — so the preview
+        // matches what real index creation would do (rejecting a field that sets index:true).
+        if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(settings) == false) {
+            dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+        }
+        Settings dummySettings = dummySettingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)

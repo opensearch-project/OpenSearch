@@ -187,7 +187,8 @@ public class TransportSimulateTemplateAction extends TransportClusterManagerNode
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
         );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }
