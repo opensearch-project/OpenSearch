@@ -28,6 +28,7 @@
  * under the License.
  */
 
+import org.gradle.api.plugins.BasePluginExtension
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
 
@@ -372,7 +373,13 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.base.archivesName
+          // `upstreamProject.base` is a bare property on another project, which falls back to an
+          // implicit lookup in its parent -- deprecated in Gradle 9.6 and an error in Gradle 10. Read
+          // the extension directly instead, and force the upstream project to be evaluated first the
+          // same way the shadowed branch above does: without that its base extension does not exist
+          // yet and the old code silently used the parent's archivesName.
+          project.evaluationDependsOn(upstreamProject.path)
+          String externalLinkName = upstreamProject.extensions.getByType(BasePluginExtension).archivesName.get()
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           String projectRelativePath = project.relativePath(upstreamProject.buildDir)
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
@@ -464,11 +471,13 @@ gradle.projectsEvaluated {
   }
 
   dependencies {
+    // project(it.path), not the Project object: passing a Project as a dependency notation is
+    // deprecated and fails in Gradle 10.
     subprojects.findAll { it.pluginManager.hasPlugin('java') }.forEach {
-      testReportAggregation it
+      testReportAggregation project(it.path)
     }
     subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
-      jacocoAggregation it
+      jacocoAggregation project(it.path)
     }
   }
 }
