@@ -55,7 +55,7 @@ fn test_concurrent_writer_creation() {
             let file_path = temp_dir_path.join(format!("concurrent_{}.parquet", i));
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -67,7 +67,7 @@ fn test_concurrent_writer_creation() {
             .is_ok()
             {
                 success_count.fetch_add(1, Ordering::SeqCst);
-                let _ = NativeParquetWriter::finalize_writer(filename);
+                let _ = test_finalize_writer(filename);
             }
             cleanup_ffi_schema(schema_ptr);
         });
@@ -91,7 +91,9 @@ fn test_concurrent_close_operations_same_file() {
         let filename = filename.clone();
         let success_count = Arc::clone(&success_count);
         let handle = thread::spawn(move || {
-            if NativeParquetWriter::finalize_writer(filename).is_ok() {
+            // Exactly one thread wins the handle (the test map's remove is atomic) and performs the
+            // real finalize (Ok(Some)); the others observe a null handle and no-op (Ok(None)).
+            if matches!(test_finalize_writer(filename), Ok(Some(_))) {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }
         });
@@ -117,7 +119,7 @@ fn test_concurrent_writes_same_file() {
         let success_count = Arc::clone(&success_count);
         let handle = thread::spawn(move || {
             let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-            if NativeParquetWriter::write_data(filename, array_ptr, data_schema_ptr).is_ok() {
+            if test_write_data(filename, array_ptr, data_schema_ptr).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }
             cleanup_ffi_data(array_ptr, data_schema_ptr);
@@ -157,9 +159,7 @@ fn test_concurrent_writes_different_files() {
         let handle = thread::spawn(move || {
             for _ in 0..2 {
                 let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-                if NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr)
-                    .is_ok()
-                {
+                if test_write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                 }
                 cleanup_ffi_data(array_ptr, data_schema_ptr);
@@ -192,7 +192,7 @@ fn test_concurrent_complete_writer_lifecycle() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -205,14 +205,11 @@ fn test_concurrent_complete_writer_lifecycle() {
             {
                 let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
                 let write_ok =
-                    NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr)
-                        .is_ok();
+                    test_write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok();
                 cleanup_ffi_data(array_ptr, data_schema_ptr);
 
                 if write_ok {
-                    if let Ok(Some(metadata)) =
-                        NativeParquetWriter::finalize_writer(filename.clone())
-                    {
+                    if let Ok(Some(metadata)) = test_finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3 && file_path.exists() {
                             success_count.fetch_add(1, Ordering::SeqCst);
                         }
@@ -237,7 +234,7 @@ fn test_ipc_staging_sorted_writer_integration() {
     let (_temp_dir, filename) = get_temp_file_path("ipc_integ_sorted.parquet");
     let (_schema, schema_ptr) = create_test_ffi_schema();
 
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.clone(),
         "test-index".to_string(),
         schema_ptr,
@@ -252,11 +249,11 @@ fn test_ipc_staging_sorted_writer_integration() {
     for batch_ids in [vec![50, 30, 10], vec![40, 20, 60]] {
         let names: Vec<Option<&str>> = batch_ids.iter().map(|_| Some("x")).collect();
         let (ap, sp) = create_test_ffi_data_with_ids(batch_ids, names).unwrap();
-        NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+        test_write_data(filename.clone(), ap, sp).unwrap();
         cleanup_ffi_data(ap, sp);
     }
 
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = test_finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.metadata.file_metadata().num_rows(), 6);
@@ -285,7 +282,7 @@ fn test_ipc_staging_concurrent_sorted_lifecycle() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -301,13 +298,11 @@ fn test_ipc_staging_concurrent_sorted_lifecycle() {
                     vec![Some("C"), Some("A"), Some("B")],
                 )
                 .unwrap();
-                let write_ok = NativeParquetWriter::write_data(filename.clone(), ap, sp).is_ok();
+                let write_ok = test_write_data(filename.clone(), ap, sp).is_ok();
                 cleanup_ffi_data(ap, sp);
 
                 if write_ok {
-                    if let Ok(Some(metadata)) =
-                        NativeParquetWriter::finalize_writer(filename.clone())
-                    {
+                    if let Ok(Some(metadata)) = test_finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3 && file_path.exists() {
                             let ids = read_parquet_file_sorted_ids(&filename);
                             if ids == vec![10, 20, 30] {
@@ -353,7 +348,7 @@ fn test_ipc_and_parquet_mixed_concurrent_lifecycle() {
             let reverse = if use_sort { vec![false] } else { vec![] };
             let nulls = if use_sort { vec![false] } else { vec![] };
 
-            if NativeParquetWriter::create_writer(
+            if test_create_writer(
                 filename.clone(),
                 "test-index".to_string(),
                 schema_ptr,
@@ -369,13 +364,11 @@ fn test_ipc_and_parquet_mixed_concurrent_lifecycle() {
                     vec![Some("C"), Some("A"), Some("B")],
                 )
                 .unwrap();
-                let write_ok = NativeParquetWriter::write_data(filename.clone(), ap, sp).is_ok();
+                let write_ok = test_write_data(filename.clone(), ap, sp).is_ok();
                 cleanup_ffi_data(ap, sp);
 
                 if write_ok {
-                    if let Ok(Some(metadata)) =
-                        NativeParquetWriter::finalize_writer(filename.clone())
-                    {
+                    if let Ok(Some(metadata)) = test_finalize_writer(filename.clone()) {
                         if metadata.metadata.file_metadata().num_rows() == 3 && file_path.exists() {
                             let ids = read_parquet_file_sorted_ids(&filename);
                             let expected = if use_sort {
@@ -414,7 +407,6 @@ use std::fs::File;
 fn read_column_compression(path: &str, col_name: &str) -> Compression {
     let reader = SerializedFileReader::new(File::open(path).unwrap()).unwrap();
     let meta = reader.metadata();
-    let schema = meta.file_metadata().schema_descr();
     let rg = meta.row_group(0);
     for i in 0..rg.num_columns() {
         let col = rg.column(i);
@@ -462,9 +454,9 @@ fn test_index_level_field_compression_applied() {
     let (_tmp, path) = get_temp_file_path("idx_field_comp.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     assert!(matches!(
@@ -492,9 +484,9 @@ fn test_cluster_level_type_compression_fallback() {
     let (_tmp, path) = get_temp_file_path("cluster_type_comp.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     // "id" is Int32 → should get SNAPPY from cluster type config
@@ -532,9 +524,9 @@ fn test_index_level_overrides_cluster_level_compression() {
     let (_tmp, path) = get_temp_file_path("idx_overrides_cluster_comp.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     // Index says UNCOMPRESSED for "id", cluster says SNAPPY for int32 — index wins
@@ -563,9 +555,9 @@ fn test_cluster_level_type_encoding_fallback() {
     let (_tmp, path) = get_temp_file_path("cluster_type_enc.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     // "id" is Int32 → should get DELTA_BINARY_PACKED from cluster type config
@@ -605,9 +597,9 @@ fn test_index_level_overrides_cluster_level_encoding() {
     let (_tmp, path) = get_temp_file_path("idx_overrides_cluster_enc.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     // Index says PLAIN for "id", cluster says DELTA_BINARY_PACKED for int32 — index wins
@@ -649,9 +641,9 @@ fn test_mixed_index_and_cluster_level_configs() {
     let (_tmp, path) = get_temp_file_path("mixed_idx_cluster.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success_for_index(&path, index);
     let (ap, sp) = create_test_ffi_data().unwrap();
-    NativeParquetWriter::write_data(path.clone(), ap, sp).unwrap();
+    test_write_data(path.clone(), ap, sp).unwrap();
     cleanup_ffi_data(ap, sp);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     assert!(matches!(
@@ -671,7 +663,7 @@ fn create_writer_and_assert_success_for_index(
     index: &str,
 ) -> (std::sync::Arc<arrow::datatypes::Schema>, i64) {
     let (schema, schema_ptr) = create_test_ffi_schema();
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.to_string(),
         index.to_string(),
         schema_ptr,
@@ -698,7 +690,7 @@ fn create_three_col_writer(
     ]));
     let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
     let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
-    NativeParquetWriter::create_writer(
+    test_create_writer(
         filename.to_string(),
         index.to_string(),
         schema_ptr,
@@ -737,7 +729,7 @@ fn write_three_col_data(filename: &str) {
     let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
     let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
     let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
-    NativeParquetWriter::write_data(filename.to_string(), array_ptr, schema_ptr).unwrap();
+    test_write_data(filename.to_string(), array_ptr, schema_ptr).unwrap();
     unsafe {
         let _ = Box::from_raw(array_ptr as *mut FFI_ArrowArray);
         let _ = Box::from_raw(schema_ptr as *mut FFI_ArrowSchema);
@@ -776,7 +768,7 @@ fn test_three_tier_compression_fallback() {
     let (_tmp, path) = get_temp_file_path("three_tier_comp.parquet");
     let (_schema, schema_ptr) = create_three_col_writer(&path, index);
     write_three_col_data(&path);
-    NativeParquetWriter::finalize_writer(path.clone()).unwrap();
+    test_finalize_writer(path.clone()).unwrap();
     cleanup_ffi_schema(schema_ptr);
 
     // index level wins for "id"

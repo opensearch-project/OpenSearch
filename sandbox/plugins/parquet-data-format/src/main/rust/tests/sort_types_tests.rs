@@ -128,15 +128,13 @@ fn test_merge_sort_by_int64() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int64Type>(&output, "val");
@@ -182,15 +180,13 @@ fn test_merge_sort_by_int64_with_nulls() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int64Type>(&output, "val");
@@ -233,15 +229,13 @@ fn test_merge_sort_by_int32() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int32Type>(&output, "val");
@@ -289,15 +283,13 @@ fn test_merge_sort_by_float64() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Float64Type>(&output, "val");
@@ -353,15 +345,13 @@ fn test_merge_sort_by_float64_with_nulls() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[true],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[true],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Float64Type>(&output, "val");
@@ -411,15 +401,13 @@ fn test_merge_sort_by_float32() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Float32Type>(&output, "val");
@@ -471,15 +459,13 @@ fn test_merge_sort_by_float32_with_nulls() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Float32Type>(&output, "val");
@@ -525,15 +511,13 @@ fn test_merge_sort_by_string() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_string_col(&output, "val");
@@ -588,15 +572,13 @@ fn test_merge_sort_by_string_with_nulls() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[true],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[true],
+    0, None)
     .unwrap();
 
     let vals = read_string_col(&output, "val");
@@ -655,15 +637,13 @@ fn test_merge_sort_descending() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[true],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[true],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int64Type>(&output, "val");
@@ -719,15 +699,13 @@ fn test_merge_sort_multi_column_string_and_int() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["category".into(), "priority".into()],
-        &[false, false],
-        &[false, false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["category".into(), "priority".into()],
+    &[false, false],
+    &[false, false],
+    0, None)
     .unwrap();
 
     let cats = read_string_col(&output, "category");
@@ -780,15 +758,13 @@ fn test_merge_sort_with_nulls_first() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[true],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[true],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int64Type>(&output, "val");
@@ -830,15 +806,13 @@ fn test_merge_sort_with_nulls_last() {
         .join("merged.parquet")
         .to_string_lossy()
         .to_string();
-    merge_sorted(
-        &files,
-        &output,
-        "test",
-        &["val".into()],
-        &[false],
-        &[false],
-        0,
-    )
+    merge_sorted(&files,
+    &output,
+    "test",
+    &["val".into()],
+    &[false],
+    &[false],
+    0, None)
     .unwrap();
 
     let vals = read_primitive_col::<arrow::datatypes::Int64Type>(&output, "val");

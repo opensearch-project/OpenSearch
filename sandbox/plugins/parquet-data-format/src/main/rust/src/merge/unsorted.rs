@@ -6,17 +6,18 @@
  * compatible open source license.
  */
 
-use std::fs::File;
+use std::sync::Arc;
 
-use arrow::array::RecordBatchReader;
 use arrow::datatypes::Schema as ArrowSchema;
-use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use object_store::ObjectStore;
+use parquet::arrow::ProjectionMask;
 use parquet::schema::types::SchemaDescriptor;
 
 use crate::log_debug;
 
 use super::context::MergeContext;
 use super::error::MergeResult;
+use super::reader::{build_source, read_source_meta, BatchSource};
 use super::schema::{projection_indices_excluding_row_id, ColumnMapping};
 
 use crate::memory::merge_pool;
@@ -29,6 +30,7 @@ pub fn merge_unsorted(
     output_path: &str,
     index_name: &str,
     output_writer_generation: i64,
+    store: Option<Arc<dyn ObjectStore>>,
 ) -> MergeResult<super::MergeOutput> {
     let mut reservation =
         MemoryReservation::new(merge_pool(), "merge_unsorted", PoolBehavior::Reject);
@@ -38,6 +40,7 @@ pub fn merge_unsorted(
         index_name,
         output_writer_generation,
         &mut reservation,
+        store,
     )
 }
 
@@ -48,6 +51,7 @@ pub fn merge_unsorted_with_pool(
     index_name: &str,
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
+    store: Option<Arc<dyn ObjectStore>>,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -63,33 +67,29 @@ pub fn merge_unsorted_with_pool(
         output_path
     );
 
-    // Single pass: collect schemas and build readers.
+    // Single pass: collect schemas and build readers (local files or store objects).
     let mut arrow_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
     let mut parquet_descriptors: Vec<SchemaDescriptor> = Vec::with_capacity(input_files.len());
-    let mut readers: Vec<ParquetRecordBatchReader> = Vec::with_capacity(input_files.len());
+    let mut readers: Vec<BatchSource> = Vec::with_capacity(input_files.len());
     let mut file_row_counts: Vec<usize> = Vec::with_capacity(input_files.len());
     let mut file_generations: Vec<i64> = Vec::with_capacity(input_files.len());
 
     for (file_idx, path) in input_files.iter().enumerate() {
-        let file = File::open(path)?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-        let schema = builder.schema().clone();
-        let parquet_descr = builder.parquet_schema().clone();
-        let num_rows = builder.metadata().file_metadata().num_rows() as usize;
-        let generation = crate::writer_properties_builder::read_writer_generation(
-            builder.metadata().file_metadata(),
-            file_idx,
-        );
+        let (schema, parquet_descr, generation, num_rows) =
+            read_source_meta(&store, path, file_idx)?;
 
         let projection_indices = projection_indices_excluding_row_id(&schema);
-        let projection = parquet::arrow::ProjectionMask::roots(&parquet_descr, projection_indices);
-        let reader = builder
-            .with_batch_size(batch_size)
-            .with_projection(projection)
-            .build()?;
+        // Projected schema (__row_id__ excluded) — matches what the reader yields.
+        let projected_schema = ArrowSchema::new(
+            projection_indices
+                .iter()
+                .map(|&i| schema.field(i).clone())
+                .collect::<Vec<_>>(),
+        );
+        let projection = ProjectionMask::roots(&parquet_descr, projection_indices);
+        let reader = build_source(&store, path, batch_size, projection)?;
 
-        // The reader's schema is the projected schema (__row_id__ excluded).
-        arrow_schemas.push(reader.schema().as_ref().clone());
+        arrow_schemas.push(projected_schema);
         parquet_descriptors.push(parquet_descr);
         readers.push(reader);
         file_row_counts.push(num_rows);
@@ -107,6 +107,7 @@ pub fn merge_unsorted_with_pool(
         io_threads,
         output_writer_generation,
         ctx_reservation,
+        store.clone(),
     )?;
 
     // Precompute column mappings per reader
@@ -131,7 +132,7 @@ pub fn merge_unsorted_with_pool(
     let mut new_row_id: i64 = 0;
 
     // Iterate readers for data.
-    for (file_idx, reader) in readers.into_iter().enumerate() {
+    for (file_idx, mut reader) in readers.into_iter().enumerate() {
         log_debug!(
             "[RUST] Unsorted merge: processing file {} of {}",
             file_idx + 1,
@@ -144,7 +145,7 @@ pub fn merge_unsorted_with_pool(
 
         let col_mapping = &col_mappings[file_idx];
         let mut batch_tracked: usize = 0;
-        for batch_result in reader {
+        while let Some(batch_result) = reader.next_batch() {
             let batch = batch_result?;
             let num_rows = batch.num_rows();
             let batch_bytes = batch.get_array_memory_size();

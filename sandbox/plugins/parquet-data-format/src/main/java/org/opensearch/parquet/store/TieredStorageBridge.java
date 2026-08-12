@@ -36,6 +36,8 @@ public final class TieredStorageBridge {
     private static final MethodHandle REMOVE_FILE;
     private static final MethodHandle GET_OBJECT_STORE_BOX_PTR;
     private static final MethodHandle DESTROY_OBJECT_STORE_BOX_PTR;
+    private static final MethodHandle OS_CREATE_LOCAL_STORE;
+    private static final MethodHandle OS_DESTROY_STORE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -79,9 +81,53 @@ public final class TieredStorageBridge {
             .map(sym -> linker.downcallHandle(sym, FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)))
             .orElse(null);
 
+        // i64 os_create_local_store(*const u8 path, i64 path_len) -> Box<Arc<dyn ObjectStore>> ptr
+        OS_CREATE_LOCAL_STORE = linker.downcallHandle(
+            lib.find("os_create_local_store").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        // i64 os_destroy_store(i64 handle)
+        OS_DESTROY_STORE = linker.downcallHandle(
+            lib.find("os_destroy_store").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
     }
 
     private TieredStorageBridge() {}
+
+    /**
+     * Create a shard-scoped local filesystem ObjectStore rooted at {@code rootPath}, returned as a
+     * {@code Box<Arc<dyn ObjectStore>>} pointer. Object paths are then plain filenames relative to
+     * {@code rootPath}. The engine owns this handle and frees it with {@link #destroyStore(long)}.
+     *
+     * @param rootPath absolute directory the store is rooted at (must already exist)
+     * @return native ObjectStore handle ({@code > 0})
+     */
+    public static long createLocalStore(String rootPath) {
+        byte[] pathBytes = rootPath.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment seg = arena.allocateFrom(ValueLayout.JAVA_BYTE, pathBytes);
+            return NativeLibraryLoader.checkResult(
+                (long) OS_CREATE_LOCAL_STORE.invokeExact(seg, (long) pathBytes.length)
+            );
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to create local ObjectStore at: " + rootPath, t);
+        }
+    }
+
+    /**
+     * Destroy an ObjectStore handle created by {@link #createLocalStore(String)}, decrementing the
+     * Arc strong count. No-op for a non-positive handle.
+     */
+    public static void destroyStore(long handle) {
+        if (handle <= 0) return;
+        try {
+            NativeLibraryLoader.checkResult((long) OS_DESTROY_STORE.invokeExact(handle));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to destroy ObjectStore (ptr=" + handle + ")", t);
+        }
+    }
 
     /**
      * Create a TieredObjectStore with optional local store, remote store, and block cache.

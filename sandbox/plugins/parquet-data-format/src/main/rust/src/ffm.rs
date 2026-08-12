@@ -14,7 +14,7 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::{ffm_safe, log_debug};
+use native_bridge_common::ffm_safe;
 
 use crate::field_config::FieldConfig;
 use crate::merge;
@@ -83,6 +83,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
     writer_generation: i64,
+    store_handle: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_create_writer file: {}", e))?
@@ -103,23 +104,20 @@ pub unsafe extern "C" fn parquet_create_writer(
         reverse_sorts,
         nulls_first,
         writer_generation,
+        store_handle,
     )
-    .map(|_| 0)
+    .map(|ptr| ptr as i64)
     .map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_write(
-    file_ptr: *const u8,
-    file_len: i64,
+    handle: i64,
     array_address: i64,
     schema_address: i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len)
-        .map_err(|e| format!("parquet_write: {}", e))?
-        .to_string();
-    NativeParquetWriter::write_data(filename, array_address, schema_address)
+    NativeParquetWriter::write_data(handle as *mut _, array_address, schema_address)
         .map(|_| 0)
         .map_err(|e| e.to_string())
 }
@@ -128,8 +126,7 @@ pub unsafe extern "C" fn parquet_write(
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_finalize_writer(
-    file_ptr: *const u8,
-    file_len: i64,
+    handle: i64,
     version_out: *mut i32,
     num_rows_out: *mut i64,
     created_by_buf: *mut u8,
@@ -140,10 +137,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     sort_perm_ptr_out: *mut i64,
     sort_perm_len_out: *mut i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len)
-        .map_err(|e| format!("parquet_finalize_writer: {}", e))?
-        .to_string();
-    match NativeParquetWriter::finalize_writer(filename) {
+    match NativeParquetWriter::finalize_writer(handle as *mut _) {
         Ok(Some(result)) => {
             let fm = result.metadata.file_metadata();
             if !version_out.is_null() {
@@ -303,14 +297,15 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
-    prefix_ptr: *const u8,
-    prefix_len: i64,
-) -> i64 {
-    let prefix = str_from_raw(prefix_ptr, prefix_len)
-        .unwrap_or("")
-        .to_string();
-    NativeParquetWriter::get_filtered_writer_memory_usage(prefix).unwrap_or(0) as i64
+pub unsafe extern "C" fn parquet_get_writer_memory_usage(handle: i64) -> i64 {
+    NativeParquetWriter::get_writer_memory_usage(handle as *const _) as i64
+}
+
+/// Best-effort teardown of an un-finalized writer. Idempotency is enforced Java-side (the writer's
+/// released-flag CAS + Cleaner), so this is only ever called once per live handle. Never fails.
+#[no_mangle]
+pub unsafe extern "C" fn parquet_free_writer(handle: i64) {
+    NativeParquetWriter::free_writer(handle as *mut _);
 }
 
 // ---------------------------------------------------------------------------
@@ -663,6 +658,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_flush_and_sort_chunk_count: *mut i64,
     out_flush_and_sort_chunk_time_millis: *mut i64,
     out_row_id_mapping_max: *mut i64,
+    store_handle: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -690,12 +686,21 @@ pub unsafe extern "C" fn parquet_merge_files(
         }
     };
 
+    // Clone the engine-owned store Arc (never consume the box), or None for local segment merges
+    // and native unit tests. When set, `input_files`/`output_path` are object paths (basenames).
+    let store: Option<std::sync::Arc<dyn object_store::ObjectStore>> = if store_handle > 0 {
+        Some((*(store_handle as *const std::sync::Arc<dyn object_store::ObjectStore>)).clone())
+    } else {
+        None
+    };
+
     let result = if sort_cols.is_empty() {
         merge::merge_unsorted(
             &input_files,
             output_path,
             index_name,
             output_writer_generation,
+            store,
         )
     } else {
         merge::merge_sorted(
@@ -706,6 +711,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &reverse_flags,
             &nulls_first_flags,
             output_writer_generation,
+            store,
         )
     }
     .map_err(|e| format!("{}", e))?;

@@ -185,25 +185,26 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         expectThrows(IOException.class, writer::flush);
     }
 
-    public void testCreateDuplicateWriterForSameFile() throws Exception {
+    public void testRecreateWriterForSameFileAfterAbandonedWriter() throws Exception {
         String filePath = createTempDir().resolve("duplicate.parquet").toString();
+
+        // writer1 is initialized then abandoned WITHOUT flush/close — a dangling native writer,
+        // exactly what a Rust-side failure leaves behind.
         NativeParquetWriter writer1 = createWriter(filePath);
 
-        // Initialize writer1 by writing data
+        // With Java-owned handles there is no filename-keyed native registry, so a second writer
+        // for the same file can be created (this is what lets a shard recover) and can complete.
+        NativeParquetWriter writer2 = createWriter(filePath);
         try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
-            writer1.write(export.getArrayAddress(), export.getSchemaAddress());
+            writer2.write(export.getArrayAddress(), export.getSchemaAddress());
         }
+        writer2.flush();
+        assertNotNull(writer2.getMetadata());
+        assertEquals(1, writer2.getMetadata().numRows());
+        assertTrue("Parquet file should exist after writer2 flush", Files.exists(Path.of(filePath)));
 
-        // Native side rejects creating a second writer for the same file
-        NativeParquetWriter writer2 = new NativeParquetWriter(filePath);
-        try (ArrowExport export = exportSchema()) {
-            expectThrows(
-                IOException.class,
-                () -> writer2.initialize("test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L)
-            );
-        }
-
-        writer1.flush();
+        // Release the abandoned writer's native handle (best-effort cleanup).
+        writer1.close();
     }
 
     public void testWriteEmptyBatch() throws Exception {

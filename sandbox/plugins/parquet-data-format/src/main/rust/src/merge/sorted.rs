@@ -23,8 +23,12 @@ use super::schema::ColumnMapping;
 
 use crate::memory::merge_pool;
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
+use object_store::ObjectStore;
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
+///
+/// `store` selects the I/O backend: `Some` reads inputs from / writes output to the object store
+/// (the sorted-refresh write path); `None` uses the local filesystem (segment merges, unit tests).
 pub fn merge_sorted(
     input_files: &[String],
     output_path: &str,
@@ -33,6 +37,7 @@ pub fn merge_sorted(
     reverse_sorts: &[bool],
     nulls_first: &[bool],
     output_writer_generation: i64,
+    store: Option<Arc<dyn ObjectStore>>,
 ) -> super::MergeResult<super::MergeOutput> {
     let mut reservation =
         MemoryReservation::new(merge_pool(), "merge_sorted", PoolBehavior::Reject);
@@ -45,6 +50,7 @@ pub fn merge_sorted(
         nulls_first,
         output_writer_generation,
         &mut reservation,
+        store,
     )
 }
 
@@ -58,6 +64,7 @@ pub fn merge_sorted_with_pool(
     nulls_first: &[bool],
     output_writer_generation: i64,
     reservation: &mut MemoryReservation,
+    store: Option<Arc<dyn ObjectStore>>,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -118,6 +125,7 @@ pub fn merge_sorted_with_pool(
             batch_size,
             deferred_threshold,
             reservation,
+            &store,
         )?;
         cursors.push(cursor);
         arrow_schemas.push(projected_schema.as_ref().clone());
@@ -140,6 +148,7 @@ pub fn merge_sorted_with_pool(
         io_threads,
         output_writer_generation,
         ctx_reservation,
+        store.clone(),
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)

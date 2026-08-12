@@ -19,6 +19,7 @@ pub mod memory;
 pub mod merge;
 pub mod native_settings;
 pub mod rate_limited_writer;
+pub mod store_io;
 pub mod writer;
 pub mod writer_properties_builder;
 

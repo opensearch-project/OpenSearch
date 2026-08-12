@@ -190,6 +190,73 @@ public class CompositeRefreshSortedIT extends AbstractSortedRefreshIT {
     }
 
     /**
+     * Forces many small sorted chunks via a tiny {@code index.parquet.sort_in_memory_threshold},
+     * so that finalize runs the store-backed k-way merge over N&gt;1 chunks. This is the only test
+     * that exercises the multi-chunk merge path: sorted chunks written to / read from / deleted in
+     * the ObjectStore plus the merge output streamed back through the store. (With a 16kb threshold
+     * and 10k docs this flushes dozens of chunks — see the "merging N pre-sorted chunks" native
+     * log.) Correctness of the merged output is asserted via full row count and global sort order.
+     */
+    public void testSortedRefreshMultiChunkThroughStore() throws Exception {
+        int numFields = 5;
+        String[] fieldNames = new String[numFields];
+        String[] sortFields = new String[numFields];
+        String[] sortOrders = new String[numFields];
+        String[] sortMissing = new String[numFields];
+        for (int f = 0; f < numFields; f++) {
+            fieldNames[f] = "field_" + f;
+            sortFields[f] = fieldNames[f];
+            sortOrders[f] = (f % 2 == 0) ? "asc" : "desc";
+            sortMissing[f] = sortOrders[f].equals("asc") ? "_last" : "_first";
+        }
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            // Tiny threshold -> many sorted chunks -> multi-chunk k-way merge through the store.
+            .put("index.parquet.sort_in_memory_threshold", "16kb")
+            .putList("index.sort.field", sortFields)
+            .putList("index.sort.order", sortOrders)
+            .putList("index.sort.missing", sortMissing)
+            .build();
+
+        String[] mappingArgs = new String[numFields * 2];
+        for (int f = 0; f < numFields; f++) {
+            mappingArgs[f * 2] = fieldNames[f];
+            mappingArgs[f * 2 + 1] = "type=integer";
+        }
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).setMapping(mappingArgs).get();
+        ensureGreen(INDEX_NAME);
+
+        int totalDocs = 10000;
+        for (int i = 0; i < totalDocs; i++) {
+            Map<String, Object> source = new HashMap<>();
+            for (int f = 0; f < numFields; f++) {
+                // Occasionally emit null values to exercise null handling across chunk boundaries
+                if (randomIntBetween(0, 9) == 0) {
+                    continue; // skip field → null
+                }
+                source.put(fieldNames[f], randomIntBetween(0, 1000));
+            }
+            IndexResponse response = client().prepareIndex().setIndex(INDEX_NAME).setSource(source).get();
+            assertEquals(RestStatus.CREATED, response.status());
+        }
+
+        flushAndRefresh();
+
+        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
+        verifyParquetRowCount(snapshot, totalDocs);
+        verifyParquetSortOrderMultiField(snapshot, fieldNames, sortOrders, sortMissing);
+        verifyLuceneDocCount(totalDocs);
+        verifyLuceneRowIdSequential();
+    }
+
+    /**
      * Parquet primary + Lucene secondary without sort. Without a sort
      * permutation, Parquet does not produce a {@code RowIdMapping} and the
      * Lucene secondary writer takes the unsorted path. Both formats should:
