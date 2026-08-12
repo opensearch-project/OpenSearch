@@ -11,6 +11,7 @@ package org.opensearch.analytics.resilience;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
@@ -36,14 +37,19 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Integration test verifying that multi-index queries (via alias) targeting more shards
- * than {@code analytics.query.max_shards_per_query} are rejected, while single-index
- * queries are not subject to the limit.
+ * The analytics path honours vanilla's {@code action.search.shard_count.limit} rather than a limit of
+ * its own, with vanilla's posture: unlimited unless an operator opts in. What bounds fan-out in normal
+ * operation is the can-match pre-filter phase plus the per-node dispatch throttle; this setting is the
+ * hard stop for operators who want one.
+ *
+ * <p>The limit counts shards, not indices — an oversharded single index costs the coordinator the same
+ * as an alias spanning the same shards, so both are subject to it.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
+public class ShardCountLimitIT extends OpenSearchIntegTestCase {
 
     private static final String ALIAS = "test_alias";
+    private static final String LIMIT_KEY = TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -74,100 +80,86 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         );
     }
 
+    /** No limit in node settings on purpose: the default is unlimited, and each test opts in transiently. */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
-            .put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), 2)
             .build();
     }
 
-    /**
-     * An alias spanning two indices (each with 2 shards = 4 total) must be rejected
-     * when the limit is 2.
-     */
+    /** An unconfigured cluster rejects nothing, however wide the fan-out. */
+    public void testUnlimitedByDefault() {
+        final String alias = "default_alias";
+        createIndexWithAlias("def_a", 2, alias);
+        createIndexWithAlias("def_b", 2, alias);
+
+        List<Object[]> rows = runner().executeSql("SELECT val FROM " + alias);
+        assertEquals("no limit configured, so all 4 shards run", 4, rows.size());
+    }
+
+    /** An alias spanning 4 shards is rejected once an operator sets the limit below it. */
     public void testAliasQueryRejectedWhenShardCountExceedsLimit() {
         createIndexWithAlias("idx_a", 2);
         createIndexWithAlias("idx_b", 2);
 
-        String node = internalCluster().getNodeNames()[0];
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-        DefaultPlanExecutor executor = internalCluster().getInstance(DefaultPlanExecutor.class, node);
-        SqlPlanRunner runner = new SqlPlanRunner(clusterService, executor);
-
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> runner.executeSql("SELECT val FROM " + ALIAS)
-        );
-        assertThat(ex.getMessage(), containsString("alias [" + ALIAS + "]"));
-        assertThat(ex.getMessage(), containsString("[4] shards"));
-        assertThat(ex.getMessage(), containsString("[2]"));
-        assertThat(ex.getMessage(), containsString("analytics.query.max_shards_per_query"));
+        withLimit(2, () -> {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> runner().executeSql("SELECT val FROM " + ALIAS));
+            assertThat(ex.getMessage(), containsString("alias [" + ALIAS + "]"));
+            assertThat(ex.getMessage(), containsString("[4] shards"));
+            assertThat(ex.getMessage(), containsString("[2]"));
+            assertThat(ex.getMessage(), containsString(LIMIT_KEY));
+        });
     }
 
     /**
-     * The limit is a dynamic cluster setting: an alias query rejected at the default low limit
-     * must succeed after {@code analytics.query.max_shards_per_query} is raised at runtime —
-     * with no node restart. Verifies the settings-update consumer in DefaultPlanExecutor threads
-     * the new value through QueryContext into ShardTargetResolver.
+     * A single index is subject to the same ceiling — it counts shards, not indices. This is the one
+     * behaviour that changed when the analytics-specific limit was replaced: the old setting exempted
+     * single-index queries so that its aggressive default did not break them, which the unlimited
+     * default makes unnecessary.
      */
-    public void testLimitUpdatesDynamically() {
-        // Distinct alias from ALIAS so this test is independent of sibling tests under SUITE scope.
-        final String dynAlias = "dynamic_alias";
-        createIndexWithAlias("dyn_a", 2, dynAlias);
-        createIndexWithAlias("dyn_b", 2, dynAlias); // 4 shards total under dynAlias, default limit is 2
+    public void testSingleIndexIsSubjectToTheLimitToo() {
+        createSingleIndex("single_idx", 3);
 
-        String node = internalCluster().getNodeNames()[0];
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-        DefaultPlanExecutor executor = internalCluster().getInstance(DefaultPlanExecutor.class, node);
-        SqlPlanRunner runner = new SqlPlanRunner(clusterService, executor);
-
-        try {
-            // At the default limit (2) the 4-shard alias is rejected.
+        withLimit(2, () -> {
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> runner.executeSql("SELECT val FROM " + dynAlias)
+                () -> runner().executeSql("SELECT val FROM single_idx")
+            );
+            assertThat(ex.getMessage(), containsString("[3] shards"));
+            assertThat(ex.getMessage(), containsString(LIMIT_KEY));
+        });
+    }
+
+    /** The limit is dynamic: raising it unblocks a query that was rejected a moment earlier. */
+    public void testLimitUpdatesDynamically() {
+        final String dynAlias = "dynamic_alias";
+        createIndexWithAlias("dyn_a", 2, dynAlias);
+        createIndexWithAlias("dyn_b", 2, dynAlias); // 4 shards total
+
+        try {
+            setLimit(2);
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> runner().executeSql("SELECT val FROM " + dynAlias)
             );
             assertThat(ex.getMessage(), containsString("[4] shards"));
-            assertThat(ex.getMessage(), containsString("[2]"));
 
-            // Raise the limit dynamically — no restart.
-            assertTrue(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), 10).build())
-                    .get()
-                    .isAcknowledged()
-            );
+            // Raise it — no restart.
+            setLimit(10);
+            assertEquals(4, runner().executeSql("SELECT val FROM " + dynAlias).size());
 
-            // The same alias query now succeeds (4 shards <= 10).
-            List<Object[]> rows = runner.executeSql("SELECT val FROM " + dynAlias);
-            assertEquals(4, rows.size());
-
-            // Lower it back below the shard count — rejection resumes, proving the consumer is live.
-            assertTrue(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), 2).build())
-                    .get()
-                    .isAcknowledged()
-            );
+            // Lower it back below the shard count — rejection resumes, proving the read is live.
+            setLimit(2);
             IllegalArgumentException ex2 = expectThrows(
                 IllegalArgumentException.class,
-                () -> runner.executeSql("SELECT val FROM " + dynAlias)
+                () -> runner().executeSql("SELECT val FROM " + dynAlias)
             );
             assertThat(ex2.getMessage(), containsString("[2]"));
         } finally {
-            // SUITE scope: clear the transient override so sibling tests see the node-settings default.
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey()).build())
-                .get();
+            clearLimit();
         }
     }
 
@@ -179,11 +171,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
     public void testMaxConcurrentShardRequestsPerNodeUpdatesDynamically() throws Exception {
         createSingleIndex("concurrency_idx", 3);
 
-        String node = internalCluster().getNodeNames()[0];
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-        DefaultPlanExecutor executor = internalCluster().getInstance(DefaultPlanExecutor.class, node);
-        SqlPlanRunner runner = new SqlPlanRunner(clusterService, executor);
-
+        DefaultPlanExecutor executor = executor();
         try {
             int updated = 3;
             assertTrue(
@@ -206,9 +194,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
                 )
             );
 
-            // A query still works under the changed limit.
-            List<Object[]> rows = runner.executeSql("SELECT val FROM concurrency_idx");
-            assertEquals(3, rows.size());
+            assertEquals(3, runner().executeSql("SELECT val FROM concurrency_idx").size());
         } finally {
             client().admin()
                 .cluster()
@@ -220,20 +206,47 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
         }
     }
 
-    /**
-     * A single index with 3 shards must NOT be rejected even though it exceeds the limit
-     * of 2 — the limit only applies to multi-index queries.
-     */
-    public void testSingleIndexQuerySucceedsEvenIfExceedingLimit() {
-        createSingleIndex("single_idx", 3);
+    // ── helpers ──────────────────────────────────────────────────────────
 
+    /** SUITE scope shares a cluster, so every limit override has to be undone. */
+    private void withLimit(int limit, Runnable body) {
+        try {
+            setLimit(limit);
+            body.run();
+        } finally {
+            clearLimit();
+        }
+    }
+
+    private void setLimit(int limit) {
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(LIMIT_KEY, limit).build())
+                .get()
+                .isAcknowledged()
+        );
+    }
+
+    private void clearLimit() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(LIMIT_KEY).build())
+            .get();
+    }
+
+    private DefaultPlanExecutor executor() {
+        return internalCluster().getInstance(DefaultPlanExecutor.class, internalCluster().getNodeNames()[0]);
+    }
+
+    private SqlPlanRunner runner() {
         String node = internalCluster().getNodeNames()[0];
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-        DefaultPlanExecutor executor = internalCluster().getInstance(DefaultPlanExecutor.class, node);
-        SqlPlanRunner runner = new SqlPlanRunner(clusterService, executor);
-
-        List<Object[]> rows = runner.executeSql("SELECT val FROM single_idx");
-        assertEquals(3, rows.size());
+        return new SqlPlanRunner(
+            internalCluster().getInstance(ClusterService.class, node),
+            internalCluster().getInstance(DefaultPlanExecutor.class, node)
+        );
     }
 
     private void createIndexWithAlias(String indexName, int shardCount) {
@@ -241,30 +254,7 @@ public class MaxShardsPerQueryIT extends OpenSearchIntegTestCase {
     }
 
     private void createIndexWithAlias(String indexName, int shardCount, String aliasName) {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.pluggable.dataformat.enabled", true)
-            .put("index.pluggable.dataformat", "composite")
-            .put("index.composite.primary_data_format", "parquet")
-            .putList("index.composite.secondary_data_formats")
-            .build();
-
-        CreateIndexResponse response = client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(indexSettings)
-            .setMapping("val", "type=integer")
-            .get();
-        assertTrue(response.isAcknowledged());
-        ensureGreen(indexName);
-
-        for (int i = 0; i < shardCount; i++) {
-            client().prepareIndex(indexName).setSource("val", i + 1).get();
-        }
-        client().admin().indices().prepareRefresh(indexName).get();
-        client().admin().indices().prepareFlush(indexName).get();
-
+        createSingleIndex(indexName, shardCount);
         client().admin().indices().aliases(
             new IndicesAliasesRequest().addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName))
         ).actionGet();

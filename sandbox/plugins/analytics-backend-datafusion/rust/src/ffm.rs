@@ -1608,6 +1608,259 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// Shard provably holds no matching row — the only status that prunes.
+pub const CAN_MATCH_NO: i64 = 0;
+/// Shard may hold a matching row.
+pub const CAN_MATCH_YES: i64 = 1;
+/// Could not tell (no statistics, unreadable footer, unsupported stats type) — keep the shard.
+///
+/// Deliberately 2, not -1: `#[ffm_safe]` returns `Err` as a *negated error pointer*, so Java's
+/// `NativeLibraryLoader.checkResult` treats every negative return as an address to read a message
+/// from. A negative status here is dereferenced as that address and segfaults the node. Every
+/// status crossing this boundary must be non-negative.
+pub const CAN_MATCH_UNKNOWN: i64 = 2;
+
+/// Can-match evaluation via FFM. Iterates ALL parquet files in the shard view
+/// and checks row-group statistics against the range [filter_min, filter_max]
+/// on the named column.
+///
+/// For each file: tries the metadata cache first (zero I/O), falls back to
+/// reading the footer via the shard's ObjectStore (local disk or S3).
+///
+/// Returns one of the `CAN_MATCH_*` statuses below.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Try cache first, then ObjectStore fallback
+        let result =
+            try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
+                .unwrap_or_else(|| {
+                    try_store_can_match(
+                        shard_view_ptr,
+                        file_path,
+                        column_name,
+                        filter_min,
+                        filter_max,
+                        file_size,
+                    )
+                    .unwrap_or(crate::can_match::CanMatchResult::Unknown)
+                });
+
+        match result {
+            crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
+            crate::can_match::CanMatchResult::Unknown => return Ok(CAN_MATCH_UNKNOWN),
+            crate::can_match::CanMatchResult::No => continue,
+        }
+    }
+    Ok(CAN_MATCH_NO)
+}
+
+/// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
+/// Layout: [min, max, has_nulls, value_kind]. Mirrored by `NativeBridge.SORT_BOUNDS_SLOTS`.
+const SORT_BOUNDS_SLOTS: usize = 4;
+
+/// Shard-wide min/max of one column, for coordinator-side shard ordering.
+///
+/// Separate from `df_can_match` on purpose: that function short-circuits at both the
+/// file and row-group level, which is right for a boolean "could anything match" but
+/// would give a min/max covering only the part it visited. A too-narrow range lets the
+/// coordinator skip a shard that really holds a top-N row, so this walks everything.
+///
+/// Writes `[min, max, has_nulls, value_kind]` into `out_ptr` (4 caller-allocated i64 slots)
+/// and returns 1. Returns 0 with `out_ptr` untouched when no shard-wide bound exists —
+/// column absent, unsupported type, statistics missing, or files disagreeing on type.
+///
+/// # Safety
+/// `shard_view_ptr` must be 0 or a valid `api::ShardView` pointer; `out_ptr` must point
+/// to at least `SORT_BOUNDS_SLOTS` writable i64 slots.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_shard_sort_bounds(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    out_ptr: *mut i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 || out_ptr.is_null() {
+        return Ok(0);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(0);
+    }
+
+    let mut folded: Option<crate::can_match::Bounds> = None;
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Same cache-then-ObjectStore fallback as df_can_match.
+        let file_bounds = try_cached_sort_bounds(runtime_ptr, file_path, column_name)
+            .or_else(|| try_store_sort_bounds(shard_view_ptr, file_path, column_name, file_size));
+
+        // One unreadable file means the shard-wide range is unknown — the other files'
+        // range would understate it.
+        let Some(file_bounds) = file_bounds else {
+            return Ok(0);
+        };
+
+        // merge widens the range and ORs has_nulls. None means the files disagree on value
+        // domain, so there is no shard-wide range.
+        folded = Some(match folded {
+            None => file_bounds,
+            Some(acc) => match acc.merge(file_bounds) {
+                Some(merged) => merged,
+                None => return Ok(0),
+            },
+        });
+    }
+
+    match folded {
+        Some(b) => {
+            let out = std::slice::from_raw_parts_mut(out_ptr, SORT_BOUNDS_SLOTS);
+            out[0] = b.min;
+            out[1] = b.max;
+            out[2] = if b.has_nulls { 1 } else { 0 };
+            out[3] = b.value_kind as i64;
+            Ok(1)
+        }
+        None => Ok(0),
+    }
+}
+
+/// Cache-miss fallback: read the footer via the shard's ObjectStore.
+unsafe fn try_store_sort_bounds(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    file_size: usize,
+) -> Option<crate::can_match::Bounds> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    rt_manager.io_runtime.block_on(async {
+        crate::can_match::sort_bounds_via_store(store, &path, file_size, column_name).await
+    })
+}
+
+/// Fold bounds from the metadata cache if the file is present there.
+unsafe fn try_cached_sort_bounds(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+) -> Option<crate::can_match::Bounds> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    crate::can_match::sort_bounds_with_metadata(&metadata, column_name)
+}
+
+/// Cache-miss fallback: read footer via the shard's ObjectStore.
+unsafe fn try_store_can_match(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+    file_size: usize,
+) -> Option<crate::can_match::CanMatchResult> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    Some(rt_manager.io_runtime.block_on(async {
+        crate::can_match::can_match_range_via_store(
+            store,
+            &path,
+            file_size,
+            column_name,
+            filter_min,
+            filter_max,
+        )
+        .await
+    }))
+}
+
+/// Probe the metadata cache for the file. If present, evaluate can-match in memory.
+unsafe fn try_cached_can_match(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    Some(crate::can_match::can_match_range_with_metadata(
+        &metadata,
+        column_name,
+        filter_min,
+        filter_max,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1720,5 +1973,21 @@ mod tests {
 
         // ── Cleanup ──
         shutdown_test_runtime();
+    }
+
+    /// `#[ffm_safe]` reserves negative returns for negated error pointers, so every status
+    /// `df_can_match` reports has to be non-negative. A negative one is read by Java as an
+    /// error address and dereferenced, which segfaults the whole node rather than failing
+    /// the query. A null shard view is the cheapest way to reach a non-match status without
+    /// a runtime or any parquet on disk.
+    #[test]
+    fn can_match_status_codes_are_non_negative() {
+        let column = "@timestamp";
+        let rc = unsafe { df_can_match(0, 0, column.as_ptr(), column.len() as i64, 0, 100) };
+        assert!(
+            rc >= 0,
+            "df_can_match returned {rc}; negative values are error pointers to Java, not statuses"
+        );
+        assert_eq!(rc, CAN_MATCH_UNKNOWN);
     }
 }
