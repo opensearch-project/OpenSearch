@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Builds a Calcite {@link SchemaPlus} from OpenSearch {@link ClusterState} index mappings.
@@ -39,6 +41,12 @@ import java.util.Map;
  * Navigates: IndexMetadata -> MappingMetadata -> sourceAsMap() -> "properties" -> per-field "type".
  */
 public class OpenSearchSchemaBuilder {
+
+    private static final Logger LOGGER = Logger.getLogger(OpenSearchSchemaBuilder.class.getName());
+
+    private static final String SCALING_FACTOR_FIELD = "scaling_factor";
+
+    private static final double NO_SCALING_FACTOR = Double.NaN;
 
     private OpenSearchSchemaBuilder() {}
 
@@ -245,7 +253,7 @@ public class OpenSearchSchemaBuilder {
 
     /** Format-aware overload: classifies {@code date}/{@code date_nanos} into DateOnly / TimeOnly UDT markers. */
     public static RelDataType buildLeafType(String opensearchType, String format, RelDataTypeFactory typeFactory) {
-        return buildLeafType(opensearchType, format, Double.NaN, typeFactory);
+        return buildLeafType(opensearchType, format, NO_SCALING_FACTOR, typeFactory);
     }
 
     /**
@@ -352,7 +360,7 @@ public class OpenSearchSchemaBuilder {
                 continue;
             }
             String format = (String) fieldProps.get("format");
-            double scalingFactor = parseScalingFactor(fieldProps.get("scaling_factor"));
+            double scalingFactor = parseScalingFactor(fieldProps.get(SCALING_FACTOR_FIELD));
             RelDataType columnType = buildLeafType(fieldType, format, scalingFactor, typeFactory);
             if (columnType == null) {
                 // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
@@ -364,8 +372,6 @@ public class OpenSearchSchemaBuilder {
         }
     }
 
-    private static final java.util.logging.Logger LOGGER = java.util.logging.Logger.getLogger(OpenSearchSchemaBuilder.class.getName());
-
     /**
      * Normalizes a scaling_factor value (Number or String from mapping JSON) to a double.
      * Returns {@link Double#NaN} when the value is null or unparseable, signaling the caller
@@ -373,7 +379,7 @@ public class OpenSearchSchemaBuilder {
      */
     static double parseScalingFactor(Object raw) {
         if (raw == null) {
-            return Double.NaN;
+            return NO_SCALING_FACTOR;
         }
         try {
             if (raw instanceof Number) {
@@ -381,8 +387,8 @@ public class OpenSearchSchemaBuilder {
             }
             return Double.parseDouble(raw.toString());
         } catch (NumberFormatException e) {
-            LOGGER.log(java.util.logging.Level.WARNING, "Invalid scaling_factor value: " + raw, e);
-            return Double.NaN;
+            LOGGER.log(Level.WARNING, "Invalid scaling_factor value: " + raw, e);
+            return NO_SCALING_FACTOR;
         }
     }
 }
