@@ -374,6 +374,13 @@ public class VSRManager implements AutoCloseable {
             } catch (Exception e) {
                 logger.error("Error releasing VSR pool during close for {}: {}", fileName, e.getMessage());
             }
+            // Guarantee the native writer registry entry is gone even if flush() above was skipped or
+            // threw (e.g. a background write / flush failed under an Arrow OOM). Idempotent: a no-op
+            // when flush() already finalized and removed the entry. Without this, a stranded entry
+            // blocks recovery's re-create for the same file ("Writer already exists").
+            if (writer != null) {
+                writer.cleanup();
+            }
             managedVSR.set(null);
         }
     }
