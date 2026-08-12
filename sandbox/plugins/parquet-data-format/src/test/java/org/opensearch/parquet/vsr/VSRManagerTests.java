@@ -190,6 +190,52 @@ public class VSRManagerTests extends ParquetBaseTests {
         assertEquals("VSR pool must be released even when the background write failed", 0, bufferPool.getTotalAllocatedBytes());
     }
 
+    /**
+     * A new VSRManager can be created for a file that a previous VSRManager already opened and
+     * closed, ingest the same data, and flush successfully.
+     */
+    public void testReinitializeForSameFileAfterClose() throws Exception {
+        String filePath = createTempDir().resolve("recovery-reinit.parquet").toString();
+
+        // First writer: ingesting rotates (maxRowsPerVSR=1) and initializes the native writer.
+        VSRManager manager1 = new VSRManager(filePath, indexSettings, schema, bufferPool, 1, threadPool, 0L);
+        ingest(manager1);
+        assertBusy(() -> {
+            Future<?> f = manager1.getPendingWrite();
+            assertTrue(f == null || f.isDone());
+        });
+        // Close via the failing background-write path so flush() is skipped and cleanup() runs in the finally.
+        java.util.concurrent.CompletableFuture<Object> failed = new java.util.concurrent.CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("simulated native write failure"));
+        manager1.setPendingWrite(failed);
+        expectThrows(RuntimeException.class, manager1::close);
+
+        // Second writer for the same file, same schema, same data: must initialize and flush cleanly.
+        VSRManager manager2 = new VSRManager(filePath, indexSettings, schema, bufferPool, 1, threadPool, 0L);
+        try {
+            ingest(manager2);
+            ParquetFileMetadata metadata = manager2.flush();
+            assertNotNull(metadata);
+            assertEquals(2, metadata.numRows());
+        } finally {
+            manager2.close();
+        }
+    }
+
+    /** Reconciles the metadata fields and ingests two documents via {@link VSRManager#addDocument}. */
+    private void ingest(VSRManager manager) throws Exception {
+        reconcileMetadata(manager);
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+        for (int i = 0; i < 2; i++) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(valField, i);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, i);
+            manager.addDocument(doc);
+        }
+    }
+
     public void testMaybeRotateAtThreshold() throws Exception {
         String filePath = createTempDir().resolve("rotate.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
