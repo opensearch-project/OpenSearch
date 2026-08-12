@@ -35,6 +35,8 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.util.Set;
+
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
  * executes them via the analytics engine, and builds a SearchResponse.
@@ -113,6 +115,16 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 // Pass the user's raw index expression to the converter so alias identity
                 // reaches the engine. The engine's IndexResolution.resolveAlias fires its own
                 // filtered-alias rejection natively when it sees an alias name.
+                //
+                // Coordinator-level guard: reject any request whose expressions involve a
+                // filtering alias. The engine's alias branch (IndexResolution.resolveAlias)
+                // only fires for a single literal alias name; comma-lists and wildcards
+                // bypass it because clusterState.metadata().getIndicesLookup().get(expression)
+                // returns null for multi-valued or wildcard strings, falling through to the
+                // concrete-names branch where aliasMd.filteringRequired() is never consulted.
+                // Example: 'al_filt*' resolves to concrete indices without applying the alias
+                // filter, silently leaking documents the filter is meant to hide.
+                rejectFilteringAliases(state, request.indices(), concreteIndices);
                 String expression = String.join(",", indices);
 
                 // Build a QueryRequestContext bound to the SAME ClusterState snapshot the
@@ -158,6 +170,38 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     // IndicesOptions and ClusterState to the engine, partially satisfying this — full delegation
     // requires the engine to handle 404 semantics (IndexNotFoundException) that today rely on
     // the coordinator's concreteIndices call above.
+
+    /**
+     * Rejects any request whose index expressions involve a filtering alias.
+     *
+     * <p>This guard cannot be delegated to the engine's {@code IndexResolution.resolveAlias}
+     * because that code path only fires when the <em>entire</em> expression string resolves
+     * to a single literal alias name via {@code clusterState.metadata().getIndicesLookup().get(expression)}.
+     * Comma-lists (e.g. {@code "al_filtered,mi_open_b"}) and wildcards (e.g. {@code "al_filt*"})
+     * cause that lookup to return null, so resolution falls through to the concrete-names branch
+     * where {@code aliasMd.filteringRequired()} is never consulted — silently returning
+     * unfiltered data that the alias filter should have hidden.
+     *
+     * @param state the ClusterState snapshot already captured in doExecute
+     * @param requestIndices the raw index expressions from the request
+     * @param concreteIndices the resolved concrete indices
+     * @throws IllegalArgumentException if a filtering alias is detected
+     */
+    private void rejectFilteringAliases(ClusterState state, String[] requestIndices, Index[] concreteIndices) {
+        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, requestIndices);
+        for (Index concreteIndex : concreteIndices) {
+            String[] filteringAliases = indexNameExpressionResolver.filteringAliases(state, concreteIndex.getName(), resolvedExpressions);
+            if (filteringAliases != null && filteringAliases.length > 0) {
+                throw new IllegalArgumentException(
+                    "Alias ["
+                        + filteringAliases[0]
+                        + "] declares a filter on index ["
+                        + concreteIndex.getName()
+                        + "]; filter aliases are not yet supported by analytics queries"
+                );
+            }
+        }
+    }
 
     /** Builds an empty SearchResponse with zero hits and zero shards. */
     private static SearchResponse emptySearchResponse() {

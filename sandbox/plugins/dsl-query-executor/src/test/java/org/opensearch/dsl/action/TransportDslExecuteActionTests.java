@@ -33,6 +33,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -689,6 +691,308 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         assertNotNull(listener.response.get());
     }
 
+    // --- Coordinator-side filtered-alias rejection tests (rejectFilteringAliases guard) ---
+
+    /** Literal filtered alias name is rejected at coordinator (E1 case). */
+    public void testFilteredAliasLiteralIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(new Index[] { new Index("mi_open_a", "uuid-a") });
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_filtered");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_filtered");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** Wildcard 'al_*' matching a filtered alias is rejected at coordinator (E2 case). */
+    public void testWildcardMatchingFilteredAliasIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(
+            new Index[] { new Index("mi_open_a", "uuid-a"), new Index("mi_open_b", "uuid-b") }
+        );
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_filtered");
+        resolvedExprs.add("al_open");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+        when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_*");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** Comma-list 'mi_open_b,al_filtered' is rejected at coordinator (E3 case). */
+    public void testCommaListWithFilteredAliasSecondIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(
+            new Index[] { new Index("mi_open_b", "uuid-b"), new Index("mi_open_a", "uuid-a") }
+        );
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("mi_open_b");
+        resolvedExprs.add("al_filtered");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "mi_open_b", "al_filtered");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** Reversed comma-list 'al_filtered,mi_open_b' is rejected at coordinator (E3b case). */
+    public void testReversedCommaListWithFilteredAliasFirstIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(
+            new Index[] { new Index("mi_open_a", "uuid-a"), new Index("mi_open_b", "uuid-b") }
+        );
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_filtered");
+        resolvedExprs.add("mi_open_b");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+        when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_filtered", "mi_open_b");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** Prefix wildcard 'al_filt*' matching filtered alias is rejected at coordinator (E5 case). */
+    public void testPrefixWildcardMatchingFilteredAliasIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(new Index[] { new Index("mi_open_a", "uuid-a") });
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_filtered");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_filt*");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** Duplicated alias 'al_filtered,al_filtered' is rejected at coordinator (E6 case). */
+    public void testDuplicatedFilteredAliasIsRejected() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(new Index[] { new Index("mi_open_a", "uuid-a") });
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_filtered");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            buildEngineContext(),
+            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_filtered", "al_filtered");
+
+        assertNull(listener.response.get());
+        assertNotNull(listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [al_filtered] declares a filter on index [mi_open_a]; filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
+    /** A non-filtered alias (al_open) passes through and succeeds — the guard must not block it. */
+    public void testNonFilteredAliasIsNotRejectedByGuard() {
+        SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
+        addTable(schema, "al_open");
+
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(new Index[] { new Index("mi_open_b", "uuid-b") });
+
+        Set<String> resolvedExprs = new HashSet<>();
+        resolvedExprs.add("al_open");
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        // No filtering aliases for this alias
+        when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
+
+        QueryRequestContext ctx = new QueryRequestContext(state, schema);
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            mockContextProvider(ctx),
+            (plan, execCtx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        TestListener listener = executeWith(action, "al_open");
+
+        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
+        assertNotNull(listener.response.get());
+        assertEquals(200, listener.response.get().status().getStatus());
+    }
+
     // --- Helper methods ---
 
     private TestListener executeWith(TransportDslExecuteAction action, String... indices) {
@@ -707,6 +1011,9 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(resolvedIndices);
+        // Stub the filtering-alias guard: no filtering aliases by default
+        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(Collections.emptySet());
+        when(resolver.filteringAliases(any(), any(String.class), any())).thenReturn(null);
 
         return new TransportDslExecuteAction(
             mock(TransportService.class),
