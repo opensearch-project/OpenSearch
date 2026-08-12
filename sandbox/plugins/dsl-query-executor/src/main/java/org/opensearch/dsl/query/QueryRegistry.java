@@ -37,15 +37,9 @@ public class QueryRegistry {
         translators.put(translator.getQueryType(), translator);
     }
 
-    /**
-     * Returns {@code true} when a translator is registered for the given query type. Used by
-     * routing (grammar) to decide whether a request can be sent to the Calcite path before any
-     * conversion work is attempted.
-     *
-     * @param type the concrete {@link QueryBuilder} class
-     */
-    public boolean hasTranslator(Class<? extends QueryBuilder> type) {
-        return translators.containsKey(type);
+    /** Returns the registered translator for the given query type, or null. */
+    public QueryTranslator get(Class<? extends QueryBuilder> type) {
+        return translators.get(type);
     }
 
     /**
@@ -59,7 +53,7 @@ public class QueryRegistry {
      * @throws ConversionException if a registered translator fails
      */
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
-        QueryTranslator translator = translators.get(query.getClass());
+        QueryTranslator translator = get(query.getClass());
         if (translator != null) {
             return translator.convert(query, ctx);
         }

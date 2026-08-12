@@ -15,7 +15,7 @@ import java.util.List;
  * Result of a {@link DslCalciteGrammar#validate} pass over a {@code SearchSourceBuilder}.
  *
  * <p>A request is {@link #supported()} when the grammar accepts every node in the DSL tree.
- * Otherwise {@link #unsupportedFeatures()} enumerates the reason codes that caused rejection
+ * Otherwise {@link #rejectionReasons()} enumerates the reason codes that caused rejection
  * (e.g. {@code "script"}, {@code "range.time_zone"}).
  *
  * <p>Callers use this record to route the request:
@@ -24,11 +24,11 @@ import java.util.List;
  * if (decision.supported()) {
  *     // Calcite path
  * } else {
- *     // codec path; log decision.unsupportedFeatures() for observability
+ *     // codec path; log decision.rejectionReasons() for observability
  * }
  * }</pre>
  */
-public record RouteDecision(boolean supported, List<String> unsupportedFeatures) {
+public record RouteDecision(boolean supported, List<String> rejectionReasons) {
 
     /** Cached instance for the common "everything is fine" result. */
     private static final RouteDecision SUPPORTED = new RouteDecision(true, Collections.emptyList());
@@ -45,9 +45,9 @@ public record RouteDecision(boolean supported, List<String> unsupportedFeatures)
     /**
      * Constructs a rejection with the given reason codes.
      *
-     * @param features the reason codes accumulated during the walk
+     * @param rejectionReasons the reason codes accumulated during the walk
      */
-    public static RouteDecision rejected(List<String> features) {
-        return new RouteDecision(false, List.copyOf(features));
+    public static RouteDecision rejected(List<String> rejectionReasons) {
+        return new RouteDecision(false, List.copyOf(rejectionReasons));
     }
 }
