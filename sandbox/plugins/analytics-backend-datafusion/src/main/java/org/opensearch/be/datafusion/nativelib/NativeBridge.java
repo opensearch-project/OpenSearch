@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
+import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.be.datafusion.NativeErrorConverter;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
@@ -157,6 +158,8 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
     private static final MethodHandle FETCH_BY_ROW_IDS;
     private static final MethodHandle UPDATE_CONCURRENCY_GATE;
+    private static final MethodHandle CAN_MATCH;
+    private static final MethodHandle SHARD_SORT_BOUNDS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -716,6 +719,33 @@ public final class NativeBridge {
         UPDATE_CONCURRENCY_GATE = linker.downcallHandle(
             lib.find("df_update_concurrency_gate").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT)
+        );
+
+        // i64 df_can_match(runtime_ptr, shard_view_ptr, column_name_ptr, column_name_len, filter_min, filter_max)
+        CAN_MATCH = linker.downcallHandle(
+            lib.find("df_can_match").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: 1=Yes, 0=No, -1=Unknown
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // column_name_ptr
+                ValueLayout.JAVA_LONG,   // column_name_len
+                ValueLayout.JAVA_LONG,   // filter_min
+                ValueLayout.JAVA_LONG    // filter_max
+            )
+        );
+
+        // i64 df_shard_sort_bounds(runtime_ptr, shard_view_ptr, column_name_ptr, column_name_len, out_ptr)
+        SHARD_SORT_BOUNDS = linker.downcallHandle(
+            lib.find("df_shard_sort_bounds").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: 1=bounds written, 0=unavailable
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // column_name_ptr
+                ValueLayout.JAVA_LONG,   // column_name_len
+                ValueLayout.ADDRESS      // out_ptr — 3 i64 slots: [min, max, value_kind]
+            )
         );
     }
 
@@ -2032,6 +2062,58 @@ public final class NativeBridge {
     public static void setScopedPageIndexEnabled(boolean enabled) {
         try (var call = new NativeCall()) {
             call.invoke(SET_SCOPED_PAGE_INDEX_ENABLED, enabled ? 1L : 0L);
+        }
+    }
+
+    /** {@link #canMatch} status: shard provably holds no matching row. The only value that prunes. */
+    public static final long CAN_MATCH_NO = 0L;
+    /** {@link #canMatch} status: shard may hold a matching row. */
+    public static final long CAN_MATCH_YES = 1L;
+    /** {@link #canMatch} status: undeterminable (no statistics, unreadable footer) — keep the shard. */
+    public static final long CAN_MATCH_UNKNOWN = 2L;
+
+    /**
+     * Evaluates whether any parquet file in the shard has row-group statistics
+     * overlapping the range [filterMin, filterMax] on the named column.
+     * Iterates all files in the shard view internally (Rust side).
+     *
+     * <p>Returns one of {@link #CAN_MATCH_NO}, {@link #CAN_MATCH_YES}, {@link #CAN_MATCH_UNKNOWN} —
+     * all non-negative, because {@link NativeCall#invoke} routes negatives to
+     * {@code NativeLibraryLoader.checkResult}, which reads them as negated error pointers.
+     */
+    public static long canMatch(long runtimePtr, long shardViewPtr, String columnName, long filterMin, long filterMax) {
+        try (var call = new NativeCall()) {
+            var cn = call.str(columnName);
+            return call.invoke(CAN_MATCH, runtimePtr, shardViewPtr, cn.segment(), cn.len(), filterMin, filterMax);
+        }
+    }
+
+    /** Number of i64 slots {@code df_shard_sort_bounds} writes: [min, max, hasNulls, valueKind]. */
+    private static final int SORT_BOUNDS_SLOTS = 4;
+
+    /**
+     * Folds the shard-wide min/max of {@code columnName} across every parquet file and row
+     * group in the shard view. Unlike {@link #canMatch}, this does not short-circuit — a
+     * range covering only part of the shard would be narrower than the truth.
+     *
+     * @return the folded bounds, or {@code null} when no shard-wide range is available
+     *         (column absent, unsupported physical type, statistics missing, or files
+     *         disagreeing on physical type)
+     */
+    public static ShardSortBounds shardSortBounds(long runtimePtr, long shardViewPtr, String columnName) {
+        try (var call = new NativeCall()) {
+            var cn = call.str(columnName);
+            MemorySegment out = call.buf(SORT_BOUNDS_SLOTS * Long.BYTES);
+            long found = call.invoke(SHARD_SORT_BOUNDS, runtimePtr, shardViewPtr, cn.segment(), cn.len(), out);
+            if (found != 1L) {
+                return null;
+            }
+            return new ShardSortBounds(
+                out.getAtIndex(ValueLayout.JAVA_LONG, 0),
+                out.getAtIndex(ValueLayout.JAVA_LONG, 1),
+                out.getAtIndex(ValueLayout.JAVA_LONG, 2) != 0L,
+                (byte) out.getAtIndex(ValueLayout.JAVA_LONG, 3)
+            );
         }
     }
 

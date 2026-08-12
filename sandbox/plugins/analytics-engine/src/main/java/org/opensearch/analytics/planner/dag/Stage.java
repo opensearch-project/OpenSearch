@@ -9,6 +9,10 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterExtractor;
+import org.opensearch.analytics.exec.canmatch.SortSpec;
+import org.opensearch.analytics.exec.canmatch.SortSpecExtractor;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
@@ -90,6 +94,12 @@ public class Stage {
     @Nullable
     private InputSinkDecorator inputSinkDecorator;
 
+    private final List<CanMatchFilter> canMatchFilters;
+
+    /** Primary sort key of this fragment; null when it isn't a {@code sort | head N} shape. */
+    @Nullable
+    private final SortSpec sortSpec;
+
     public Stage(
         int stageId,
         RelNode fragment,
@@ -106,6 +116,8 @@ public class Stage {
         this.targetResolver = targetResolver;
         this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver, fragment);
         this.planAlternatives = List.of();
+        this.canMatchFilters = fragment != null ? CanMatchFilterExtractor.extract(fragment) : List.of();
+        this.sortSpec = fragment != null ? SortSpecExtractor.extract(fragment) : null;
     }
 
     public int getStageId() {
@@ -115,6 +127,17 @@ public class Stage {
     /** Marked plan fragment with annotations intact. */
     public RelNode getFragment() {
         return fragment;
+    }
+
+    /** Range filters extracted from the fragment at DAG-build time for can-match pre-filtering. */
+    public List<CanMatchFilter> getCanMatchFilters() {
+        return canMatchFilters;
+    }
+
+    /** Sort column + direction used to order shards in the can-match phase; null when not applicable. */
+    @Nullable
+    public SortSpec getSortSpec() {
+        return sortSpec;
     }
 
     public List<Stage> getChildStages() {

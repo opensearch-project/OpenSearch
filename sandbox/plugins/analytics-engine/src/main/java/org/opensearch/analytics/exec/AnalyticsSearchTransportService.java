@@ -19,12 +19,16 @@ import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.WorkerFragmentExecutionAction;
 import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -40,11 +44,13 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
 
 /**
  * Stateless transport dispatch component for fragment requests. Owns the
@@ -59,18 +65,20 @@ import java.io.IOException;
 @Singleton
 public class AnalyticsSearchTransportService {
 
-    private final StreamTransportService transportService;
+    private final StreamTransportService streamingTransportService;
+    private final TransportService transportService;
     private final ClusterService clusterService;
 
     @Inject
     public AnalyticsSearchTransportService(
-        StreamTransportService streamTransportService,
+        StreamTransportService streamingTransportService,
+        TransportService transportService,
         ClusterService clusterService,
         AnalyticsSearchService searchService,
         IndicesService indicesService,
         TaskResourceTrackingService taskResourceTrackingService
     ) {
-        if (streamTransportService == null) {
+        if (streamingTransportService == null) {
             throw new IllegalStateException(
                 "analytics-engine requires the STREAM_TRANSPORT feature flag to be enabled "
                     + "("
@@ -79,11 +87,26 @@ public class AnalyticsSearchTransportService {
             );
         }
         searchService.setTaskResourceTrackingService(taskResourceTrackingService);
-        this.transportService = streamTransportService;
+        this.streamingTransportService = streamingTransportService;
+        this.transportService = transportService;
         this.clusterService = clusterService;
-        registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
-        registerWorkerFragmentHandler(this.transportService, searchService);
-        registerFetchByRowIdsHandler(this.transportService, searchService, indicesService);
+        registerStreamingFragmentHandler(this.streamingTransportService, searchService, indicesService);
+        // MPP hash-shuffle worker fragments ride the STREAM transport (batched results), same as the
+        // shard fragment handler — upstream renamed the stream-transport field to
+        // streamingTransportService when it introduced the regular transport for can-match.
+        registerWorkerFragmentHandler(this.streamingTransportService, searchService);
+        registerFetchByRowIdsHandler(this.streamingTransportService, searchService, indicesService);
+        // Can-match is a unary RPC — regular transport, not the stream transport (batches only).
+        registerCanMatchHandler(this.transportService, searchService, indicesService);
+    }
+
+    public StreamTransportService getStreamingTransportService() {
+        return streamingTransportService;
+    }
+
+    /** Regular (non-stream) transport used for the unary can-match RPC. */
+    public TransportService getTransportService() {
+        return transportService;
     }
 
     private static void registerStreamingFragmentHandler(
@@ -191,6 +214,46 @@ public class AnalyticsSearchTransportService {
         );
     }
 
+    private static void registerCanMatchHandler(
+        TransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
+        transportService.registerRequestHandler(
+            AnalyticsCanMatchAction.NAME,
+            ThreadPool.Names.SEARCH,
+            AnalyticsCanMatchRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                searchService.canMatch(
+                    shard,
+                    request.getFilterBytes(),
+                    request.getBackendId(),
+                    request.getSortColumn(),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AnalyticsCanMatchResponse response) {
+                            try {
+                                channel.sendResponse(response);
+                            } catch (IOException e) {
+                                onFailure(e);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(new AnalyticsCanMatchResponse(true));
+                            } catch (IOException ioe) {
+                                // nothing more we can do
+                            }
+                        }
+                    }
+                );
+            }
+        );
+    }
+
     /**
      * Adapter from {@link AnalyticsSearchService.StreamingFragmentResponseHandler} to the
      * channel streaming API. Each batch is sent on the channel; onComplete completes the
@@ -273,7 +336,7 @@ public class AnalyticsSearchTransportService {
             // manager, where it NPEs ("Cannot invoke Object.hashCode() because key is null").
             throw new ConnectTransportException(null, "target node left the cluster before dispatch");
         }
-        return transportService.getConnection(node);
+        return streamingTransportService.getConnection(node);
     }
 
     /**
@@ -358,7 +421,14 @@ public class AnalyticsSearchTransportService {
         pending.tryRun(() -> {
             try {
                 Transport.Connection connection = getConnection(targetNode);
-                transportService.sendChildRequest(connection, WorkerFragmentExecutionAction.NAME, request, parentTask, options, handler);
+                streamingTransportService.sendChildRequest(
+                    connection,
+                    WorkerFragmentExecutionAction.NAME,
+                    request,
+                    parentTask,
+                    options,
+                    handler
+                );
             } catch (Exception e) {
                 try {
                     listener.onFailure(e);
@@ -366,17 +436,32 @@ public class AnalyticsSearchTransportService {
                     pending.finishAndRunNext();
                 }
             }
+            // Permit consumed — a worker dispatch always attempts the send (no stillNeeded gate),
+            // so it never declines back to PendingExecutions.
+            return true;
         });
     }
 
+    /**
+     * Dispatches a fragment-execution RPC to {@code targetNode}, subject to {@code pending}'s
+     * per-node concurrency window.
+     *
+     * @param stillNeeded last-moment check, run immediately before the send once a permit is granted,
+     *                    or {@code null} to always send. {@code false} abandons the send — nothing
+     *                    goes on the wire and {@code listener} is never invoked. Checked this late
+     *                    because the reason to abandon usually appears while the request waits: see
+     *                    {@code ShardTaskRunner}, where earlier shards' results can make a later
+     *                    shard provably irrelevant.
+     */
     public void dispatchFragmentStreaming(
         FragmentExecutionRequest request,
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener,
         Task parentTask,
-        PendingExecutions pending
+        PendingExecutions pending,
+        BooleanSupplier stillNeeded
     ) {
-        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending);
+        dispatchStreaming(FragmentExecutionAction.NAME, request, targetNode, listener, parentTask, pending, stillNeeded);
     }
 
     /**
@@ -392,7 +477,7 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
-        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending);
+        dispatchStreaming(FetchByRowIdsAction.NAME, request, targetNode, listener, parentTask, pending, null);
     }
 
     /**
@@ -408,7 +493,8 @@ public class AnalyticsSearchTransportService {
         DiscoveryNode targetNode,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener,
         Task parentTask,
-        PendingExecutions pending
+        PendingExecutions pending,
+        BooleanSupplier stillNeeded
     ) {
         TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
             @Override
@@ -539,9 +625,12 @@ public class AnalyticsSearchTransportService {
 
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
         pending.tryRun(() -> {
+            if (stillNeeded != null && stillNeeded.getAsBoolean() == false) {
+                return false;
+            }
             try {
                 Transport.Connection connection = getConnection(targetNode);
-                transportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
+                streamingTransportService.sendChildRequest(connection, actionName, request, parentTask, options, handler);
             } catch (Exception e) {
                 try {
                     listener.onFailure(AnalyticsTransportErrors.fromWireError(e));
@@ -549,6 +638,7 @@ public class AnalyticsSearchTransportService {
                     pending.finishAndRunNext();
                 }
             }
+            return true;
         });
     }
 }

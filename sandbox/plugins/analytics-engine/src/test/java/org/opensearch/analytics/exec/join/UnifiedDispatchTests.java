@@ -148,8 +148,11 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {
+        public void start(ActionListener<Void> onStarted) {
             startInvoked = true;
+            // Synchronous fake: materialisation completes inline, so notify immediately (the
+            // contract real stages honour — deferred stages notify on their async completion).
+            onStarted.onResponse(null);
         }
 
         @Override
