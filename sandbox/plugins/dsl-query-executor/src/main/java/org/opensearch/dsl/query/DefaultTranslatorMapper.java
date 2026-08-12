@@ -40,8 +40,17 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
 
     /**
      * Translates a single range bound into a comparison RexNode.
-     * Applies decimal truncation and overflow guards for integer-typed fields per legacy
-     * {@code NumberFieldMapper.NumberType.INTEGER.rangeQuery} semantics.
+     * Rejects non-finite values (NaN, Infinity) on integer and float fields per legacy
+     * {@code NumberFieldMapper.NumberType.INTEGER.rangeQuery} and
+     * {@code NumberFieldMapper.NumberType.FLOAT.rangeQuery} semantics, and applies
+     * overflow guards for integer-typed fields matching legacy
+     * {@code NumberFieldMapper.NumberType.INTEGER.rangeQuery} IllegalArgumentException
+     * on out-of-range values. DOUBLE fields accept non-finite values unchanged per legacy.
+     *
+     * <p>NOTE: Legacy byte/short/integer NumberFieldMapper.hasDecimalPart silently produces a
+     * bound of 0 for NaN (a pre-existing legacy bug). We deliberately do NOT replicate that
+     * bug; legacy DOES throw for long via Numbers.toLongExact. For FLOAT/HALF_FLOAT, legacy
+     * NumberFieldMapper throws "supports only finite values".
      */
     @Override
     protected RexNode translateBound(Object value, boolean isLower, boolean inclusive, RelDataTypeField field, ConversionContext ctx)
@@ -51,6 +60,29 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
         }
 
         SqlTypeName fieldTypeName = field.getType().getSqlTypeName();
+
+        // WHY: NaN/Infinity on integer fields silently become 0 or Long.MIN/MAX_VALUE via
+        // Double.longValue() (IEEE-754 "round toward zero" is undefined for non-finite).
+        // On REAL/FLOAT fields, legacy NumberFieldMapper throws "supports only finite values".
+        // DOUBLE deliberately accepts non-finite per legacy behaviour.
+        if (RangeBoundMath.isNonFinite(value)) {
+            if (RangeBoundMath.isIntegerType(fieldTypeName)) {
+                throw new ConversionException(
+                    "Non-finite value (" + value + ") is not supported for integer field '" + field.getName() + "'"
+                );
+            }
+            if (fieldTypeName == SqlTypeName.REAL || fieldTypeName == SqlTypeName.FLOAT) {
+                throw new ConversionException(
+                    "Non-finite value ("
+                        + value
+                        + ") is not supported for float field '"
+                        + field.getName()
+                        + "' (legacy NumberFieldMapper supports only finite values)"
+                );
+            }
+            // DOUBLE: fall through — legacy accepts non-finite doubles
+        }
+
         Object adjusted = value;
         boolean adjustedInclusive = inclusive;
 
@@ -81,8 +113,24 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
             }
             adjustedInclusive = true; // decimal adjustment makes bound inclusive
         } else if (RangeBoundMath.isIntegerType(fieldTypeName) && !RangeBoundMath.hasDecimalPart(value) && value instanceof Number) {
-            // Whole numeric value on integer field: narrow to field-appropriate type for Calcite
-            adjusted = RangeBoundMath.narrowToFieldType(((Number) value).longValue(), fieldTypeName);
+            // Whole numeric value on integer field: range-checked narrow to field-appropriate type.
+            // WHY: unchecked (int) cast silently truncates via JLS 5.1.3 narrowing, e.g.
+            // 2147483648L becomes -2147483648 and matches everything.
+            RangeBoundMath.CheckedNarrow narrowed = RangeBoundMath.narrowChecked(
+                ((Number) value).longValue(),
+                fieldTypeName,
+                isLower,
+                field.getName()
+            );
+            switch (narrowed.result()) {
+                case MATCH_NONE:
+                    return ctx.getRexBuilder().makeLiteral(false);
+                case NO_CONSTRAINT:
+                    return null;
+                case OK:
+                    adjusted = narrowed.value();
+                    break;
+            }
         }
 
         RexNode literal = createLiteral(adjusted, field, ctx, fieldTypeName);

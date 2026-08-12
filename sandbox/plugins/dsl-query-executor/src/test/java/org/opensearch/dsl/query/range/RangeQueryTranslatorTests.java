@@ -1505,5 +1505,342 @@ public class RangeQueryTranslatorTests extends OpenSearchTestCase {
         assertEquals(Boolean.FALSE, lit.getValueAs(Boolean.class));
     }
 
+    // ========== GROUP R - NON-FINITE BOUNDS ON INTEGER FAMILY ==========
+
+    /** BUG 1 proof: NaN as raw Double on INTEGER silently produces bound of 0 instead of throwing. */
+    public void testNaNDoubleOnIntegerThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").gte(Double.NaN), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** NaN as String "NaN" on INTEGER must throw ConversionException. */
+    public void testNaNStringOnIntegerThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").gte("NaN"), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** Positive Infinity as raw Double on INTEGER must throw ConversionException. */
+    public void testPositiveInfinityDoubleOnIntegerThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").gte(Double.POSITIVE_INFINITY), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity")
+        );
+    }
+
+    /** "Infinity" as String on INTEGER must throw ConversionException. */
+    public void testInfinityStringOnIntegerThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").gte("Infinity"), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity")
+        );
+    }
+
+    /** NaN as raw Double on BIGINT must throw ConversionException. */
+    public void testNaNDoubleOnBigintThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("timestamp").gte(Double.NaN), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** "NaN" as String on BIGINT must throw ConversionException. */
+    public void testNaNStringOnBigintThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("timestamp").gte("NaN"), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** Infinity as raw Double on BIGINT must throw ConversionException. */
+    public void testPositiveInfinityDoubleOnBigintThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("timestamp").gte(Double.POSITIVE_INFINITY), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity")
+        );
+    }
+
+    /** "Infinity" as String on BIGINT must throw ConversionException. */
+    public void testInfinityStringOnBigintThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("timestamp").gte("Infinity"), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity")
+        );
+    }
+
+    // ========== GROUP R2 - NON-FINITE ON UNSIGNED_LONG ==========
+
+    /** NaN as raw Double on unsigned_long must throw ConversionException. */
+    public void testNaNDoubleOnUnsignedLongThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte(Double.NaN), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** "NaN" as String on unsigned_long must throw ConversionException. */
+    public void testNaNStringOnUnsignedLongThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte("NaN"), ctx)
+        );
+        assertTrue(
+            "Message should name the rejected value and the coercion failure: " + ex.getMessage(),
+            ex.getMessage().contains("NaN") && ex.getMessage().contains("coerce")
+        );
+    }
+
+    /** Infinity as raw Double on unsigned_long must throw ConversionException. */
+    public void testInfinityDoubleOnUnsignedLongThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte(Double.POSITIVE_INFINITY), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity or above: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity") || ex.getMessage().contains("above")
+        );
+    }
+
+    /** "-Infinity" as String on unsigned_long must throw ConversionException. */
+    public void testNegativeInfinityStringOnUnsignedLongThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("unsigned_counter").gte("-Infinity"), ctx)
+        );
+        assertTrue(
+            "Message should name the rejected value and the coercion failure: " + ex.getMessage(),
+            ex.getMessage().contains("-Infinity") && ex.getMessage().contains("coerce")
+        );
+    }
+
+    // ========== GROUP R3 - NON-FINITE ON REAL (FLOAT) ==========
+
+    /** NaN on REAL (float_val) must throw ConversionException. */
+    public void testNaNDoubleOnRealThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("float_val").gte(Double.NaN), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or NaN: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("NaN")
+        );
+    }
+
+    /** "Infinity" on REAL (float_val) must throw ConversionException. */
+    public void testInfinityStringOnRealThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("float_val").gte("Infinity"), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite or Infinity: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Infinity")
+        );
+    }
+
+    // ========== GROUP R4 - NON-FINITE ON DOUBLE (must NOT throw) ==========
+
+    /** NaN on DOUBLE field must NOT throw -- legacy accepts non-finite doubles. */
+    public void testNaNDoubleOnDoubleFieldAccepted() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("rating").gte(Double.NaN), ctx);
+        // Must produce a comparison, not throw
+        assertTrue("Non-finite on DOUBLE should produce a RexCall, not throw", result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+    }
+
+    /** Infinity on DOUBLE field must NOT throw -- legacy accepts non-finite doubles. */
+    public void testInfinityDoubleOnDoubleFieldAccepted() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("rating").gte(Double.POSITIVE_INFINITY), ctx);
+        assertTrue("Non-finite on DOUBLE should produce a RexCall, not throw", result instanceof RexCall);
+    }
+
+    /** Negative Infinity on DOUBLE field must NOT throw. */
+    public void testNegativeInfinityDoubleOnDoubleFieldAccepted() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("rating").lte(Double.NEGATIVE_INFINITY), ctx);
+        assertTrue("Non-finite on DOUBLE should produce a RexCall, not throw", result instanceof RexCall);
+    }
+
+    // ========== GROUP R5 - SCALED_FLOAT NAN/INFINITY REGRESSION PIN ==========
+
+    /** Regression: NaN on scaled_float still throws (existing guard). */
+    public void testNaNOnScaledFloatRegressionPin() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("scaled_price").gte(Double.NaN), ctx)
+        );
+        assertTrue(
+            "Message should mention non-finite: " + ex.getMessage(),
+            ex.getMessage().contains("non-finite") || ex.getMessage().contains("Non-finite")
+        );
+    }
+
+    // ========== GROUP S - UNCHECKED NARROWING OVERFLOW ==========
+
+    /** BUG 2 proof: gte 2147483648L on INTEGER silently narrows to -2147483648 instead of throwing. */
+    public void testGteAboveIntegerMaxThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").gte(2147483648L), ctx)
+        );
+        assertTrue(
+            "Message should mention out of range or overflow: " + ex.getMessage(),
+            ex.getMessage().contains("out of range") || ex.getMessage().contains("overflow")
+        );
+    }
+
+    /** lte -2147483649L on INTEGER must throw ConversionException. */
+    public void testLteBelowIntegerMinThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("price").lte(-2147483649L), ctx)
+        );
+        assertTrue(
+            "Message should mention out of range or overflow: " + ex.getMessage(),
+            ex.getMessage().contains("out of range") || ex.getMessage().contains("overflow")
+        );
+    }
+
+    /** Bound past Long range on BIGINT (as String) must throw ConversionException. */
+    public void testBoundPastLongRangeOnBigintThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.rangeQuery("timestamp").gte("9223372036854775808"), ctx)
+        );
+        assertTrue(
+            "Message should mention out of range or overflow or numeric: " + ex.getMessage(),
+            ex.getMessage().contains("out of range")
+                || ex.getMessage().contains("overflow")
+                || ex.getMessage().contains("numeric")
+                || ex.getMessage().contains("NumberFormat")
+        );
+    }
+
+    // ========== GROUP T - TINYINT/SMALLINT BOUNDARY (MATCH-NONE / NO-CONSTRAINT) ==========
+
+    /** gte 200 on TINYINT (max=127) -> match-none (FALSE literal). */
+    public void testGteAboveTinyintMaxMatchesNone() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("tiny_val").gte(200), ctx);
+        assertTrue("Lower bound above TINYINT max must produce literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    /** lte 200 on TINYINT (max=127) -> no constraint (upper bound above max is unbounded). */
+    public void testLteAboveTinyintMaxNoConstraint() throws ConversionException {
+        // Only an upper bound that exceeds the type max; upper becomes null => IS_NOT_NULL (exists)
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("tiny_val").lte(200), ctx);
+        // When the only bound returns null, translator produces IS_NOT_NULL (exists semantics)
+        assertTrue("Upper bound above TINYINT max should produce IS_NOT_NULL (no constraint)", result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+    }
+
+    /** gte 40000 on SMALLINT (max=32767) -> match-none. */
+    public void testGteAboveSmallintMaxMatchesNone() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("small_val").gte(40000), ctx);
+        assertTrue("Lower bound above SMALLINT max must produce literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    /** lte -40000 on SMALLINT (min=-32768) -> match-none. */
+    public void testLteBelowSmallintMinMatchesNone() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("small_val").lte(-40000), ctx);
+        assertTrue("Upper bound below SMALLINT min must produce literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    /** gte -200 on TINYINT (min=-128) -> no constraint (lower below min is unbounded). */
+    public void testGteBelowTinyintMinNoConstraint() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("tiny_val").gte(-200), ctx);
+        assertTrue("Lower bound below TINYINT min should produce IS_NOT_NULL (no constraint)", result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+    }
+
+    /** gte 40000 on SMALLINT with lte -40000 -> match-none for both => AND of false? Actually each bound returns separately. */
+    public void testLteAboveSmallintMaxNoConstraint() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("small_val").lte(40000), ctx);
+        assertTrue("Upper bound above SMALLINT max should produce IS_NOT_NULL (no constraint)", result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+    }
+
+    // ========== GROUP U - REGRESSION: IN-RANGE BOUNDARY VALUES STILL WORK ==========
+
+    /** Integer.MAX_VALUE on INTEGER must still produce a valid comparison. */
+    public void testIntegerMaxValueStillWorks() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("price").gte(Integer.MAX_VALUE), ctx);
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+        assertLiteralNumber(result, Integer.valueOf(Integer.MAX_VALUE), null);
+    }
+
+    /** Integer.MIN_VALUE on INTEGER must still produce a valid comparison. */
+    public void testIntegerMinValueStillWorks() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("price").lte(Integer.MIN_VALUE), ctx);
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+        assertLiteralNumber(result, Integer.valueOf(Integer.MIN_VALUE), null);
+    }
+
+    /** Byte.MAX_VALUE (127) on TINYINT must still produce a valid comparison. */
+    public void testByteMaxValueOnTinyintStillWorks() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("tiny_val").gte(127), ctx);
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.GREATER_THAN_OR_EQUAL, call.getKind());
+    }
+
+    /** Short.MIN_VALUE (-32768) on SMALLINT must still produce a valid comparison. */
+    public void testShortMinValueOnSmallintStillWorks() throws ConversionException {
+        RexNode result = translator.convert(QueryBuilders.rangeQuery("small_val").lte(-32768), ctx);
+        assertTrue(result instanceof RexCall);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.LESS_THAN_OR_EQUAL, call.getKind());
+    }
+
     // ========== END OF TESTS ==========
 }

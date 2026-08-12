@@ -14,6 +14,7 @@ import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.range.RangeBoundMath;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -93,15 +94,28 @@ final class UnsignedLongTranslatorMapper extends BaseTranslatorMapper {
      * For values that may be above Long.MAX_VALUE, uses BigDecimal comparison to avoid
      * double precision loss (Long.MAX_VALUE and Long.MAX_VALUE+1 are indistinguishable as doubles).
      *
-     * @throws ConversionException if non-numeric or above Long.MAX_VALUE
+     * @throws ConversionException if non-numeric, non-finite, or above Long.MAX_VALUE
      */
     private static double parseUnsignedLongBound(Object value, String fieldName) throws ConversionException {
         if (value instanceof Number num) {
+            // WHY: NaN/Infinity on unsigned_long would pass the < 0 check (NaN comparisons are false)
+            // and produce a garbage truncation via (long) NaN = 0. Legacy throws IAE for non-finite.
+            double d = num.doubleValue();
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                throw new ConversionException(
+                    "Non-finite value (" + value + ") is not supported for unsigned_long field '" + fieldName + "'"
+                );
+            }
             checkAboveLongMax(num, value, fieldName);
-            return num.doubleValue();
+            return d;
         }
         // String value: parse and check via BigDecimal for precision
         String str = value.toString();
+        // WHY: Strings like "NaN", "Infinity" are accepted by Double.parseDouble but not BigDecimal;
+        // reject them explicitly with a clear message matching the Number path.
+        if (RangeBoundMath.isNonFinite(str)) {
+            throw new ConversionException("Non-finite value (" + value + ") is not supported for unsigned_long field '" + fieldName + "'");
+        }
         try {
             BigDecimal bd = new BigDecimal(str);
             if (bd.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) {

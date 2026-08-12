@@ -18,7 +18,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
  * {@link SqlTypeName#BIGINT} so planner coercion is unchanged; the subclass exists
  * only as an {@code instanceof}-dispatch marker for translators that need to apply
  * unsigned-long-specific bound semantics (negative clamping, decimal truncation,
- * overflow rejection for values above {@code Long.MAX_VALUE}).
+ * non-finite rejection, and overflow rejection for values above {@code Long.MAX_VALUE}).
  *
  * <p>Semantics mirror legacy {@code NumberFieldMapper.NumberType.UNSIGNED_LONG}:
  * <ul>
@@ -26,6 +26,8 @@ import org.apache.calcite.sql.type.SqlTypeName;
  *   <li>DSL path: values above {@code Long.MAX_VALUE} are not representable because the
  *       schema_coerce.rs UInt64→Int64 narrowing loses them at the parquet read layer</li>
  *   <li>Negative bounds: clamped per {@code NumberFieldMapper.objectToUnsignedLong(lenientBound=true)}</li>
+ *   <li>Non-finite bounds (NaN, Infinity): rejected with ConversionException by
+ *       {@code UnsignedLongTranslatorMapper} (legacy throws IAE)</li>
  * </ul>
  */
 public final class UnsignedLongType extends BasicSqlType {

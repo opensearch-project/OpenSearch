@@ -45,7 +45,8 @@ import java.util.Properties;
  * created_date (DATE), is_active (BOOLEAN), timestamp (BIGINT), location (GEOMETRY),
  * status (VARCHAR), binary_data (VARBINARY), event_time (TIMESTAMP(3)),
  * ip_address (IpType/VARBINARY), event_nanos (TIMESTAMP(9)), scaled_price (SCALED_FLOAT factor=10),
- * unsigned_counter (UnsignedLongType/BIGINT).
+ * unsigned_counter (UnsignedLongType/BIGINT), tiny_val (TINYINT), small_val (SMALLINT),
+ * float_val (REAL).
  */
 public class TestUtils {
 
@@ -95,6 +96,9 @@ public class TestUtils {
                     .add("event_nanos", DateOnlyType.nullable(tf, 9))
                     .add("scaled_price", ScaledFloatType.nullable(tf, 10.0))
                     .add("unsigned_counter", UnsignedLongType.nullable(tf))
+                    .add("tiny_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.TINYINT), true))
+                    .add("small_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.SMALLINT), true))
+                    .add("float_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.REAL), true))
                     .build();
             }
         });

@@ -40,7 +40,10 @@ public class ExecutionResultTests extends OpenSearchTestCase {
                 "ip_address",
                 "event_nanos",
                 "scaled_price",
-                "unsigned_counter"
+                "unsigned_counter",
+                "tiny_val",
+                "small_val",
+                "float_val"
             ),
             result.getFieldNames()
         );
