@@ -70,6 +70,15 @@ public class OpenSearchSchemaBuilder {
      * that drives lazy resolution of expressions.
      */
     public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
+        return buildSchema(clusterState, resolver, IndicesOptions.lenientExpandOpen());
+    }
+
+    /**
+     * Options-aware schema construction: resolves tables using the supplied {@code IndicesOptions}.
+     *
+     * @param options controls wildcard expansion and alias backing-index state filtering
+     */
+    public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver, IndicesOptions options) {
         Schema lazySchema = new AbstractSchema() {
             // Truly lazy table map, mirroring sql-plugin's OpenSearchSchema pattern: no upfront
             // enumeration of cluster indices. get() registers on first lookup and caches under the
@@ -83,7 +92,7 @@ public class OpenSearchSchemaBuilder {
                 public Table get(Object key) {
                     String name = ((String) key).toLowerCase(java.util.Locale.ROOT);
                     if (!super.containsKey(name)) {
-                        Table resolved = resolveTable(clusterState, resolver, name);
+                        Table resolved = resolveTable(clusterState, resolver, name, options);
                         if (resolved != null) {
                             super.put(name, resolved);
                         }
@@ -111,7 +120,12 @@ public class OpenSearchSchemaBuilder {
      * is referenced.
      */
     @SuppressWarnings("unchecked")
-    private static Table resolveTable(ClusterState clusterState, IndexNameExpressionResolver resolver, String expression) {
+    private static Table resolveTable(
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String expression,
+        IndicesOptions options
+    ) {
         // Short-circuit literal alias / data stream names so the resolver's lenientExpandOpen
         // (which does not include hidden backings) doesn't filter out data stream backings. The
         // alias / data-stream abstraction already carries the full backing list — use it directly.
@@ -121,7 +135,19 @@ public class OpenSearchSchemaBuilder {
         if (abstraction != null
             && (abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS
                 || abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM)) {
-            backing = abstraction.getIndices();
+            // WHY: IndexAbstraction.getIndices() returns ALL backings regardless of state.
+            // The schema's column set must never exceed the union of mappings of the indices
+            // the planner will actually target. IndexResolution.resolveAlias/resolveDataStream
+            // UNCONDITIONALLY filters to State.OPEN, so the schema must do the same —
+            // regardless of IndicesOptions. Without this, a closed backing's columns appear in
+            // the union row type even though no shard ever supplies them (phantom-column defect).
+            List<IndexMetadata> allBackings = abstraction.getIndices();
+            backing = new java.util.ArrayList<>(allBackings.size());
+            for (IndexMetadata idx : allBackings) {
+                if (idx.getState() == IndexMetadata.State.OPEN) {
+                    backing.add(idx);
+                }
+            }
         } else {
             String[] concrete;
             try {
@@ -131,12 +157,7 @@ public class OpenSearchSchemaBuilder {
                 // expand to its backings (the resolver normally excludes data streams from
                 // wildcard expansion otherwise). Literal data stream / alias names take the
                 // abstraction short-circuit above and skip the resolver entirely.
-                concrete = resolver.concreteIndexNames(
-                    clusterState,
-                    IndicesOptions.lenientExpandOpen(),
-                    true,
-                    Strings.splitStringByCommaToArray(expression)
-                );
+                concrete = resolver.concreteIndexNames(clusterState, options, true, Strings.splitStringByCommaToArray(expression));
             } catch (IndexNotFoundException e) {
                 return null;
             }

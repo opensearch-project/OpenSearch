@@ -12,9 +12,9 @@ import org.apache.calcite.rel.RelNode;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.planner.IndexResolution;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexAbstraction;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -28,8 +28,9 @@ import java.util.SortedMap;
 
 /**
  * Resolves {@link ShardExecutionTarget}s for a DATA_NODE scan stage.
- * Extracts the index name from the fragment at construction time, then
- * resolves shard targets lazily when the Scheduler calls {@link #resolve}.
+ * Reads the pre-resolved {@link IndexResolution} carried on the fragment's
+ * {@link OpenSearchTableScan} node, then resolves shard targets lazily when
+ * the Scheduler calls {@link #resolve}.
  *
  * <p>Shard routing gives both the node and the shardId in one pass —
  * these are coupled and cannot be separated, hence a dedicated resolver
@@ -39,25 +40,38 @@ import java.util.SortedMap;
  */
 public class ShardTargetResolver extends TargetResolver {
 
-    private final String indexName;
+    private final IndexResolution carriedResolution;
     private final ClusterService clusterService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public ShardTargetResolver(RelNode fragment, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
-        this.indexName = RelNodeUtils.findTableName(fragment);
-        this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        if (this.indexName == null) {
+    /**
+     * Constructs a resolver that reads the carried {@link IndexResolution} from the fragment's
+     * {@link OpenSearchTableScan}. Fails loudly if the scan node does not carry a resolution —
+     * a silent fallback would mask a dropped field and reintroduce the options mismatch this
+     * change exists to remove.
+     */
+    public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
+        OpenSearchTableScan scan = RelNodeUtils.findNode(fragment, OpenSearchTableScan.class);
+        if (scan == null) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
+        IndexResolution resolution = scan.getCarriedResolution();
+        if (resolution == null) {
+            throw new IllegalStateException(
+                "ShardTargetResolver: fragment's OpenSearchTableScan ["
+                    + scan.getTable().getQualifiedName()
+                    + "] does not carry a pre-resolved IndexResolution. "
+                    + "All scan nodes must carry their resolution from planning to avoid re-resolution with different IndicesOptions."
+            );
+        }
+        this.carriedResolution = resolution;
+        this.clusterService = clusterService;
     }
 
     @Override
     public List<ExecutionTarget> resolve(ClusterState clusterState, @Nullable Object childManifest) {
-        // Expand the table name (alias or concrete) to its concrete indices against the freshest
-        // cluster state. operationRouting().searchShards requires concrete names — aliases are
-        // not accepted there — so the expansion has to happen here, not at construction time.
-        IndexResolution resolution = IndexResolution.resolve(indexName, clusterState, indexNameExpressionResolver);
+        // Use the carried resolution from planning — no re-resolution, eliminating the third
+        // independent resolution that would otherwise use different IndicesOptions.
+        IndexResolution resolution = carriedResolution;
         String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
             .searchShards(clusterState, concreteNames, null, null);
@@ -68,7 +82,7 @@ public class ShardTargetResolver extends TargetResolver {
         long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
         int shardCount = shardIterators.size();
         if (shardCount > shardCountLimit) {
-            String sourceType = describeIndexSource(indexName, clusterState);
+            String sourceType = describeIndexSource(resolution.requestedName(), clusterState);
             throw new IllegalArgumentException(
                 "Query via "
                     + sourceType

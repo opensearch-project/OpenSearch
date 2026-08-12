@@ -23,6 +23,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
@@ -395,6 +396,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // default 100 rows and broadcast loses the cost race against SINGLETON gather even
         // for tiny dimensions. See IndexRowCountFetcher's class javadoc for the full story.
         ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
+        IndicesOptions planningOptions = queryCtx != null ? queryCtx.indicesOptions() : IndicesOptions.lenientExpandOpen();
         PlannerContext plannerContext = new PlannerContext(
             capabilityRegistry,
             planningState,
@@ -402,7 +404,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             false,
             preferMetadataDriver,
             perQuerySettings,
-            tableRowCounts
+            tableRowCounts,
+            planningOptions
         );
         plannerContext.setPlannerSettings(plannerSettings);
         // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
@@ -433,7 +436,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
 
         // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
         // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and

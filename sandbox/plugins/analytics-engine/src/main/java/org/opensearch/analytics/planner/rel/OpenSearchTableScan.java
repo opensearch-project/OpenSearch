@@ -17,7 +17,9 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
+import org.opensearch.analytics.planner.IndexResolution;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.common.Nullable;
 
 import java.util.List;
 
@@ -36,6 +38,14 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
      * appended. Null in the default case so {@link TableScan#deriveRowType()} drives.
      */
     private final RelDataType overrideRowType;
+    /**
+     * The {@link IndexResolution} computed by {@code OpenSearchTableScanRule} at planning time.
+     * Carrying it here eliminates a third independent re-resolution in {@code ShardTargetResolver}
+     * that would otherwise use different {@code IndicesOptions} and produce a divergent shard set.
+     * Null only for scans created before D4 (e.g. in {@code RelNodeUtils.copyToCluster} test paths).
+     */
+    @Nullable
+    private final IndexResolution carriedResolution;
 
     public OpenSearchTableScan(
         RelOptCluster cluster,
@@ -44,7 +54,7 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         List<String> viableBackends,
         List<FieldStorageInfo> outputFieldStorage
     ) {
-        this(cluster, traitSet, table, viableBackends, outputFieldStorage, null);
+        this(cluster, traitSet, table, viableBackends, outputFieldStorage, null, null);
     }
 
     /**
@@ -61,10 +71,26 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         List<FieldStorageInfo> outputFieldStorage,
         RelDataType overrideRowType
     ) {
+        this(cluster, traitSet, table, viableBackends, outputFieldStorage, overrideRowType, null);
+    }
+
+    /**
+     * Full constructor carrying an optional {@code IndexResolution} resolved by the scan rule.
+     */
+    public OpenSearchTableScan(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        RelOptTable table,
+        List<String> viableBackends,
+        List<FieldStorageInfo> outputFieldStorage,
+        RelDataType overrideRowType,
+        @Nullable IndexResolution carriedResolution
+    ) {
         super(cluster, traitSet, List.of(), table);
         this.viableBackends = viableBackends;
         this.outputFieldStorage = outputFieldStorage;
         this.overrideRowType = overrideRowType;
+        this.carriedResolution = carriedResolution;
     }
 
     @Override
@@ -93,12 +119,27 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         int shardCount,
         OpenSearchDistributionTraitDef distTraitDef
     ) {
+        return create(cluster, table, viableBackends, outputFieldStorage, shardCount, distTraitDef, null);
+    }
+
+    /**
+     * Full factory carrying an optional {@link IndexResolution} from the scan rule.
+     */
+    public static OpenSearchTableScan create(
+        RelOptCluster cluster,
+        RelOptTable table,
+        List<String> viableBackends,
+        List<FieldStorageInfo> outputFieldStorage,
+        int shardCount,
+        OpenSearchDistributionTraitDef distTraitDef,
+        @Nullable IndexResolution carriedResolution
+    ) {
         int tableId = table.getQualifiedName().hashCode();
         OpenSearchDistribution distribution = shardCount == 1
             ? distTraitDef.shardSingleton(tableId, shardCount)
             : distTraitDef.shardRandom(tableId, shardCount);
         RelTraitSet traitSet = RelTraitSet.createEmpty().plus(OpenSearchConvention.INSTANCE).plus(distribution);
-        return new OpenSearchTableScan(cluster, traitSet, table, viableBackends, outputFieldStorage);
+        return new OpenSearchTableScan(cluster, traitSet, table, viableBackends, outputFieldStorage, null, carriedResolution);
     }
 
     @Override
@@ -111,9 +152,23 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         return outputFieldStorage;
     }
 
+    /** The pre-resolved {@link IndexResolution} carried from planning, or null for legacy paths. */
+    @Nullable
+    public IndexResolution getCarriedResolution() {
+        return carriedResolution;
+    }
+
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), viableBackends, outputFieldStorage, overrideRowType);
+        return new OpenSearchTableScan(
+            getCluster(),
+            traitSet,
+            getTable(),
+            viableBackends,
+            outputFieldStorage,
+            overrideRowType,
+            carriedResolution
+        );
     }
 
     @Override
@@ -128,7 +183,15 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations) {
-        return new OpenSearchTableScan(getCluster(), getTraitSet(), getTable(), List.of(backend), outputFieldStorage, overrideRowType);
+        return new OpenSearchTableScan(
+            getCluster(),
+            getTraitSet(),
+            getTable(),
+            List.of(backend),
+            outputFieldStorage,
+            overrideRowType,
+            carriedResolution
+        );
     }
 
     @Override

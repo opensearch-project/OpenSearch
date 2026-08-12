@@ -9,6 +9,7 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterState;
 
@@ -40,6 +41,15 @@ public interface EngineContextProvider {
      */
     default QueryRequestContext getContext(ClusterState clusterState) {
         return new QueryRequestContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
+    }
+
+    /**
+     * Options-aware context: builds the schema with the supplied {@code IndicesOptions} so
+     * the lazy table-resolution closure honours the user's wildcard/state preferences.
+     * Default delegates to the 1-arg overload (lenientExpandOpen) for PPL/SQL compatibility.
+     */
+    default QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions) {
+        return getContext(clusterState);
     }
 
     QueryRequestContext getContext();

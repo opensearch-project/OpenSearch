@@ -124,7 +124,7 @@ public class SortSpecExtractorTests extends PlanShapeTestBase {
     private SortSpec shardSortSpec(RelNode logicalPlan) {
         PlannerContext context = multiShardContext();
         RelNode planned = runPlanner(logicalPlan, context);
-        QueryDAG dag = DAGBuilder.build(planned, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(planned, context.getCapabilityRegistry(), mockClusterService());
         return leafStage(dag.rootStage()).getSortSpec();
     }
 

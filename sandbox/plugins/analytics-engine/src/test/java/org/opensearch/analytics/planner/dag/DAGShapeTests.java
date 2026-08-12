@@ -53,7 +53,7 @@ public class DAGShapeTests extends BasePlannerRulesTests {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         LOGGER.info("QueryDAG:\n{}", dag);
         return dag;
     }

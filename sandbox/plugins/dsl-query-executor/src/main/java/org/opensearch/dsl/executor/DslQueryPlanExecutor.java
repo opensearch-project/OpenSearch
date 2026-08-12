@@ -11,6 +11,7 @@ package org.opensearch.dsl.executor;
 import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.dsl.result.ExecutionResult;
@@ -48,18 +49,20 @@ public class DslQueryPlanExecutor {
      * {@code onFailure} with that error and remaining plans do not run.
      *
      * @param plans    the query plans to execute
+     * @param queryCtx per-query context carrying IndicesOptions and the coordinator's ClusterState
      * @param listener receives the ordered list of results on success, or the first failure
      */
-    public void execute(QueryPlans plans, ActionListener<List<ExecutionResult>> listener) {
+    public void execute(QueryPlans plans, QueryRequestContext queryCtx, ActionListener<List<ExecutionResult>> listener) {
         List<QueryPlans.QueryPlan> queryPlans = plans.getAll();
         List<ExecutionResult> results = new ArrayList<>(queryPlans.size());
-        executeNext(queryPlans, 0, results, listener);
+        executeNext(queryPlans, 0, results, queryCtx, listener);
     }
 
     private void executeNext(
         List<QueryPlans.QueryPlan> queryPlans,
         int index,
         List<ExecutionResult> results,
+        QueryRequestContext queryCtx,
         ActionListener<List<ExecutionResult>> outer
     ) {
         if (index >= queryPlans.size()) {
@@ -69,11 +72,10 @@ public class DslQueryPlanExecutor {
         QueryPlans.QueryPlan plan = queryPlans.get(index);
         RelNode relNode = plan.relNode();
         logPlan(relNode);
-        // TODO: context param is null, may carry execution hints
-        executor.execute(relNode, null, ActionListener.wrap(rows -> {
+        executor.execute(relNode, queryCtx, ActionListener.wrap(rows -> {
             logRows(rows);
             results.add(new ExecutionResult(plan, rows));
-            executeNext(queryPlans, index + 1, results, outer);
+            executeNext(queryPlans, index + 1, results, queryCtx, outer);
         }, outer::onFailure));
     }
 
