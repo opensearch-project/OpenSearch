@@ -19,6 +19,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -34,6 +35,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -96,7 +98,8 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 // ignore_unavailable, allow_no_indices and expand_wildcards are honoured.
                 // This also throws IndexNotFoundException (HTTP 404) for a missing concrete index
                 // under default options, matching vanilla SearchRequest behaviour.
-                Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
+                final ClusterState state = clusterService.state();
+                Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
 
                 if (concreteIndices.length == 0) {
                     // Zero concrete indices without an exception means the resolver accepted it
@@ -106,6 +109,11 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                     listener.onResponse(emptySearchResponse());
                     return;
                 }
+
+                // The analytics engine's own filtered-alias check (IndexResolution.resolveAlias)
+                // is unreachable once expressions are pre-resolved to concrete index names, so we
+                // must reject filtering aliases here at the coordinator level.
+                rejectFilteringAliases(state, request.indices(), concreteIndices);
 
                 // Join already-concrete index names with commas. Passing resolved names
                 // neutralises the schema layer's hardcoded IndicesOptions.lenientExpandOpen()
@@ -141,6 +149,27 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
     // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
     // so this plugin doesn't need its own resolution logic.
+
+    /**
+     * Rejects any request whose index expressions involve a filtering alias.
+     *
+     * @throws IllegalArgumentException if a filtering alias is detected
+     */
+    private void rejectFilteringAliases(ClusterState state, String[] requestIndices, Index[] concreteIndices) {
+        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, requestIndices);
+        for (Index concreteIndex : concreteIndices) {
+            String[] filteringAliases = indexNameExpressionResolver.filteringAliases(state, concreteIndex.getName(), resolvedExpressions);
+            if (filteringAliases != null && filteringAliases.length > 0) {
+                throw new IllegalArgumentException(
+                    "Alias ["
+                        + filteringAliases[0]
+                        + "] declares a filter on index ["
+                        + concreteIndex.getName()
+                        + "]; filter aliases are not yet supported by analytics queries"
+                );
+            }
+        }
+    }
 
     /** Builds an empty SearchResponse with zero hits and zero shards. */
     private static SearchResponse emptySearchResponse() {
