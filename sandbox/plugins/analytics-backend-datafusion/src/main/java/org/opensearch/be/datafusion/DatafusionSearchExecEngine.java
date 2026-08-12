@@ -38,7 +38,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
     @Override
     public void prepare(ShardScanExecutionContext requestContext) {
         byte[] substraitBytes = requestContext.getFragmentBytes();
-        long contextId = datafusionContext.task() != null ? datafusionContext.task().getId() : 0L;
+        long contextId = datafusionContext.task() != null ? datafusionContext.task().getNativeTaskId() : 0L;
         datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }
 
@@ -52,7 +52,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
         // immediately fires the Rust CancellationToken.
         long contextId = datafusionContext.getContextId();
-        AnalyticsShardTask shardTask = datafusionContext.task() instanceof AnalyticsShardTask t ? t : null;
+        AnalyticsShardTask shardTask = datafusionContext.task();
         if (shardTask != null) {
             shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
         }

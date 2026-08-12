@@ -48,9 +48,11 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -65,6 +67,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
+import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.InnerHitsPhase;
@@ -85,8 +88,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -291,17 +296,21 @@ public class FetchPhase {
 
     protected FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
+        boolean hasFetchContext = context.hasFetchSourceContext();
+        String[] requestSourceIncludes = hasFetchContext ? context.fetchSourceContext().includes() : null;
+        String[] requestSourceExcludes = hasFetchContext ? context.fetchSourceContext().excludes() : null;
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (!context.hasScriptFields() && !hasFetchContext) {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
             return new FieldsVisitor(
                 loadSource,
-                context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                requestSourceIncludes,
+                requestSourceExcludes,
+                codecSourceExcludes(context, requestSourceExcludes)
             );
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -332,22 +341,106 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
+            String[] codecSourceExcludes = codecSourceExcludes(context, requestSourceExcludes);
+
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return new FieldsVisitor(
-                    loadSource,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
-                );
+                return new FieldsVisitor(loadSource, requestSourceIncludes, requestSourceExcludes, codecSourceExcludes);
             } else {
                 return new CustomFieldsVisitor(
                     storedToRequestedFields.keySet(),
                     loadSource,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
-                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                    requestSourceIncludes,
+                    requestSourceExcludes,
+                    codecSourceExcludes
                 );
             }
         }
+    }
+
+    private String[] codecSourceExcludes(SearchContext context, String[] requestExcludes) {
+        if (CollectionUtils.isEmpty(requestExcludes)) {
+            return null;
+        }
+
+        // context.innerHits won't throw NPE as it creates an empty innerhitscontext if its null
+        final Map<String, InnerHitsContext.InnerHitSubContext> innerHits = context.innerHits().getInnerHits();
+        if (innerHits.isEmpty()) {
+            return requestExcludes;
+        }
+
+        final Set<String> requestIncludes = new HashSet<>();
+        // Inner hits (including nested ones) read from the root document's _source, so any field they
+        // request must stay available at the codec level. If any inner hit fetches the whole source,
+        // every field must remain, so no codec excludes apply.
+        if (collectInnerHitIncludes(innerHits, requestIncludes)) {
+            return null;
+        }
+
+        final Set<String> codecExcludes = new HashSet<>(Arrays.asList(requestExcludes));
+        for (String reqInclude : requestIncludes) {
+            codecExcludes.removeIf(userExclude -> sourcePathOverlap(userExclude, reqInclude));
+        }
+
+        return codecExcludes.toArray(new String[0]);
+    }
+
+    /**
+     * Determine whether a source exclude pattern and an inner-hit include pattern can affect a common
+     * field. Source include/exclude semantics are hierarchical: excluding {@code obj} also removes
+     * {@code obj.field}, and including {@code obj} pulls in the whole {@code obj} subtree. Both patterns
+     * are therefore compared segment by segment (splitting on {@code .}); they overlap when every segment
+     * up to the shorter path overlaps, i.e. when one path is an ancestor of (or equal to) the other. When
+     * they overlap the exclude must not be applied at the codec level, otherwise the inner hit would read
+     * empty values for the field it requested. Comparing per segment also keeps {@code *} from spanning a
+     * {@code .} boundary, matching how {@link org.opensearch.common.xcontent.support.XContentMapValues}
+     * applies these patterns.
+     */
+    private static boolean sourcePathOverlap(String exclude, String include) {
+        final String[] excludeSegments = exclude.split("\\.");
+        final String[] includeSegments = include.split("\\.");
+        final int common = Math.min(excludeSegments.length, includeSegments.length);
+        for (int i = 0; i < common; i++) {
+            if (Regex.simpleMatchOverlap(excludeSegments[i], includeSegments[i]) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Recursively collects the source fields requested by the given inner hits and their nested
+     * children into {@code requestIncludes}.
+     *
+     * @return true if any inner hit fetches the whole source (empty includes), meaning no codec
+     *         excludes should be applied
+     */
+    private boolean collectInnerHitIncludes(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, Set<String> requestIncludes) {
+        for (InnerHitsContext.InnerHitSubContext innerHit : innerHits.values()) {
+            final FetchSourceContext innerSource = innerHit.fetchSourceContext();
+            if (innerSource != null && innerSource.fetchSource()) {
+                // Empty includes means "fetch the whole source", so every field must remain available.
+                if (innerSource.includes().length == 0) {
+                    return true;
+                }
+                requestIncludes.addAll(Arrays.asList(innerSource.includes()));
+            }
+            FetchFieldsContext innerFetchContext = innerHit.fetchFieldsContext();
+            if (innerFetchContext != null && innerFetchContext.fields() != null) {
+                requestIncludes.addAll(
+                    innerFetchContext.fields()
+                        .stream()
+                        .map(fieldAndFormat -> fieldAndFormat.field)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet())
+                );
+            }
+            // Nested inner hits read from the same root _source, so descend into their children too.
+            if (innerHit.innerHits() != null && collectInnerHitIncludes(innerHit.innerHits().getInnerHits(), requestIncludes)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean sourceRequired(SearchContext context) {
