@@ -53,6 +53,19 @@ public class StreamTransportService extends TransportService {
     );
 
     /**
+     * Whether same-node streaming requests are dispatched in-process, bypassing the loopback wire and
+     * its serialize -&gt; transport -&gt; deserialize round-trip. When disabled, local requests take the
+     * same self-connection path as remote ones, which is the pre-optimization behaviour and a fallback
+     * if the in-process path misbehaves. Enabled by default.
+     */
+    public static final Setting<Boolean> STREAM_TRANSPORT_LOCAL_DISPATCH_ENABLED_SETTING = Setting.boolSetting(
+        "transport.stream.local.dispatch.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Bounded in-flight batch queue depth for the local (in-process) streaming path — the number of
      * response batches a producer may stage ahead of the consumer before {@code sendResponseBatch}
      * blocks (the local-path substitute for the wire path's gRPC-readiness backpressure). It bounds the
@@ -73,6 +86,7 @@ public class StreamTransportService extends TransportService {
 
     private volatile TimeValue streamTransportReqTimeout;
     private volatile int localStreamQueueDepth;
+    private volatile boolean localDispatchEnabled;
 
     public StreamTransportService(
         Settings settings,
@@ -109,9 +123,11 @@ public class StreamTransportService extends TransportService {
         );
         this.streamTransportReqTimeout = STREAM_TRANSPORT_REQ_TIMEOUT_SETTING.get(settings);
         this.localStreamQueueDepth = STREAM_TRANSPORT_LOCAL_QUEUE_DEPTH_SETTING.get(settings);
+        this.localDispatchEnabled = STREAM_TRANSPORT_LOCAL_DISPATCH_ENABLED_SETTING.get(settings);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(STREAM_TRANSPORT_REQ_TIMEOUT_SETTING, this::setStreamTransportReqTimeout);
             clusterSettings.addSettingsUpdateConsumer(STREAM_TRANSPORT_LOCAL_QUEUE_DEPTH_SETTING, v -> this.localStreamQueueDepth = v);
+            clusterSettings.addSettingsUpdateConsumer(STREAM_TRANSPORT_LOCAL_DISPATCH_ENABLED_SETTING, v -> this.localDispatchEnabled = v);
         }
     }
 
@@ -165,7 +181,9 @@ public class StreamTransportService extends TransportService {
         // Matching by node id also keeps this decision independent of isLocalNode()'s other role in
         // connectToNode(), which suppresses establishing a loopback self-connection; that self-
         // connection is what any non-local-dispatch code path still relies on.
-        if (localNode != null && node != null && localNode.getId().equals(node.getId())) {
+        // Gated by transport.stream.local.dispatch.enabled: when disabled, fall through to the
+        // connection manager so local requests use the loopback self-connection like remote ones.
+        if (localDispatchEnabled && localNode != null && node != null && localNode.getId().equals(node.getId())) {
             return new LocalStreamConnection(localNode);
         }
         try {
