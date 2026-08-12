@@ -93,8 +93,8 @@ public class TestUtils {
                     .add("event_time", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.TIMESTAMP, 3), true))
                     .add("ip_address", tf.createTypeWithNullability(new IpType(true), true))
                     .add("event_nanos", DateOnlyType.nullable(tf, 9))
-                    .add("scaled_price", new ScaledFloatType(tf.getTypeSystem(), true, 10.0))
-                    .add("unsigned_counter", UnsignedLongType.nullable())
+                    .add("scaled_price", ScaledFloatType.nullable(tf, 10.0))
+                    .add("unsigned_counter", UnsignedLongType.nullable(tf))
                     .build();
             }
         });

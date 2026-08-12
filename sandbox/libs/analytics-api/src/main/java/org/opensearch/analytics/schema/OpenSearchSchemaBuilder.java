@@ -275,7 +275,7 @@ public class OpenSearchSchemaBuilder {
             // mapFieldType still returns BIGINT for unsigned_long; the UnsignedLongType marker
             // enables translator guards (negative-bound clamping, overflow rejection for values
             // above Long.MAX_VALUE) without affecting planner coercion.
-            return new UnsignedLongType(typeFactory.getTypeSystem(), true);
+            return UnsignedLongType.nullable(typeFactory);
         }
         if ("scaled_float".equals(opensearchType)) {
             if (Double.isNaN(scalingFactor) || scalingFactor <= 0) {
@@ -284,7 +284,7 @@ public class OpenSearchSchemaBuilder {
                 // creation; this guards only corrupted/hand-edited mappings.
                 return null;
             }
-            return new ScaledFloatType(typeFactory.getTypeSystem(), true, scalingFactor);
+            return ScaledFloatType.nullable(typeFactory, scalingFactor);
         }
         if ("date".equals(opensearchType) || "date_nanos".equals(opensearchType)) {
             int precision = "date_nanos".equals(opensearchType) ? 9 : 3;

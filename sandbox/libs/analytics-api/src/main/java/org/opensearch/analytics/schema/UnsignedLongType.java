@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.schema;
 
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.sql.type.BasicSqlType;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -40,9 +41,9 @@ public final class UnsignedLongType extends BasicSqlType {
         computeDigest();
     }
 
-    /** Convenience for the common nullable case used by {@link OpenSearchSchemaBuilder}. */
-    public static UnsignedLongType nullable() {
-        return new UnsignedLongType(RelDataTypeSystem.DEFAULT, true);
+    /** Builds a nullable marker using the type system from the given factory. */
+    public static UnsignedLongType nullable(RelDataTypeFactory typeFactory) {
+        return new UnsignedLongType(typeFactory.getTypeSystem(), true);
     }
 
     @Override

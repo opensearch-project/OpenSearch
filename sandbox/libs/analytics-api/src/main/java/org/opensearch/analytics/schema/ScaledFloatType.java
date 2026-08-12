@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.schema;
 
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.sql.type.BasicSqlType;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -30,6 +31,11 @@ public final class ScaledFloatType extends BasicSqlType {
     /** Returns the scaling factor used to convert double values to stored longs. */
     public double getScalingFactor() {
         return scalingFactor;
+    }
+
+    /** Builds a nullable marker using the type system from the given factory. */
+    public static ScaledFloatType nullable(RelDataTypeFactory typeFactory, double scalingFactor) {
+        return new ScaledFloatType(typeFactory.getTypeSystem(), true, scalingFactor);
     }
 
     @Override
