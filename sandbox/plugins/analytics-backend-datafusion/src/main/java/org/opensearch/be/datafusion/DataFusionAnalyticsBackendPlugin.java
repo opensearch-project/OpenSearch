@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
@@ -912,7 +913,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if (dfReader == null) {
                 throw new IllegalStateException("No DatafusionReader available in the acquired reader");
             }
-            DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            // Fail fast if the scan context ever carries a non-analytics task: the context id
+            // and cancellation wiring both hang off AnalyticsShardTask#getNativeTaskId().
+            DatafusionContext context = new DatafusionContext(
+                (AnalyticsShardTask) ctx.getTask(),
+                dfReader,
+                dataFusionService.getNativeRuntime()
+            );
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
                 context.setSessionContextHandle(sessionState.sessionContextHandle());
