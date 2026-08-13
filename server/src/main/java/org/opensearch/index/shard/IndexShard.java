@@ -1499,12 +1499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @deprecated Use {@link #applyDeleteOperationOnReplica(long, long, long, String, String)} instead.
      */
     @Deprecated
-    public Engine.DeleteResult applyDeleteOperationOnReplica(
-        long seqNo,
-        long opPrimaryTerm,
-        long version,
-        String id
-    ) throws IOException {
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
         return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
     }
 
@@ -1526,7 +1521,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Engine.Delete delete = engine.prepareDelete(id, routing, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = engine.prepareDelete(
+            id,
+            routing,
+            seqNo,
+            opPrimaryTerm,
+            version,
+            versionType,
+            origin,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
         return delete(engine, delete);
     }
 

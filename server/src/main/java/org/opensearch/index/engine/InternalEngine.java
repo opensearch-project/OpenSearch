@@ -1173,7 +1173,8 @@ public class InternalEngine extends Engine {
                         delete.origin(),
                         delete.startTime(),
                         delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm()
+                        delete.getIfPrimaryTerm(),
+                        delete.routing()
                     );
 
                     advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());

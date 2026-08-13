@@ -1506,6 +1506,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         @Override
         public long estimateSize() {
             return (id.length() * 2) + (3 * Long.BYTES) // seq_no, primary_term, and version
+                + 1 // writeOptionalString presence byte
                 + (routing != null ? 2 * routing.length() : 0);
         }
 
@@ -1541,7 +1542,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         private void write(final StreamOutput out) throws IOException {
             final int format;
-            if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
                 format = SERIALIZATION_FORMAT;
             } else if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
                 format = FORMAT_NO_DOC_TYPE;
@@ -1579,7 +1580,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
             Delete delete = (Delete) o;
 
-            return version == delete.version && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm
+            return version == delete.version
+                && seqNo == delete.seqNo
+                && primaryTerm == delete.primaryTerm
                 && Objects.equals(routing, delete.routing);
         }
 
@@ -1594,8 +1597,15 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         @Override
         public String toString() {
-            return "Delete{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version
-                + (routing != null ? ", routing=" + routing : "") + '}';
+            return "Delete{"
+                + "seqNo="
+                + seqNo
+                + ", primaryTerm="
+                + primaryTerm
+                + ", version="
+                + version
+                + (routing != null ? ", routing=" + routing : "")
+                + '}';
         }
     }
 
