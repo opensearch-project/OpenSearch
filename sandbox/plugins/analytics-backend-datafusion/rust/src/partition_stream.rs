@@ -32,7 +32,7 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::SchemaRef;
@@ -43,6 +43,7 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{stream, Stream};
+use parking_lot::Mutex as ChannelMutex;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
@@ -57,6 +58,7 @@ const CHANNEL_CAPACITY: usize = 4;
 /// receiver side.
 pub struct PartitionStreamSender {
     tx: mpsc::Sender<Result<RecordBatch, DataFusionError>>,
+    receiver: Weak<ChannelMutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
     /// Out-of-band terminal-failure flag shared with the receiver. Set by [`try_fail`] when the
     /// producer/drain died mid-stream. The receiver consults it on channel-close so a truncated
@@ -67,9 +69,10 @@ pub struct PartitionStreamSender {
 }
 
 /// Outcome of a blocking send. `ReceiverDropped` is the benign terminal case — the
-/// DataFusion consumer finished (e.g. a `LimitExec` satisfied its fetch) and dropped the
-/// receiver. Surfaced as a distinct variant so the FFM layer can signal it without the Java
-/// side substring-matching an error message.
+/// DataFusion consumer finished (e.g. a `LimitExec` satisfied its fetch), or an
+/// early-termination request closed this partition's receiver. Surfaced as a distinct
+/// variant so the FFM layer can signal it without the Java side substring-matching an
+/// error message.
 #[must_use]
 pub enum SendOutcome {
     Sent,
@@ -82,6 +85,18 @@ impl PartitionStreamSender {
         &self.schema
     }
 
+    /// Gracefully terminates this input partition without cancelling the query.
+    ///
+    /// Closing the receiver rejects any blocked or future sends while preserving
+    /// already buffered batches for the DataFusion consumer to drain before EOF.
+    /// This is safe to call while [`Self::send_blocking`] holds an immutable sender
+    /// borrow, unlike dropping the sender itself.
+    pub fn terminate_early(&self) {
+        if let Some(receiver) = self.receiver.upgrade() {
+            receiver.lock().close();
+        }
+    }
+
     /// Push a batch into the channel from a synchronous (non-async) context.
     ///
     /// The provided `handle` is used to drive the async send — typically the
@@ -90,8 +105,8 @@ impl PartitionStreamSender {
     /// thread to be a Tokio worker.
     ///
     /// Blocks while the channel is full (natural backpressure). Returns
-    /// [`SendOutcome::ReceiverDropped`] only if the receiver has been dropped —
-    /// the sole failure mode of `mpsc::Sender::send`.
+    /// [`SendOutcome::ReceiverDropped`] only if the receiver has been dropped or
+    /// closed for early termination — the sole failure mode of `mpsc::Sender::send`.
     pub fn send_blocking(
         &self,
         batch: Result<RecordBatch, DataFusionError>,
@@ -134,7 +149,7 @@ impl fmt::Debug for PartitionStreamSender {
 /// directly. Typically handed to [`SingleReceiverPartition`] and registered on
 /// a `SessionContext` as a `StreamingTable`.
 pub struct PartitionStreamReceiver {
-    rx: mpsc::Receiver<Result<RecordBatch, DataFusionError>>,
+    rx: Arc<ChannelMutex<mpsc::Receiver<Result<RecordBatch, DataFusionError>>>>,
     schema: SchemaRef,
     /// Shared with the sender (see [`PartitionStreamSender::failure`]). On channel-close, if this is
     /// set the receiver yields it as a terminal `Err` rather than a clean `None`/EOF.
@@ -160,11 +175,14 @@ impl Stream for PartitionStreamReceiver {
             // Terminal: we already surfaced the out-of-band error. Stream is done.
             return Poll::Ready(None);
         }
-        match self.rx.poll_recv(cx) {
+        // Upstream wrapped the receiver in a ChannelMutex (parking_lot) so the sender can hold a
+        // Weak handle for early termination — hence the .lock() before poll_recv. The lock is
+        // released at the end of this statement, before the failure bookkeeping below.
+        let polled = self.rx.lock().poll_recv(cx);
+        match polled {
             // Channel closed (sender dropped). If the producer/drain recorded an out-of-band failure
             // (try_fail) but couldn't enqueue it in-band (full channel + timeout), surface it here as a
             // terminal Err so a TRUNCATED partition fails the query instead of looking like clean EOF.
-            // (codex round-5 BLOCKER #1.)
             Poll::Ready(None) => {
                 // Clone the message out before the mutable borrow of failure_emitted below.
                 let recorded = self.failure.get().cloned();
@@ -196,13 +214,17 @@ impl RecordBatchStream for PartitionStreamReceiver {
 pub fn channel(schema: SchemaRef) -> (PartitionStreamSender, PartitionStreamReceiver) {
     let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
     let failure: Arc<OnceLock<String>> = Arc::new(OnceLock::new());
+    // Upstream: the receiver lives behind an Arc<ChannelMutex> so the sender can hold a Weak to it
+    // and close it for early termination without owning it.
+    let shared_rx = Arc::new(ChannelMutex::new(rx));
     let sender = PartitionStreamSender {
         tx,
+        receiver: Arc::downgrade(&shared_rx),
         schema: Arc::clone(&schema),
         failure: Arc::clone(&failure),
     };
     let receiver = PartitionStreamReceiver {
-        rx,
+        rx: shared_rx,
         schema,
         failure,
         failure_emitted: false,
@@ -416,6 +438,61 @@ mod tests {
             "clean close is EOF, not Err"
         );
         producer.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn early_termination_drains_buffered_batches_then_eof() {
+        let schema = test_schema();
+        let (sender, mut receiver) = channel(Arc::clone(&schema));
+
+        sender.tx.try_send(Ok(test_batch(&schema, &[1]))).unwrap();
+        sender.tx.try_send(Ok(test_batch(&schema, &[2]))).unwrap();
+        sender.terminate_early();
+
+        assert!(sender.tx.try_send(Ok(test_batch(&schema, &[3]))).is_err());
+        assert_eq!(receiver.next().await.unwrap().unwrap().num_rows(), 1);
+        assert_eq!(receiver.next().await.unwrap().unwrap().num_rows(), 1);
+        assert!(receiver.next().await.is_none());
+    }
+
+    #[test]
+    fn early_termination_unblocks_full_channel_sender() {
+        let rt = tokio::runtime::Runtime::new().expect("runtime builds");
+        let handle = rt.handle().clone();
+        let schema = test_schema();
+        let (sender, _receiver) = channel(Arc::clone(&schema));
+        let sender = Arc::new(sender);
+
+        for value in 0..CHANNEL_CAPACITY {
+            sender
+                .tx
+                .try_send(Ok(test_batch(&schema, &[value as i64])))
+                .unwrap();
+        }
+
+        let blocked_sender = Arc::clone(&sender);
+        let blocked_schema = Arc::clone(&schema);
+        let blocked = std::thread::spawn(move || {
+            blocked_sender.send_blocking(Ok(test_batch(&blocked_schema, &[99])), &handle)
+        });
+
+        sender.terminate_early();
+        assert!(matches!(
+            blocked.join().unwrap(),
+            SendOutcome::ReceiverDropped
+        ));
+    }
+
+    #[test]
+    fn early_termination_after_receiver_drop_is_noop() {
+        let schema = test_schema();
+        let (sender, receiver) = channel(Arc::clone(&schema));
+        drop(receiver);
+
+        // The weak receiver-control handle no longer upgrades; this must not panic
+        // and later sends must still report the dropped receiver.
+        sender.terminate_early();
+        assert!(sender.tx.try_send(Ok(test_batch(&schema, &[1]))).is_err());
     }
 
     #[tokio::test]

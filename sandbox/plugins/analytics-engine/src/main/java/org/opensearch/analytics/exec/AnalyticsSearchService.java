@@ -702,7 +702,13 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector.set(i, rowIds[i]);
             }
             rowIdVector.setValueCount(rowIds.length);
-            EngineResultStream stream = backend.fetchByRowIds(readerContext.getReader(), rowIdVector, columns, allocator, task.getId());
+            EngineResultStream stream = backend.fetchByRowIds(
+                readerContext.getReader(),
+                rowIdVector,
+                columns,
+                allocator,
+                task.getNativeTaskId()
+            );
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
             // Fetch is the terminal phase: no fetch follows, so close() frees the reader eagerly.
@@ -725,7 +731,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
         // On cancel, release a fetch parked in the native pull via cooperative cancellation, not
         // stream.close() (which would race the in-flight native pull).
-        task.setCancellationListener(() -> backend.cancelByContext(task.getId()));
+        task.setCancellationListener(() -> backend.cancelByContext(task.getNativeTaskId()));
         try (FragmentResources ctx = resources) {
             Iterator<EngineResultBatch> it = ctx.stream().iterator();
             while (it.hasNext()) {

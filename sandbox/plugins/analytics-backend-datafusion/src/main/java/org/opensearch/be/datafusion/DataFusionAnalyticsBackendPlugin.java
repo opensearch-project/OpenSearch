@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.planner.CalciteToArrowSchema;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -933,8 +934,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             // and read only from named-input streams registered on the SessionContextHandle by
             // the prior ShuffleScanHandler chain. The searcher's vanilla path is unreachable in
             // that case (no reader handle); the searchWithSessionContext path is the only one
-            // that fires.
-            DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            // that fires. So upstream's unconditional "dfReader == null" fail-fast is NOT applied
+            // here — the shard-scan case is already covered by the throw inside the
+            // ctx.getReader() != null block above, and DatafusionContext tolerates a null reader.
+            //
+            // The AnalyticsShardTask cast is upstream's: the context id and cancellation wiring
+            // both hang off AnalyticsShardTask#getNativeTaskId(), so a non-analytics task must
+            // fail fast rather than silently lose cancellation.
+            DatafusionContext context = new DatafusionContext(
+                (AnalyticsShardTask) ctx.getTask(),
+                dfReader,
+                dataFusionService.getNativeRuntime()
+            );
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
                 context.setSessionContextHandle(sessionState.sessionContextHandle());
