@@ -8,8 +8,11 @@
 
 package org.opensearch.analytics.planner;
 
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -291,6 +294,44 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
+        );
+    }
+
+    // ---- Constant group keys: PPL's `eval c = 1 | stats count() by c, URL` materialises the ----
+    // ---- literal into a Project column, so the aggregate groups on a column *reference* and ----
+    // ---- DataFusion can no longer tell it is constant. The literal then rides through the ----
+    // ---- hash-partitioning, group key and sort. AGGREGATE_PROJECT_PULL_UP_CONSTANTS drops it ----
+    // ---- from the group set and re-attaches it above. ClickBench q35: 3.07s -> see report. ----
+
+    public void testConstantGroupKeyIsPulledUp() {
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        // Project(const=1, status) — mirrors `eval const = 1 | stats count() by const, status`
+        LogicalProject project = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rexBuilder.makeExactLiteral(java.math.BigDecimal.ONE, intType), rexBuilder.makeInputRef(intType, 0)),
+            List.of("const", "status")
+        );
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            project,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "c"
+        );
+        RelNode agg = makeAggregate(project, ImmutableBitSet.of(0, 1), count);
+
+        RelNode result = runPlanner(agg, singleShardContext());
+
+        String plan = result.explain();
+        assertFalse("constant must not remain a group key:\n" + plan, plan.contains("group=[{0, 1}]"));
+        assertTrue(
+            "aggregate should group on the non-constant key only:\n" + plan,
+            plan.contains("group=[{0}]") || plan.contains("group=[{1}]")
         );
     }
 }
