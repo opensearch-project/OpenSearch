@@ -109,6 +109,9 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
+    // incremented on every activation so that the wakeup chain scheduled by a previous activation dies out instead of running
+    // alongside the chain scheduled by the current one
+    private long activationCount;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -160,6 +163,7 @@ public abstract class PeerFinder {
         synchronized (mutex) {
             assert assertInactiveWithNoKnownPeers();
             active = true;
+            activationCount += 1;
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
@@ -329,6 +333,7 @@ public abstract class PeerFinder {
             }
         });
 
+        final long scheduledActivationCount = activationCount;
         transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
@@ -344,6 +349,12 @@ public abstract class PeerFinder {
             @Override
             protected void doRun() {
                 synchronized (mutex) {
+                    if (scheduledActivationCount != activationCount) {
+                        // this wakeup belongs to a previous activation which has since been superseded; the current activation has its
+                        // own wakeup chain, so let this one die out rather than running a duplicate chain alongside it.
+                        logger.trace("not handling wakeup from stale activation [{}]", scheduledActivationCount);
+                        return;
+                    }
                     if (handleWakeUp() == false) {
                         return;
                     }
