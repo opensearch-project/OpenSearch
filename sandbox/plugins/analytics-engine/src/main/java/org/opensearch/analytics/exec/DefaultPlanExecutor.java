@@ -98,7 +98,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
-    private volatile int maxShardsPerQuery;
+    private volatile int preFilterShardSize;
     private volatile int maxConcurrentShardRequestsPerNode;
     private volatile boolean preferMetadataDriver;
     private final PlannerSettings plannerSettings;
@@ -141,9 +141,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
 
         // TODO: These should be honored as query params, but requires front-end changes to pass request options.
-        this.maxShardsPerQuery = AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.get(clusterService.getSettings());
+        this.preFilterShardSize = AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY, v -> maxShardsPerQuery = v);
+            .addSettingsUpdateConsumer(AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE, v -> preFilterShardSize = v);
         this.maxConcurrentShardRequestsPerNode = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE.get(
             clusterService.getSettings()
         );
@@ -171,9 +171,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         return maxConcurrentShardRequestsPerNode;
     }
 
-    /** Visible for testing: the live max-shards-per-query limit (reflects dynamic updates). */
-    public int maxShardsPerQuery() {
-        return maxShardsPerQuery;
+    /** Visible for testing: the live can-match pre-filter threshold (reflects dynamic updates). */
+    public int preFilterShardSize() {
+        return preFilterShardSize;
     }
 
     @Override
@@ -307,7 +307,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 threadPool,
                 queryTask,
                 maxConcurrentShardRequestsPerNode,
-                maxShardsPerQuery,
+                preFilterShardSize,
                 List.of(queryListener),
                 queryAllocator,
                 ownsAllocator,

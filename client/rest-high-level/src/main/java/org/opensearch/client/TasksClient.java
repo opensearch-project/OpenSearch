@@ -34,8 +34,10 @@ package org.opensearch.client;
 
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.tasks.CancelTasksRequest;
 import org.opensearch.client.tasks.CancelTasksResponse;
+import org.opensearch.client.tasks.DeleteTaskRequest;
 import org.opensearch.client.tasks.GetTaskRequest;
 import org.opensearch.client.tasks.GetTaskResponse;
 import org.opensearch.core.action.ActionListener;
@@ -125,6 +127,43 @@ public final class TasksClient {
             options,
             GetTaskResponse::fromXContent,
             listener
+        );
+    }
+
+    /**
+     * Delete a stored completed task result using the Task Management API.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse delete(DeleteTaskRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TasksRequestConverters::deleteTask,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously delete a stored completed task result using the Task Management API.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteAsync(DeleteTaskRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TasksRequestConverters::deleteTask,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
         );
     }
 

@@ -1361,18 +1361,29 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
-    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
+    // Use the handle's OWN token, not a registry lookup by context_id. The
+    // registry entry can be removed by a sibling stream's Drop (same id) while
+    // this stream is mid-flight; a `None` token here silently degrades
+    // `cancellable_or` to a bare uncancellable await — the reduce sink's
+    // cancel then can't interrupt an in-flight drain (the ~5s LM stall).
+    let token = handle._query_tracking_context.cancellation_token();
 
-    // Fetch the next batch (cancellation-aware)
-    let result = cancellation::cancellable_or(token.as_ref(), None, async {
-        handle
-            .stream
-            .try_next()
-            .await
-            .map_err(|e: DataFusionError| e)
-    })
+    // Fetch the next batch (cancellation-aware). Query cancellation is an abort,
+    // not normal end-of-stream: callers must receive an error rather than the
+    // same zero sentinel used for EOF.
+    let result = cancellation::cancellable(
+        token.as_ref(),
+        handle._query_tracking_context.context_id(),
+        async {
+            handle
+                .stream
+                .try_next()
+                .await
+                .map_err(|e: DataFusionError| e)
+        },
+    )
     .await
-    .map_err(|e| DataFusionError::Execution(e))?;
+    .map_err(DataFusionError::Execution)?;
 
     match result {
         Some(batch) => {
@@ -2134,6 +2145,13 @@ pub unsafe fn sender_send(
 /// # Safety
 /// `sender_ptr` must be 0 or a valid pointer returned by
 /// `register_partition_stream`.
+pub unsafe fn sender_terminate_early(sender_ptr: i64) {
+    if sender_ptr != 0 {
+        let sender = &*(sender_ptr as *const PartitionStreamSender);
+        sender.terminate_early();
+    }
+}
+
 pub unsafe fn sender_close(sender_ptr: i64) {
     if sender_ptr != 0 {
         let _ = Box::from_raw(sender_ptr as *mut PartitionStreamSender);

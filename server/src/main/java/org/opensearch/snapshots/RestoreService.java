@@ -246,6 +246,26 @@ public class RestoreService implements ClusterStateApplier {
         return USER_UNREMOVABLE_SETTINGS;
     }
 
+    /**
+     * Returns the internal index settings to be ignored (stripped) when restoring a snapshot
+     * onto a cluster that does not store index data remotely.
+     * <p>
+     * The remote data attribute check (segment/translog repositories) is used rather than the
+     * broader remote store attribute check, because clusters with only remote cluster state or
+     * routing table publication enabled do not store index data remotely and must still have
+     * {@code index.remote_store.*} settings stripped on restore.
+     *
+     * @param nodeSettings the node settings of the cluster performing the restore
+     * @return array of index setting patterns to ignore during restore
+     */
+    static String[] getIgnoreSettingsInternal(Settings nodeSettings) {
+        String[] indexSettingsToBeIgnored = new String[] {};
+        if (false == RemoteStoreNodeAttribute.isRemoteDataAttributePresent(nodeSettings)) {
+            indexSettingsToBeIgnored = ArrayUtils.concat(indexSettingsToBeIgnored, new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX });
+        }
+        return indexSettingsToBeIgnored;
+    }
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -762,16 +782,9 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private String[] getIgnoreSettingsInternal() {
-                        // for non-remote store enabled domain, we will remove all the remote store
-                        // related index settings present in the snapshot.
-                        String[] indexSettingsToBeIgnored = new String[] {};
-                        if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
-                            indexSettingsToBeIgnored = ArrayUtils.concat(
-                                indexSettingsToBeIgnored,
-                                new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX }
-                            );
-                        }
-                        return indexSettingsToBeIgnored;
+                        // for a domain that does not store index data remotely, we will remove all the
+                        // remote store related index settings present in the snapshot.
+                        return RestoreService.getIgnoreSettingsInternal(clusterService.getSettings());
                     }
 
                     private Settings getOverrideSettingsInternal() {

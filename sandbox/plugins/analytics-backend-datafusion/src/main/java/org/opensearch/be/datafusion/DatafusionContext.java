@@ -8,13 +8,12 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
-import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 
@@ -33,7 +32,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
     private StreamHandle streamHandle;
-    private Task task;
+    private final AnalyticsShardTask task;
     private SessionContextHandle sessionContextHandle;
 
     /**
@@ -42,7 +41,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      * @param reader the DataFusion reader providing index data
      * @param nativeRuntime handle to the native DataFusion runtime
      */
-    public DatafusionContext(Task task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(AnalyticsShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
@@ -78,7 +77,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     /** Returns true if the underlying task has been cancelled. */
     public boolean isCancelled() {
-        return task instanceof CancellableTask ct && ct.isCancelled();
+        return task != null && task.isCancelled();
     }
 
     /** Returns the context ID for this query, or 0 if not set. */
@@ -131,7 +130,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     @Override
-    public Task task() {
+    public AnalyticsShardTask task() {
         return task;
     }
 
