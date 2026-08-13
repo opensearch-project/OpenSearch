@@ -96,7 +96,10 @@ public interface IndexerEngineOperations {
      * @param ifSeqNo conditional sequence number for optimistic concurrency control
      * @param ifPrimaryTerm conditional primary term for optimistic concurrency control
      * @return the prepared delete operation ready for execution
+     * @deprecated Use {@link #prepareDelete(String, String, long, long, long, VersionType, Engine.Operation.Origin, long, long)} instead
+     *             to preserve routing for CDC-based replication.
      */
+    @Deprecated
     Engine.Delete prepareDelete(
         String id,
         long seqNo,
