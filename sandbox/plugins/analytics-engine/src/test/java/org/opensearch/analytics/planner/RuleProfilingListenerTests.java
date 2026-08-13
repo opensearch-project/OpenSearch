@@ -97,7 +97,10 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchAggregateSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 3L),
-                Map.entry("ExpandConversionRule", 5L)
+                Map.entry("ExpandConversionRule", 5L),
+                // Calcite built-in: attempted on the decomposed aggregate but produces nothing
+                // here (no constant group keys), so productions == 0.
+                Map.entry("AggregateProjectPullUpConstantsRule", 0L)
             )
         );
     }
@@ -107,27 +110,20 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         runAndAssertRules(
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
-            Map.of(
-                "ExtractLiteralAggRule",
-                0L,
-                "ReduceExpressionsRule(Project)",
-                0L,
-                "OpenSearchTableScanRule",
-                1L,
-                "OpenSearchProjectRule",
-                1L,
-                "OpenSearchJoinRule",
-                1L,
-                "OpenSearchAggregateRule",
-                1L,
-                "OpenSearchAggregateSplitRule",
-                1L,
-                "OpenSearchJoinSplitRule",
-                1L,
-                "OpenSearchAggLiteralArgProjectSplitRule",
-                0L,
-                "ExpandConversionRule",
-                2L
+            Map.ofEntries(
+                Map.entry("ExtractLiteralAggRule", 0L),
+                Map.entry("ReduceExpressionsRule(Project)", 0L),
+                Map.entry("OpenSearchTableScanRule", 1L),
+                Map.entry("OpenSearchProjectRule", 1L),
+                Map.entry("OpenSearchJoinRule", 1L),
+                Map.entry("OpenSearchAggregateRule", 1L),
+                Map.entry("OpenSearchAggregateSplitRule", 1L),
+                Map.entry("OpenSearchJoinSplitRule", 1L),
+                Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
+                Map.entry("ExpandConversionRule", 2L),
+                // Calcite built-in: attempted on the decomposed aggregate but produces nothing
+                // here (no constant group keys), so productions == 0.
+                Map.entry("AggregateProjectPullUpConstantsRule", 0L)
             )
         );
     }
