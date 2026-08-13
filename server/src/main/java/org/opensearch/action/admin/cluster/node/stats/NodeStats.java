@@ -299,7 +299,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             // BWC: V_3_7_0 wrote AnalyticsBackendNativeMemoryStats here; read and discard.
             in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
             concurrencyLimiterStats = in.readOptionalWriteable(ActionConcurrencyLimiterStats::new);
         } else {
             concurrencyLimiterStats = null;
@@ -657,7 +657,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.
             out.writeOptionalWriteable(null);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
             out.writeOptionalWriteable(concurrencyLimiterStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {

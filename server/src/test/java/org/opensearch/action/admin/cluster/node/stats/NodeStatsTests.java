@@ -1789,10 +1789,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         // V_3_8_0: concurrencyLimiterStats round-trips (may be null or non-null)
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.V_3_8_0);
+            out.setVersion(Version.V_3_9_0);
             nodeStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(Version.V_3_8_0);
+                in.setVersion(Version.V_3_9_0);
                 NodeStats deserialized = new NodeStats(in);
                 if (nodeStats.getConcurrencyLimiterStats() == null) {
                     assertNull(deserialized.getConcurrencyLimiterStats());
