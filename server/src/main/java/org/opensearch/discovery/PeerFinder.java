@@ -109,8 +109,7 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
-    // incremented on every activation so that the wakeup chain scheduled by a previous activation dies out instead of running
-    // alongside the chain scheduled by the current one
+    // bumped on each activation so a superseded activation's wakeup chain stops instead of running alongside the current one
     private long activationCount;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
@@ -350,8 +349,7 @@ public abstract class PeerFinder {
             protected void doRun() {
                 synchronized (mutex) {
                     if (scheduledActivationCount != activationCount) {
-                        // this wakeup belongs to a previous activation which has since been superseded; the current activation has its
-                        // own wakeup chain, so let this one die out rather than running a duplicate chain alongside it.
+                        // superseded activation: the current one has its own chain, so stop rather than duplicate it
                         logger.trace("not handling wakeup from stale activation [{}]", scheduledActivationCount);
                         return;
                     }

@@ -269,11 +269,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     private static final long FIND_PEERS_INTERVAL_MILLIS = 1000L;
     private static final int FLAP_COUNT = 5;
 
-    /**
-     * Drives CANDIDATE -&gt; FOLLOWER -&gt; CANDIDATE transitions, as {@link org.opensearch.cluster.coordination.Coordinator} does via
-     * {@code becomeCandidate}/{@code becomeFollower}. Each cycle is separated by {@code staggerMillis} so that the wakeup chain
-     * scheduled by each activation gets its own phase offset, as it would in a real cluster.
-     */
+    /** Drives CANDIDATE -&gt; FOLLOWER -&gt; CANDIDATE transitions, spacing each cycle by {@code staggerMillis} to vary the chain phase. */
     private void flapCandidateToFollower(int cycles, long staggerMillis) {
         for (int i = 0; i < cycles; i++) {
             peerFinder.deactivate(localNode);
@@ -286,7 +282,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         }
     }
 
-    /** Advances the clock by exactly the given number of milliseconds, running everything that comes due on the way. */
+    /** Advances the clock by exactly {@code millis}, running everything that comes due on the way. */
     private void advanceTimeBy(long millis) {
         final long target = deterministicTaskQueue.getCurrentTimeMillis() + millis;
         deterministicTaskQueue.scheduleAt(target, new Runnable() {
@@ -304,7 +300,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         }
     }
 
-    /** Responds to every outstanding peers request so that no request is left in flight, and returns how many there were. */
+    /** Responds to every outstanding peers request so none is left in flight, returning how many there were. */
     private int respondToAllPeersRequests() {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
@@ -318,10 +314,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Demonstrates the defect: {@code deactivate()} cannot cancel the wakeup already scheduled by {@code handleWakeUp()}, so if
-     * {@code activate()} runs again before that wakeup fires, the stale wakeup finds {@code active == true} and reschedules itself
-     * forever alongside the chain the new activation just started. Every activation therefore leaks one extra self-perpetuating
-     * chain, permanently multiplying the rate at which seed hosts are resolved and peers are probed.
+     * A wakeup left over from a previous activation must not reschedule itself alongside the current activation's chain, which would
+     * leak one extra chain per activation and permanently multiply the find-peers rate.
      */
     public void testFindPeersWakeupChainIsNotDuplicatedOnReactivation() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-1");
@@ -354,9 +348,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     /**
-     * The externally visible consequence of the leaked chains: peers are polled once per leaked chain per interval rather than once
-     * per interval. The activations are staggered here so each chain fires at a different moment and its own peers request goes out,
-     * which is what a real cluster sees.
+     * The visible consequence of leaked chains: peers polled once per chain per interval instead of once. Activations are staggered
+     * so each chain fires at a distinct moment and sends its own request, as in a real cluster.
      */
     public void testPeersRequestsAreNotAmplifiedOnReactivation() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-1");
@@ -374,7 +367,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         advanceTimeBy(2 * FIND_PEERS_INTERVAL_MILLIS);
         respondToAllPeersRequests();
 
-        // Count over the half-open window [now, now + interval) so that a chain sitting exactly on either boundary is counted once.
+        // Half-open window [now, now + interval) so a chain on either boundary is counted once.
         int peersRequests = 0;
         final long deadline = deterministicTaskQueue.getCurrentTimeMillis() + FIND_PEERS_INTERVAL_MILLIS;
         while (true) {
@@ -395,9 +388,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Control for {@link #testFindPeersWakeupChainIsNotDuplicatedOnReactivation}: identical flapping, except each stale wakeup is
-     * given the chance to fire while inactive, so it observes {@code active == false} and declines to reschedule. This isolates the
-     * leak to surviving stale wakeups rather than to activation itself, and passes both with and without the fix.
+     * Control for {@link #testFindPeersWakeupChainIsNotDuplicatedOnReactivation}: identical flapping, but each stale wakeup fires
+     * while inactive and declines to reschedule. Pins the leak to surviving stale wakeups; passes with and without the fix.
      */
     public void testWakeupChainIsNotDuplicatedWhenStaleWakeupsAreDrained() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-1");
