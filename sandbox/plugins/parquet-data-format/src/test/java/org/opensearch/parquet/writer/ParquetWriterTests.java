@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
@@ -197,6 +198,47 @@ public class ParquetWriterTests extends ParquetBaseTests {
             null
         );
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testAddDocReturnsFailureOnOutOfMemory() throws Exception {
+        String filePath = createTempDir().resolve("oom.parquet").toString();
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> schema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        // Constrain the ingest pool so that allocating Arrow buffers while populating the
+        // VectorSchemaRoot inside VSRManager.addDocument throws an Arrow OutOfMemoryException.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, 1L);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(idField, 1);
+        doc.addField(nameField, "alice");
+        doc.addField(scoreField, 100L);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+
+        // addDoc must translate the OOM into a Failure result rather than propagating the throw.
+        WriteResult result = writer.addDoc(doc);
+        assertTrue("expected a Failure result but was: " + result, result instanceof WriteResult.Failure);
+        WriteResult.Failure failure = (WriteResult.Failure) result;
+        assertTrue(
+            "expected an Arrow OutOfMemoryException cause but was: " + failure.cause(),
+            failure.cause() instanceof OutOfMemoryException
+        );
+
+        doc.close();
+        // Relieve the limit before teardown so writer/allocator cleanup can proceed cleanly.
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, Long.MAX_VALUE);
+        writer.close();
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

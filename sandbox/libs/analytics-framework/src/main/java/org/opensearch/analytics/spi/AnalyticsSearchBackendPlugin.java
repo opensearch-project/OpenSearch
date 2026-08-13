@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.Collections;
 import java.util.List;
@@ -145,6 +146,69 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Evaluates whether a shard can possibly match the given serialized filter predicates.
+     * Used by the can-match pre-filter phase to prune shards before fragment dispatch.
+     *
+     * <p>Default returns true (fail-open: shard is kept). Backends that store data with
+     * rich metadata statistics should override to check row-group min/max against the
+     * filter range.
+     *
+     * @param shard the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @return true if the shard can possibly match, false if provably cannot
+     */
+    default boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return true;
+    }
+
+    /**
+     * Outcome of a can-match probe.
+     *
+     * <p>The two fields fail open in opposite directions because their risks differ.
+     * {@code canMatch=false} says "don't run this shard" — wrong means lost data, so uncertainty
+     * must yield {@code true}. {@code bounds} is only a hint, so {@code null} costs nothing. The
+     * fail-open answer for both is therefore {@code (true, null)}.
+     *
+     * @param canMatch true if the shard may match, false if it provably cannot
+     * @param bounds   min/max of the requested sort column, or {@code null}
+     */
+    record CanMatchResult(boolean canMatch, ShardSortBounds bounds) {
+
+        /** Shard may match; {@code bounds} may be null if none were requested or available. */
+        public static CanMatchResult matched(ShardSortBounds bounds) {
+            return new CanMatchResult(true, bounds);
+        }
+
+        /** Shard provably cannot match; bounds aren't collected for a pruned shard. */
+        public static CanMatchResult pruned() {
+            return new CanMatchResult(false, null);
+        }
+
+        /** Probe couldn't run — the {@code true} here is a fail-open default, not an answer. */
+        public static CanMatchResult unavailable() {
+            return new CanMatchResult(true, null);
+        }
+    }
+
+    /**
+     * Evaluates the prune predicate and, for surviving shards, folds the sort column's min/max.
+     *
+     * <p>One method rather than two so the backend can acquire the shard reader once for both
+     * answers and skip the fold for a shard it just pruned.
+     *
+     * <p>Implementations must fail open everywhere: uncertainty yields {@code canMatch=true}
+     * and/or null bounds, never a wrong prune or a guessed range.
+     *
+     * @param shard       the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @param sortColumn  column to fold min/max for, or {@code null} to skip that work
+     */
+    default CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        // Backends without statistics have no bounds to give.
+        return new CanMatchResult(canMatch(shard, filterBytes), null);
     }
 
     /**
