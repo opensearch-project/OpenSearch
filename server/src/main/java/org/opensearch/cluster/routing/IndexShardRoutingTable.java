@@ -1219,7 +1219,7 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
                     }
                 });
             // is primary assigned
-            out.writeBoolean(indexShard.primaryShard().allocationId() != null);
+            out.writeBoolean(indexShard.primaryShard() != null && indexShard.primaryShard().allocationId() != null);
             out.writeVInt(indexShard.shards.size() - assignedShardCount.get());
         }
     }
