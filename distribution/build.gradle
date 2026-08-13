@@ -29,7 +29,6 @@
  */
 
 
-import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.opensearch.gradle.ConcatFilesTask
 import org.opensearch.gradle.DependenciesInfoTask
@@ -273,6 +272,11 @@ project(':test:external-modules').subprojects.each { Project testModule ->
   copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
 
+// Captured here, where the version-catalog accessor is in scope. Referencing `libs` inside the
+// configure {} block below would resolve it by implicit lookup in the parent project, which is
+// deprecated in Gradle 9.6 and an error in Gradle 10.
+def bouncycastleBundle = libs.bundles.bouncycastle
+
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'opensearch.jdk-download'
@@ -343,10 +347,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
     libsHeapProfCli project(path: ':distribution:tools:heap-prof-cli')
 
-    // A bare `libs` here is an implicit lookup of the parent project's version-catalog accessor,
-    // deprecated in Gradle 9.6 and an error in Gradle 10, and it also collides with the `libs`
-    // configuration declared above. Resolve the catalog explicitly, as StandaloneRestTestPlugin does.
-    bcFips rootProject.extensions.getByType(VersionCatalogsExtension).named("libs").findBundle("bouncycastle").get()
+    bcFips bouncycastleBundle
 
     agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }
