@@ -427,7 +427,8 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 target.shardId(),
                 fetchBackendId,
                 plan.rowIds(),
-                columns
+                columns,
+                config.profile()
             );
             // Per-node PendingExecutions: mirrors ShardTaskRunner — keeps a slow node from
             // blocking dispatches to other nodes.
@@ -435,7 +436,16 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 target.node().getId(),
                 n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
             );
-            transport.dispatchFetchByRowIds(request, target.node(), new GatherListener(stitcher, plan), config.parentTask(), pending);
+            // Shard label matches QueryProfileBuilder#describeTarget so the LM profile's per-shard
+            // task entries read the same as SHARD_FRAGMENT shard tasks.
+            String shardLabel = target.node().getId() + "/shard[" + target.shardId().getId() + "]";
+            transport.dispatchFetchByRowIds(
+                request,
+                target.node(),
+                new GatherListener(stitcher, plan, tasks().get(0), shardLabel),
+                config.parentTask(),
+                pending
+            );
         }
     }
 
@@ -453,11 +463,15 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     private static final class GatherListener implements StreamingResponseListener<FragmentExecutionArrowResponse> {
         private final Stitcher stitcher;
         private final ShardFetchPlan plan;
+        private final StageTask task;
+        private final String shardLabel;
         private int rowsCopiedSoFar;
 
-        GatherListener(Stitcher stitcher, ShardFetchPlan plan) {
+        GatherListener(Stitcher stitcher, ShardFetchPlan plan, StageTask task, String shardLabel) {
             this.stitcher = stitcher;
             this.plan = plan;
+            this.task = task;
+            this.shardLabel = shardLabel;
         }
 
         @Override
@@ -476,6 +490,15 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
             }
             if (isLast) stitcher.shardComplete();
             return true;
+        }
+
+        @Override
+        public void onStreamComplete(byte[] trailingMetadata) {
+            // Each shard's fetch reports its own metrics/physical plan. Keyed by shardLabel so
+            // the profile emits one TaskProfile per shard rather than clobbering all but the last.
+            if (trailingMetadata != null && task != null) {
+                task.addShardMetrics(shardLabel, trailingMetadata);
+            }
         }
 
         @Override

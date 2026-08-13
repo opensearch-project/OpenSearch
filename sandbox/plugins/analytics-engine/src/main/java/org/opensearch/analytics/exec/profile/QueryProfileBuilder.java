@@ -106,8 +106,20 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
-            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+
+            Map<String, byte[]> shardMetrics = t.shardMetrics();
+            if (shardMetrics != null && shardMetrics.isEmpty() == false) {
+                // Multi-shard task (e.g. LATE_MATERIALIZATION): one profile per shard fetch, keyed
+                // by shard label. Elapsed is the stage-level wall clock (per-shard timing lives in
+                // each shard's data_node_metrics start/end timestamps).
+                for (Map.Entry<String, byte[]> shard : shardMetrics.entrySet()) {
+                    DataNodePayload payload = parseDataNodePayload(shard.getValue());
+                    out.add(new TaskProfile(shard.getKey(), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+                }
+            } else {
+                DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
+                out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+            }
         }
         return out;
     }
