@@ -557,35 +557,57 @@ public class Cache<K, V> {
         }
     }
 
-    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> {
-        try {
-            Entry<K, V> entry = f.get();
-            try (ReleasableLock ignored = lruLock.acquire()) {
-                delete(entry, RemovalReason.INVALIDATED);
-            }
-        } catch (ExecutionException e) {
-            // ok
-        } catch (InterruptedException e) {
-            throw new IllegalStateException(e);
-        }
-    };
+    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> deleteWhenLoaded(f, RemovalReason.INVALIDATED);
 
-    private final Consumer<CompletableFuture<Entry<K, V>>> removalConsumer = f -> {
+    private final Consumer<CompletableFuture<Entry<K, V>>> removalConsumer = f -> deleteWhenLoaded(f, RemovalReason.EXPLICIT);
+
+    /**
+     * Delete an entry whose key has already been removed from its segment map, once its value is available.
+     * <p>
+     * A value that is still being loaded has to be waited for, because the entry that has to be unlinked from the
+     * LRU list and reported to the removal listener does not exist until the load completes. That wait must not
+     * happen on the calling thread: keyed removal is called from paths that cannot afford to block for the length
+     * of a load, such as a reader close listener or a cache cleaner sweep, and a load can take arbitrarily long.
+     * So the deletion is handed to whichever thread completes the load instead.
+     * <p>
+     * Either order is safe. If the deletion runs first the entry is still {@code NEW}, so {@link #delete} claims it
+     * by marking it {@code DELETED} and the pending {@code promote()} becomes a no-op; if the promotion runs first
+     * the entry is {@code EXISTING} and gets unlinked in the usual way.
+     *
+     * @param future the future for the entry whose key was removed from the segment map
+     * @param removalReason the reason to report to the removal listener
+     */
+    private void deleteWhenLoaded(CompletableFuture<Entry<K, V>> future, RemovalReason removalReason) {
+        if (future.isDone() == false) {
+            future.whenComplete((entry, throwable) -> {
+                if (entry != null) {
+                    try (ReleasableLock ignored = lruLock.acquire()) {
+                        delete(entry, removalReason);
+                    }
+                }
+            });
+            return;
+        }
+        // the value is already loaded, which is every case except a removal that races a load: delete on the calling
+        // thread, so that the removal notification is issued before the caller returns as it always has been
         try {
-            Entry<K, V> entry = f.get();
+            Entry<K, V> entry = future.get();
             try (ReleasableLock ignored = lruLock.acquire()) {
-                delete(entry, RemovalReason.EXPLICIT);
+                delete(entry, removalReason);
             }
         } catch (ExecutionException e) {
-            // ok
+            // the load failed, so there is no value to delete
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         }
-    };
+    }
 
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
      * entries with {@link RemovalReason} INVALIDATED.
+     * <p>
+     * If a load for the key is still in flight, this method does not wait for it: the key is removed before
+     * returning, but the removal notification is issued once the load completes.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      */
@@ -597,6 +619,9 @@ public class Cache<K, V> {
     /**
      * Removes the association for the specified key. A removal notification will be issued for removed
      * entry with {@link RemovalReason} EXPLICIT.
+     * <p>
+     * If a load for the key is still in flight, this method does not wait for it: the key is removed before
+     * returning, but the removal notification is issued once the load completes.
      *
      * @param key the key whose mapping is to be removed from the cache
      */

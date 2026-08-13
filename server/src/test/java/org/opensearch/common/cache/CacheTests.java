@@ -55,9 +55,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -1035,19 +1037,30 @@ public class CacheTests extends OpenSearchTestCase {
 
     // A cache segment maps each key to a CompletableFuture, and computeIfAbsent installs that future in the segment
     // map before the value is loaded, so there is a window in which a key is in the segment map but its entry is not
-    // yet linked into the LRU list. The two tests below cover what invalidate(key) does with a key in that window.
+    // yet linked into the LRU list. The tests below cover what keyed removal does with a key in that window.
 
     /**
      * {@link Cache#keysSnapshot()} contains keys whose load is still in flight, and
-     * {@link Cache#invalidate(Object)} on such a key parks the caller until the load completes: the
-     * invalidation consumer calls {@code future.get()} on the incomplete future with no timeout.
+     * {@link Cache#invalidate(Object)} on such a key removes it without waiting for the load: the removal
+     * notification is issued by the loading thread, once there is a value to report.
      */
-    public void testInvalidateBlocksOnInFlightLoad() throws Exception {
-        final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
+    public void testInvalidateDoesNotBlockOnInFlightLoad() throws Exception {
+        assertKeyedRemovalDoesNotBlockOnInFlightLoad(cache -> cache.invalidate(IN_FLIGHT_KEY), RemovalReason.INVALIDATED);
+    }
+
+    /** As {@link #testInvalidateDoesNotBlockOnInFlightLoad}, for {@link Cache#remove(Object)}. */
+    public void testRemoveDoesNotBlockOnInFlightLoad() throws Exception {
+        assertKeyedRemovalDoesNotBlockOnInFlightLoad(cache -> cache.remove(IN_FLIGHT_KEY), RemovalReason.EXPLICIT);
+    }
+
+    private void assertKeyedRemovalDoesNotBlockOnInFlightLoad(Consumer<Cache<String, String>> removal, RemovalReason expectedRemovalReason)
+        throws Exception {
+        final List<RemovalNotification<String, String>> removals = new CopyOnWriteArrayList<>();
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().removalListener(removals::add).build();
         final CountDownLatch loadStarted = new CountDownLatch(1);
         final CountDownLatch releaseLoad = new CountDownLatch(1);
 
-        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad), "loader");
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad, new CountDownLatch(1)), "loader");
         loader.start();
         assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
 
@@ -1057,19 +1070,28 @@ public class CacheTests extends OpenSearchTestCase {
         assertEquals(List.of(), lruKeys(cache));
         assertEquals(0, cache.count());
 
-        Thread invalidator = new Thread(() -> cache.invalidate(IN_FLIGHT_KEY), "invalidator");
-        invalidator.start();
+        // the removal returns while the load is still in flight; it runs on a thread of its own so that a
+        // regression fails this test rather than hanging it
+        Thread remover = new Thread(() -> removal.accept(cache), "remover");
+        remover.start();
+        remover.join(10_000);
+        assertFalse("keyed removal should not wait for the in-flight load", remover.isAlive());
 
-        // invalidate() cannot return while the load is in flight
-        assertBusy(() -> assertEquals(Thread.State.WAITING, invalidator.getState()));
-        invalidator.join(500);
-        assertTrue("invalidate() should still be blocked on the in-flight load", invalidator.isAlive());
+        // the key is gone, but there is no value to hand to the removal listener yet
+        assertEquals(List.of(), cache.keysSnapshot());
+        assertEquals(0, removals.size());
 
-        // it only unblocks once the loader finishes, however long that takes
+        // the loading thread finishes the removal, and never links the entry into the LRU list
         releaseLoad.countDown();
-        invalidator.join(10_000);
         loader.join(10_000);
-        assertFalse(invalidator.isAlive());
+        assertFalse(loader.isAlive());
+        assertEquals("the removal listener should have been notified", 1, removals.size());
+        assertEquals(IN_FLIGHT_KEY, removals.get(0).getKey());
+        assertEquals(expectedRemovalReason, removals.get(0).getRemovalReason());
+        assertNull(cache.get(IN_FLIGHT_KEY));
+        assertEquals(List.of(), lruKeys(cache));
+        assertEquals(0, cache.count());
+        assertEquals(0L, cache.weight());
     }
 
     /**
@@ -1080,29 +1102,38 @@ public class CacheTests extends OpenSearchTestCase {
      * unreachable via {@code get()}, and can no longer be invalidated by key -- so its removal listener
      * never fires and the memory it accounts for is never given back.
      * <p>
-     * The interleaving is forced rather than raced for: the weigher runs inside {@code linkAtHead()},
-     * which gives the test thread a point where it holds the LRU lock, so the loading thread cannot
-     * promote its entry until the test thread has finished invalidating it.
+     * The interleaving is forced rather than raced for: the weigher runs inside {@code linkAtHead()} while the
+     * LRU lock is held, so the test thread can wait there until the loading thread has loaded its value and
+     * parked on that lock in {@code promote()}, and invalidate the key while its entry is still {@code NEW}.
      */
     public void testInvalidateBeforePromoteLeavesUnreclaimableEntry() throws Exception {
         final AtomicReference<Cache<String, String>> cacheRef = new AtomicReference<>();
+        final AtomicReference<Thread> loaderRef = new AtomicReference<>();
         final List<RemovalNotification<String, String>> removals = new CopyOnWriteArrayList<>();
         final CountDownLatch loadStarted = new CountDownLatch(1);
         final CountDownLatch releaseLoad = new CountDownLatch(1);
+        final CountDownLatch loadReturned = new CountDownLatch(1);
         final AtomicBoolean invalidatedUnderLruLock = new AtomicBoolean();
+        final AtomicInteger inFlightWeighings = new AtomicInteger();
 
         final Cache<String, String> cache = CacheBuilder.<String, String>builder().weigher((key, value) -> {
+            if (IN_FLIGHT_KEY.equals(key)) {
+                // the weigher only runs when an entry is linked into or unlinked from the LRU list
+                inFlightWeighings.incrementAndGet();
+            }
             if (STALL_KEY.equals(key) && invalidatedUnderLruLock.compareAndSet(false, true)) {
-                // holding the LRU lock: let the load finish and invalidate IN_FLIGHT_KEY before its entry
-                // can be promoted. invalidate() blocks until the load completes, then reenters the LRU lock.
+                // holding the LRU lock: let the load finish, wait for the loading thread to park on this lock
+                // in promote(), and invalidate IN_FLIGHT_KEY while its entry is loaded but still NEW
                 releaseLoad.countDown();
+                awaitParkedOnLruLock(loaderRef.get(), loadReturned);
                 cacheRef.get().invalidate(IN_FLIGHT_KEY);
             }
             return 1L;
         }).removalListener(removals::add).build();
         cacheRef.set(cache);
 
-        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad), "loader");
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad, loadReturned), "loader");
+        loaderRef.set(loader);
         loader.start();
         assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
 
@@ -1111,6 +1142,9 @@ public class CacheTests extends OpenSearchTestCase {
         loader.join(10_000);
         assertFalse(loader.isAlive());
         assertTrue("the weigher never ran, so the interleaving under test did not happen", invalidatedUnderLruLock.get());
+        // a linked entry means either that the entry leaked, or that it was promoted before it was invalidated and
+        // so the interleaving under test did not happen
+        assertEquals("the invalidated entry should never have been linked into the LRU list", 0, inFlightWeighings.get());
 
         assertEquals("the invalidated key should be gone from the segment map", List.of(STALL_KEY), cache.keysSnapshot());
         assertNull(cache.get(IN_FLIGHT_KEY));
@@ -1122,14 +1156,34 @@ public class CacheTests extends OpenSearchTestCase {
         assertEquals(RemovalReason.INVALIDATED, removals.get(0).getRemovalReason());
     }
 
-    private void loadInFlightKey(Cache<String, String> cache, CountDownLatch loadStarted, CountDownLatch releaseLoad) {
+    private void loadInFlightKey(
+        Cache<String, String> cache,
+        CountDownLatch loadStarted,
+        CountDownLatch releaseLoad,
+        CountDownLatch loadReturned
+    ) {
         try {
             cache.computeIfAbsent(IN_FLIGHT_KEY, k -> {
                 loadStarted.countDown();
                 releaseLoad.await();
+                loadReturned.countDown();
                 return "v";
             });
         } catch (ExecutionException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Wait until {@code loader} has loaded its value and parked on the LRU lock in {@code promote()}, so that its
+     * entry exists but is still {@code NEW}. Once the load function has returned, the loading thread only completes
+     * its future and then contends for that lock, so the next time it blocks it is parked there.
+     */
+    private void awaitParkedOnLruLock(Thread loader, CountDownLatch loadReturned) {
+        try {
+            assertTrue(loadReturned.await(10, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(Thread.State.WAITING, loader.getState()));
+        } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
