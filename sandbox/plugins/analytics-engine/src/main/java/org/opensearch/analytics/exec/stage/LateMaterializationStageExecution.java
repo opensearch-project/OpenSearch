@@ -32,10 +32,12 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,7 +74,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@link StageExecution.State#CREATED} — built by {@code LateMaterializationStageExecutionFactory};
  *       the parent (Post-Sort) stage's start is gated on this stage's SUCCEEDED.</li>
  *   <li>{@link StageExecution.State#RUNNING} — entered when the child Sort+Limit stage
- *       SUCCEEDED. The cascade in {@code PlanWalker} fires {@link #start()}; we drain the
+ *       SUCCEEDED. The cascade in {@code PlanWalker} fires {@link #start}; we drain the
  *       child's output, fan out fetches, stitch, feed the parent's input sink.</li>
  *   <li>{@link StageExecution.State#SUCCEEDED} — every fetch returned, every stitched batch
  *       fed to the parent sink, parent stage can start.</li>
@@ -80,14 +82,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <h2>Implementation status</h2>
  *
- * <p><b>SKELETON ONLY.</b> Today {@link #start()} throws
+ * <p><b>SKELETON ONLY.</b> Today {@link #start} throws
  * {@link UnsupportedOperationException}. The four phases below are the work to land:
  *
  * <h3>Phase A — drain reduce output (Java)</h3>
  *
  * <p>The child stage's reduced K rows are buffered in its
  * {@link RowProducingSink}-style output (arriving via {@code feed(VSR)} on whatever
- * sink the LM stage provides via {@link #inputSink(int)}). At {@link #start()} time the
+ * sink the LM stage provides via {@link #inputSink(int)}). At {@link #start} time the
  * full input is available — block-read it.
  *
  * <pre>
@@ -172,7 +174,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
      * Sink the child Sort+Limit stage feeds into (Phase A input).
      *
      * <p>Returned by {@link #inputSink(int)}; the child stage writes K rows here. The
-     * stage execution drains this sink at {@link #start()} time. Today a
+     * stage execution drains this sink at {@link #start} time. Today a
      * {@link RowProducingSink} works as a buffer (it implements both {@link ExchangeSink}
      * and {@link ExchangeSource}); a custom sink may be needed if Phase A wants to
      * stream-decode rather than block-buffer.
@@ -245,7 +247,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
 
     /**
      * Phase A input. Child stage (Sort+Limit reduce) writes its K rows here. Returned
-     * sink must be the same one we drain in {@link #start()}.
+     * sink must be the same one we drain in {@link #start}.
      */
     @Override
     public ExchangeSink inputSink(int childStageId) {
@@ -285,6 +287,31 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     @Override
     protected List<StageTask> materializeTasks() {
         return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), this::drainAndClose));
+    }
+
+    /**
+     * Releases the stitcher's pre-allocated output VSR on any terminal transition. The stitcher
+     * allocates {@code output} on the coordinator allocator up front and only frees it when
+     * {@link Stitcher#finish} runs (all shards reported). If the stage terminates — via cancel,
+     * timeout, or an upstream failure — while a shard's fetch stream is still outstanding, that
+     * countdown never reaches zero and {@code finish} never runs, pinning {@code output}'s buffers
+     * on the long-lived coordinator allocator. Closing here guarantees release; it is a no-op when
+     * {@code finish} already emitted (ownership transferred to {@code parentSink}, and
+     * {@link Stitcher#close} / {@code VectorSchemaRoot#close} are idempotent), and when no stitcher
+     * was ever created (K=0 or a pre-stitch failure).
+     */
+    @Override
+    protected void onTerminalTransition(State terminal) {
+        Stitcher s = this.stitcher;
+        if (s != null) {
+            s.close();
+        }
+        if ((terminal == State.CANCELLED || terminal == State.FAILED) && parentSink instanceof CancellableExchangeSink cancellable) {
+            // Fetch failure is terminal for the QTF query. The parent reduce stream may otherwise
+            // observe its inputs as ordinary EOF and complete the top-level PPL request before
+            // this asynchronous failure reaches the query listener.
+            cancellable.cancel();
+        }
     }
 
     /** Drained {@code ___row_id} per row, indexed by sort-order position. Populated by Phase A. */
@@ -369,7 +396,29 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 outerListener.onFailure(failure);
             }
         });
+        // Publish the stitcher BEFORE any shard dispatch so onTerminalTransition (which may fire on a
+        // concurrent cancel thread) can always find it and close its pre-allocated output VSR. The
+        // Stitcher constructor already allocated that VSR on the coordinator allocator, so any window
+        // where the field is still null but output exists would leak it on a racing terminal.
         this.stitcher = stitcher;
+        // Close the publication race: if a terminal transition already fired while we were between
+        // Stitcher construction and the assignment above, its onTerminalTransition saw a null field
+        // and skipped the close. Re-check here and release output now that the field is published.
+        // state is an AtomicReference, so this read pairs with the CAS in transitionTo: either that
+        // CAS-then-read-stitcher saw our published field (and closed output), or our set-then-read-state
+        // sees the terminal here — output is freed exactly once on this racing-cancel path.
+        //
+        // We must also settle outerListener: the task body owns firing the per-task listener (see
+        // LocalStageTask), and a stage cancel does NOT fire it independently — so returning without
+        // firing would strand the task. This mirrors the K==0 branch below, which likewise settles
+        // the listener directly. onComplete (which also fires outerListener) can no longer run here
+        // because no shards are dispatched, and LocalTaskRunner wraps outerListener in a
+        // NotifyOnceListener regardless, so this can never double-fire.
+        if (getState().isTerminal()) {
+            stitcher.close();
+            outerListener.onFailure(new TaskCancelledException("late materialization stage terminated before fetch dispatch"));
+            return;
+        }
 
         for (Map.Entry<Integer, ShardFetchPlan> entry : plansByUgsi.entrySet()) {
             int ugsi = entry.getKey();
@@ -398,7 +447,9 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
     }
 
     /** Stashed for the {@code onComplete} closure to read {@link Stitcher#surfaceableFailure()}. */
-    private Stitcher stitcher;
+    // volatile: set on the drain thread in scatterFetchAndStitch, read by onTerminalTransition
+    // which may fire on a different thread (cancel / timeout / upstream failure).
+    private volatile Stitcher stitcher;
 
     /**
      * Per-shard streaming response listener: forwards each Arrow batch to the

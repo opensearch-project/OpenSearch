@@ -60,7 +60,9 @@
 use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef;
-use datafusion::datasource::physical_plan::parquet::{ParquetFileMetrics, ParquetFileReaderFactory};
+use datafusion::datasource::physical_plan::parquet::{
+    ParquetFileMetrics, ParquetFileReaderFactory,
+};
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::parquet::arrow::arrow_reader::ArrowReaderOptions;
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
@@ -74,7 +76,9 @@ use futures::FutureExt;
 use object_store::{ObjectStore, ObjectStoreExt};
 use prost::bytes::Bytes;
 
-use crate::cache::page_index::{load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair};
+use crate::cache::page_index::{
+    load_scoped_page_index_cols, resolve_predicate_parquet_columns_pair,
+};
 use crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta;
 
 /// A [`ParquetFileReaderFactory`] that, on `get_metadata`, returns metadata whose
@@ -170,7 +174,9 @@ impl AsyncFileReader for ScopedPageIndexReader {
         &mut self,
         range: std::ops::Range<u64>,
     ) -> BoxFuture<'_, datafusion::parquet::errors::Result<Bytes>> {
-        self.metrics.bytes_scanned.add((range.end - range.start) as usize);
+        self.metrics
+            .bytes_scanned
+            .add((range.end - range.start) as usize);
         let store = Arc::clone(&self.store);
         let location = self.location.clone();
         // IO-runtime dispatch is handled by the store wrapper around the
@@ -216,7 +222,7 @@ impl AsyncFileReader for ScopedPageIndexReader {
             // 1. Footer-only metadata (shared metadata-cache hit if pre-seeded).
             //    Use the listing's ObjectMeta rather than a `head()` — the cache
             //    validity check only needs size + last_modified, both already known.
-            let (_schema, _size, footer) = load_parquet_metadata_with_meta(
+            let (file_arrow_schema, _size, footer) = load_parquet_metadata_with_meta(
                 Arc::clone(&store),
                 &location,
                 object_meta,
@@ -230,7 +236,11 @@ impl AsyncFileReader for ScopedPageIndexReader {
             //    non-empty: a projection-only query still needs a scoped OffsetIndex.
             if !predicate_names.is_empty() || !projection_names.is_empty() {
                 let (parquet_cols, offset_cols) = resolve_predicate_parquet_columns_pair(
-                    &file_schema, &footer, &predicate_names, &projection_names,
+                    &file_schema,
+                    &footer,
+                    &predicate_names,
+                    &projection_names,
+                    &file_arrow_schema,
                 );
                 if let Some(augmented) = load_scoped_page_index_cols(
                     &store,
@@ -301,7 +311,10 @@ mod tests {
         let size = bytes.len() as u64;
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let loc = ObjPath::from("data.parquet");
-        store.put(&loc, PutPayload::from_bytes(bytes)).await.unwrap();
+        store
+            .put(&loc, PutPayload::from_bytes(bytes))
+            .await
+            .unwrap();
         (store, loc, size)
     }
 
@@ -341,8 +354,12 @@ mod tests {
         let mut reader = factory.create_reader(0, pf, None, &m).unwrap();
 
         let meta = reader.get_metadata(None).await.unwrap();
-        let ci = meta.column_index().expect("augmented metadata has column index");
-        let oi = meta.offset_index().expect("augmented metadata has offset index");
+        let ci = meta
+            .column_index()
+            .expect("augmented metadata has column index");
+        let oi = meta
+            .offset_index()
+            .expect("augmented metadata has offset index");
         assert!(
             !matches!(ci[0][0], ColumnIndexMetaData::NONE),
             "predicate col (price) must have a real ColumnIndex"

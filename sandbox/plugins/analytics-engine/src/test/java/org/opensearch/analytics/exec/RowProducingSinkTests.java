@@ -8,8 +8,10 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -221,6 +223,58 @@ public class RowProducingSinkTests extends OpenSearchTestCase {
         assertEquals("late batch must be closed, not buffered", 0, allocator.getAllocatedMemory());
         assertEquals("late batch must not count toward rows", 0, sink.getRowCount());
         assertFalse("nothing retained from a post-close feed", sink.readResult().iterator().hasNext());
+    }
+
+    // ─── close() releases the whole set even when a batch throws (coordinator leak fix) ──
+
+    /**
+     * Regression for the coordinator-allocator leak: {@code close()} must free EVERY buffered
+     * batch even if one batch's {@code close()} throws. Arrow throws
+     * {@code IllegalStateException("RefCnt has gone negative")} when a batch's underlying buffer was
+     * over-released — the real production condition where a batch's vectors were shared with, and
+     * already released by, another close path (e.g. the ordinal-appending sink shares field vectors
+     * by reference). The pre-fix loop aborted on the first such throw and abandoned every batch
+     * after it, stranding their off-heap buffers on the long-lived coordinator allocator (the
+     * "query pool never goes down" symptom). Here the FIRST buffered batch is rigged to throw on
+     * close; the two after it must still be released.
+     */
+    public void testCloseReleasesAllBatchesWhenOneThrows() {
+        RowProducingSink sink = new RowProducingSink();
+
+        VectorSchemaRoot poison = makeVsr(List.of("id"), new Object[][] { { "1" } });
+        VectorSchemaRoot b2 = makeVsr(List.of("id"), new Object[][] { { "2" } });
+        VectorSchemaRoot b3 = makeVsr(List.of("id"), new Object[][] { { "3" } });
+        sink.feed(poison);
+        sink.feed(b2);
+        sink.feed(b3);
+
+        // Over-release the first batch's data buffer so its close() throws "RefCnt has gone
+        // negative" mid-loop — the exact throw that used to strand b2 and b3.
+        FieldVector v = poison.getVector(0);
+        for (ArrowBuf buf : v.getBuffers(false)) {
+            buf.getReferenceManager().release();
+        }
+        long before = allocator.getAllocatedMemory();
+        assertTrue("b2/b3 (and the poison's remaining bufs) hold memory before sink close", before > 0);
+
+        sink.close(); // must not propagate; must release the tail
+
+        assertEquals("close() must release every batch despite the mid-loop throw", 0, allocator.getAllocatedMemory());
+        assertFalse("no batches retained after close", sink.readResult().iterator().hasNext());
+    }
+
+    /**
+     * {@code close()} is idempotent: a second call after the batches are already freed must not
+     * throw and must leave the allocator at zero. Guards the terminal-path double-close.
+     */
+    public void testCloseIsIdempotent() {
+        RowProducingSink sink = new RowProducingSink();
+        sink.feed(makeVsr(List.of("id"), new Object[][] { { "1" } }));
+
+        sink.close();
+        assertEquals(0, allocator.getAllocatedMemory());
+        sink.close(); // must not throw
+        assertEquals(0, allocator.getAllocatedMemory());
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────

@@ -265,19 +265,28 @@ public class OperationRouting {
         for (IndexShardRoutingTable shard : shards) {
 
             IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
-            if (indexMetadataForShard.isRemoteSnapshot() && (preference == null || preference.isEmpty())) {
-                preference = Preference.PRIMARY.type();
+            // Server-injected preferences are scoped per index: compute the effective preference for each shard
+            // instead of mutating the caller-supplied preference, so that a preference injected for one index
+            // (e.g. a remote snapshot or writable warm index) does not leak into other indices of the same
+            // multi-index search request.
+            String effectivePreference = preference;
+            boolean serverInjectedPreference = false;
+            if (indexMetadataForShard.isRemoteSnapshot() && (effectivePreference == null || effectivePreference.isEmpty())) {
+                effectivePreference = Preference.PRIMARY.type();
+                serverInjectedPreference = true;
             }
 
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
                 && indexMetadataForShard.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
-                && (preference == null || preference.isEmpty())) {
-                preference = Preference.PRIMARY_FIRST.type();
+                && (effectivePreference == null || effectivePreference.isEmpty())) {
+                effectivePreference = Preference.PRIMARY_FIRST.type();
+                serverInjectedPreference = true;
             }
 
-            if (preference == null || preference.isEmpty()) {
+            if (effectivePreference == null || effectivePreference.isEmpty()) {
                 if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0 && isStrictSearchOnlyShardRouting) {
-                    preference = Preference.SEARCH_REPLICA.type();
+                    effectivePreference = Preference.SEARCH_REPLICA.type();
+                    serverInjectedPreference = true;
                 }
             }
 
@@ -285,10 +294,11 @@ public class OperationRouting {
                 shard,
                 clusterState.nodes().getLocalNodeId(),
                 clusterState.nodes(),
-                preference,
+                effectivePreference,
                 collectorService,
                 nodeCounts,
-                clusterState.metadata().weightedRoutingMetadata()
+                clusterState.metadata().weightedRoutingMetadata(),
+                serverInjectedPreference
             );
             if (iterator != null) {
                 shardIterators.computeIfAbsent(iterator.shardId().getIndex(), k -> new ArrayList<>()).add(iterator);
@@ -363,6 +373,28 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts,
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
+        return preferenceActiveShardIterator(
+            indexShard,
+            localNodeId,
+            nodes,
+            preference,
+            collectorService,
+            nodeCounts,
+            weightedRoutingMetadata,
+            false
+        );
+    }
+
+    private ShardIterator preferenceActiveShardIterator(
+        IndexShardRoutingTable indexShard,
+        String localNodeId,
+        DiscoveryNodes nodes,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata,
+        boolean serverInjectedPreference
+    ) {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
@@ -399,7 +431,7 @@ public class OperationRouting {
                 }
             }
             preferenceType = Preference.parse(preference);
-            checkPreferenceBasedRoutingAllowed(preferenceType, weightedRoutingMetadata);
+            checkPreferenceBasedRoutingAllowed(preferenceType, weightedRoutingMetadata, serverInjectedPreference);
             switch (preferenceType) {
                 case PREFER_NODES:
                     final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
@@ -565,12 +597,22 @@ public class OperationRouting {
         return indexMetadata.getSplitShardsMetadata().getShardIdOfHash(rootShardId, hash, includeInProgressChild);
     }
 
-    private void checkPreferenceBasedRoutingAllowed(Preference preference, @Nullable WeightedRoutingMetadata weightedRoutingMetadata) {
-        if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
-            isStrictWeightedShardRouting,
-            ignoreWeightedRouting,
-            weightedRoutingMetadata
-        ) && WEIGHTED_ROUTING_RESTRICTED_PREFERENCES.contains(preference)) {
+    // package-private for testing
+    void checkPreferenceBasedRoutingAllowed(
+        Preference preference,
+        @Nullable WeightedRoutingMetadata weightedRoutingMetadata,
+        boolean serverInjectedPreference
+    ) {
+        // Preferences injected by the server for specific index types (e.g. remote snapshot or writable warm
+        // indices) are the engine's own routing decision and are exempt from this check, which exists to stop
+        // caller-supplied preferences from bypassing weighted shard routing.
+        if (serverInjectedPreference == false
+            && WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
+                isStrictWeightedShardRouting,
+                ignoreWeightedRouting,
+                weightedRoutingMetadata
+            )
+            && WEIGHTED_ROUTING_RESTRICTED_PREFERENCES.contains(preference)) {
             throw new PreferenceBasedSearchNotAllowedException(
                 "Preference type based routing not allowed with strict weighted shard routing enabled"
             );

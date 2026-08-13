@@ -121,6 +121,8 @@ configurations.all {
     force "org.yaml:snakeyaml:2.4"
     force "org.codehaus.janino:janino:3.1.12"
     force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "org.apache.calcite.avatica:avatica-core:1.27.0"
+    force "com.jayway.jsonpath:json-path:2.9.0"
     force "commons-io:commons-io:${versions.commonsio}"
     force "org.apache.commons:commons-lang3:3.18.0"
     force "org.apache.commons:commons-text:1.11.0"

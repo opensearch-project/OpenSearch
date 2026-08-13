@@ -78,32 +78,61 @@ pub fn build(
     let config: S3Config = serde_json::from_str(config_json)?;
     let mut builder = AmazonS3Builder::new().with_bucket_name(&config.bucket);
 
-    if let Some(ref r) = config.region { builder = builder.with_region(r); }
-    if let Some(ref e) = config.endpoint { builder = builder.with_endpoint(e); }
+    if let Some(ref r) = config.region {
+        builder = builder.with_region(r);
+    }
+    if let Some(ref e) = config.endpoint {
+        builder = builder.with_endpoint(e);
+    }
 
     if let Some(creds) = credentials {
         builder = builder.with_credentials(creds);
     }
 
-    if config.virtual_hosted_style == Some(true) { builder = builder.with_virtual_hosted_style_request(true); }
-    if config.unsigned_payload == Some(true) { builder = builder.with_unsigned_payload(true); }
-    if config.allow_http == Some(true) { builder = builder.with_allow_http(true); }
-    if let Some(ref p) = config.proxy_url { builder = builder.with_proxy_url(p); }
-    if let Some(ref c) = config.proxy_ca_certificate { builder = builder.with_proxy_ca_certificate(c); }
-    if config.imdsv1_fallback == Some(true) { builder = builder.with_imdsv1_fallback(); }
-    if config.s3_express == Some(true) { builder = builder.with_s3_express(true); }
-    if let Some(ref k) = config.sse_kms_key_id { builder = builder.with_sse_kms_encryption(k); }
-    if let Some(ref d) = config.dsse_kms_key_id { builder = builder.with_dsse_kms_encryption(d); }
-    if config.bucket_key == Some(true) { builder = builder.with_bucket_key(true); }
+    if config.virtual_hosted_style == Some(true) {
+        builder = builder.with_virtual_hosted_style_request(true);
+    }
+    if config.unsigned_payload == Some(true) {
+        builder = builder.with_unsigned_payload(true);
+    }
+    if config.allow_http == Some(true) {
+        builder = builder.with_allow_http(true);
+    }
+    if let Some(ref p) = config.proxy_url {
+        builder = builder.with_proxy_url(p);
+    }
+    if let Some(ref c) = config.proxy_ca_certificate {
+        builder = builder.with_proxy_ca_certificate(c);
+    }
+    if config.imdsv1_fallback == Some(true) {
+        builder = builder.with_imdsv1_fallback();
+    }
+    if config.s3_express == Some(true) {
+        builder = builder.with_s3_express(true);
+    }
+    if let Some(ref k) = config.sse_kms_key_id {
+        builder = builder.with_sse_kms_encryption(k);
+    }
+    if let Some(ref d) = config.dsse_kms_key_id {
+        builder = builder.with_dsse_kms_encryption(d);
+    }
+    if config.bucket_key == Some(true) {
+        builder = builder.with_bucket_key(true);
+    }
     if let Some(ref a) = config.checksum_algorithm {
         builder = builder.with_checksum_algorithm(
-            a.parse().map_err(|_| format!("unknown checksum algorithm: '{}'", a))?
+            a.parse()
+                .map_err(|_| format!("unknown checksum algorithm: '{}'", a))?,
         );
     }
     if config.max_retries.is_some() || config.retry_timeout_ms.is_some() {
         let mut retry = RetryConfig::default();
-        if let Some(m) = config.max_retries { retry.max_retries = m; }
-        if let Some(ms) = config.retry_timeout_ms { retry.retry_timeout = Duration::from_millis(ms); }
+        if let Some(m) = config.max_retries {
+            retry.max_retries = m;
+        }
+        if let Some(ms) = config.retry_timeout_ms {
+            retry.retry_timeout = Duration::from_millis(ms);
+        }
         builder = builder.with_retry(retry);
     }
 
@@ -113,8 +142,8 @@ pub fn build(
     // its completion work (TLS, body assembly) off the CPU runtime that drives
     // query decode. No-op when no IO runtime is installed (e.g. unit tests).
     if let Some(io) = native_bridge_common::io_runtime::io_handle() {
-        builder = builder
-            .with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
+        builder =
+            builder.with_http_connector(object_store::client::SpawnedReqwestConnector::new(io));
     }
 
     Ok(Arc::new(builder.build()?))

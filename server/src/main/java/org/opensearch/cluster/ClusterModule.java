@@ -45,6 +45,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionRes
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.MetadataIndexFieldDomainService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
@@ -473,6 +474,7 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexStateService.class).asEagerSingleton();
         bind(MetadataMappingService.class).asEagerSingleton();
         bind(MetadataIndexAliasesService.class).asEagerSingleton();
+        bind(MetadataIndexFieldDomainService.class).asEagerSingleton();
         bind(MetadataUpdateSettingsService.class).asEagerSingleton();
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);

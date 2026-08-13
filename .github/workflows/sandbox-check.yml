@@ -34,6 +34,10 @@ jobs:
           cache: gradle
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt
+      - name: Check Rust formatting
+        run: cargo fmt --all --manifest-path sandbox/libs/dataformat-native/rust/Cargo.toml -- --check
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Cache Cargo registry

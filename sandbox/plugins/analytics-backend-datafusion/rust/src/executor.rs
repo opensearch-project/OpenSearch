@@ -9,12 +9,14 @@
 use futures::{future::BoxFuture, Future, FutureExt, TryFutureExt};
 use log::{info, warn};
 use parking_lot::RwLock;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::{
     runtime::Handle,
-    sync::{oneshot::error::RecvError, Mutex as AsyncMutex, Notify, Semaphore, OwnedSemaphorePermit},
+    sync::{
+        oneshot::error::RecvError, Mutex as AsyncMutex, Notify, OwnedSemaphorePermit, Semaphore,
+    },
     task::{AbortHandle, JoinSet},
 };
 
@@ -83,11 +85,13 @@ impl ConcurrencyGate {
 
     /// Acquire N permits (partition-weighted). Held for the entire query stream lifetime.
     pub async fn acquire_many(&self, n: u32) -> OwnedSemaphorePermit {
-        self.pending_acquire_permits.fetch_add(n as u64, Ordering::Relaxed);
+        self.pending_acquire_permits
+            .fetch_add(n as u64, Ordering::Relaxed);
         self.pending_acquire_batches.fetch_add(1, Ordering::Relaxed);
         let start = Instant::now();
         let result = self.semaphore.clone().acquire_many_owned(n).await;
-        self.pending_acquire_permits.fetch_sub(n as u64, Ordering::Relaxed);
+        self.pending_acquire_permits
+            .fetch_sub(n as u64, Ordering::Relaxed);
         self.pending_acquire_batches.fetch_sub(1, Ordering::Relaxed);
         let permit = result.expect("concurrency gate semaphore closed");
         let elapsed_ms = start.elapsed().as_millis() as u64;
@@ -111,7 +115,9 @@ impl ConcurrencyGate {
     }
 
     pub fn active_permits(&self) -> u32 {
-        self.max_permits.load(Ordering::Acquire).saturating_sub(self.semaphore.available_permits() as u32)
+        self.max_permits
+            .load(Ordering::Acquire)
+            .saturating_sub(self.semaphore.available_permits() as u32)
     }
 
     pub fn total_wait_ms(&self) -> u64 {
@@ -150,7 +156,9 @@ impl ConcurrencyGate {
         if new_max < 1 || new_max > Semaphore::MAX_PERMITS as u32 {
             warn!(
                 "[{}] resize rejected: new_max {} out of bounds [1, {}]",
-                gate_name, new_max, Semaphore::MAX_PERMITS
+                gate_name,
+                new_max,
+                Semaphore::MAX_PERMITS
             );
             return;
         }
@@ -203,7 +211,9 @@ impl ConcurrencyGate {
                 // Need to acquire additional poison permits (one at a time for precise release)
                 let additional_needed = total_poison_needed - existing_poison;
                 for _ in 0..additional_needed {
-                    let permit = self.semaphore.clone()
+                    let permit = self
+                        .semaphore
+                        .clone()
                         .acquire_owned()
                         .await
                         .expect("semaphore closed during resize");
@@ -257,7 +267,11 @@ impl std::fmt::Debug for DedicatedExecutor {
 }
 
 impl DedicatedExecutor {
-    pub fn new(name: &str, runtime_builder: tokio::runtime::Builder, max_concurrent_queries: usize) -> Self {
+    pub fn new(
+        name: &str,
+        runtime_builder: tokio::runtime::Builder,
+        max_concurrent_queries: usize,
+    ) -> Self {
         let name = name.to_owned();
         let notify_shutdown = Arc::new(Notify::new());
         let notify_shutdown_captured = Arc::clone(&notify_shutdown);
@@ -268,9 +282,7 @@ impl DedicatedExecutor {
             .name(format!("{name} driver"))
             .spawn(move || {
                 let mut runtime_builder = runtime_builder;
-                let runtime = runtime_builder
-                    .build()
-                    .expect("Creating tokio runtime");
+                let runtime = runtime_builder.build().expect("Creating tokio runtime");
 
                 runtime.block_on(async move {
                     let shutdown = notify_shutdown_captured.notified();
@@ -308,13 +320,15 @@ impl DedicatedExecutor {
         fut
     }
 
-
     /// Like [`spawn`](Self::spawn), but also returns an [`AbortHandle`] that
     /// can be used to cancel the CPU task from outside (e.g. from `cancel_query`).
     pub fn spawn_with_abort_handle<T>(
         &self,
         task: T,
-    ) -> (Option<AbortHandle>, impl Future<Output = Result<T::Output, JobError>>)
+    ) -> (
+        Option<AbortHandle>,
+        impl Future<Output = Result<T::Output, JobError>>,
+    )
     where
         T: Future + Send + 'static,
         T::Output: Send + 'static,
@@ -517,7 +531,7 @@ mod tests {
 
         assert_eq!(gate.max_permits(), 4);
         assert_eq!(poison_permits_held(&gate).await, 4); // 4 individual permits
-        // Available permits should be 4: original 8 minus 4 acquired as poison
+                                                         // Available permits should be 4: original 8 minus 4 acquired as poison
         assert_eq!(gate.semaphore.available_permits(), 4);
     }
 
@@ -785,9 +799,7 @@ mod tests {
 
         // Spawn a task that will block on acquire
         let gate_clone = Arc::clone(&gate);
-        let handle = tokio::spawn(async move {
-            gate_clone.acquire().await
-        });
+        let handle = tokio::spawn(async move { gate_clone.acquire().await });
 
         // Yield to let the spawned task start waiting
         tokio::task::yield_now().await;

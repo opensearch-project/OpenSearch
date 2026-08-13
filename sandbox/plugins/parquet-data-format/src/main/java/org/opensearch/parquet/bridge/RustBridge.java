@@ -16,17 +16,22 @@ import org.opensearch.parquet.stats.ParquetNativeRuntimeStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * FFM bridge to the native Rust parquet writer library.
@@ -35,6 +40,7 @@ public class RustBridge {
 
     private static final MethodHandle CREATE_WRITER;
     private static final MethodHandle WRITE;
+    private static final MethodHandle CLEANUP_WRITER;
     private static final MethodHandle FINALIZE_WRITER;
     private static final MethodHandle GET_FILE_METADATA;
     private static final MethodHandle GET_COLUMN_METADATA;
@@ -50,6 +56,7 @@ public class RustBridge {
     private static final MethodHandle SET_WRITE_POOL_LIMIT;
     private static final MethodHandle SET_MERGE_POOL_LIMIT;
     private static final MethodHandle GET_POOL_STATS;
+    private static final MethodHandle REGISTER_OVERCOMMIT_CALLBACKS;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -82,6 +89,10 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
+        );
+        CLEANUP_WRITER = linker.downcallHandle(
+            lib.find("parquet_cleanup_writer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
         FINALIZE_WRITER = linker.downcallHandle(
             lib.find("parquet_finalize_writer").orElseThrow(),
@@ -278,6 +289,10 @@ public class RustBridge {
             lib.find("parquet_get_pool_stats").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
+        REGISTER_OVERCOMMIT_CALLBACKS = linker.downcallHandle(
+            lib.find("parquet_register_overcommit_callbacks").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        );
     }
 
     public static void initLogger() {}
@@ -313,6 +328,18 @@ public class RustBridge {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             call.invokeIO(WRITE, f.segment(), f.len(), arrayAddress, schemaAddress);
+        }
+    }
+
+    /**
+     * Removes the native writer registry entry for {@code file} without finalizing it (idempotent).
+     * Used by the shard close / going-red flow so a writer stranded by a failed operation does not
+     * survive as a stale entry and block recovery's re-create for the same file.
+     */
+    static void cleanupWriter(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            call.invokeIO(CLEANUP_WRITER, f.segment(), f.len());
         }
     }
 
@@ -754,6 +781,65 @@ public class RustBridge {
             var buf = call.buf(6 * 8);
             NativeCall.invokeVoid(GET_POOL_STATS, buf);
             return buf.toArray(ValueLayout.JAVA_LONG);
+        }
+    }
+
+    // ─── Over-commit decision upcall (decision executes in the Java allocator) ───────────────────
+
+    /** Delegate that decides whether a full native pool may over-commit; set by the owning plugin. */
+    private static volatile LongSupplier overCommitDecider;
+    /** Delegate that releases a previously granted over-commit; set by the owning plugin. */
+    private static volatile LongConsumer overCommitReleaser;
+
+    /** C-ABI trampoline invoked from Rust: returns a nonzero grant token, or 0 to reject. */
+    private static long overCommitDecide() {
+        LongSupplier d = overCommitDecider;
+        try {
+            return d != null ? d.getAsLong() : 0L;
+        } catch (Throwable t) {
+            return 0L; // never let an exception cross the native boundary
+        }
+    }
+
+    /** C-ABI trampoline invoked from Rust: releases the over-commit permit identified by {@code token}. */
+    private static void overCommitRelease(long token) {
+        LongConsumer r = overCommitReleaser;
+        try {
+            if (r != null) {
+                r.accept(token);
+            }
+        } catch (Throwable ignore) {
+            // best-effort
+        }
+    }
+
+    /**
+     * Registers the over-commit decision/release delegates and installs FFM upcall stubs into the
+     * native library so a full native pool can consult the (Java allocator-owned) decision. The
+     * decision itself runs in {@code decide}/{@code release}; this method only wires the plumbing.
+     * Stubs are bound to the global arena (JVM lifetime).
+     *
+     * @param decide  returns a nonzero grant token to over-commit, or 0 to reject
+     * @param release invoked with the grant token to release a previously granted over-commit
+     */
+    public static void registerOverCommitCallbacks(LongSupplier decide, LongConsumer release) {
+        overCommitDecider = decide;
+        overCommitReleaser = release;
+        try {
+            Linker linker = Linker.nativeLinker();
+            Arena arena = Arena.global();
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle decideHandle = lookup.findStatic(RustBridge.class, "overCommitDecide", MethodType.methodType(long.class));
+            MethodHandle releaseHandle = lookup.findStatic(
+                RustBridge.class,
+                "overCommitRelease",
+                MethodType.methodType(void.class, long.class)
+            );
+            MemorySegment decideStub = linker.upcallStub(decideHandle, FunctionDescriptor.of(ValueLayout.JAVA_LONG), arena);
+            MemorySegment releaseStub = linker.upcallStub(releaseHandle, FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG), arena);
+            NativeCall.invokeVoid(REGISTER_OVERCOMMIT_CALLBACKS, decideStub, releaseStub);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Failed to register over-commit callbacks", t);
         }
     }
 

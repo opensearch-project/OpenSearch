@@ -237,8 +237,14 @@ mod tests {
     #[test]
     fn internal_search_from_wire_decodes_modes() {
         assert_eq!(InternalSearch::from_wire(0, 99), InternalSearch::Off);
-        assert_eq!(InternalSearch::from_wire(1, 42), InternalSearch::ByRowId(42));
-        assert_eq!(InternalSearch::from_wire(2, 7), InternalSearch::SeqNoAbove(7));
+        assert_eq!(
+            InternalSearch::from_wire(1, 42),
+            InternalSearch::ByRowId(42)
+        );
+        assert_eq!(
+            InternalSearch::from_wire(2, 7),
+            InternalSearch::SeqNoAbove(7)
+        );
         // Unknown modes are forward-compatible: treated as Off, bound ignored.
         assert_eq!(InternalSearch::from_wire(3, 5), InternalSearch::Off);
         assert!(!InternalSearch::Off.is_internal_search());

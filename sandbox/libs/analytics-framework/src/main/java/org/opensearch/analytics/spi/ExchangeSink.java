@@ -27,8 +27,16 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 public interface ExchangeSink {
 
     /**
-     * Ingest an Arrow batch into this sink. The sink takes ownership of the
+     * Ingest an Arrow batch into this sink. On normal return the sink has taken ownership of the
      * batch and is responsible for releasing it when no longer needed.
+     *
+     * <p><b>All-or-nothing ownership.</b> Ownership transfers only on normal return. If this method
+     * throws, it must NOT have taken ownership of {@code batch} — neither the root nor any of its
+     * child vectors — so the caller still owns {@code batch} in full and is responsible for closing
+     * it exactly once. Implementations that begin consuming/transferring buffers before they might
+     * throw must either complete the transfer or roll it back before propagating, so the caller can
+     * safely {@code batch.close()} without risking a double-release. (Callers such as
+     * {@code Stitcher.finish} rely on this to free the batch on the feed-throws path.)
      */
     void feed(VectorSchemaRoot batch);
 

@@ -23,6 +23,7 @@ pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
 pub(crate) mod agg_mode;
 pub mod api;
 pub mod cache;
+pub mod can_match;
 pub mod cancellation;
 pub mod cross_rt_stream;
 pub mod datafusion_query_config;
@@ -44,26 +45,26 @@ pub mod query_budget;
 pub mod query_executor;
 pub mod query_tracker;
 pub mod relabel_exec;
-pub mod shard_table_provider;
 pub mod runtime_manager;
 pub mod schema_coerce;
 pub mod session_context;
+pub mod shard_table_provider;
 
-pub mod udaf;
-pub mod udf;
-pub mod udwf;
 pub mod native_node_stats;
+pub mod scoped_index_optimizer;
+pub mod scoped_page_index_reader;
 pub mod search_stats;
 pub mod stats;
 pub mod task_monitors;
-pub mod scoped_index_optimizer;
-pub mod scoped_page_index_reader;
+pub mod udaf;
+pub mod udf;
+pub mod udwf;
 
 // Path aliases — old module names still resolve unchanged.
-pub use cache::statistics_cache;
-pub use cache::eviction_policy;
 pub use cache::custom_cache_manager;
+pub use cache::eviction_policy;
 pub use cache::page_index as parquet_page_cache;
+pub use cache::statistics_cache;
 
 #[cfg(test)]
 mod spill_e2e_test;

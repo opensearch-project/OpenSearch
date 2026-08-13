@@ -13,18 +13,20 @@
 //! TODO: Evaluate if DF's UDAF extension points (e.g. AccumulatorArgs overrides or
 //!       custom PhysicalOptimizerRule to inject CastExec) can avoid same-name overrides.
 
-use std::sync::Arc;
 use datafusion::arrow::array::{Array, ArrayRef, StringArray, StringViewArray};
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{downcast_value, Result};
 use datafusion::execution::context::SessionContext;
+use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
 use datafusion::logical_expr::{Accumulator, AggregateUDFImpl, Signature, Volatility};
-use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
 use datafusion::scalar::ScalarValue;
+use std::sync::Arc;
 
 pub fn register_all(ctx: &SessionContext) {
-    ctx.register_udaf(datafusion::logical_expr::AggregateUDF::from(SafeApproxDistinct::new()));
+    ctx.register_udaf(datafusion::logical_expr::AggregateUDF::from(
+        SafeApproxDistinct::new(),
+    ));
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -95,7 +97,8 @@ impl Accumulator for Utf8ViewToUtf8Accumulator {
         let view_array: &StringViewArray = downcast_value!(values[0], StringViewArray);
         // Materialize as StringArray — consistent hashing via StringHLLAccumulator
         let string_array: StringArray = view_array.iter().collect();
-        self.inner.update_batch(&[Arc::new(string_array) as ArrayRef])
+        self.inner
+            .update_batch(&[Arc::new(string_array) as ArrayRef])
     }
 
     fn merge_batch(&mut self, states: &[ArrayRef]) -> Result<()> {

@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
@@ -54,6 +55,7 @@ import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAda
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -497,6 +499,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
+    public boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return ParquetRangeEvaluator.evaluate(shard, filterBytes, plugin);
+    }
+
+    @Override
+    public CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        return ParquetRangeEvaluator.evaluateWithBounds(shard, filterBytes, sortColumn, plugin);
+    }
+
+    @Override
     public BackendCapabilityProvider getCapabilityProvider() {
         return new BackendCapabilityProvider() {
             @Override
@@ -667,8 +679,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 SecondAdapter second = new SecondAdapter();
                 // Stateless cast adapter shared between CAST and SAFE_CAST registrations.
                 IpBinaryCastFunctionAdapter ipBinaryCast = new IpBinaryCastFunctionAdapter();
-                // Stateless adapter shared across the six comparison operators.
-                ComparisonTemporalCoercionAdapter comparisonTemporalCoercion = new ComparisonTemporalCoercionAdapter();
+                // Stateless adapter shared across the six comparison operators. Wrapped by
+                // IpComparisonNormalizationAdapter so PPL IP-comparison UDFs (EQUALS_IP etc.) over
+                // VARBINARY ip/binary fields are rewritten to native comparators before temporal
+                // coercion (and before Substrait conversion, which has no EQUALS_IP binding).
+                ScalarFunctionAdapter comparisonTemporalCoercion = new IpComparisonNormalizationAdapter(
+                    new ComparisonTemporalCoercionAdapter()
+                );
                 return Map.ofEntries(
                     Map.entry(ScalarFunction.ARRAY, new MakeArrayAdapter()),
                     Map.entry(ScalarFunction.ARRAY_JOIN, new ArrayToStringAdapter()),
@@ -896,7 +913,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if (dfReader == null) {
                 throw new IllegalStateException("No DatafusionReader available in the acquired reader");
             }
-            DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+            // Fail fast if the scan context ever carries a non-analytics task: the context id
+            // and cancellation wiring both hang off AnalyticsShardTask#getNativeTaskId().
+            DatafusionContext context = new DatafusionContext(
+                (AnalyticsShardTask) ctx.getTask(),
+                dfReader,
+                dataFusionService.getNativeRuntime()
+            );
             if (backendContext != null) {
                 DataFusionSessionState sessionState = (DataFusionSessionState) backendContext;
                 context.setSessionContextHandle(sessionState.sessionContextHandle());

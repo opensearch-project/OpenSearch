@@ -18,7 +18,6 @@ use std::sync::Arc;
 use arrow::datatypes::SchemaRef;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use parquet::arrow::parquet_to_arrow_schema;
 
 /// Map the query's predicate-column names to **this file's** parquet leaf
 /// indices, resolving against the file's OWN schema so the indices are correct
@@ -45,23 +44,10 @@ pub fn resolve_predicate_parquet_columns(
     _arrow_schema: &SchemaRef,
     metadata: &ParquetMetaData,
     predicate_column_names: &[String],
+    file_schema: &SchemaRef,
 ) -> Vec<usize> {
     let parquet_schema = metadata.file_metadata().schema_descr();
-    // Per-file arrow schema: 1:1 with this file's parquet leaves, so a column's
-    // arrow position maps to its true leaf. (The passed `_arrow_schema` is the
-    // union table schema and is intentionally NOT used for index resolution —
-    // see the doc comment.)
-    let file_arrow_schema = match parquet_to_arrow_schema(
-        parquet_schema,
-        metadata.file_metadata().key_value_metadata(),
-    ) {
-        Ok(s) => Arc::new(s),
-        // If we can't derive the file schema (malformed footer, unsupported type),
-        // return empty. Empty is the safe conservative choice:  the caller skips the
-        // scoped load and falls back to footer-only.
-        Err(_) => return vec![],
-    };
-    resolve_with_schema(&file_arrow_schema, metadata, predicate_column_names)
+    resolve_with_schema(file_schema, metadata, predicate_column_names)
 }
 
 /// Resolve TWO name-sets (e.g. predicate columns and projection columns) against
@@ -76,22 +62,12 @@ pub fn resolve_predicate_parquet_columns_pair(
     metadata: &ParquetMetaData,
     predicate_col_names: &[String],
     projection_col_names: &[String],
+    file_schema: &SchemaRef,
 ) -> (Vec<usize>, Vec<usize>) {
-    let parquet_schema = metadata.file_metadata().schema_descr();
-    match parquet_to_arrow_schema(
-        parquet_schema,
-        metadata.file_metadata().key_value_metadata(),
-    ) {
-        Ok(s) => {
-            let file_arrow_schema = Arc::new(s);
-            (
-                resolve_with_schema(&file_arrow_schema, metadata, predicate_col_names),
-                resolve_with_schema(&file_arrow_schema, metadata, projection_col_names),
-            )
-        }
-        // Can't derive the file schema — return empty for both sets.
-        Err(_) => (vec![], vec![]),
-    }
+    (
+        resolve_with_schema(file_schema, metadata, predicate_col_names),
+        resolve_with_schema(file_schema, metadata, projection_col_names),
+    )
 }
 
 /// Resolve predicate column names → parquet leaf indices against a specific arrow

@@ -10,10 +10,10 @@
 //!
 //! Simple pluggable cache eviction policies for statistics cache.
 
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use datafusion::common::instant;
 use instant::Instant;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Error types for cache operations
@@ -302,8 +302,8 @@ impl CachePolicy for LfuPolicy {
 /// flag the missing arm here.
 pub fn create_policy(policy_type: CacheEvictionPolicy) -> Option<Arc<dyn CachePolicy>> {
     match policy_type {
-        CacheEvictionPolicy::Lru  => Some(Arc::new(LruPolicy::new())),
-        CacheEvictionPolicy::Lfu  => Some(Arc::new(LfuPolicy::new())),
+        CacheEvictionPolicy::Lru => Some(Arc::new(LruPolicy::new())),
+        CacheEvictionPolicy::Lfu => Some(Arc::new(LfuPolicy::new())),
         CacheEvictionPolicy::Fifo => None,
     }
 }

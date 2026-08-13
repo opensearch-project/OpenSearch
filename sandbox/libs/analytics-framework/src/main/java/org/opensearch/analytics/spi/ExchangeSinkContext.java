@@ -23,10 +23,11 @@ import java.util.List;
  * <ul>
  *   <li>{@code queryId} / {@code stageId} — correlation ids for backend logs
  *       and metrics.</li>
- *   <li>{@code taskId} — the parent {@code AnalyticsQueryTask} id. Backends
- *       forward this to the native runtime as the query-tracking context id so
- *       one cancellation call from Java cascades to every native query scope
- *       (shard scans + coord reduce) registered under the same task.</li>
+ *   <li>{@code taskId} — the parent {@code AnalyticsQueryTask}'s {@code nativeTaskId}:
+ *       a JVM-unique id minted by {@link NativeTaskIdManager} (NOT {@code Task#getId()},
+ *       which is only unique per node). Backends forward this to the native runtime as
+ *       the query-tracking context id so one cancellation call from Java cascades to
+ *       every native query scope registered under the same id.</li>
  *   <li>{@code fragmentBytes} — backend-specific serialized plan (e.g.
  *       Substrait) the backend will execute over the fed batches.</li>
  *   <li>{@code allocator} — the parent buffer allocator the backend should
