@@ -17,7 +17,6 @@ import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.plugins.NativeStoreHandle;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -34,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
 // They cannot be shut down without breaking other test classes that share the same JVM.
 
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
+public class DataFusionNativeBridgeTests extends NativeSpillDirTestCase {
 
     // Note: initTokioRuntimeManager uses OnceLock and can only be initialized once per JVM.
     // Do NOT call shutdownTokioRuntimeManager() here — it permanently kills the shared
@@ -46,7 +45,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         NativeBridge.initTokioRuntimeManager(2);
 
         // Create global runtime with small memory pool
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(
             64 * 1024 * 1024, // 64MB
             0L,
@@ -61,7 +60,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
 
     public void testReaderLifecycle() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
 
         // Copy test parquet to a temp dir
@@ -87,7 +86,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
 
     public void testSessionContextCreationAndTableRegistration() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -165,7 +164,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
      */
     public void testReaderWithRealNativeStoreHandle() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
 
         // Copy test parquet to a temp dir

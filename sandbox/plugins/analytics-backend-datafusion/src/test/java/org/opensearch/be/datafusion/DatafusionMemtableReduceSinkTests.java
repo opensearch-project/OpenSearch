@@ -35,7 +35,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -50,7 +49,7 @@ import io.substrait.extension.SimpleExtension;
  * streaming sender path.
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
+public class DatafusionMemtableReduceSinkTests extends NativeSpillDirTestCase {
 
     public void testInputIdConstantMatchesDesign() {
         assertEquals("Single-input reduce uses the synthetic id 'input-0'", "input-0", DatafusionMemtableReduceSink.INPUT_ID);
@@ -58,7 +57,7 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
 
     public void testFeedDrainsSumToDownstream() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
