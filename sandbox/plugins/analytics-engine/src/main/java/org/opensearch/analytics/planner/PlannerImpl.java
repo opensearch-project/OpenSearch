@@ -396,9 +396,7 @@ public class PlannerImpl {
      */
     static RelNode trimFields(RelNode input) {
         RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
-        // Trimming is a pure optimization; the untrimmed tree is always a correct fallback. The
-        // trimmer's stock handlers reject some valid shapes via IllegalArgumentException (e.g.
-        // RelBuilder.sortLimit on a non-literal OFFSET) — fall back rather than fail the query.
+        // Trimming is a pure optimization; any trimmer failure must fall back, never fail the query.
         try {
             RelNode trimmed = new RelFieldTrimmer(null, relBuilder).trim(input);
             // trim() asserts an identity ref-mapping at the root, so field count/order are preserved
@@ -407,7 +405,7 @@ public class PlannerImpl {
             trimmed = relBuilder.push(trimmed).rename(input.getRowType().getFieldNames()).build();
             RelNodeUtils.logPlan(LOGGER, "After field trimming", trimmed);
             return trimmed;
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException | AssertionError e) {
             LOGGER.warn("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
             return input;
         }

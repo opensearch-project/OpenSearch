@@ -91,8 +91,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
     public void testAggregateWindowAggregate_2shard_onlyLowerSplits() {
         RelNode lowerAgg = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
         RelNode windowed = projectWithSumOverEmpty(lowerAgg);
-        // Outer agg consumes BOTH the passthrough cnt ($1, BIGINT) and the window col s ($2) so
-        // neither is dead — keeps cnt in the Project output and keeps the window live.
+        // Outer agg consumes BOTH cnt ($1) and window col s ($2) so neither is dead.
         AggregateCallOnWindowedProject cntAgg = aggCallOver(windowed, /* cnt */ 1, "total_cnt", SqlTypeName.BIGINT);
         AggregateCallOnWindowedProject sAgg = aggCallOver(windowed, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
         RelNode plan = makeAggregate(windowed, countStarCall(windowed), cntAgg.aggCall, sAgg.aggCall);
@@ -718,8 +717,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
      */
     public void testAggregateAfterWindow_1shard() {
         RelNode windowedProject = projectWithSumOverEmpty();
-        // Aggregate BOTH size ($1) and the window col s ($2) so neither is dead — keeps size in the
-        // Project output and keeps the window live (else field trimming drops the dead window/col).
+        // Aggregate BOTH size ($1) and window col s ($2) so neither is dead — keeps the window live.
         AggregateCallOnWindowedProject sizeAgg = aggCallOver(windowedProject, /* size */ 1, "total_size");
         AggregateCallOnWindowedProject sAgg = aggCallOver(windowedProject, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
         RelNode plan = makeAggregate(windowedProject, sizeAgg.aggCall, sAgg.aggCall);
@@ -745,7 +743,7 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
      */
     public void testAggregateAfterWindow_2shard() {
         RelNode windowedProject = projectWithSumOverEmpty();
-        // Aggregate BOTH size ($1) and window col s ($2) so neither is dead (keeps window live + size).
+        // Aggregate BOTH size ($1) and window col s ($2) so neither is dead.
         AggregateCallOnWindowedProject sizeAgg = aggCallOver(windowedProject, /* size */ 1, "total_size");
         AggregateCallOnWindowedProject sAgg = aggCallOver(windowedProject, /* window col */ 2, "total_s", SqlTypeName.BIGINT);
         RelNode plan = makeAggregate(windowedProject, sizeAgg.aggCall, sAgg.aggCall);
