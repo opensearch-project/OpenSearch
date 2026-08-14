@@ -27,6 +27,7 @@ pub mod can_match;
 pub mod cancellation;
 pub mod cross_rt_stream;
 pub mod datafusion_query_config;
+pub mod doc_values_cursor;
 pub mod executor;
 pub mod ffm;
 pub mod forward_reader;
