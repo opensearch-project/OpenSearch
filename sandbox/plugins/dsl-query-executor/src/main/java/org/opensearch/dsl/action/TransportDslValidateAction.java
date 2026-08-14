@@ -119,7 +119,12 @@ public class TransportDslValidateAction extends HandledTransportAction<ValidateQ
             SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext().schema());
             QueryPlans plans = converter.convert(source, indexName);
             valid = true;
-            explanation = plans.getAll().get(0).relNode().explain().trim();
+            // Conversion of a query-only source always yields a hits plan today, but the
+            // invariant lives in the converter — don't let a future change turn a valid
+            // response into an IndexOutOfBoundsException.
+            if (!plans.getAll().isEmpty()) {
+                explanation = plans.getAll().get(0).relNode().explain().trim();
+            }
         } catch (ConversionException e) {
             valid = false;
             error = e.getMessage();

@@ -67,6 +67,7 @@ public class SearchActionFilter implements ActionFilter {
         } else if (ValidateQueryAction.NAME.equals(action)) {
             // Vanilla validate checks Lucene parseability; on this path validity means
             // "the DSL converter accepts it" — route to Calcite-aware validation.
+            // Cast is safe: action name identifies the request/listener types.
             ValidateQueryRequest validateRequest = (ValidateQueryRequest) request;
             client.execute(DslValidateAction.INSTANCE, validateRequest, (ActionListener<ValidateQueryResponse>) listener);
         } else {
