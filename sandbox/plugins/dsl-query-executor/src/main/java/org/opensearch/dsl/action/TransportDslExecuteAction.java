@@ -130,6 +130,14 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 // Build a QueryRequestContext bound to the SAME ClusterState snapshot the
                 // coordinator resolved against. This ensures the engine plans against the
                 // validated state — not a later snapshot from clusterService.state().
+                //
+                // The request's IndicesOptions are supplied twice on purpose, because two
+                // consumers read them at different points and neither can reach the other's
+                // copy. Passing them to getContext bakes them into the schema's lazy
+                // table-resolution closure, which fixes the row type; putting them on the
+                // context lets the planner resolve the concrete index set with the same flags,
+                // and lets the security layer authorize the expression with them. Supply only
+                // one and the schema and the plan can disagree on which indices exist.
                 queryCtx = new QueryRequestContext(
                     state,
                     contextProvider.getContext(state, request.indicesOptions()).schema(),

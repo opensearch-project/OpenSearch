@@ -1083,4 +1083,64 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertFieldType(row2, "x", SqlTypeName.VARCHAR);
         assertNull("2-arg overload must exclude closed backing (lenient default)", row2.getField("y", true, false));
     }
+
+    /**
+     * Falsifiable pair proving expand_wildcards controls hidden-index inclusion: a wildcard
+     * resolved with default options (open, not hidden) excludes the hidden index's unique field,
+     * while the same wildcard resolved with expand_hidden=true includes it. If both assertions
+     * produce the same result, expand_wildcards is not being honoured.
+     */
+    public void testExpandWildcardsHiddenControlsHiddenIndexInclusion() throws Exception {
+        IndexMetadata visible = IndexMetadata.builder("hw_visible")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"visible_field\":{\"type\":\"keyword\"}}}")
+            .state(IndexMetadata.State.OPEN)
+            .build();
+        IndexMetadata hidden = IndexMetadata.builder("hw_hidden")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"hidden_field\":{\"type\":\"long\"}}}")
+            .state(IndexMetadata.State.OPEN)
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(visible, false).put(hidden, false).build())
+            .build();
+
+        org.opensearch.cluster.metadata.IndexNameExpressionResolver resolver =
+            new org.opensearch.cluster.metadata.IndexNameExpressionResolver(
+                new org.opensearch.common.util.concurrent.ThreadContext(org.opensearch.common.settings.Settings.EMPTY)
+            );
+
+        // Default options: open indices only, hidden NOT expanded
+        IndicesOptions defaultOpen = IndicesOptions.fromOptions(true, true, true, false, false);
+        SchemaPlus schemaDefault = OpenSearchSchemaBuilder.buildSchema(state, resolver, defaultOpen);
+        Table tableDefault = schemaDefault.getTable("hw_*");
+        // The wildcard must match the visible index but skip the hidden one
+        assertNotNull("hw_* must resolve with default options (visible index matches)", tableDefault);
+        RelDataType rowDefault = tableDefault.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowDefault, "visible_field", SqlTypeName.VARCHAR);
+        assertNull(
+            "Default options (hidden=false) must NOT include hidden index's field",
+            rowDefault.getField("hidden_field", true, false)
+        );
+
+        // Expand hidden: open + hidden
+        IndicesOptions withHidden = IndicesOptions.fromOptions(true, true, true, false, true);
+        SchemaPlus schemaHidden = OpenSearchSchemaBuilder.buildSchema(state, resolver, withHidden);
+        Table tableHidden = schemaHidden.getTable("hw_*");
+        assertNotNull("hw_* must resolve with hidden options", tableHidden);
+        RelDataType rowHidden = tableHidden.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowHidden, "visible_field", SqlTypeName.VARCHAR);
+        assertFieldType(rowHidden, "hidden_field", SqlTypeName.BIGINT);
+
+        // Falsifiability check: the two row types must differ
+        assertNotEquals(
+            "The two row types must differ — otherwise expand_wildcards is not controlling hidden-index inclusion",
+            rowDefault.getFieldCount(),
+            rowHidden.getFieldCount()
+        );
+    }
 }

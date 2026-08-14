@@ -593,4 +593,70 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         assertEquals(1, targets.size());
         assertEquals("node-0", targets.get(0).node().getId());
     }
+
+    /**
+     * When the requested name is an index pattern (wildcard or comma-list) that does not appear
+     * in the cluster metadata's indices lookup, describeIndexSource classifies it as
+     * "index pattern [name]". The rejection message must surface this wording so operators can
+     * identify which expression caused the limit to be hit.
+     */
+    public void testResolveRejectsIndexPatternExceedingMaxShardsWithPatternWording() {
+        int limit = 2;
+
+        // A wildcard pattern resolves to two backing indices but the pattern itself is not
+        // in the metadata indices lookup — so describeIndexSource falls through to "index pattern".
+        IndexMetadata imdA = mockIndexMetadata("logs-2024-01", "uuid-a");
+        IndexMetadata imdB = mockIndexMetadata("logs-2024-02", "uuid-b");
+        IndexResolution resolution = stubResolution("logs-*", List.of(imdA, imdB));
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+
+        // The pattern "logs-*" is NOT in the lookup — exercising the fallback path.
+        TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+        when(metadata.getIndicesLookup()).thenReturn(lookup);
+
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(nodes);
+
+        // 4 shards total across the two indices — exceeds limit of 2.
+        int shardCount = 4;
+        List<ShardIterator> iterators = new ArrayList<>();
+        for (int i = 0; i < shardCount; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("node-" + i);
+            when(nodes.get("node-" + i)).thenReturn(node);
+            ShardRouting shardRouting = mock(ShardRouting.class);
+            when(shardRouting.currentNodeId()).thenReturn("node-" + i);
+            String idx = i < 2 ? "logs-2024-01" : "logs-2024-02";
+            String uuid = i < 2 ? "uuid-a" : "uuid-b";
+            when(shardRouting.shardId()).thenReturn(new ShardId(new Index(idx, uuid), i % 2));
+            ShardIterator iter = mock(ShardIterator.class);
+            when(iter.nextOrNull()).thenReturn(shardRouting);
+            iterators.add(iter);
+        }
+
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        OperationRouting opRouting = mock(OperationRouting.class);
+        when(clusterService.operationRouting()).thenReturn(opRouting);
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "logs-2024-01", "logs-2024-02" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
+
+        OpenSearchTableScan scan = createScanWithResolution("logs-*", resolution);
+        ShardTargetResolver resolverUnderTest = new ShardTargetResolver(scan, clusterService);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolverUnderTest.resolve(clusterState, null));
+        assertTrue(
+            "Message must use 'index pattern' wording for wildcard patterns, got: " + ex.getMessage(),
+            ex.getMessage().contains("index pattern [logs-*]")
+        );
+        assertTrue("Message must state shard count", ex.getMessage().contains("[" + shardCount + "] shards"));
+        assertTrue("Message must state the limit", ex.getMessage().contains("[" + limit + "]"));
+        assertTrue("Message must name the setting", ex.getMessage().contains("action.search.shard_count.limit"));
+    }
 }

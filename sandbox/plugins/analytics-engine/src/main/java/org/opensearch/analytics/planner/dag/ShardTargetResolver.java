@@ -45,9 +45,9 @@ public class ShardTargetResolver extends TargetResolver {
 
     /**
      * Constructs a resolver that reads the carried {@link IndexResolution} from the fragment's
-     * {@link OpenSearchTableScan}. Fails loudly if the scan node does not carry a resolution —
-     * a silent fallback would mask a dropped field and reintroduce the options mismatch this
-     * change exists to remove.
+     * {@link OpenSearchTableScan}. Fails loudly if the scan carries no resolution — a silent
+     * fallback would re-resolve the index expression with different {@code IndicesOptions} and
+     * target a shard set that disagrees with the row type the plan was built against.
      */
     public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
         OpenSearchTableScan scan = RelNodeUtils.findNode(fragment, OpenSearchTableScan.class);
@@ -69,8 +69,8 @@ public class ShardTargetResolver extends TargetResolver {
 
     @Override
     public List<ExecutionTarget> resolve(ClusterState clusterState, @Nullable Object childManifest) {
-        // Use the carried resolution from planning — no re-resolution, eliminating the third
-        // independent resolution that would otherwise use different IndicesOptions.
+        // Reuse the planner's resolution rather than resolving again — a second resolution could
+        // use different IndicesOptions and yield a different shard set.
         IndexResolution resolution = carriedResolution;
         String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
