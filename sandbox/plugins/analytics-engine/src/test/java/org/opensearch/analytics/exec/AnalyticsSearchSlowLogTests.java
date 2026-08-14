@@ -147,7 +147,7 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
         Loggers.setLevel(logger, Level.WARN);
 
         var wrapped = slowLog.createQueryListener("source = idx | fields name");
-        wrapped.setFullPlan("LogicalProject(name=[$0])\n  OpenSearchTableScan(table=[[idx]])");
+        wrapped.setPlanSupplier(() -> "LogicalProject(name=[$0])\n  OpenSearchTableScan(table=[[idx]])");
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             appender.addExpectation(
@@ -170,7 +170,7 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
         Loggers.setLevel(logger, Level.WARN);
 
         var wrapped = slowLog.createQueryListener("source = idx");
-        // Do NOT call setFullPlan — plan should be omitted
+        // Do NOT call setPlanSupplier — plan should be omitted
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             appender.addExpectation(
@@ -215,5 +215,19 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
             wrapped.onQueryComplete("q5", TimeValue.timeValueMillis(1).nanos(), 0);
             appender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testPlanSupplierNotInvokedBelowThreshold() throws Exception {
+        // Threshold is 10s; query takes 5ms — must not cross. The plan supplier throws if invoked,
+        // proving we never stringify the plan (no CPU cost, no plan text) for fast queries.
+        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueSeconds(10));
+        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        var wrapped = slowLog.createQueryListener("source = idx");
+        wrapped.setPlanSupplier(() -> { throw new AssertionError("plan supplier must not run below threshold"); });
+
+        // No exception means the supplier was never invoked.
+        wrapped.onQueryComplete("q-fast", TimeValue.timeValueMillis(5).nanos(), 1);
     }
 }

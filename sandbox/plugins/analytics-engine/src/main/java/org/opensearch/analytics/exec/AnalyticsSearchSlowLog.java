@@ -95,15 +95,15 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         return new QuerySlowLogListener(querySource);
     }
 
-    private void logAtLevel(String message, long tookInNanos) {
+    private void logAtLevel(java.util.function.Supplier<String> message, long tookInNanos) {
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
-            queryLogger.warn(message);
+            queryLogger.warn(message.get());
         } else if (infoThreshold >= 0 && tookInNanos > infoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
-            queryLogger.info(message);
+            queryLogger.info(message.get());
         } else if (debugThreshold >= 0 && tookInNanos > debugThreshold && level.isLevelEnabledFor(SlowLogLevel.DEBUG)) {
-            queryLogger.debug(message);
+            queryLogger.debug(message.get());
         } else if (traceThreshold >= 0 && tookInNanos > traceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
-            queryLogger.trace(message);
+            queryLogger.trace(message.get());
         }
     }
 
@@ -115,7 +115,7 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         private final String querySource;
         private volatile String opaqueId;
         private volatile String requestId;
-        private volatile String fullPlan;
+        private volatile java.util.function.Supplier<String> planSupplier;
         private long planningTimeMs;
         private final StringBuilder stageTook = new StringBuilder();
 
@@ -128,9 +128,15 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
             this.requestId = requestId;
         }
 
-        /** Sets the Calcite logical plan text (from {@code RelOptUtil.toString(plan)}). */
-        void setFullPlan(String fullPlan) {
-            this.fullPlan = fullPlan;
+        /**
+         * Stores a lazy supplier of the Calcite logical plan text. The supplier (typically
+         * {@code () -> RelOptUtil.toString(plan)}) is only invoked inside {@link #onQueryComplete}
+         * when a slow log threshold is actually crossed — never for fast queries. This keeps the
+         * plan text (which contains filter literals, column names, and index topology) out of both
+         * CPU cost and log sinks for queries that don't qualify as slow.
+         */
+        void setPlanSupplier(java.util.function.Supplier<String> planSupplier) {
+            this.planSupplier = planSupplier;
         }
 
         @Override
@@ -146,20 +152,27 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
 
         @Override
         public void onQueryComplete(String queryId, long totalTookInNanos, long totalRows) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("took[").append(TimeValue.timeValueNanos(totalTookInNanos)).append("], ");
-            sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(totalTookInNanos)).append("], ");
-            sb.append("planning_time_millis[").append(planningTimeMs).append("], ");
-            sb.append("stage_took_millis[{").append(stageTook).append("}], ");
-            sb.append("query_id[").append(queryId).append("], ");
-            sb.append("total_rows[").append(totalRows).append("], ");
-            sb.append("source[").append(querySource != null ? querySource : "").append("], ");
-            if (fullPlan != null) {
-                sb.append("plan[").append(fullPlan.replace("\n", "\\n")).append("], ");
-            }
-            sb.append("id[").append(opaqueId != null ? opaqueId : "").append("], ");
-            sb.append("request_id[").append(requestId != null ? requestId : "").append("]");
-            logAtLevel(sb.toString(), totalTookInNanos);
+            // Build the message lazily — only invoked by logAtLevel after a threshold is crossed,
+            // so the plan supplier (a full plan-tree walk) runs only for genuinely slow queries.
+            logAtLevel(() -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append("took[").append(TimeValue.timeValueNanos(totalTookInNanos)).append("], ");
+                sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(totalTookInNanos)).append("], ");
+                sb.append("planning_time_millis[").append(planningTimeMs).append("], ");
+                sb.append("stage_took_millis[{").append(stageTook).append("}], ");
+                sb.append("query_id[").append(queryId).append("], ");
+                sb.append("total_rows[").append(totalRows).append("], ");
+                sb.append("source[").append(querySource != null ? querySource : "").append("], ");
+                if (planSupplier != null) {
+                    String planText = planSupplier.get();
+                    if (planText != null) {
+                        sb.append("plan[").append(planText.replace("\n", "\\n")).append("], ");
+                    }
+                }
+                sb.append("id[").append(opaqueId != null ? opaqueId : "").append("], ");
+                sb.append("request_id[").append(requestId != null ? requestId : "").append("]");
+                return sb.toString();
+            }, totalTookInNanos);
         }
     }
 }
