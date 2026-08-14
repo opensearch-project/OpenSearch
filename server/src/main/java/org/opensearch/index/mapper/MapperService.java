@@ -846,9 +846,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the list of registered dynamic field type inferencers.
+     * Returns the registered dynamic field type inferencers, each bound to the set of type strings the
+     * plugin that supplied it is allowed to produce.
      */
-    public List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+    public Map<DynamicFieldTypeInferencer, Set<String>> getDynamicFieldTypeInferencers() {
         return mapperRegistry.getDynamicFieldTypeInferencers();
     }
 

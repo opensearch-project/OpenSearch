@@ -68,6 +68,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
@@ -1213,8 +1214,9 @@ final class DocumentParser {
      */
     private static boolean tryPluginInference(ParseContext context, ObjectMapper parentMapper, String fieldName, String[] paths)
         throws IOException {
-        // Fast path: no plugins registered — zero overhead
-        List<DynamicFieldTypeInferencer> inferencers = context.mapperService().getDynamicFieldTypeInferencers();
+        // Fast path: no plugins registered — zero overhead. Each inferencer is bound to the set of
+        // type strings its own plugin registered, so it may only produce a type it owns.
+        Map<DynamicFieldTypeInferencer, Set<String>> inferencers = context.mapperService().getDynamicFieldTypeInferencers();
         Map<String, DynamicTemplateTypeHandler> templateTypes = context.mapperService().getDynamicTemplateTypes();
         if (inferencers.isEmpty() && templateTypes.isEmpty()) {
             return false;
@@ -1264,7 +1266,7 @@ final class DocumentParser {
         ObjectMapper.Dynamic dynamic,
         ObjectMapper resolvedParent,
         String[] resolvedPaths,
-        List<DynamicFieldTypeInferencer> inferencers,
+        Map<DynamicFieldTypeInferencer, Set<String>> inferencers,
         Map<String, DynamicTemplateTypeHandler> templateTypes
     ) throws IOException {
         XContentParser parser = context.parser();
@@ -1358,7 +1360,9 @@ final class DocumentParser {
         // triage) rather than letting plugin load order silently pick a winner.
         Map<String, Object> inferredFieldMapping = null;
         DynamicFieldTypeInferencer claimingInferencer = null;
-        for (DynamicFieldTypeInferencer inferencer : inferencers) {
+        Set<String> claimingInferencerOwnedTypes = null;
+        for (Map.Entry<DynamicFieldTypeInferencer, Set<String>> entry : inferencers.entrySet()) {
+            DynamicFieldTypeInferencer inferencer = entry.getKey();
             Map<String, Object> claim;
             try {
                 claim = inferencer.inferFieldType(fieldValueParser);
@@ -1389,6 +1393,7 @@ final class DocumentParser {
                 }
                 inferredFieldMapping = claim;
                 claimingInferencer = inferencer;
+                claimingInferencerOwnedTypes = entry.getValue();
             }
         }
 
@@ -1404,14 +1409,15 @@ final class DocumentParser {
             return true;
         }
 
-        // An inferencer may only produce a plugin-registered type. This mirrors the template path,
-        // where DynamicTemplate.parse rejects a match_mapping_type that no plugin registered, and it
-        // stops an inferencer from silently reshaping arbitrary unmapped fields into core built-in
-        // types (e.g. keyword, date, long) that it does not own. If the type is not one a plugin
-        // registered, ignore the claim and fall through to the existing dynamic-mapping path.
-        if (templateTypes.containsKey(inferredType) == false) {
+        // An inferencer may only produce a type its OWN plugin registered. Each inferencer is bound at
+        // registration to the set of dynamic-template types its plugin declared; the returned type must
+        // be in that set. This mirrors the ownership tracking template types already have, and stops an
+        // inferencer both from emitting a core built-in type (e.g. keyword, date, long) and from
+        // borrowing a type registered by a different plugin. Otherwise, ignore the claim and fall
+        // through to the existing dynamic-mapping path.
+        if (claimingInferencerOwnedTypes.contains(inferredType) == false) {
             logger.warn(
-                "Dynamic field type inferencer [{}] returned unregistered type [{}] for field [{}]; ignoring the claim",
+                "Dynamic field type inferencer [{}] returned type [{}] for field [{}] that its plugin did not register; ignoring the claim",
                 claimingInferencer.getClass().getName(),
                 inferredType,
                 resolvedFieldName
