@@ -10,8 +10,10 @@ package org.opensearch.dsl;
 
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.dsl.action.DslExecuteAction;
+import org.opensearch.dsl.action.DslValidateAction;
 import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportDslExecuteAction;
+import org.opensearch.dsl.action.TransportDslValidateAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
@@ -47,9 +49,12 @@ public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
     public void testRegistersTransportAction() {
         var actions = plugin.getActions();
 
-        assertEquals(1, actions.size());
-        ActionPlugin.ActionHandler<?, ?> handler = actions.get(0);
-        assertEquals(DslExecuteAction.INSTANCE, handler.getAction());
-        assertEquals(TransportDslExecuteAction.class, handler.getTransportAction());
+        assertEquals(2, actions.size());
+        ActionPlugin.ActionHandler<?, ?> executeHandler = actions.get(0);
+        assertEquals(DslExecuteAction.INSTANCE, executeHandler.getAction());
+        assertEquals(TransportDslExecuteAction.class, executeHandler.getTransportAction());
+        ActionPlugin.ActionHandler<?, ?> validateHandler = actions.get(1);
+        assertEquals(DslValidateAction.INSTANCE, validateHandler.getAction());
+        assertEquals(TransportDslValidateAction.class, validateHandler.getTransportAction());
     }
 }
