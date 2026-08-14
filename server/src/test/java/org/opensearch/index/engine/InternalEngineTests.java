@@ -9543,6 +9543,37 @@ public class InternalEngineTests extends EngineTestCase {
             0
         );
         assertNull(withoutRouting.routing());
+
+        // Exercise the 10-param Engine.Delete constructor (delegates to 11-param with null routing)
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1"));
+        Engine.Delete directDelete = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(directDelete.routing());
+
+        Engine.Delete directDeleteWithRouting = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0,
+            "my-routing"
+        );
+        assertEquals("my-routing", directDeleteWithRouting.routing());
     }
 
 }
