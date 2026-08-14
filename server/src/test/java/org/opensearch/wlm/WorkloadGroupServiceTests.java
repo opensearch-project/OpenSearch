@@ -301,6 +301,37 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertEquals(0, workloadGroupState.totalRejections.count());
     }
 
+    public void testRejectIfNeeded_whenWorkloadGroupIsAbsentFromActiveWorkloadGroups() {
+        Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
+            "otherWorkloadGroup",
+            "otherWorkloadGroupId",
+            MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
+            Map.of(ResourceType.CPU, 0.10)
+        );
+        mockWorkloadGroupStateMap = new HashMap<>();
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        workloadGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.18);
+        mockWorkloadGroupStateMap.put(WORKLOAD_GROUP_ID, workloadGroupState);
+        mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
+
+        workloadGroupService = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            activeWorkloadGroups,
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+
+        workloadGroupService.rejectIfNeeded(WORKLOAD_GROUP_ID);
+
+        assertEquals(0, workloadGroupState.getResourceState().get(ResourceType.CPU).rejections.count());
+        assertEquals(0, workloadGroupState.totalRejections.count());
+    }
+
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andNotBreaching() {
         WorkloadGroup testWorkloadGroup = getWorkloadGroup(
             "testWorkloadGroup",
