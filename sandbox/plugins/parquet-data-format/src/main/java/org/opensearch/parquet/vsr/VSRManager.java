@@ -482,6 +482,16 @@ public class VSRManager implements AutoCloseable {
             if (writer != null) {
                 writer.cleanup();
             }
+            try {
+                // Free the native memory backing the sort row ID mapping. By close time the
+                // flush lifecycle that consumes the mapping (secondary-format reordering)
+                // has completed. Idempotent; a leak is caught by the Cleaner backstop.
+                if (writer != null) {
+                    writer.releaseRowIdMapping();
+                }
+            } catch (Exception e) {
+                logger.error("Error releasing row ID mapping during close for {}: {}", fileName, e.getMessage());
+            }
             managedVSR.set(null);
         }
     }

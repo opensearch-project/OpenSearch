@@ -110,7 +110,9 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,                           // num_row_groups_out
                 ValueLayout.ADDRESS,                           // sort_perm_ptr_out
-                ValueLayout.ADDRESS                            // sort_perm_len_out
+                ValueLayout.ADDRESS,                           // sort_perm_byte_len_out
+                ValueLayout.ADDRESS,                           // sort_perm_count_out
+                ValueLayout.ADDRESS                            // sort_perm_bpv_out
             )
         );
         GET_FILE_METADATA = linker.downcallHandle(
@@ -264,7 +266,7 @@ public class RustBridge {
             lib.find("parquet_free_row_id_mapping").orElseThrow(),
             FunctionDescriptor.ofVoid(
                 ValueLayout.JAVA_LONG,                         // mapping_ptr
-                ValueLayout.JAVA_LONG                          // mapping_len
+                ValueLayout.JAVA_LONG                          // byte_len
             )
         );
         COLLECT_RUNTIME_METRICS = linker.downcallHandle(
@@ -360,7 +362,9 @@ public class RustBridge {
             var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
             var sortPermPtrOut = call.longOut();
-            var sortPermLenOut = call.longOut();
+            var sortPermByteLenOut = call.longOut();
+            var sortPermCountOut = call.longOut();
+            var sortPermBpvOut = call.longOut();
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
                 f.segment(),
@@ -373,7 +377,9 @@ public class RustBridge {
                 crc32Out,
                 numRowGroupsOut,
                 sortPermPtrOut,
-                sortPermLenOut
+                sortPermByteLenOut,
+                sortPermCountOut,
+                sortPermBpvOut
             );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
@@ -387,34 +393,35 @@ public class RustBridge {
                 (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
 
-            // Read sort permutation if present
+            // Wrap the bit-packed permutation buffer (forward + reverse, ~bpv/8 bytes per
+            // value per direction) zero-copy. The mapping takes ownership of the native
+            // buffer and frees it via parquet_free_row_id_mapping on close(); no Java heap
+            // allocation is made for the mapping data.
             long permAddr = sortPermPtrOut.get(ValueLayout.JAVA_LONG, 0);
-            long permLen = sortPermLenOut.get(ValueLayout.JAVA_LONG, 0);
+            long permByteLen = sortPermByteLenOut.get(ValueLayout.JAVA_LONG, 0);
+            long permCount = sortPermCountOut.get(ValueLayout.JAVA_LONG, 0);
+            long permBpv = sortPermBpvOut.get(ValueLayout.JAVA_LONG, 0);
             RowIdMapping rowIdMapping = null;
-            if (permAddr != 0 && permLen > 0) {
+            if (permAddr != 0 && permByteLen > 0 && permCount > 0) {
                 try {
-                    // Read element-by-element from native memory, building both forward and reverse
-                    MemorySegment permSegment = MemorySegment.ofAddress(permAddr).reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize());
-                    int size = (int) permLen;
-                    PackedLongValues.Builder forwardBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-                    long[] reverseArray = new long[size];
-                    for (int i = 0; i < size; i++) {
-                        long newId = permSegment.getAtIndex(ValueLayout.JAVA_LONG, i);
-                        forwardBuilder.add(newId);
-                        reverseArray[(int) newId] = i;
-                    }
-                    PackedLongValues.Builder reverseBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-                    for (long val : reverseArray) {
-                        reverseBuilder.add(val);
-                    }
-                    rowIdMapping = new PackedRowIdMapping(forwardBuilder.build(), reverseBuilder.build());
-                } finally {
-                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
+                    rowIdMapping = new NativePackedRowIdMapping(permAddr, permByteLen, (int) permCount, (int) permBpv);
+                } catch (RuntimeException e) {
+                    // Wrapper construction failed — free the native buffer to avoid a leak.
+                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permByteLen);
+                    throw e;
                 }
             }
 
             return new WriterFinalizeResult(metadata, rowIdMapping);
         }
+    }
+
+    /**
+     * Frees a bit-packed row ID mapping buffer previously returned by the finalize call.
+     * Invoked by {@link NativePackedRowIdMapping} on close (or its Cleaner backstop).
+     */
+    static void freeRowIdMapping(long addr, long byteLen) {
+        NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, addr, byteLen);
     }
 
     public static ParquetFileMetadata getFileMetadata(String file) throws IOException {
