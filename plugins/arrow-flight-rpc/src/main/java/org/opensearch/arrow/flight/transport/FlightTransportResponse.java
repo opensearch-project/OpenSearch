@@ -212,7 +212,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         } finally {
             long took = System.currentTimeMillis() - startTime;
             if (took > config.getSlowLogThreshold().millis()) {
-                logger.warn("Flight stream next() took [{}ms], exceeding threshold [{}ms]", took, config.getSlowLogThreshold().millis());
+                logger.debug("Flight stream next() took [{}ms], exceeding threshold [{}ms]", took, config.getSlowLogThreshold().millis());
             }
             logger.debug("FlightClient.next() for correlationId: {} took {}ms", correlationId, took);
         }

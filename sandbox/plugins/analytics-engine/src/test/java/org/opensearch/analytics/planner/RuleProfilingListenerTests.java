@@ -97,7 +97,10 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchAggregateSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 3L),
-                Map.entry("ExpandConversionRule", 5L)
+                Map.entry("ExpandConversionRule", 5L),
+                // Calcite built-in: attempted on the decomposed aggregate but produces nothing
+                // here (no constant group keys), so productions == 0.
+                Map.entry("AggregateProjectPullUpConstantsRule", 0L)
             )
         );
     }
@@ -111,6 +114,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("ExtractLiteralAggRule", 0L),
                 Map.entry("ReduceExpressionsRule(Project)", 0L),
                 Map.entry("OpenSearchTableScanRule", 1L),
+                // 2 (not upstream's 1): our pre-marking RelFieldTrimmer column pruning introduces an
+                // extra Project above the scan, so the marking rule fires once per Project.
                 Map.entry("OpenSearchProjectRule", 2L),
                 Map.entry("OpenSearchJoinRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
@@ -118,7 +123,12 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 1L),
-                Map.entry("ExpandConversionRule", 3L)
+                // 3 (not upstream's 2): our OpenSearchDistributionDeriveRule adds a SINGLETON spine
+                // variant, so Volcano runs one more trait conversion than on plain upstream.
+                Map.entry("ExpandConversionRule", 3L),
+                // Calcite built-in: attempted on the decomposed aggregate but produces nothing
+                // here (no constant group keys), so productions == 0.
+                Map.entry("AggregateProjectPullUpConstantsRule", 0L)
             )
         );
     }

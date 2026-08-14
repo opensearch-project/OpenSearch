@@ -517,6 +517,17 @@ public class PlannerImpl {
             .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .addRuleInstance(CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS)
+            // AGGREGATE_PROJECT_PULL_UP_CONSTANTS lifts constant group keys into a Project above
+            // the Aggregate. That Project lands directly beneath the query's own projection, and
+            // PROJECT_MERGE already ran back in the pushdown phase — so without merging here the
+            // tree keeps two adjacent, column-reordering Projects between any downstream Sort and
+            // the Aggregate. OpenSearchTopKRewriter only composes its sort-key remap through a
+            // single Project (it treats further Projects as transparent passthroughs), so the
+            // second reordering Project made it map the collation past the Aggregate's output and
+            // throw IndexOutOfBoundsException. Collapsing the pair back into one Project here keeps
+            // that invariant intact and lets TopK oversampling still fire for these queries.
+            .addRuleInstance(CoreRules.PROJECT_MERGE)
             .run(input, listener);
     }
 
