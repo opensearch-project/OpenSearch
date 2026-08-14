@@ -197,9 +197,14 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     /**
-     * Parses a dynamic template with no plugin registry available: a {@code match_mapping_type} that is
-     * not a known {@link XContentFieldType} fails immediately, preserving the pre-plugin-SPI behavior.
-     * The plugin-aware overload is used by the mapping-parse path, which supplies the registry.
+     * Parses a dynamic template with no plugin type registry: a {@code match_mapping_type} that is not
+     * a known {@link XContentFieldType} fails immediately, preserving the pre-plugin-SPI behavior.
+     *
+     * <p>This is a convenience overload for callers that have no plugin-registered types to honor — it
+     * delegates to {@link #parse(String, Map, Map)} with an empty registry. The production mapping-parse
+     * path always uses the registry-aware overload (see {@code RootObjectMapper}); this one is retained
+     * for backward compatibility and for tests that don't exercise plugin types. If no such caller
+     * remains, it can be removed in favor of the registry-aware overload with an empty map.
      */
     public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
         return parse(name, conf, Collections.emptyMap());

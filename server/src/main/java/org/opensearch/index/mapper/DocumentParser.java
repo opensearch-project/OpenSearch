@@ -1286,7 +1286,6 @@ final class DocumentParser {
         // happens for them.
         final FieldValueParserSupplier fieldValueParser = new FieldValueParserSupplier(
             contentType,
-            parser.getXContentRegistry(),
             parser.getDeprecationHandler(),
             rawContent
         );

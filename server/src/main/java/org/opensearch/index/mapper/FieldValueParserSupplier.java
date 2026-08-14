@@ -25,6 +25,11 @@ import java.io.IOException;
  * parser over the same buffered bytes, so a plugin may read the value more than once. The caller
  * closes the returned parser (e.g. via try-with-resources).
  *
+ * <p>The buffered content is a single field <em>value</em> (a scalar or an array/object of scalars),
+ * never a document with named-XContent objects, so the parser is created with
+ * {@link NamedXContentRegistry#EMPTY}: a plugin gets the raw tokens of the value and nothing else,
+ * with no access to core's registry of named parsers.
+ *
  * <p>Plugins whose configuration is already complete need not call {@link #get()} at all — index-creation
  * validation constructs the supplier with {@link #withoutValue()}, whose {@link #get()} throws, so a
  * complete config that never reads the value is validated without any field data being available.
@@ -35,7 +40,6 @@ import java.io.IOException;
 public class FieldValueParserSupplier {
 
     private final MediaType contentType;
-    private final NamedXContentRegistry registry;
     private final DeprecationHandler deprecationHandler;
     private final byte[] rawContent;
 
@@ -43,14 +47,8 @@ public class FieldValueParserSupplier {
      * Creates a supplier over the buffered field value. {@link #get()} produces a fresh parser
      * positioned at the value's first token on each call.
      */
-    public FieldValueParserSupplier(
-        MediaType contentType,
-        NamedXContentRegistry registry,
-        DeprecationHandler deprecationHandler,
-        byte[] rawContent
-    ) {
+    public FieldValueParserSupplier(MediaType contentType, DeprecationHandler deprecationHandler, byte[] rawContent) {
         this.contentType = contentType;
-        this.registry = registry;
         this.deprecationHandler = deprecationHandler;
         this.rawContent = rawContent;
     }
@@ -60,12 +58,13 @@ public class FieldValueParserSupplier {
      * where a fully specified template config must be validated without reading any document.
      */
     public static FieldValueParserSupplier withoutValue() {
-        return new FieldValueParserSupplier(null, null, null, null);
+        return new FieldValueParserSupplier(null, null, null);
     }
 
     /**
      * Returns a fresh {@link XContentParser} positioned at the first token of the field value. The
-     * caller is responsible for closing it (e.g. via try-with-resources).
+     * caller is responsible for closing it (e.g. via try-with-resources). The parser uses
+     * {@link NamedXContentRegistry#EMPTY} — a raw field value needs no named-object resolution.
      *
      * @throws IOException if the parser cannot be created
      * @throws IllegalStateException if this supplier has no field value ({@link #withoutValue()})
@@ -74,7 +73,7 @@ public class FieldValueParserSupplier {
         if (rawContent == null) {
             throw new IllegalStateException("No field value is available to parse");
         }
-        XContentParser parser = contentType.xContent().createParser(registry, deprecationHandler, rawContent);
+        XContentParser parser = contentType.xContent().createParser(NamedXContentRegistry.EMPTY, deprecationHandler, rawContent);
         parser.nextToken(); // position at the start of the value
         return parser;
     }
