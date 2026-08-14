@@ -9518,4 +9518,31 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testDeleteRoutingPreservedThroughPrepareDelete() throws IOException {
+        Engine.Delete withRouting = engine.prepareDelete(
+            "1",
+            "my-routing",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertEquals("my-routing", withRouting.routing());
+
+        Engine.Delete withoutRouting = engine.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(withoutRouting.routing());
+    }
+
 }
