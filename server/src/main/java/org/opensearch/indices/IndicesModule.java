@@ -126,16 +126,20 @@ public class IndicesModule extends AbstractModule {
 
     /**
      * Collects dynamic field type inferencers from all mapper plugins in registration order, binding
-     * each inferencer to the set of type strings its own plugin registered via
-     * {@link MapperPlugin#getDynamicTemplateTypes()}. The binding lets {@code DocumentParser} enforce
-     * that an inferencer only produces a type its own plugin owns — an inferencer from plugin A cannot
-     * emit a type registered by plugin B, mirroring the ownership tracking that dynamic template types
-     * already have.
+     * each inferencer to the set of mapper type strings its own plugin registered via
+     * {@link MapperPlugin#getMappers()}. The binding lets {@code DocumentParser} enforce that an
+     * inferencer only produces a type its own plugin can actually build — an inferencer from plugin A
+     * cannot emit a type registered by plugin B, nor a core built-in type.
+     *
+     * <p>The owned set is {@code getMappers()} rather than {@code getDynamicTemplateTypes()} because the
+     * inferred type is resolved and built through the mapper {@code TypeParser} registry ({@code
+     * getMappers()}); a plugin may auto-infer a type without also exposing it as a dynamic-template
+     * {@code match_mapping_type}.
      */
     private static Map<DynamicFieldTypeInferencer, Set<String>> getDynamicFieldTypeInferencers(List<MapperPlugin> mapperPlugins) {
         Map<DynamicFieldTypeInferencer, Set<String>> inferencers = new LinkedHashMap<>();
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            Set<String> ownedTypes = Set.copyOf(mapperPlugin.getDynamicTemplateTypes().keySet());
+            Set<String> ownedTypes = Set.copyOf(mapperPlugin.getMappers().keySet());
             for (DynamicFieldTypeInferencer inferencer : mapperPlugin.getDynamicFieldTypeInferencers()) {
                 inferencers.put(inferencer, ownedTypes);
             }

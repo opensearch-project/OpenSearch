@@ -1415,11 +1415,15 @@ final class DocumentParser {
         // borrowing a type registered by a different plugin. Otherwise, ignore the claim and fall
         // through to the existing dynamic-mapping path.
         if (claimingInferencerOwnedTypes.contains(inferredType) == false) {
+            final String claimingInferencerName = claimingInferencer.getClass().getName();
+            final String rejectedType = inferredType;
             logger.warn(
-                "Dynamic field type inferencer [{}] returned type [{}] for field [{}] that its plugin did not register; ignoring the claim",
-                claimingInferencer.getClass().getName(),
-                inferredType,
-                resolvedFieldName
+                () -> new ParameterizedMessage(
+                    "Dynamic field type inferencer [{}] returned type [{}] for field [{}] that its plugin did not register; ignoring the claim",
+                    claimingInferencerName,
+                    rejectedType,
+                    resolvedFieldName
+                )
             );
             replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
             return true;

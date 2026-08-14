@@ -79,16 +79,16 @@ public class PluginInferencerTypeOwnershipTests extends MapperServiceTestCase {
         }
     }
 
-    /** Plugin A: registers and owns TYPE_A; its inferencer claims whatever type the test selected. */
+    /**
+     * Plugin A: registers and owns TYPE_A as a mapper type ONLY (no dynamic-template type). Its
+     * inferencer claims whatever type the test selected. Registering the type solely via
+     * {@link MapperPlugin#getMappers()} proves that ownership is bound to the mapper registry, not to
+     * {@link MapperPlugin#getDynamicTemplateTypes()} — a pure auto-inference plugin must still work.
+     */
     class PluginA extends Plugin implements MapperPlugin {
         @Override
         public List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
             return Collections.singletonList(new ClaimsTypeInferencer(pluginAClaimedType));
-        }
-
-        @Override
-        public Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
-            return Collections.singletonMap(TYPE_A, new NoopHandler());
         }
 
         @Override
@@ -131,8 +131,11 @@ public class PluginInferencerTypeOwnershipTests extends MapperServiceTestCase {
     }
 
     /**
-     * An inferencer producing a type its OWN plugin registered is accepted even when a second plugin
-     * is also installed. Guards against the ownership binding being too strict.
+     * An inferencer producing a type its OWN plugin registered (as a mapper type only, with NO
+     * dynamic-template type) is accepted. This guards against the ownership binding being too strict
+     * and specifically covers a pure auto-inference plugin: if ownership were bound to
+     * {@code getDynamicTemplateTypes()} instead of {@code getMappers()}, this valid claim would be
+     * silently rejected.
      */
     public void testInferencerCanProduceOwnPluginType() throws IOException {
         pluginAClaimedType = TYPE_A;
