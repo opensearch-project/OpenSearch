@@ -19,7 +19,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -37,15 +39,27 @@ public class PluginInferencerTypeOwnershipTests extends MapperServiceTestCase {
     private static final String TYPE_B = "type_b";
 
     // Set by each test before createDocumentMapper() is called; consumed by getPlugins() to decide
-    // which type plugin A's inferencer claims.
+    // what type plugin A's inferencer declares (supportedTypes) and what type it actually claims.
+    private String pluginASupportedType;
     private String pluginAClaimedType;
 
-    /** Claims numeric scalars as {@code claimedType}. */
+    /**
+     * Declares {@code supportedType} and claims numeric scalars as {@code claimedType}. The two are the
+     * same in normal use; a test can set them differently to exercise the runtime check that rejects a
+     * claim outside the declared supportedTypes().
+     */
     static class ClaimsTypeInferencer implements DynamicFieldTypeInferencer {
+        private final String supportedType;
         private final String claimedType;
 
-        ClaimsTypeInferencer(String claimedType) {
+        ClaimsTypeInferencer(String supportedType, String claimedType) {
+            this.supportedType = supportedType;
             this.claimedType = claimedType;
+        }
+
+        @Override
+        public Set<String> supportedTypes() {
+            return Collections.singleton(supportedType);
         }
 
         @Override
@@ -81,14 +95,15 @@ public class PluginInferencerTypeOwnershipTests extends MapperServiceTestCase {
 
     /**
      * Plugin A: registers and owns TYPE_A as a mapper type ONLY (no dynamic-template type). Its
-     * inferencer claims whatever type the test selected. Registering the type solely via
-     * {@link MapperPlugin#getMappers()} proves that ownership is bound to the mapper registry, not to
-     * {@link MapperPlugin#getDynamicTemplateTypes()} — a pure auto-inference plugin must still work.
+     * inferencer declares {@link #pluginASupportedType} and claims {@link #pluginAClaimedType}.
+     * Registering the type solely via {@link MapperPlugin#getMappers()} also proves ownership is bound
+     * to the mapper registry, not to {@link MapperPlugin#getDynamicTemplateTypes()} — a pure
+     * auto-inference plugin must still work.
      */
     class PluginA extends Plugin implements MapperPlugin {
         @Override
         public List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
-            return Collections.singletonList(new ClaimsTypeInferencer(pluginAClaimedType));
+            return Collections.singletonList(new ClaimsTypeInferencer(pluginASupportedType, pluginAClaimedType));
         }
 
         @Override
@@ -116,34 +131,48 @@ public class PluginInferencerTypeOwnershipTests extends MapperServiceTestCase {
     }
 
     /**
-     * Plugin A's inferencer returns TYPE_B, which is registered by plugin B, not A. Even though
-     * TYPE_B is a valid plugin type globally, A does not own it, so the claim is rejected and the
-     * field falls through to normal dynamic mapping (a numeric scalar maps as long).
+     * Plugin A declares supportedTypes() = TYPE_B, a type registered by plugin B, not A. Startup
+     * validation rejects this: an inferencer may only declare types its own plugin registers via
+     * getMappers(). This catches a cross-plugin type grab at node startup rather than at index time.
      */
-    public void testInferencerCannotProduceAnotherPluginsType() throws IOException {
+    public void testInferencerDeclaringAnotherPluginsTypeFailsAtStartup() {
+        pluginASupportedType = TYPE_B;
+        pluginAClaimedType = TYPE_B;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(topMapping(b -> {})));
+        assertThat(e.getMessage(), containsString("declares supported type [" + TYPE_B + "]"));
+        assertThat(e.getMessage(), containsString("does not register via getMappers()"));
+    }
+
+    /**
+     * Plugin A validly declares supportedTypes() = TYPE_A but its inferencer claims TYPE_B at runtime
+     * (a type outside its declared set). The claim is rejected and the field falls through to normal
+     * dynamic mapping (a numeric scalar maps as long). This is the runtime half of the contract.
+     */
+    public void testInferencerClaimingTypeOutsideSupportedTypesIsRejected() throws IOException {
+        pluginASupportedType = TYPE_A;
         pluginAClaimedType = TYPE_B;
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}));
         ParsedDocument doc = mapper.parse(source(b -> b.field("n", 5)));
         assertNotNull(doc.dynamicMappingsUpdate());
         Mapper fieldMapper = doc.dynamicMappingsUpdate().root().getMapper("n");
         assertNotNull(fieldMapper);
-        assertThat("borrowed type must be rejected; field falls through to long", fieldMapper.typeName(), equalTo("long"));
+        assertThat("claim outside supportedTypes() must be rejected; field falls through to long", fieldMapper.typeName(), equalTo("long"));
     }
 
     /**
-     * An inferencer producing a type its OWN plugin registered (as a mapper type only, with NO
-     * dynamic-template type) is accepted. This guards against the ownership binding being too strict
-     * and specifically covers a pure auto-inference plugin: if ownership were bound to
-     * {@code getDynamicTemplateTypes()} instead of {@code getMappers()}, this valid claim would be
-     * silently rejected.
+     * An inferencer producing a type it declared and its OWN plugin registered (as a mapper type only,
+     * with NO dynamic-template type) is accepted. Guards against the binding being too strict and
+     * covers a pure auto-inference plugin: if ownership were bound to {@code getDynamicTemplateTypes()}
+     * instead of {@code getMappers()}, this valid claim would be silently rejected.
      */
     public void testInferencerCanProduceOwnPluginType() throws IOException {
+        pluginASupportedType = TYPE_A;
         pluginAClaimedType = TYPE_A;
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {}));
         ParsedDocument doc = mapper.parse(source(b -> b.field("n", 5)));
         assertNotNull(doc.dynamicMappingsUpdate());
         Mapper fieldMapper = doc.dynamicMappingsUpdate().root().getMapper("n");
         assertNotNull(fieldMapper);
-        assertThat("own registered type must be accepted", fieldMapper.typeName(), equalTo("faketype"));
+        assertThat("own declared+registered type must be accepted", fieldMapper.typeName(), equalTo("faketype"));
     }
 }

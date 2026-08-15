@@ -302,16 +302,31 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         };
     }
 
-    /** A no-op inferencer for registration tests. */
-    private static org.opensearch.index.mapper.DynamicFieldTypeInferencer noopInferencer() {
-        return fieldValueParser -> null;
+    /** A no-op inferencer declaring the given supported type for registration tests. */
+    private static org.opensearch.index.mapper.DynamicFieldTypeInferencer noopInferencer(String supportedType) {
+        return new org.opensearch.index.mapper.DynamicFieldTypeInferencer() {
+            @Override
+            public Set<String> supportedTypes() {
+                return Collections.singleton(supportedType);
+            }
+
+            @Override
+            public Map<String, Object> inferFieldType(org.opensearch.index.mapper.FieldValueParserSupplier fieldValueParser) {
+                return null;
+            }
+        };
     }
 
     public void testInferencersAndTemplateTypesRegisteredFromPlugins() {
         List<MapperPlugin> plugins = Collections.singletonList(new MapperPlugin() {
             @Override
             public List<org.opensearch.index.mapper.DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
-                return Collections.singletonList(noopInferencer());
+                return Collections.singletonList(noopInferencer("my_type"));
+            }
+
+            @Override
+            public Map<String, Mapper.TypeParser> getMappers() {
+                return Collections.singletonMap("my_type", (name, node, parserContext) -> { throw new UnsupportedOperationException(); });
             }
 
             @Override
@@ -322,6 +337,31 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         MapperRegistry registry = new IndicesModule(plugins).getMapperRegistry();
         assertEquals(1, registry.getDynamicFieldTypeInferencers().size());
         assertTrue(registry.getDynamicTemplateTypes().containsKey("my_type"));
+    }
+
+    public void testInferencerWithNoSupportedTypesRejectedAtStartup() {
+        List<MapperPlugin> plugins = Collections.singletonList(new MapperPlugin() {
+            @Override
+            public List<org.opensearch.index.mapper.DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+                // Default supportedTypes() is empty — a configuration error.
+                return Collections.singletonList(fieldValueParser -> null);
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("declares no supported types"));
+    }
+
+    public void testInferencerSupportedTypeNotRegisteredRejectedAtStartup() {
+        List<MapperPlugin> plugins = Collections.singletonList(new MapperPlugin() {
+            @Override
+            public List<org.opensearch.index.mapper.DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+                // Declares a supported type the plugin does not register via getMappers().
+                return Collections.singletonList(noopInferencer("unregistered_type"));
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("declares supported type [unregistered_type]"));
+        assertThat(e.getMessage(), containsString("does not register via getMappers()"));
     }
 
     public void testDuplicateTemplateTypeAcrossPluginsRejectedAtStartup() {

@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -98,6 +99,11 @@ public class PluginDynamicTemplateTests extends MapperServiceTestCase {
      * Using scalars (not arrays) avoids needing a parsesArrayValue mapper in core tests.
      */
     static class MockInferencer implements DynamicFieldTypeInferencer {
+        @Override
+        public Set<String> supportedTypes() {
+            return Collections.singleton(MOCK_TYPE);
+        }
+
         @Override
         public Map<String, Object> inferFieldType(FieldValueParserSupplier fieldValueParser) throws IOException {
             double value;

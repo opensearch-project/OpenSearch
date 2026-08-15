@@ -126,22 +126,46 @@ public class IndicesModule extends AbstractModule {
 
     /**
      * Collects dynamic field type inferencers from all mapper plugins in registration order, binding
-     * each inferencer to the set of mapper type strings its own plugin registered via
-     * {@link MapperPlugin#getMappers()}. The binding lets {@code DocumentParser} enforce that an
-     * inferencer only produces a type its own plugin can actually build — an inferencer from plugin A
-     * cannot emit a type registered by plugin B, nor a core built-in type.
+     * each inferencer to the set of mapper type strings it declared via
+     * {@link DynamicFieldTypeInferencer#supportedTypes()}. The binding lets {@code DocumentParser}
+     * enforce that an inferencer only produces a type it declared — so it cannot emit a core built-in
+     * type, a type owned by another plugin, or a type a sibling inferencer in the same plugin owns.
      *
-     * <p>The owned set is {@code getMappers()} rather than {@code getDynamicTemplateTypes()} because the
-     * inferred type is resolved and built through the mapper {@code TypeParser} registry ({@code
-     * getMappers()}); a plugin may auto-infer a type without also exposing it as a dynamic-template
-     * {@code match_mapping_type}.
+     * <p>Each declared type is validated at startup: it must be non-empty and every type must be
+     * registered by the <em>same</em> plugin via {@link MapperPlugin#getMappers()} (the registry the
+     * inferred type is later resolved and built through). An inferencer that declares nothing, or a type
+     * its plugin does not register, is a configuration error and fails node startup loudly rather than
+     * silently claiming and then dropping fields at index time.
      */
     private static Map<DynamicFieldTypeInferencer, Set<String>> getDynamicFieldTypeInferencers(List<MapperPlugin> mapperPlugins) {
         Map<DynamicFieldTypeInferencer, Set<String>> inferencers = new LinkedHashMap<>();
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            Set<String> ownedTypes = Set.copyOf(mapperPlugin.getMappers().keySet());
+            Set<String> registeredTypes = mapperPlugin.getMappers().keySet();
             for (DynamicFieldTypeInferencer inferencer : mapperPlugin.getDynamicFieldTypeInferencers()) {
-                inferencers.put(inferencer, ownedTypes);
+                Set<String> supportedTypes = Set.copyOf(inferencer.supportedTypes());
+                if (supportedTypes.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "dynamic field type inferencer ["
+                            + inferencer.getClass().getName()
+                            + "] registered by ["
+                            + mapperPlugin.getClass().getName()
+                            + "] declares no supported types; supportedTypes() must return at least one type"
+                    );
+                }
+                for (String supportedType : supportedTypes) {
+                    if (registeredTypes.contains(supportedType) == false) {
+                        throw new IllegalArgumentException(
+                            "dynamic field type inferencer ["
+                                + inferencer.getClass().getName()
+                                + "] registered by ["
+                                + mapperPlugin.getClass().getName()
+                                + "] declares supported type ["
+                                + supportedType
+                                + "] that the plugin does not register via getMappers()"
+                        );
+                    }
+                }
+                inferencers.put(inferencer, supportedTypes);
             }
         }
         return inferencers;

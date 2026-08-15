@@ -1359,7 +1359,7 @@ final class DocumentParser {
         // triage) rather than letting plugin load order silently pick a winner.
         Map<String, Object> inferredFieldMapping = null;
         DynamicFieldTypeInferencer claimingInferencer = null;
-        Set<String> claimingInferencerOwnedTypes = null;
+        Set<String> claimingInferencerSupportedTypes = null;
         for (Map.Entry<DynamicFieldTypeInferencer, Set<String>> entry : inferencers.entrySet()) {
             DynamicFieldTypeInferencer inferencer = entry.getKey();
             Map<String, Object> claim;
@@ -1392,7 +1392,7 @@ final class DocumentParser {
                 }
                 inferredFieldMapping = claim;
                 claimingInferencer = inferencer;
-                claimingInferencerOwnedTypes = entry.getValue();
+                claimingInferencerSupportedTypes = entry.getValue();
             }
         }
 
@@ -1408,18 +1408,17 @@ final class DocumentParser {
             return true;
         }
 
-        // An inferencer may only produce a type its OWN plugin registered. Each inferencer is bound at
-        // registration to the set of dynamic-template types its plugin declared; the returned type must
-        // be in that set. This mirrors the ownership tracking template types already have, and stops an
-        // inferencer both from emitting a core built-in type (e.g. keyword, date, long) and from
-        // borrowing a type registered by a different plugin. Otherwise, ignore the claim and fall
-        // through to the existing dynamic-mapping path.
-        if (claimingInferencerOwnedTypes.contains(inferredType) == false) {
+        // An inferencer may only produce a type it declared via supportedTypes() (validated at startup
+        // to be registered by its own plugin's getMappers()). The returned type must be in that set.
+        // This stops an inferencer from emitting a core built-in type (e.g. keyword, date, long), a type
+        // owned by a different plugin, or a type a sibling inferencer in the same plugin owns. Otherwise,
+        // ignore the claim and fall through to the existing dynamic-mapping path.
+        if (claimingInferencerSupportedTypes.contains(inferredType) == false) {
             final String claimingInferencerName = claimingInferencer.getClass().getName();
             final String rejectedType = inferredType;
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Dynamic field type inferencer [{}] returned type [{}] for field [{}] that its plugin did not register; ignoring the claim",
+                    "Dynamic field type inferencer [{}] returned type [{}] for field [{}] outside its declared supportedTypes(); ignoring the claim",
                     claimingInferencerName,
                     rejectedType,
                     resolvedFieldName

@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,6 +40,11 @@ public class PluginInferenceConflictTests extends MapperServiceTestCase {
 
         AlwaysClaimsNumberInferencer(String claimedType) {
             this.claimedType = claimedType;
+        }
+
+        @Override
+        public Set<String> supportedTypes() {
+            return Collections.singleton(claimedType);
         }
 
         @Override

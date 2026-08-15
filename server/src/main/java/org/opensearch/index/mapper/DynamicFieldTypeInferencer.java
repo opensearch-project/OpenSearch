@@ -12,7 +12,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * SPI for plugins to register dynamic field type inference logic.
@@ -48,4 +50,24 @@ public interface DynamicFieldTypeInferencer {
      * @throws IOException if reading from the parser fails
      */
     Map<String, Object> inferFieldType(FieldValueParserSupplier fieldValueParser) throws IOException;
+
+    /**
+     * The set of mapper type strings this inferencer is allowed to produce (the {@code "type"} values it
+     * may return from {@link #inferFieldType}). Every declared type must be registered by the same
+     * plugin via {@link org.opensearch.plugins.MapperPlugin#getMappers()}; core validates this at
+     * startup and rejects an inferencer that declares a type its plugin does not register.
+     *
+     * <p>At document-parse time core enforces that a claim's {@code "type"} is in this set, so an
+     * inferencer cannot produce a core built-in type, a type owned by another plugin, or a type a
+     * <em>sibling</em> inferencer in the same plugin is responsible for.
+     *
+     * <p>The default is an empty set, which core treats as a configuration error at startup: an
+     * inferencer must declare at least one supported type. This makes the "registered an inferencer but
+     * declared nothing" case fail loudly rather than silently claiming and then dropping every field.
+     *
+     * @return the non-empty set of type strings this inferencer may produce
+     */
+    default Set<String> supportedTypes() {
+        return Collections.emptySet();
+    }
 }

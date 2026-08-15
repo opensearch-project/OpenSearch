@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,12 +38,19 @@ public class PluginInferencerEdgeCaseTests extends MapperServiceTestCase {
         UNKNOWN_TYPE  // returns a config with a type no TypeParser is registered for — falls through
     }
 
+    private static final String DUMMY_TYPE = "dummy_type";
+
     /** Claims numeric scalars, then behaves per its fixed {@link Behavior}. Immutable, no shared state. */
     private static class ConfigurableInferencer implements DynamicFieldTypeInferencer {
         private final Behavior behavior;
 
         ConfigurableInferencer(Behavior behavior) {
             this.behavior = behavior;
+        }
+
+        @Override
+        public Set<String> supportedTypes() {
+            return Collections.singleton(DUMMY_TYPE);
         }
 
         @Override
@@ -78,6 +86,16 @@ public class PluginInferencerEdgeCaseTests extends MapperServiceTestCase {
         @Override
         public List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
             return Collections.singletonList(new ConfigurableInferencer(behavior));
+        }
+
+        // Register DUMMY_TYPE so the inferencer's declared supportedTypes() passes startup validation.
+        // The edge behaviors never successfully produce DUMMY_TYPE, so this parser is never exercised.
+        @Override
+        public Map<String, Mapper.TypeParser> getMappers() {
+            return Collections.singletonMap(DUMMY_TYPE, (name, node, parserContext) -> {
+                node.remove("type");
+                return new MockFieldMapper.Builder(name);
+            });
         }
     }
 
