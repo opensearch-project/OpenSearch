@@ -95,6 +95,17 @@ crc32fast = { workspace = true }
 # rewrite. STANDARD alphabet matches the OpenSearch `binary` field wire contract.
 base64 = "0.22"
 
+# Liquid Cache (optional): in-memory decoded-batch cache for parquet scans.
+# Off by default and only compiled in when the `liquid_cache` feature is enabled
+# (Gradle -PliquidCache). The crate re-exports everything needed, including its
+# datafusion pieces, so this single optional dependency is enough.
+opensearch-liquid-cache = { path = "../../liquid-cache/src/main/rust", optional = true }
+
+[features]
+# Off by default. When on, liquid cache is compiled in and the hook in
+# src/liquid_cache.rs engages the process-global cache.
+liquid_cache = ["dep:opensearch-liquid-cache"]
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
