@@ -28,6 +28,7 @@ import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
 import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.BlockCacheStats;
+import org.opensearch.plugins.BlockCacheTieredStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -246,6 +247,7 @@ public class NodeCacheService implements Closeable, BlockCacheRegistry {
         long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
         long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
         long memUsed = 0, diskUsed = 0, total = 0, activeInBytes = 0;
+        BlockCacheTieredStats tiered = null;
         for (BlockCache bc : blockCaches) {
             BlockCacheStats s = bc.stats();
             hits += s.hits();
@@ -260,6 +262,9 @@ public class NodeCacheService implements Closeable, BlockCacheRegistry {
             diskUsed += s.diskBytesUsed();
             total += s.totalBytes();
             activeInBytes += s.activeInBytes();
+            if (tiered == null) {
+                tiered = bc.tieredStats();
+            }
         }
         return new BlockCacheStats(
             hits,
@@ -273,7 +278,8 @@ public class NodeCacheService implements Closeable, BlockCacheRegistry {
             memUsed,
             diskUsed,
             total,
-            activeInBytes
+            activeInBytes,
+            tiered
         );
     }
 

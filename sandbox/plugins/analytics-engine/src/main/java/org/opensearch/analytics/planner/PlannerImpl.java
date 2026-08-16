@@ -40,6 +40,8 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSpli
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -356,6 +358,8 @@ public class PlannerImpl {
      * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
      * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
      * <ul>
+     *   <li>{@link OpenSearchCheckedLongSumRule} and {@link OpenSearchCheckedLongSumWindowRule} —
+     *       PPL's reflective {@code CHECKED_LONG_SUM} marker → Calcite's canonical {@code SUM}.</li>
      *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
      *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
      *       HLL sketch merge instead of additive SUM-of-counts.</li>
@@ -367,8 +371,21 @@ public class PlannerImpl {
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("aggregate-decompose")
             .bottomUp()
+            .addRuleInstance(new OpenSearchCheckedLongSumRule())
+            .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .addRuleInstance(CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS)
+            // AGGREGATE_PROJECT_PULL_UP_CONSTANTS lifts constant group keys into a Project above
+            // the Aggregate. That Project lands directly beneath the query's own projection, and
+            // PROJECT_MERGE already ran back in the pushdown phase — so without merging here the
+            // tree keeps two adjacent, column-reordering Projects between any downstream Sort and
+            // the Aggregate. OpenSearchTopKRewriter only composes its sort-key remap through a
+            // single Project (it treats further Projects as transparent passthroughs), so the
+            // second reordering Project made it map the collation past the Aggregate's output and
+            // throw IndexOutOfBoundsException. Collapsing the pair back into one Project here keeps
+            // that invariant intact and lets TopK oversampling still fire for these queries.
+            .addRuleInstance(CoreRules.PROJECT_MERGE)
             .run(input, listener);
     }
 

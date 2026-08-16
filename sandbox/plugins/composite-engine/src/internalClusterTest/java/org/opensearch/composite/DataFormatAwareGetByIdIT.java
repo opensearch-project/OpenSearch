@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
+
 /**
  * End-to-end get-by-id coverage for the hot {@link org.opensearch.index.engine.DataFormatAwareEngine}:
  * exercises both the in-memory version-map path (realtime GET before refresh) and the parquet row
@@ -33,8 +35,8 @@ public class DataFormatAwareGetByIdIT extends AbstractCompositeEngineIT {
         client().admin().indices().prepareUpdateSettings(INDEX).setSettings(Settings.builder().put("index.refresh_interval", -1)).get();
     }
 
-    private IndexResponse indexDoc(String id, String name, int value) {
-        return client().prepareIndex().setIndex(INDEX).setId(id).setSource("name", name, "value", value).get();
+    private IndexResponse indexDoc(String name, int value) {
+        return client().prepareIndex().setIndex(INDEX).setSource("name", name, "value", value).get();
     }
 
     private static int intValue(GetResponse r) {
@@ -43,27 +45,31 @@ public class DataFormatAwareGetByIdIT extends AbstractCompositeEngineIT {
 
     public void testRealtimeGetHitsVersionMapBeforeRefresh() {
         createManualRefreshIndex();
-        assertEquals(RestStatus.CREATED, indexDoc("1", "doc_1", 1).status());
+        IndexResponse indexResponse = indexDoc("doc_1", 1);
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        String docId = indexResponse.getId();
+
+        // Non-realtime GET only sees refreshed (row) data -> not found yet, proving rows are still empty.
+        GetResponse nonRealtime = client().prepareGet(INDEX, docId).setRealtime(false).get();
+        assertFalse("non-realtime get must not see the unrefreshed doc", nonRealtime.isExists());
 
         // Realtime GET resolves from the in-memory version map (translog-backed) before any refresh.
-        GetResponse realtime = client().prepareGet(INDEX, "1").setRealtime(true).get();
+        GetResponse realtime = client().prepareGet(INDEX, docId).setRealtime(true).get();
         assertTrue("realtime get must find the unrefreshed doc", realtime.isExists());
         assertEquals(1L, realtime.getVersion());
         assertEquals("doc_1", realtime.getSourceAsMap().get("name"));
         assertEquals(1, intValue(realtime));
-
-        // Non-realtime GET only sees refreshed (row) data -> not found yet, proving rows are still empty.
-        GetResponse nonRealtime = client().prepareGet(INDEX, "1").setRealtime(false).get();
-        assertFalse("non-realtime get must not see the unrefreshed doc", nonRealtime.isExists());
     }
 
     public void testGetHitsRowsAfterRefresh() {
         createManualRefreshIndex();
-        assertEquals(RestStatus.CREATED, indexDoc("2", "doc_2", 2).status());
+        IndexResponse indexResponse = indexDoc("doc_2", 2);
+        assertEquals(RestStatus.CREATED, indexResponse.status());
         refreshIndex(INDEX);
+        String docId = indexResponse.getId();
 
         // After refresh the doc is materialized into parquet rows; non-realtime GET resolves via the row path.
-        GetResponse resp = client().prepareGet(INDEX, "2").setRealtime(false).get();
+        GetResponse resp = client().prepareGet(INDEX, docId).setRealtime(false).get();
         assertTrue("post-refresh get must find the doc via rows", resp.isExists());
         assertEquals(1L, resp.getVersion());
         assertEquals("doc_2", resp.getSourceAsMap().get("name"));
@@ -73,26 +79,26 @@ public class DataFormatAwareGetByIdIT extends AbstractCompositeEngineIT {
     public void testActiveIndexingWithInterleavedRefreshes() {
         createManualRefreshIndex();
         // First batch then refresh -> these live in rows.
-        indexDocs(INDEX, 25, 1);
+        List<String> ids = indexDocs(INDEX, 25, 1);
         refreshIndex(INDEX);
         // Second batch, NOT refreshed -> these live only in the version map.
-        indexDocs(INDEX, 25, 26);
+        ids.addAll(indexDocs(INDEX, 25, 26));
 
         // Refreshed id -> row path.
-        GetResponse refreshed = client().prepareGet(INDEX, "10").setRealtime(false).get();
+        GetResponse refreshed = client().prepareGet(INDEX, ids.get(9)).setRealtime(false).get();
         assertTrue("refreshed id must be found via rows", refreshed.isExists());
         assertEquals("doc_10", refreshed.getSourceAsMap().get("name"));
         assertEquals(10, intValue(refreshed));
 
         // Unrefreshed id -> version-map path (realtime found), absent from rows (non-realtime not found).
-        GetResponse unrefreshedRealtime = client().prepareGet(INDEX, "40").setRealtime(true).get();
+        GetResponse unrefreshedRealtime = client().prepareGet(INDEX, ids.get(39)).setRealtime(true).get();
         assertTrue("unrefreshed id must be found realtime via version map", unrefreshedRealtime.isExists());
         assertEquals("doc_40", unrefreshedRealtime.getSourceAsMap().get("name"));
         assertFalse("unrefreshed id must be absent from rows", client().prepareGet(INDEX, "40").setRealtime(false).get().isExists());
 
         // After a second refresh the previously-unrefreshed id resolves via rows too.
         refreshIndex(INDEX);
-        GetResponse nowInRows = client().prepareGet(INDEX, "40").setRealtime(false).get();
+        GetResponse nowInRows = client().prepareGet(INDEX, ids.get(39)).setRealtime(false).get();
         assertTrue("after refresh id must be found via rows", nowInRows.isExists());
         assertEquals(40, intValue(nowInRows));
     }

@@ -51,7 +51,9 @@ pub struct JsonObjectUdf {
 
 impl JsonObjectUdf {
     pub fn new() -> Self {
-        Self { signature: Signature::user_defined(Volatility::Immutable) }
+        Self {
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
     }
 }
 
@@ -81,7 +83,11 @@ impl ScalarUDFImpl for JsonObjectUdf {
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let n = args.number_rows;
 
-        if args.args.iter().all(|v| matches!(v, ColumnarValue::Scalar(_))) {
+        if args
+            .args
+            .iter()
+            .all(|v| matches!(v, ColumnarValue::Scalar(_)))
+        {
             let cells: Vec<Option<&str>> = args.args.iter().map(scalar_utf8).collect();
             let out = build_object(&cells);
             return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(out)));
@@ -92,8 +98,10 @@ impl ScalarUDFImpl for JsonObjectUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<StringArrayView<'_>> =
-            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> = arrays
+            .iter()
+            .map(StringArrayView::from_array)
+            .collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 32);
         let mut row_cells: Vec<Option<&str>> = Vec::with_capacity(columns.len());
@@ -193,6 +201,9 @@ mod tests {
 
     #[test]
     fn return_type_is_utf8() {
-        assert_eq!(JsonObjectUdf::new().return_type(&[DataType::Utf8]).unwrap(), DataType::Utf8);
+        assert_eq!(
+            JsonObjectUdf::new().return_type(&[DataType::Utf8]).unwrap(),
+            DataType::Utf8
+        );
     }
 }

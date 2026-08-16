@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -36,7 +38,19 @@ import java.util.regex.Pattern;
  */
 public final class NativeErrorConverter {
 
+    private static final Logger logger = LogManager.getLogger(NativeErrorConverter.class);
+
     private NativeErrorConverter() {}
+
+    /**
+     * Logs the verbose native allocator dump ("top memory consumers ... query_untracked(partitions=N,batch=8192)#id
+     * consumed X MB", reservation ids, plan-operator internals) server-side at WARN. It is useful for operators
+     * but must not reach the user, so the converted exception carries no cause — its own clean message is the
+     * whole user-facing story. {@code label} identifies the conversion for the server log.
+     */
+    private static void logRawNativeError(MatchedError match, String label) {
+        logger.warn("[NativeErrorConverter] {} — raw native error: {}", label, match.message());
+    }
 
     /**
      * A pattern that matches a native error message and converts it to an OpenSearch exception.
@@ -115,10 +129,10 @@ public final class NativeErrorConverter {
         if (parsed == null) {
             return match.original();
         }
+        logRawNativeError(match, "pool limit exceeded");
         String message = "[analytics_backend_datafusion] Failed to allocate " + parsed[0] + " bytes (limit: " + parsed[1] + ")";
-        CircuitBreakingException cbe = new CircuitBreakingException(message, parsed[0], parsed[1], CircuitBreaker.Durability.TRANSIENT);
-        cbe.initCause(match.original());
-        return cbe;
+        // No cause attached: the raw native error carries the allocator dump and stays in the server log only.
+        return new CircuitBreakingException(message, parsed[0], parsed[1], CircuitBreaker.Durability.TRANSIENT);
     }
 
     private static Exception convertPoolLimitFromControlled(MatchedError match) {
@@ -126,25 +140,29 @@ public final class NativeErrorConverter {
         if (parsed == null) {
             return match.original();
         }
-        CircuitBreakingException cbe = new CircuitBreakingException(
-            match.message(),
-            parsed[0],
-            parsed[1],
-            CircuitBreaker.Durability.TRANSIENT
-        );
-        cbe.initCause(match.original());
-        return cbe;
+        logRawNativeError(match, "pool limit exceeded (controlled)");
+        // Rebuild the message from the parsed numbers only (the matched message may carry an appended
+        // native consumer dump); never echo match.message() verbatim.
+        String message = "[analytics_backend_datafusion] Failed to allocate " + parsed[0] + " bytes (limit: " + parsed[1] + ")";
+        return new CircuitBreakingException(message, parsed[0], parsed[1], CircuitBreaker.Durability.TRANSIENT);
     }
 
     private static Exception convertAdmissionRejection(MatchedError match) {
-        return new OpenSearchStatusException(ADMISSION_REJECTED_MSG, RestStatus.TOO_MANY_REQUESTS, match.original());
+        // Log the raw native budget detail server-side; don't attach it as a user-facing cause.
+        logRawNativeError(match, "admission rejected");
+        return new OpenSearchStatusException(ADMISSION_REJECTED_MSG, RestStatus.TOO_MANY_REQUESTS);
     }
 
     private static Exception convertSpillPoolExhausted(MatchedError match) {
+        logRawNativeError(match, "spill pool exhausted");
         // Bytes/limit aren't part of this DataFusion message; surface 0/0 to keep the type contract.
-        CircuitBreakingException cbe = new CircuitBreakingException(match.message(), 0L, 0L, CircuitBreaker.Durability.TRANSIENT);
-        cbe.initCause(match.original());
-        return cbe;
+        // Use a fixed clean message — the raw DataFusion text can carry operator internals.
+        return new CircuitBreakingException(
+            "[analytics_backend_datafusion] memory pool exhausted (spill unavailable)",
+            0L,
+            0L,
+            CircuitBreaker.Durability.TRANSIENT
+        );
     }
 
     private static Exception convertRecursionLimit(MatchedError match) {

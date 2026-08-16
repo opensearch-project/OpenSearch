@@ -17,6 +17,12 @@ pluginManagement {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
       }
     }
+    maven {
+      url = uri("https://ci.opensearch.org/m2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
     gradlePluginPortal {
       content {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"

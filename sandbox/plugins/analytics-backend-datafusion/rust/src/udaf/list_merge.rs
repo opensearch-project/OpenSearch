@@ -27,7 +27,9 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::{Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility,
+};
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udaf(AggregateUDF::from(ListMergeUdaf::new(false)));
@@ -44,7 +46,11 @@ pub struct ListMergeUdaf {
 impl ListMergeUdaf {
     pub fn new(distinct: bool) -> Self {
         Self {
-            name: if distinct { "list_merge_distinct" } else { "list_merge" },
+            name: if distinct {
+                "list_merge_distinct"
+            } else {
+                "list_merge"
+            },
             distinct,
             signature: Signature::any(1, Volatility::Immutable),
         }
@@ -95,10 +101,16 @@ impl AggregateUDFImpl for ListMergeUdaf {
             .map(|e| e.data_type(acc_args.schema))
             .transpose()?
             .ok_or_else(|| {
-                datafusion::common::DataFusionError::Execution(format!("{}: missing argument", self.name))
+                datafusion::common::DataFusionError::Execution(format!(
+                    "{}: missing argument",
+                    self.name
+                ))
             })?;
         let element_type = list_element_type(&raw_arg0)?;
-        Ok(Box::new(ListMergeAccumulator::new(element_type, self.distinct)))
+        Ok(Box::new(ListMergeAccumulator::new(
+            element_type,
+            self.distinct,
+        )))
     }
 
     fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<FieldRef>> {
@@ -137,7 +149,10 @@ impl ListMergeAccumulator {
     }
 
     fn current_list(&self) -> ScalarValue {
-        ScalarValue::List(ScalarValue::new_list_nullable(&self.buf, &self.element_type))
+        ScalarValue::List(ScalarValue::new_list_nullable(
+            &self.buf,
+            &self.element_type,
+        ))
     }
 }
 
@@ -214,7 +229,13 @@ mod tests {
                 let inner = l.value(0);
                 let typed = inner.as_any().downcast_ref::<Int32Array>().unwrap();
                 (0..typed.len())
-                    .map(|i| if typed.is_null(i) { None } else { Some(typed.value(i)) })
+                    .map(|i| {
+                        if typed.is_null(i) {
+                            None
+                        } else {
+                            Some(typed.value(i))
+                        }
+                    })
                     .collect()
             }
             other => panic!("expected List, got {other:?}"),
@@ -226,7 +247,10 @@ mod tests {
         let mut acc = ListMergeAccumulator::new(DataType::Int32, false);
         let input = list_of_ints(&[&[Some(1), Some(2)], &[Some(3), Some(4), Some(5)]]);
         acc.update_batch(&[input]).unwrap();
-        assert_eq!(extract_ints(acc.evaluate().unwrap()), vec![Some(1), Some(2), Some(3), Some(4), Some(5)]);
+        assert_eq!(
+            extract_ints(acc.evaluate().unwrap()),
+            vec![Some(1), Some(2), Some(3), Some(4), Some(5)]
+        );
     }
 
     #[test]
@@ -252,7 +276,10 @@ mod tests {
 
         let mut acc = ListMergeAccumulator::new(DataType::Int32, false);
         acc.update_batch(&[input]).unwrap();
-        assert_eq!(extract_ints(acc.evaluate().unwrap()), vec![Some(1), Some(2), Some(3)]);
+        assert_eq!(
+            extract_ints(acc.evaluate().unwrap()),
+            vec![Some(1), Some(2), Some(3)]
+        );
     }
 
     #[test]
@@ -271,7 +298,9 @@ mod tests {
             ScalarValue::List(l) => {
                 let inner = l.value(0);
                 let typed = inner.as_any().downcast_ref::<StringArray>().unwrap();
-                (0..typed.len()).map(|i| typed.value(i).to_string()).collect::<Vec<_>>()
+                (0..typed.len())
+                    .map(|i| typed.value(i).to_string())
+                    .collect::<Vec<_>>()
             }
             o => panic!("expected list, got {o:?}"),
         };

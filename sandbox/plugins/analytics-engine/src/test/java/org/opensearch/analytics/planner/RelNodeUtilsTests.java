@@ -151,6 +151,74 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("maximum depth"));
     }
 
+    // --- Multi-index comma-separated table name tests (FGAC bypass fix) ---
+
+    public void testCommaDelimitedIndicesSplit() {
+        RelBuilder b = builderWithTable("logs-2024-01,secrets-2024-01");
+        RelNode plan = b.scan("logs-2024-01,secrets-2024-01").build();
+        assertArrayEquals(new String[] { "logs-2024-01", "secrets-2024-01" }, RelNodeUtils.extractIndices(plan));
+    }
+
+    public void testCommaDelimitedThreeIndices() {
+        RelBuilder b = builderWithTable("a,b,c");
+        RelNode plan = b.scan("a,b,c").build();
+        assertArrayEquals(new String[] { "a", "b", "c" }, RelNodeUtils.extractIndices(plan));
+    }
+
+    public void testDoubleCommaProducesEmptyStringFiltered() {
+        RelBuilder b = builderWithTable("index1,,index2");
+        RelNode plan = b.scan("index1,,index2").build();
+        // Strings.splitStringByCommaToArray trims and skips empty tokens
+        String[] result = RelNodeUtils.extractIndices(plan);
+        for (String idx : result) {
+            assertFalse("Should not contain empty string", idx.isEmpty());
+        }
+        assertTrue("Should contain index1", java.util.Arrays.asList(result).contains("index1"));
+        assertTrue("Should contain index2", java.util.Arrays.asList(result).contains("index2"));
+    }
+
+    public void testLeadingComma() {
+        RelBuilder b = builderWithTable(",index1");
+        RelNode plan = b.scan(",index1").build();
+        String[] result = RelNodeUtils.extractIndices(plan);
+        for (String idx : result) {
+            assertFalse("Should not contain empty string", idx.isEmpty());
+        }
+        assertTrue("Should contain index1", java.util.Arrays.asList(result).contains("index1"));
+    }
+
+    public void testDoubleLeadingComma() {
+        RelBuilder b = builderWithTable(",,index1");
+        RelNode plan = b.scan(",,index1").build();
+        String[] result = RelNodeUtils.extractIndices(plan);
+        for (String idx : result) {
+            assertFalse("Should not contain empty string", idx.isEmpty());
+        }
+        assertTrue("Should contain index1", java.util.Arrays.asList(result).contains("index1"));
+    }
+
+    public void testTrailingComma() {
+        RelBuilder b = builderWithTable("index1,");
+        RelNode plan = b.scan("index1,").build();
+        String[] result = RelNodeUtils.extractIndices(plan);
+        for (String idx : result) {
+            assertFalse("Should not contain empty string", idx.isEmpty());
+        }
+        assertTrue("Should contain index1", java.util.Arrays.asList(result).contains("index1"));
+    }
+
+    public void testSingleIndexNoComma() {
+        RelBuilder b = builderWithTable("plain_index");
+        RelNode plan = b.scan("plain_index").build();
+        assertArrayEquals(new String[] { "plain_index" }, RelNodeUtils.extractIndices(plan));
+    }
+
+    private RelBuilder builderWithTable(String tableName) {
+        SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
+        schema.add(tableName, new MockTable());
+        return RelBuilder.create(Frameworks.newConfigBuilder().defaultSchema(schema).build());
+    }
+
     /** Minimal table implementation for RelBuilder schema registration. */
     private static class MockTable extends AbstractTable {
         @Override

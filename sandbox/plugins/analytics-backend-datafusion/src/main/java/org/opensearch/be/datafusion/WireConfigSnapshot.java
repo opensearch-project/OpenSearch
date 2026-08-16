@@ -26,32 +26,24 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 80;
+    public static final long BYTE_SIZE = 52;
 
     private final int batchSize;
     private final int targetPartitions;
-    private final boolean parquetPushdownFilters;
-    private final boolean bloomFilterOnRead;
+    private final boolean listingTablePushdownFilters;
     private final int minSkipRunDefault;
     private final double minSkipRunSelectivityThreshold;
-    private final int maxCollectorParallelism;
-    private final int singleCollectorStrategy;
-    private final int treeCollectorStrategy;
-    private final int queryStrategy;
-    private final boolean indexedDynamicFilterPushdown;
+    private final boolean indexedPushdownFilters;
+    private final int forceStrategy;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
         this.targetPartitions = builder.targetPartitions;
-        this.parquetPushdownFilters = builder.parquetPushdownFilters;
-        this.bloomFilterOnRead = builder.bloomFilterOnRead;
+        this.listingTablePushdownFilters = builder.listingTablePushdownFilters;
         this.minSkipRunDefault = builder.minSkipRunDefault;
         this.minSkipRunSelectivityThreshold = builder.minSkipRunSelectivityThreshold;
-        this.maxCollectorParallelism = builder.maxCollectorParallelism;
-        this.singleCollectorStrategy = builder.singleCollectorStrategy;
-        this.treeCollectorStrategy = builder.treeCollectorStrategy;
-        this.queryStrategy = builder.queryStrategy;
-        this.indexedDynamicFilterPushdown = builder.indexedDynamicFilterPushdown;
+        this.indexedPushdownFilters = builder.indexedPushdownFilters;
+        this.forceStrategy = builder.forceStrategy;
     }
 
     public static Builder builder() {
@@ -65,15 +57,11 @@ public final class WireConfigSnapshot {
     public static Builder builder(WireConfigSnapshot current) {
         return new Builder().batchSize(current.batchSize)
             .targetPartitions(current.targetPartitions)
-            .parquetPushdownFilters(current.parquetPushdownFilters)
-            .bloomFilterOnRead(current.bloomFilterOnRead)
+            .listingTablePushdownFilters(current.listingTablePushdownFilters)
             .minSkipRunDefault(current.minSkipRunDefault)
             .minSkipRunSelectivityThreshold(current.minSkipRunSelectivityThreshold)
-            .maxCollectorParallelism(current.maxCollectorParallelism)
-            .singleCollectorStrategy(current.singleCollectorStrategy)
-            .treeCollectorStrategy(current.treeCollectorStrategy)
-            .queryStrategy(current.queryStrategy)
-            .indexedDynamicFilterPushdown(current.indexedDynamicFilterPushdown);
+            .indexedPushdownFilters(current.indexedPushdownFilters)
+            .forceStrategy(current.forceStrategy);
     }
 
     public int batchSize() {
@@ -84,12 +72,8 @@ public final class WireConfigSnapshot {
         return targetPartitions;
     }
 
-    public boolean parquetPushdownFilters() {
-        return parquetPushdownFilters;
-    }
-
-    public boolean bloomFilterOnRead() {
-        return bloomFilterOnRead;
+    public boolean listingTablePushdownFilters() {
+        return listingTablePushdownFilters;
     }
 
     public int minSkipRunDefault() {
@@ -100,24 +84,13 @@ public final class WireConfigSnapshot {
         return minSkipRunSelectivityThreshold;
     }
 
-    public int maxCollectorParallelism() {
-        return maxCollectorParallelism;
+    public boolean indexedPushdownFilters() {
+        return indexedPushdownFilters;
     }
 
-    public int singleCollectorStrategy() {
-        return singleCollectorStrategy;
-    }
-
-    public int treeCollectorStrategy() {
-        return treeCollectorStrategy;
-    }
-
-    public int queryStrategy() {
-        return queryStrategy;
-    }
-
-    public boolean indexedDynamicFilterPushdown() {
-        return indexedDynamicFilterPushdown;
+    /** -1 = None (selectivity heuristic), 0 = RowSelection, 1 = BooleanMask. */
+    public int forceStrategy() {
+        return forceStrategy;
     }
 
     /**
@@ -125,7 +98,9 @@ public final class WireConfigSnapshot {
      * {@code WireDatafusionQueryConfig} {@code #[repr(C)]} layout.
      * <p>
      * The segment must be at least {@link #BYTE_SIZE} bytes and allocated from
-     * a confined {@code Arena} scoped to the query lifetime.
+     * a confined {@code Arena} scoped to the query lifetime. Fields that the Rust
+     * side no longer exposes as settings ({@code cost_predicate},
+     * {@code cost_collector}) are written as their fixed hardcoded values.
      *
      * <pre>
      * Offset  Size  Field                                Type     Source
@@ -134,19 +109,13 @@ public final class WireConfigSnapshot {
      * 8       8     target_partitions                    i64      from snapshot
      * 16      8     min_skip_run_default                 i64      from snapshot
      * 24      8     min_skip_run_selectivity_threshold   f64      from snapshot
-     * 32      4     parquet_pushdown_filters             i32      from snapshot (0/1)
-     * 36      4     indexed_pushdown_filters             i32      hardcoded 1
-     * 40      4     force_strategy                       i32      hardcoded -1
-     * 44      4     force_pushdown                       i32      hardcoded -1
-     * 48      4     cost_predicate                       i32      hardcoded 1
-     * 52      4     cost_collector                       i32      hardcoded 10
-     * 56      4     max_collector_parallelism            i32      from snapshot
-     * 60      4     single_collector_strategy            i32      from snapshot
-     * 64      4     tree_collector_strategy              i32      from snapshot
-     * 68      4     query_strategy                       i32      from snapshot (0/1/2)
-     * 72      4     bloom_filter_on_read                 i32      from snapshot (0/1)
+     * 32      4     listing_table_pushdown_filters       i32      from snapshot (0/1)
+     * 36      4     indexed_pushdown_filters             i32      from snapshot (0/1)
+     * 40      4     force_strategy                       i32      from snapshot (-1/0/1)
+     * 44      4     cost_predicate                       i32      hardcoded 1
+     * 48      4     cost_collector                       i32      hardcoded 10
      * ──────  ────
-     * Total: 76 bytes
+     * Total: 52 bytes
      * </pre>
      *
      * @param segment the target memory segment (at least {@link #BYTE_SIZE} bytes)
@@ -160,30 +129,16 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_LONG, 16, (long) minSkipRunDefault);
         // Offset 24: min_skip_run_selectivity_threshold (f64)
         segment.set(ValueLayout.JAVA_DOUBLE, 24, minSkipRunSelectivityThreshold);
-        // Offset 32: parquet_pushdown_filters (i32) — 0 = false, 1 = true
-        segment.set(ValueLayout.JAVA_INT, 32, parquetPushdownFilters ? 1 : 0);
-        // Offset 36: indexed_pushdown_filters (i32) — always 1 (hardcoded)
-        segment.set(ValueLayout.JAVA_INT, 36, 1);
-        // Offset 40: force_strategy (i32) — always -1 (None)
-        segment.set(ValueLayout.JAVA_INT, 40, -1);
-        // Offset 44: force_pushdown (i32) — always -1 (None)
-        segment.set(ValueLayout.JAVA_INT, 44, -1);
-        // Offset 48: cost_predicate (i32) — hardcoded 1
-        segment.set(ValueLayout.JAVA_INT, 48, 1);
-        // Offset 52: cost_collector (i32) — hardcoded 10
-        segment.set(ValueLayout.JAVA_INT, 52, 10);
-        // Offset 56: max_collector_parallelism (i32)
-        segment.set(ValueLayout.JAVA_INT, 56, maxCollectorParallelism);
-        // Offset 60: single_collector_strategy (i32)
-        segment.set(ValueLayout.JAVA_INT, 60, singleCollectorStrategy);
-        // Offset 64: tree_collector_strategy (i32)
-        segment.set(ValueLayout.JAVA_INT, 64, treeCollectorStrategy);
-        // Offset 68: query_strategy (i32) — 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly
-        segment.set(ValueLayout.JAVA_INT, 68, queryStrategy);
-        // Offset 72: bloom_filter_on_read (i32) — 0 = false, 1 = true
-        segment.set(ValueLayout.JAVA_INT, 72, bloomFilterOnRead ? 1 : 0);
-        // Offset 76: indexed_dynamic_filter_pushdown (i32) — 0 = false, 1 = true
-        segment.set(ValueLayout.JAVA_INT, 76, indexedDynamicFilterPushdown ? 1 : 0);
+        // Offset 32: listing_table_pushdown_filters (i32) — 0 = false, 1 = true
+        segment.set(ValueLayout.JAVA_INT, 32, listingTablePushdownFilters ? 1 : 0);
+        // Offset 36: indexed_pushdown_filters (i32) — 0 = false, 1 = true
+        segment.set(ValueLayout.JAVA_INT, 36, indexedPushdownFilters ? 1 : 0);
+        // Offset 40: force_strategy (i32) — -1 = None, 0 = RowSelection, 1 = BooleanMask
+        segment.set(ValueLayout.JAVA_INT, 40, forceStrategy);
+        // Offset 44: cost_predicate (i32) — hardcoded 1
+        segment.set(ValueLayout.JAVA_INT, 44, 1);
+        // Offset 48: cost_collector (i32) — hardcoded 10
+        segment.set(ValueLayout.JAVA_INT, 48, 10);
     }
 
     /**
@@ -193,15 +148,11 @@ public final class WireConfigSnapshot {
     public static final class Builder {
         private int batchSize = 8192;
         private int targetPartitions = 4;
-        private boolean parquetPushdownFilters = false;
-        private boolean bloomFilterOnRead = true;
+        private boolean listingTablePushdownFilters = false;
         private int minSkipRunDefault = 1024;
         private double minSkipRunSelectivityThreshold = 0.03;
-        private int maxCollectorParallelism = 1;
-        private int singleCollectorStrategy = 2; // PageRangeSplit
-        private int treeCollectorStrategy = 1;   // TightenOuterBounds
-        private int queryStrategy = 2;           // IndexedPredicateOnly (matches DatafusionSettings default "indexed")
-        private boolean indexedDynamicFilterPushdown = true; // runtime TopK/join RG pruning on by default
+        private boolean indexedPushdownFilters = true;
+        private int forceStrategy = -1;
 
         private Builder() {}
 
@@ -215,13 +166,8 @@ public final class WireConfigSnapshot {
             return this;
         }
 
-        public Builder parquetPushdownFilters(boolean parquetPushdownFilters) {
-            this.parquetPushdownFilters = parquetPushdownFilters;
-            return this;
-        }
-
-        public Builder bloomFilterOnRead(boolean bloomFilterOnRead) {
-            this.bloomFilterOnRead = bloomFilterOnRead;
+        public Builder listingTablePushdownFilters(boolean listingTablePushdownFilters) {
+            this.listingTablePushdownFilters = listingTablePushdownFilters;
             return this;
         }
 
@@ -235,28 +181,14 @@ public final class WireConfigSnapshot {
             return this;
         }
 
-        public Builder maxCollectorParallelism(int maxCollectorParallelism) {
-            this.maxCollectorParallelism = maxCollectorParallelism;
+        public Builder indexedPushdownFilters(boolean indexedPushdownFilters) {
+            this.indexedPushdownFilters = indexedPushdownFilters;
             return this;
         }
 
-        public Builder singleCollectorStrategy(int singleCollectorStrategy) {
-            this.singleCollectorStrategy = singleCollectorStrategy;
-            return this;
-        }
-
-        public Builder treeCollectorStrategy(int treeCollectorStrategy) {
-            this.treeCollectorStrategy = treeCollectorStrategy;
-            return this;
-        }
-
-        public Builder queryStrategy(int queryStrategy) {
-            this.queryStrategy = queryStrategy;
-            return this;
-        }
-
-        public Builder indexedDynamicFilterPushdown(boolean indexedDynamicFilterPushdown) {
-            this.indexedDynamicFilterPushdown = indexedDynamicFilterPushdown;
+        /** @param forceStrategy -1 = None (heuristic), 0 = RowSelection, 1 = BooleanMask. */
+        public Builder forceStrategy(int forceStrategy) {
+            this.forceStrategy = forceStrategy;
             return this;
         }
 

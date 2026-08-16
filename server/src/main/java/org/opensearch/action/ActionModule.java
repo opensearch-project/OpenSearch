@@ -63,6 +63,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.delete.TransportDeleteTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -157,10 +159,13 @@ import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.ModifyDataStreamsAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.opensearch.action.admin.indices.exists.indices.TransportIndicesExistsAction;
+import org.opensearch.action.admin.indices.fielddomain.PutIndexFieldDomainsAction;
+import org.opensearch.action.admin.indices.fielddomain.TransportPutIndexFieldDomainsAction;
 import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -370,6 +375,7 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateActio
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteTaskAction;
 import org.opensearch.rest.action.admin.cluster.RestGetDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.rest.action.admin.cluster.RestGetScriptContextAction;
@@ -429,6 +435,7 @@ import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
+import org.opensearch.rest.action.admin.indices.RestModifyDataStreamsAction;
 import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
 import org.opensearch.rest.action.admin.indices.RestPauseIngestionAction;
 import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
@@ -678,6 +685,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
+        actions.register(DeleteTaskAction.INSTANCE, TransportDeleteTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
@@ -731,6 +739,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
+        actions.register(PutIndexFieldDomainsAction.INSTANCE, TransportPutIndexFieldDomainsAction.class);
         actions.register(ScaleIndexAction.INSTANCE, TransportScaleIndexAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
@@ -803,6 +812,7 @@ public class ActionModule extends AbstractModule {
         // Data streams:
         actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
         actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+        actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsAction.TransportAction.class);
         actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
@@ -1015,6 +1025,7 @@ public class ActionModule extends AbstractModule {
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
         registerHandler.accept(new RestGetTaskAction());
+        registerHandler.accept(new RestDeleteTaskAction());
         registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API
@@ -1031,6 +1042,7 @@ public class ActionModule extends AbstractModule {
         // Data Stream API
         registerHandler.accept(new RestCreateDataStreamAction());
         registerHandler.accept(new RestDeleteDataStreamAction());
+        registerHandler.accept(new RestModifyDataStreamsAction());
         registerHandler.accept(new RestGetDataStreamsAction());
         registerHandler.accept(new RestResolveIndexAction());
         registerHandler.accept(new RestDataStreamsStatsAction());

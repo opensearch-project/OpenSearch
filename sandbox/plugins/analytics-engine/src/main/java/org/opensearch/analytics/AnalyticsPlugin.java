@@ -260,11 +260,26 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public SearchStats contributeSearchStats() {
-        AnalyticsStats.LatencyStats elapsed = statsCollector.snapshot().queries().elapsedMs();
-        if (elapsed.count() == 0) {
+        // Contribute per-shard fragment task counts so the node-level search counters
+        // exposed via _nodes/stats match Lucene's per-shard accounting (one increment
+        // per shard query phase, not per user query).
+        //
+        // The queries.elapsed_ms bucket counts 1-per-query, which undercounts the
+        // rate by the shard fan-out factor and drops most queries' latency (the
+        // start/end window in AnalyticsStatsCollector#recordExecution is commonly
+        // 0 when stage timestamps aren't populated). The SHARD_FRAGMENT stage
+        // bucket counts 1-per-(query, node-hosting-shards), still missing the
+        // per-shard granularity Lucene reports. fragments.total walks each
+        // SHARD_FRAGMENT execution's per-shard StageTasks, giving per-shard
+        // counts matching Lucene's onPreQueryPhase semantics.
+        AnalyticsStats snapshot = statsCollector.snapshot();
+        AnalyticsStats.Fragments fragments = snapshot.fragments();
+        if (fragments == null || fragments.total() == 0) {
             return null;
         }
-        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(elapsed.count()).queryTimeInMillis(elapsed.sumMs()).build();
+        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(fragments.total())
+            .queryTimeInMillis(fragments.elapsedMs().sumMs())
+            .build();
         return new SearchStats(stats, 0, null);
     }
 

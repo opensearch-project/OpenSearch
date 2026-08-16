@@ -119,7 +119,7 @@ public abstract class CoordinatorTopologyTestBase extends OpenSearchIntegTestCas
         ensureGreen(index);
 
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(index).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(index).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(index).get();
         client().admin().indices().prepareFlush(index).get();

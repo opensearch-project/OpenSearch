@@ -147,7 +147,7 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
         createIndex(withIndexSort);
 
         // Doc 1: succeeds.
-        IndexResponse ok1 = client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "value-1", "sort_key", 10L).get();
+        IndexResponse ok1 = client().prepareIndex(INDEX_NAME).setSource("field", "value-1", "sort_key", 10L).get();
         assertEquals(RestStatus.CREATED, ok1.status());
 
         // Doc 2: a single oversized keyword token. Lucene's IndexingChain throws
@@ -155,7 +155,7 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
         // remains open, the bulk item surfaces as a per-doc failure.
         String oversized = "x".repeat(OVERSIZED_TERM_CHARS);
         BulkResponse bulk = client().prepareBulk()
-            .add(client().prepareIndex(INDEX_NAME).setId("2").setSource("field", oversized, "sort_key", 5L))
+            .add(client().prepareIndex(INDEX_NAME).setSource("field", oversized, "sort_key", 5L))
             .get();
         assertEquals(1, bulk.getItems().length);
         BulkItemResponse failed = bulk.getItems()[0];
@@ -177,7 +177,7 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
         // Doc 3: succeeds on the same primary — proves the engine and writer pool recovered.
         // sort_key=1 is less than doc 1's sort_key=10, so the index-sort variant exercises
         // a non-trivial RowIdMapping permutation rather than the identity case.
-        IndexResponse ok3 = client().prepareIndex(INDEX_NAME).setId("3").setSource("field", "value-3", "sort_key", 1L).get();
+        IndexResponse ok3 = client().prepareIndex(INDEX_NAME).setSource("field", "value-3", "sort_key", 1L).get();
         assertEquals(RestStatus.CREATED, ok3.status());
 
         client().admin().indices().prepareFlush(INDEX_NAME).get();
@@ -226,10 +226,7 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
         createIndex(/* withIndexSort= */ false);
 
         // Doc 1 mints writer-1 in the pool.
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "v1", "sort_key", 10L).get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setSource("field", "v1", "sort_key", 10L).get().status());
 
         DataFormatAwareEngine engine = CompositeEngineHelper.getEngine(clusterService(), internalCluster(), INDEX_NAME);
         Writer<?> writerBefore = singleWriter(engine);
@@ -237,15 +234,12 @@ public class CompositeEngineLuceneOversizedTermIT extends RemoteStoreBaseIntegTe
         // Doc 2: oversized term → Lucene IAE → RETIRED_FLUSHABLE → DFAE retires + closes.
         String oversized = "x".repeat(OVERSIZED_TERM_CHARS);
         BulkResponse bulk = client().prepareBulk()
-            .add(client().prepareIndex(INDEX_NAME).setId("2").setSource("field", oversized, "sort_key", 5L))
+            .add(client().prepareIndex(INDEX_NAME).setSource("field", oversized, "sort_key", 5L))
             .get();
         assertTrue("oversized term doc must fail", bulk.getItems()[0].isFailed());
 
         // Doc 3 forces the pool to mint a fresh writer (the old one is gone).
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(INDEX_NAME).setId("3").setSource("field", "v3", "sort_key", 1L).get().status()
-        );
+        assertEquals(RestStatus.CREATED, client().prepareIndex(INDEX_NAME).setSource("field", "v3", "sort_key", 1L).get().status());
 
         Writer<?> writerAfter = singleWriter(engine);
         assertNotSame("Lucene retirement must replace the writer instance in the pool", writerBefore, writerAfter);

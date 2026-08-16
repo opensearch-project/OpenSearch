@@ -63,6 +63,7 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
     private volatile TimeValue prepareTieringTimeout;
+    private volatile TimeValue replicaSyncTimeout;
 
     /**
      * Constructs a TransportPrepareTieringAction.
@@ -94,11 +95,19 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         this.threadPool = transportService.getThreadPool();
         this.prepareTieringTimeout = TieringUtils.PREPARE_TIERING_TIMEOUT.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TieringUtils.PREPARE_TIERING_TIMEOUT, this::setPrepareTieringTimeout);
+        this.replicaSyncTimeout = TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TieringUtils.REPLICA_SYNC_TIMEOUT_SETTING, this::setReplicaSyncTimeout);
     }
 
     private void setPrepareTieringTimeout(TimeValue timeout) {
         this.prepareTieringTimeout = timeout;
         logger.info("Updated prepare tiering timeout to [{}]", timeout);
+    }
+
+    private void setReplicaSyncTimeout(TimeValue timeout) {
+        this.replicaSyncTimeout = timeout;
+        logger.info("Updated replica sync timeout to [{}]", timeout);
     }
 
     /**
@@ -254,6 +263,9 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
         // "prepare_tiering" source bypasses the freeze guard — this is the last refresh ever.
         indexShard.refresh("prepare_tiering");
         indexShard.waitForRemoteStoreSync();
+        // Wait for replicas to apply the latest checkpoint before relocation.
+        // This ensures replicas have downloaded the merged segment(s) from remote store.
+        indexShard.waitForReplicaSync(replicaSyncTimeout);
         verifyNoUncommittedOps(indexShard, shardRouting);
 
         logger.debug("Shard [{}] prepared for tiering successfully", shardRouting.shardId());

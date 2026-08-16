@@ -17,6 +17,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.AggregateMode;
@@ -229,8 +230,19 @@ public final class OpenSearchTopKRewriter {
         if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
             return new PathToFinal(seenProject, agg);
         }
-        if (node instanceof OpenSearchProject proj && seenProject == null) {
-            return findFinalAgg(proj.getInput(), proj);
+        // Anything between the Sort and the FINAL that consumes its full grouped output makes
+        // the pushdown unsafe — refuse to match at all.
+        // TODO: nested stats — re-enable once TopK oversampling factor is an execution hint
+        // so the inner agg can over-fetch enough groups for outer-agg correctness.
+        if (node instanceof OpenSearchAggregate) return null;                        // nested stats
+        if (node instanceof OpenSearchProject proj) {
+            if (proj.getProjects().stream().anyMatch(RexOver::containsOver)) return null; // window fn
+            // Capture the first Project for sort-key remapping; pass through subsequent Projects.
+            // Only the first Project (seenProject) is used for collation remapping in rewrite() —
+            // subsequent plain-column Projects are transparent. rewrite() then validates each sort
+            // field maps through seenProject as a RexInputRef; computed expressions (AVG division,
+            // etc.) cause rewrite() to bail, so they are safely rejected even if passed through here.
+            return findFinalAgg(proj.getInput(), seenProject == null ? proj : seenProject);
         }
         if (node.getInputs().size() == 1) return findFinalAgg(node.getInputs().get(0), seenProject);
         return null;

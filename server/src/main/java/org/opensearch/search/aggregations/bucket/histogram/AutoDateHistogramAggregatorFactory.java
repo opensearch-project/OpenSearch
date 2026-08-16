@@ -38,6 +38,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -128,5 +129,12 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (see
+        // DateHistogramAggregatorFactory); auto_date_histogram uses roundingInfos[0].rounding for the check.
+        return DateHistogramAggregatorBridge.filterRewriteFastPathApplies(parent, config, roundingInfos[0].rounding) == false;
     }
 }

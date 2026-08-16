@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec.task;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.spi.NativeTaskIdManager;
 import org.opensearch.core.tasks.TaskId;
 
 import java.util.Map;
@@ -31,6 +32,17 @@ import java.util.concurrent.atomic.AtomicReference;
 public class AnalyticsShardTask extends SearchShardTask {
 
     private final AtomicReference<Runnable> cancellationListener = new AtomicReference<>();
+    /**
+     * JVM-unique id keying this execution's native tracking context. {@link #getId()}
+     * must not be used for that: task ids are per-node counters and collide in the
+     * process-wide native registry when nodes share a JVM (internal test clusters).
+     */
+    private final long nativeTaskId = NativeTaskIdManager.next();
+
+    /** JVM-unique id for this execution's native tracking context (see field javadoc). */
+    public long getNativeTaskId() {
+        return nativeTaskId;
+    }
 
     public AnalyticsShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);

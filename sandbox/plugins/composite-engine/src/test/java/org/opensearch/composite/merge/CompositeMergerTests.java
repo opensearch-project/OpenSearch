@@ -21,6 +21,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
@@ -642,5 +643,80 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(segments);
         return snapshot;
+    }
+
+    // ── Cross-format merge verification tests ──
+
+    public void testExecutorThrowsWhenSecondaryReturnsNullButPrimaryHasOutput() throws IOException {
+        Merger primaryMerger = mock(Merger.class);
+        Merger secondaryMerger = mock(Merger.class);
+
+        DataFormat primary = stubFormat("parquet", 0);
+        DataFormat secondary = stubFormat("lucene", 50);
+
+        String dir = createTempDir().toString();
+        WriterFileSet primaryFiles = new WriterFileSet(dir, 10L, Set.of("file.parquet"), 100, 1L);
+
+        RowIdMapping mapping = mock(RowIdMapping.class);
+        when(mapping.size()).thenReturn(100);
+
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of()));
+
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
+
+        WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
+        WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
+
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
+        assertTrue(ex.getMessage().contains("returned null"));
+    }
+
+    public void testExecutorThrowsOnRowCountMismatch() throws IOException {
+        Merger primaryMerger = mock(Merger.class);
+        Merger secondaryMerger = mock(Merger.class);
+
+        DataFormat primary = stubFormat("parquet", 0);
+        DataFormat secondary = stubFormat("lucene", 50);
+
+        WriterFileSet primaryFiles = new WriterFileSet(createTempDir().toString(), 10L, Set.of("file.parquet"), 100, 1L);
+        WriterFileSet secondaryFiles = new WriterFileSet(createTempDir().toString(), 10L, Set.of("file.si"), 90, 1L);
+
+        RowIdMapping mapping = mock(RowIdMapping.class);
+        when(mapping.size()).thenReturn(100);
+
+        when(primaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(primary, primaryFiles), mapping));
+        when(secondaryMerger.merge(any(MergeInput.class))).thenReturn(new MergeResult(Map.of(secondary, secondaryFiles)));
+
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primary, primaryMerger, secondary, secondaryMerger));
+
+        WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
+        WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
+
+        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
+        assertTrue(ex.getMessage().contains("Row count mismatch"));
+    }
+
+    private static DataFormat stubFormat(String name, long priority) {
+        return new DataFormat() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public long priority() {
+                return priority;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of();
+            }
+        };
     }
 }
