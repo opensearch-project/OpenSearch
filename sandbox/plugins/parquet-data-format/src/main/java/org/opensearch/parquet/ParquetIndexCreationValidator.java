@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet;
 
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
@@ -55,6 +56,7 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
         // for a field whose type has no list support, turning what would otherwise be a
         // per-document indexing failure into an immediate error at creation time.
         Schema schema = ArrowSchemaBuilder.getSchema(mapperService);
+        validateSortFieldsAreNotNested(schema, indexSettings);
         ParquetSettings.validateFieldConfigurations(
             fieldEncodings,
             fieldCompressions,
@@ -63,6 +65,30 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
             schema,
             mapperService
         );
+    }
+
+    /**
+     * Rejects {@code index.sort.field} entries whose Parquet column is a nested type.
+     * <p>
+     * Complements {@link #validateSortFieldsAreSingleValued}: that check catches a field the mapping
+     * declared {@code multi_value: true}, this one catches a type that is nested regardless of its
+     * declared arity — today {@code flat_object}, which is stored as a {@code MAP} column. The native
+     * k-way merge can only extract a sort key from a primitive column and otherwise fails with
+     * {@code Unsupported sort column type} on the first merge, long after the index accepted writes.
+     */
+    private static void validateSortFieldsAreNotNested(Schema schema, IndexSettings indexSettings) {
+        for (String sortField : IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings())) {
+            Field field = schema.findField(sortField);
+            if (field != null && field.getChildren().isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Cannot use field ["
+                        + sortField
+                        + "] in [index.sort.field]: it is stored as a nested ["
+                        + field.getType()
+                        + "] parquet column, which has no single value to sort on"
+                );
+            }
+        }
     }
 
     /**

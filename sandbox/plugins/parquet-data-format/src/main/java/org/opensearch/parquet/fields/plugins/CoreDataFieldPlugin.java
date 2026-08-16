@@ -11,6 +11,7 @@ package org.opensearch.parquet.fields.plugins;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
@@ -19,6 +20,7 @@ import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.fields.core.data.BinaryParquetField;
 import org.opensearch.parquet.fields.core.data.BooleanParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
 import org.opensearch.parquet.fields.core.data.date.DateNanosParquetField;
 import org.opensearch.parquet.fields.core.data.date.DateParquetField;
 import org.opensearch.parquet.fields.core.data.number.ByteParquetField;
@@ -53,6 +55,7 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
         registerBooleanFields(fieldMap);
         registerTextFields(fieldMap);
         registerBinaryFields(fieldMap);
+        registerObjectFields(fieldMap);
         return fieldMap;
     }
 
@@ -87,5 +90,9 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
 
     private static void registerBinaryFields(Map<String, ParquetField> fieldMap) {
         fieldMap.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryParquetField());
+    }
+
+    private static void registerObjectFields(Map<String, ParquetField> fieldMap) {
+        fieldMap.put(FlatObjectFieldMapper.CONTENT_TYPE, new FlatObjectParquetField());
     }
 }

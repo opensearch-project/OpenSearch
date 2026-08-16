@@ -11,6 +11,7 @@ package org.opensearch.parquet.vsr;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -23,6 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetBaseTests;
@@ -31,6 +33,7 @@ import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
 import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
@@ -40,6 +43,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 
 public class VSRManagerTests extends ParquetBaseTests {
@@ -648,6 +652,60 @@ public class VSRManagerTests extends ParquetBaseTests {
             ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
             assertTrue(listVector.isNull(0));
             assertEquals(1, manager.flush().numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testFlatObjectFieldWritesMapColumnThroughNativeWriter() throws Exception {
+        String filePath = createTempDir().resolve("flat-object-map.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            // Mapping update introduces a flat_object field, which arrives as a MAP<Utf8, Utf8>
+            // column rather than a flat column.
+            List<Field> fields = new ArrayList<>(schema.getFields());
+            fields.addAll(metadataFields());
+            fields.add(new FlatObjectParquetField().toArrowField("attrs", false));
+            manager.reconcileSchema(new Schema(fields));
+
+            FlatObjectFieldMapper.FlatObjectFieldType attrs = new FlatObjectFieldMapper.FlatObjectFieldType("attrs", null, true, true);
+            assignTestCapabilities(attrs, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
+
+            // Row 0: two entries plus a duplicate key. Row 1: field absent. Row 2: empty object.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(attrs, List.of(Map.entry("http.status", "500"), Map.entry("pod", "web-1"), Map.entry("pod", "web-2")));
+            manager.addDocument(doc0);
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
+            doc2.addField(valField, 3);
+            doc2.addField(attrs, List.of());
+            manager.addDocument(doc2);
+
+            MapVector mapVector = (MapVector) manager.getActiveManagedVSR().getVector("attrs");
+            assertFalse(mapVector.isNull(0));
+            assertTrue("absent field must read back as a null map", mapVector.isNull(1));
+            assertFalse("empty object must read back as a non-null map", mapVector.isNull(2));
+            int row0Start = mapVector.getOffsetBuffer().getInt(0);
+            int row0End = mapVector.getOffsetBuffer().getInt(4);
+            assertEquals(3, row0End - row0Start);
+
+            // The flush is the real assertion: the C Data Interface export and the native arrow-rs
+            // writer must both accept the MAP column.
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(3, metadata.numRows());
         } finally {
             manager.close();
         }
