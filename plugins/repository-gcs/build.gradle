@@ -90,8 +90,9 @@ dependencies {
 
   implementation "org.checkerframework:checker-qual:3.52.1"
 
-  runtimeOnly "io.opentelemetry:opentelemetry-api:1.47.0"
-  runtimeOnly "io.opentelemetry:opentelemetry-context:1.47.0"
+  runtimeOnly libs.opentelemetry.api
+  runtimeOnly libs.opentelemetry.common
+  runtimeOnly libs.opentelemetry.context
   runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.60.0"
   runtimeOnly "io.grpc:grpc-api:1.71.0"
 
@@ -137,6 +138,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /opentelemetry-common.*/, to: 'opentelemetry-api'
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
 }

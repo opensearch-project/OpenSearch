@@ -725,8 +725,12 @@ public abstract class StreamInput extends InputStream {
     /**
      * Maximum depth for recursive deserialization of nested generic values.
      * Protects against StackOverflowError from deeply nested binary payloads.
+     * Deliberately on its own property (not {@code opensearch.xcontent.depth.max}) so that relaxing
+     * the XContent parsing limit does not relax this transport-level security bound.
      */
-    private static final int MAX_DESERIALIZATION_DEPTH = Integer.parseInt(System.getProperty("opensearch.xcontent.depth.max", "100"));
+    private static final int MAX_DESERIALIZATION_DEPTH = Integer.parseInt(
+        System.getProperty("opensearch.stream.depth.max", "1000" /* aligned with StreamReadConstraints.DEFAULT_MAX_DEPTH */)
+    );
 
     /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
