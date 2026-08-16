@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,11 +28,11 @@ import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.vsr.VSRManager;
+import org.opensearch.plugin.stats.StatsRecorder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -146,23 +147,19 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         if (state != WriterState.ACTIVE) {
             throw new IllegalStateException("Writer is not active, state=" + state);
         }
-        long startNanos = System.nanoTime();
-        try {
+        return StatsRecorder.recordTimeMillis(() -> {
             // Schema mismatch is recoverable: the VSR rejected the doc pre-admission, so the
             // caller-driven rollback no-ops in the VSR and restores ACTIVE.
             try {
                 vsrManager.addDocument(d);
-            } catch (MismatchedInputException e) {
+            } catch (MismatchedInputException | OutOfMemoryException e) {
                 state = WriterState.PENDING_ROLLBACK;
                 return new WriteResult.Failure(e, -1, -1, -1);
             }
             acceptedRows++;
             stats.addDocsIndexed(1);
             return new WriteResult.Success(1L, 1L, 1L);
-        } finally {
-            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-            stats.addIndexTimeMillis(elapsed);
-        }
+        }, stats::addIndexTimeMillis);
     }
 
     @Override

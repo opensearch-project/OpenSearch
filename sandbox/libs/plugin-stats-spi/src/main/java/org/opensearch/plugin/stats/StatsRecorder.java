@@ -73,6 +73,22 @@ public final class StatsRecorder {
     }
 
     /**
+     * Value-returning variant of {@link #recordTimeMillis(IORunnable, LongConsumer)}.
+     * Runs {@code work}, returns its result, and reports elapsed wall-clock millis to
+     * {@code timeRecorder}. Time is reported even if {@code work} throws.
+     */
+    public static <T> T recordTimeMillis(IOSupplier<T> work, LongConsumer timeRecorder) throws IOException {
+        Objects.requireNonNull(work, "work");
+        Objects.requireNonNull(timeRecorder, "timeRecorder");
+        long start = System.nanoTime();
+        try {
+            return work.get();
+        } finally {
+            timeRecorder.accept(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        }
+    }
+
+    /**
      * Runs {@code work} and reports time + outcome:
      * <ul>
      *   <li>{@code timeRecorder} always fires (in {@code finally})</li>

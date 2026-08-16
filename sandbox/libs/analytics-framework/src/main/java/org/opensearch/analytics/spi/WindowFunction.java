@@ -65,8 +65,17 @@ public enum WindowFunction {
     }
 
     public static WindowFunction fromName(String name) {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        // Calcite's SqlStdOperatorTable.APPROX_COUNT_DISTINCT (the operator the distinct-count
+        // rewrite produces over a window) is named "APPROX_COUNT_DISTINCT", but our enum constant
+        // is DISTINCT_COUNT_APPROX (PPL ordering: dc/distinct_count). Map the Calcite spelling onto
+        // the constant so window distinct-count (eventstats/streamstats dc()) resolves instead of
+        // failing as "not supported".
+        if ("APPROX_COUNT_DISTINCT".equals(upper)) {
+            return DISTINCT_COUNT_APPROX;
+        }
         try {
-            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
+            return valueOf(upper);
         } catch (IllegalArgumentException e) {
             return null;
         }

@@ -64,10 +64,7 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
     private RexCall buildConvertTz(String fromLit, String toLit) {
         RelDataType tsType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), true);
         RexNode tsRef = rexBuilder.makeInputRef(tsType, 0);
-        // 2-arg makeLiteral returns a bare RexLiteral; the 3-arg form with a
-        // nullable type wraps in a CAST, which the adapter must then peel back
-        // to inspect the string value. PPL's frontend emits the 2-arg form, so
-        // we match that here.
+        // 2-arg makeLiteral matches PPL's frontend; the nullable 3-arg form would wrap in CAST
         RexNode fromNode = rexBuilder.makeLiteral(fromLit);
         RexNode toNode = rexBuilder.makeLiteral(toLit);
         return (RexCall) rexBuilder.makeCall(convertTzOp(tsType), List.of(tsRef, fromNode, toNode));
@@ -88,12 +85,20 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         assertEquals("UTC", ConvertTzAdapter.canonicalizeTz("UTC"));
     }
 
-    public void testCanonicalizeTzRejectsInvalidOffsetBounds() {
-        // Hours > 14 is beyond any real-world zone.
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+15:00"));
-        assertTrue("error must include the bad value: " + ex.getMessage(), ex.getMessage().contains("+15:00"));
+    public void testCanonicalizeTzAcceptsBoundaryOffsets() {
+        // MySQL CONVERT_TZ band: [-13:59, +14:00] (legacy DateTimeUtils.isValidMySqlTimeZoneId).
+        assertEquals("+14:00", ConvertTzAdapter.canonicalizeTz("+14:00"));
+        assertEquals("-13:59", ConvertTzAdapter.canonicalizeTz("-13:59"));
+    }
 
-        // Minutes > 59 is malformed.
+    public void testCanonicalizeTzRejectsOffsetsOutsideMysqlBand() {
+        // The Java adapter folds these to typed NULL at plan time; the catch in adapt()
+        // turns the IAE into a NULL literal so callers see {@code SELECT CONVERT_TZ(...,'-14:00','+08:00')}
+        // return NULL, matching ConvertTZFunctionIT#nullField2Under / nullField3Over.
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+14:01"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("-14:00"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("-17:00"));
+        expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+15:00"));
         expectThrows(IllegalArgumentException.class, () -> ConvertTzAdapter.canonicalizeTz("+05:60"));
     }
 
@@ -189,18 +194,30 @@ public class ConvertTzAdapterTests extends OpenSearchTestCase {
         );
     }
 
-    /**
-     * Invalid literal tz operand surfaces at plan time as
-     * {@link IllegalArgumentException} with the offending value in the message,
-     * rather than silently producing per-row NULL at runtime.
-     */
-    public void testAdaptInvalidLiteralErrorsAtPlanTime() {
+    /** unknown IANA literal -> typed NULL. */
+    public void testAdaptUnknownIanaLiteralReturnsTypedNull() {
         RexCall original = buildConvertTz("Mars/Olympus", "UTC");
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ConvertTzAdapter().adapt(original, List.of(), cluster)
-        );
-        assertTrue("error must name the offending literal for user UX: " + ex.getMessage(), ex.getMessage().contains("Mars/Olympus"));
+        RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+        assertTrue(adapted instanceof RexLiteral);
+        assertTrue(((RexLiteral) adapted).isNull());
+        assertEquals(original.getType(), adapted.getType());
+    }
+
+    /** Out-of-band offset literal -> typed NULL (matches MySQL CONVERT_TZ semantics). */
+    public void testAdaptOutOfBandOffsetLiteralReturnsTypedNull() {
+        for (String[] pair : new String[][] {
+            { "-14:00", "+08:00" }, // ConvertTZFunctionIT#nullField2Under
+            { "-12:00", "+14:01" }, // ConvertTZFunctionIT#nullField3Over
+            { "+15:00", "+00:00" }, // legacy PPL DateTimeFunctionIT#testConvertTZ
+        }) {
+            RexCall original = buildConvertTz(pair[0], pair[1]);
+            RexNode adapted = new ConvertTzAdapter().adapt(original, List.of(), cluster);
+
+            assertTrue("expected NULL literal for [" + pair[0] + "," + pair[1] + "], got " + adapted, adapted instanceof RexLiteral);
+            assertTrue(((RexLiteral) adapted).isNull());
+            assertEquals(original.getType(), adapted.getType());
+        }
     }
 
     /**

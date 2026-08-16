@@ -19,7 +19,9 @@ java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = Ja
 // Calcite (via analytics-engine) requires Guava which OpenSearch forbids on compile classpath.
 // Use custom config to bypass, same as analytics-engine.
 configurations {
+    calciteCompile
     calciteTestCompile
+    compileClasspath { exclude group: 'com.google.guava' }
     testCompileClasspath { exclude group: 'com.google.guava' }
 }
 
@@ -32,6 +34,7 @@ configurations.all {
         force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
     }
 }
+sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
@@ -70,7 +73,8 @@ dependencies {
     // Planner infrastructure for end-to-end delegation tests
     testImplementation project(':sandbox:plugins:analytics-engine')
 
-    // Guava for test compilation — Calcite API exposes guava types
+    // Guava for compilation — Calcite Sarg/RangeSet API exposes guava types
+    calciteCompile "com.google.guava:guava:${versions.guava}"
     calciteTestCompile "com.google.guava:guava:${versions.guava}"
     testRuntimeOnly "com.google.guava:guava:${versions.guava}"
     testRuntimeOnly 'com.google.guava:failureaccess:1.0.2'

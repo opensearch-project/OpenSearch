@@ -36,7 +36,6 @@
 //! `(pattern, pattern_count, tokens, sample_logs)` columns — matching the
 //! Java path's `ImmutableMap.of(...)` rows.
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
@@ -51,7 +50,9 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Fields};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::{Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility,
+};
 use datafusion::physical_expr::expressions::Literal;
 
 use crate::patterns::brain::{BrainLogParser, PatternEntry};
@@ -149,10 +150,6 @@ fn state_list_type() -> DataType {
 }
 
 impl AggregateUDFImpl for InternalPatternUdaf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         NAME
     }
@@ -182,7 +179,10 @@ impl AggregateUDFImpl for InternalPatternUdaf {
             DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _)
         );
         let config = AggConfig::from_args(&acc_args)?;
-        Ok(Box::new(InternalPatternAccumulator::new(arg0_is_list, config)))
+        Ok(Box::new(InternalPatternAccumulator::new(
+            arg0_is_list,
+            config,
+        )))
     }
 
     fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<FieldRef>> {
@@ -230,12 +230,12 @@ impl AggConfig {
         //     frequency_threshold_percentage (double)
         //     variable_count_threshold       (int)
         if let Some(expr) = acc_args.exprs.get(1) {
-            if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+            if let Some(lit) = expr.downcast_ref::<Literal>() {
                 config.max_sample_count = scalar_to_usize(lit.value())?;
             }
         }
         if let Some(expr) = acc_args.exprs.get(3) {
-            if let Some(lit) = expr.as_any().downcast_ref::<Literal>() {
+            if let Some(lit) = expr.downcast_ref::<Literal>() {
                 config.show_numbered_token = scalar_to_bool(lit.value())?;
             }
         }
@@ -243,7 +243,7 @@ impl AggConfig {
         // the alphabetical PPL ordering (frequency_threshold_percentage first,
         // variable_count_threshold second) doesn't lock us in.
         for expr in acc_args.exprs.iter().skip(4) {
-            let Some(lit) = expr.as_any().downcast_ref::<Literal>() else {
+            let Some(lit) = expr.downcast_ref::<Literal>() else {
                 continue;
             };
             match lit.value() {
@@ -348,7 +348,11 @@ impl InternalPatternAccumulator {
             }
             return Ok(());
         }
-        exec_err!("{}: expected string column, got {:?}", NAME, arr.data_type())
+        exec_err!(
+            "{}: expected string column, got {:?}",
+            NAME,
+            arr.data_type()
+        )
     }
 
     fn append_list(&mut self, arr: &ArrayRef) -> Result<()> {
@@ -410,12 +414,7 @@ impl Accumulator for InternalPatternAccumulator {
     }
 
     fn size(&self) -> usize {
-        std::mem::size_of_val(self)
-            + self
-                .buffer
-                .iter()
-                .map(|s| s.capacity())
-                .sum::<usize>()
+        std::mem::size_of_val(self) + self.buffer.iter().map(|s| s.capacity()).sum::<usize>()
     }
 
     fn state(&mut self) -> Result<Vec<ScalarValue>> {
@@ -443,7 +442,10 @@ fn sorted_pattern_entries(stats: HashMap<String, PatternEntry>) -> Vec<PatternEn
 /// to numbered-token form (`<token1>@<token2>.<token3>`) and the tokens map
 /// captures the extracted variables; otherwise tokens is empty and pattern
 /// stays raw (`<*>@<*>.<*>`).
-fn build_list_struct_scalar(entries: &[PatternEntry], show_numbered_token: bool) -> Result<ScalarValue> {
+fn build_list_struct_scalar(
+    entries: &[PatternEntry],
+    show_numbered_token: bool,
+) -> Result<ScalarValue> {
     let array = build_list_struct_array(entries, show_numbered_token)?;
     Ok(ScalarValue::List(Arc::new(array)))
 }
@@ -456,7 +458,10 @@ fn empty_list_struct_scalar() -> Result<ScalarValue> {
 
 /// Builds a one-row `ListArray` whose single element is the per-pattern
 /// StructArray with `entries.len()` rows.
-fn build_list_struct_array(entries: &[PatternEntry], show_numbered_token: bool) -> Result<ListArray> {
+fn build_list_struct_array(
+    entries: &[PatternEntry],
+    show_numbered_token: bool,
+) -> Result<ListArray> {
     let struct_array = build_struct_array(entries, show_numbered_token)?;
     let offsets = OffsetBuffer::new(vec![0i32, entries.len() as i32].into());
     let item_field = Field::new("item", struct_element_type(), true);
@@ -564,14 +569,13 @@ mod tests {
         (0..s.len())
             .map(|i| {
                 let sample_inner = sample_logs_col.value(i);
-                let samples = sample_inner
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap();
+                let samples = sample_inner.as_any().downcast_ref::<StringArray>().unwrap();
                 PatternEntry {
                     pattern: pattern_col.value(i).to_string(),
                     pattern_count: count_col.value(i) as u64,
-                    sample_logs: (0..samples.len()).map(|j| samples.value(j).to_string()).collect(),
+                    sample_logs: (0..samples.len())
+                        .map(|j| samples.value(j).to_string())
+                        .collect(),
                 }
             })
             .collect()
@@ -601,7 +605,10 @@ mod tests {
         ];
         let entries = run(&logs, false);
         let top = &entries[0];
-        assert_eq!(top.pattern_count, 5, "expected 5 in top group, got {entries:?}");
+        assert_eq!(
+            top.pattern_count, 5,
+            "expected 5 in top group, got {entries:?}"
+        );
     }
 
     #[test]

@@ -30,8 +30,8 @@ public class VSRPoolTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
         bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
     }

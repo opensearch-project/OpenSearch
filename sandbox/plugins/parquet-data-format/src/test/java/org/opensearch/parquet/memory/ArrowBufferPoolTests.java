@@ -24,8 +24,8 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
         super.setUp();
         // Each test gets its own allocator with the standard pools pre-created.
         // Production code receives this via dependency injection; tests build it explicitly.
-        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
-        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        nativeAllocator = new ArrowNativeAllocator();
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE, null);
     }
 
     @Override

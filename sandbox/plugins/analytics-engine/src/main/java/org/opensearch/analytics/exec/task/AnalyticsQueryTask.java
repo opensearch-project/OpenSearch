@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.search.SearchTask;
+import org.opensearch.analytics.spi.NativeTaskIdManager;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
@@ -34,6 +35,12 @@ public class AnalyticsQueryTask extends SearchTask {
     private final String queryId;
     private final TimeValue cancelAfterTimeInterval;
     private final AtomicReference<Runnable> onCancelCallback = new AtomicReference<>();
+    /**
+     * JVM-unique id keying this query's native tracking contexts. {@link #getId()} must
+     * not be used for that: task ids are per-node counters and collide in the
+     * process-wide native registry when nodes share a JVM (internal test clusters).
+     */
+    private final long nativeTaskId = NativeTaskIdManager.next();
 
     public AnalyticsQueryTask(
         long id,
@@ -44,21 +51,21 @@ public class AnalyticsQueryTask extends SearchTask {
         Map<String, String> headers,
         @Nullable TimeValue cancelAfterTimeInterval
     ) {
-        super(
-            id,
-            type,
-            action,
-            (Supplier<String>) () -> "queryId[" + queryId + "]",
-            parentTaskId,
-            headers,
-            cancelAfterTimeInterval != null ? cancelAfterTimeInterval : TimeValue.MINUS_ONE
-        );
+        // Pass cancelAfterTimeInterval through unchanged (null when unset) so getCancellationTimeout()
+        // returns null and the cluster search.cancel_after_time_interval applies — matching core
+        // SearchTask. Coercing null→MINUS_ONE silently disabled the cluster timeout.
+        super(id, type, action, (Supplier<String>) () -> "queryId[" + queryId + "]", parentTaskId, headers, cancelAfterTimeInterval);
         this.queryId = queryId;
         this.cancelAfterTimeInterval = cancelAfterTimeInterval;
     }
 
     public AnalyticsQueryTask(long id, String type, String action, String queryId, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, queryId, parentTaskId, headers, null);
+    }
+
+    /** JVM-unique id for this query's native tracking contexts (see field javadoc). */
+    public long getNativeTaskId() {
+        return nativeTaskId;
     }
 
     @Override
@@ -86,11 +93,19 @@ public class AnalyticsQueryTask extends SearchTask {
         if (onCancelCallback.compareAndSet(null, callback) == false) {
             throw new IllegalStateException("onCancelCallback already set for AnalyticsQueryTask " + queryId);
         }
+        // Cancel may have arrived before this install — fire inline if so. Mirrors AnalyticsShardTask.setCancellationListener.
+        if (isCancelled()) {
+            runCallbackOnce();
+        }
     }
 
     @Override
     protected void onCancelled() {
-        Runnable cb = onCancelCallback.get();
+        runCallbackOnce();
+    }
+
+    private void runCallbackOnce() {
+        Runnable cb = onCancelCallback.getAndSet(null);
         if (cb != null) {
             try {
                 cb.run();

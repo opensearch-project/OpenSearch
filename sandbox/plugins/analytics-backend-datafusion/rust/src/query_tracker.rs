@@ -22,7 +22,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use log::debug;
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
@@ -107,7 +107,23 @@ impl QueryMemoryPool {
     }
 }
 
+impl std::fmt::Display for QueryMemoryPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueryMemoryPool(inner={}, current={}, peak={})",
+            self.inner.name(),
+            self.current_bytes.load(Ordering::Relaxed),
+            self.peak_bytes.load(Ordering::Relaxed)
+        )
+    }
+}
+
 impl MemoryPool for QueryMemoryPool {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
     fn register(&self, consumer: &MemoryConsumer) {
         self.inner.register(consumer);
     }
@@ -156,6 +172,10 @@ pub struct QueryTracker {
     pub cancellation_token: CancellationToken,
     /// CPU task abort handle, set after the stream is created.
     pub abort_handle: OnceLock<AbortHandle>,
+    /// Handle to the DedicatedExecutor's tokio runtime. Used by `cancel_query`
+    /// to flush pending deferred drops (pull_from_input tasks holding GroupValues
+    /// buffers) after aborting the outer CrossRtStream task.
+    pub cpu_runtime_handle: OnceLock<tokio::runtime::Handle>,
     /// Nanos since PROCESS_START when cancellation was signalled, or 0 if not cancelled.
     /// Set atomically via CAS in cancel_query — no lock needed.
     pub cancelled_at_nanos: AtomicU64,
@@ -191,7 +211,19 @@ impl QueryTracker {
 // Global registry
 // ---------------------------------------------------------------------------
 
-static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap::new);
+/// Registry of live query trackers, keyed by context_id.
+///
+/// The value is a Vec because ONE context_id can have MULTIPLE live native
+/// streams: a query with a late-materialization stage opens two coordinator
+/// reduce sinks (stage 1 and stage 3), and both call
+/// `executeLocalPlan(..., ctx.taskId())` with the same query-level task id.
+/// The previous `DashMap<i64, Arc<QueryTracker>>` silently overwrote the
+/// first tracker on the second insert, and `Drop` removed the key
+/// unconditionally — so the first stream to close deleted the entry for its
+/// still-running sibling. `cancel_query` then found nothing, an in-flight
+/// `stream_next` could not be interrupted, and the reduce sink's
+/// `reduceDone.await(5s)` latch expired on every LM query (~5s stall).
+static QUERY_REGISTRY: Lazy<DashMap<i64, Vec<Arc<QueryTracker>>>> = Lazy::new(DashMap::new);
 
 // ---------------------------------------------------------------------------
 // Registry snapshot — top-N FFM export
@@ -294,32 +326,33 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     let mut sample_logged = 0usize;
 
     for entry in QUERY_REGISTRY.iter() {
-        let tracker = entry.value();
-        let bytes_raw = tracker.memory_pool.current_bytes();
-        let completed = tracker.is_completed();
-        if sample_logged < 5 {
-            sample_logged += 1;
-        }
-        if completed {
-            continue;
-        }
-        let bytes = usize_to_i64_saturating(bytes_raw);
-        if bytes == 0 {
-            continue;
-        }
-        if heap.len() < n {
-            heap.push(Reverse(HeapEntry {
-                bytes,
-                tracker: Arc::clone(tracker),
-            }));
-        } else if let Some(Reverse(min)) = heap.peek() {
-            // Strictly greater: equal-byte ties keep the first-seen entry.
-            if bytes > min.bytes {
-                heap.pop();
+        for tracker in entry.value() {
+            let bytes_raw = tracker.memory_pool.current_bytes();
+            let completed = tracker.is_completed();
+            if sample_logged < 5 {
+                sample_logged += 1;
+            }
+            if completed {
+                continue;
+            }
+            let bytes = usize_to_i64_saturating(bytes_raw);
+            if bytes == 0 {
+                continue;
+            }
+            if heap.len() < n {
                 heap.push(Reverse(HeapEntry {
                     bytes,
                     tracker: Arc::clone(tracker),
                 }));
+            } else if let Some(Reverse(min)) = heap.peek() {
+                // Strictly greater: equal-byte ties keep the first-seen entry.
+                if bytes > min.bytes {
+                    heap.pop();
+                    heap.push(Reverse(HeapEntry {
+                        bytes,
+                        tracker: Arc::clone(tracker),
+                    }));
+                }
             }
         }
     }
@@ -335,28 +368,163 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     written
 }
 
-/// Fire the cancellation token for the given context_id.
+/// Maximum time the flush will block waiting for the CPU runtime to process
+/// deferred drops (pull_from_input tasks holding GroupValues buffers).
+const CANCEL_FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Yields per flush worker. The abort cascade has 3 scheduling levels:
+///   Level 1: CrossRtStream CPU task abort → drops CoalescePartitions receiver
+///   Level 2: CoalescePartitions' run_input tasks see closed channel → exit →
+///            drop PerPartitionStream → Arc<SpawnedTask> refcount hits 0
+///   Level 3: SpawnedTask::drop aborts pull_from_input → drops GroupValues
+/// Each level needs at least one scheduling round per task. With
+/// target_partitions = N, levels 2 and 3 each have N tasks.
+/// 32 yields per worker covers up to 32 partitions per level on a single worker.
+const FLUSH_YIELDS_PER_WORKER: usize = 32;
+
+/// Number of flush tasks to spawn. Spawning across multiple workers ensures
+/// the woken tasks (which may land on different workers' queues) are processed
+/// in parallel rather than serialized through one worker's yields.
+const FLUSH_WORKER_COUNT: usize = 4;
+
+/// Fire the cancellation token for the given context_id and abort the CPU task.
 /// No-op for unknown or already-completed queries.
+///
+/// Note: this does NOT flush the runtime — the abort cascade only completes
+/// after the `QueryStreamHandle` is dropped (via `stream_close`). Call
+/// [`flush_cpu_runtime`] after `stream_close` to ensure deferred drops are
+/// processed and GroupValues buffers are freed.
 pub fn cancel_query(context_id: i64) {
-    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+    // Snapshot the trackers under the entry lock, then cancel outside it —
+    // `token.cancel()` can wake tasks whose teardown re-enters the registry
+    // (Drop → get_mut on the same shard) and would deadlock under DashMap's
+    // shard lock.
+    let trackers: Vec<Arc<QueryTracker>> = match QUERY_REGISTRY.get(&context_id) {
+        Some(entry) => entry.iter().map(Arc::clone).collect(),
+        None => Vec::new(),
+    };
+    if trackers.is_empty() {
+        // A cancel for an id that was never registered (or already finished)
+        // does nothing. Silent no-ops here hid a real bug (the ~5s LM stall):
+        // log the miss and the live ids so any recurrence is visible.
+        let live: Vec<i64> = QUERY_REGISTRY.iter().map(|e| *e.key()).collect();
+        native_bridge_common::log_debug!(
+            "cancel_query: NO REGISTRY ENTRY for context_id={context_id} (no-op). live ids={live:?}"
+        );
+        return;
+    }
+    native_bridge_common::log_debug!(
+        "cancel_query: cancelling context_id={context_id} ({} tracker(s))",
+        trackers.len()
+    );
+    // 0 is the "not cancelled" sentinel in cancelled_at_nanos. The FIRST deref
+    // of PROCESS_START in a process creates the Instant and measures elapsed
+    // on it immediately, which can legitimately be 0ns — clamp to 1 so a real
+    // cancellation is never mistaken for "not cancelled".
+    let nanos = (PROCESS_START.elapsed().as_nanos() as u64).max(1);
+    for tracker in trackers {
         tracker.cancellation_token.cancel();
         if let Some(handle) = tracker.abort_handle.get() {
             handle.abort();
         }
-        let nanos = PROCESS_START.elapsed().as_nanos() as u64;
-        tracker.cancelled_at_nanos.compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed).ok();
+        tracker
+            .cancelled_at_nanos
+            .compare_exchange(0, nanos, Ordering::Release, Ordering::Relaxed)
+            .ok();
     }
 }
 
-/// Clone the cancellation token for the given context_id, if registered.
+/// Flush the CPU runtime for the given context_id, giving tokio workers
+/// scheduling opportunities to process deferred drops from the abort cascade.
+///
+/// Call this AFTER `stream_close` has dropped the `QueryStreamHandle` (which
+/// drops the JoinSet, releasing aborted task futures for collection). The flush
+/// spawns lightweight tasks that yield repeatedly, ensuring workers wake up and
+/// process the pending drops (pull_from_input futures → GroupValues buffers).
+///
+/// No-op if no runtime handle is registered or the query is unknown.
+pub fn flush_cpu_runtime(context_id: i64) {
+    let rt_handle = QUERY_REGISTRY.get(&context_id).and_then(|trackers| {
+        trackers
+            .last()
+            .and_then(|t| t.cpu_runtime_handle.get().cloned())
+    });
+
+    if let Some(handle) = rt_handle {
+        flush_cpu_runtime_with_handle(&handle, context_id);
+    }
+}
+
+/// Flush variant that takes the runtime handle directly — used by `stream_close`
+/// which must extract the handle before dropping the tracker (drop removes it
+/// from the registry).
+pub fn flush_cpu_runtime_with_handle(handle: &tokio::runtime::Handle, context_id: i64) {
+    let (tx, rx) = std::sync::mpsc::sync_channel(FLUSH_WORKER_COUNT);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        let tx = tx.clone();
+        handle.spawn(async move {
+            for _ in 0..FLUSH_YIELDS_PER_WORKER {
+                tokio::task::yield_now().await;
+            }
+            let _ = tx.send(());
+        });
+    }
+    drop(tx);
+    for _ in 0..FLUSH_WORKER_COUNT {
+        if rx.recv_timeout(CANCEL_FLUSH_TIMEOUT).is_err() {
+            warn!(
+                "flush_cpu_runtime({}): timed out after {}ms",
+                context_id,
+                CANCEL_FLUSH_TIMEOUT.as_millis()
+            );
+            break;
+        }
+    }
+}
+
+/// Extract the CPU runtime handle from the tracker, removing it. Used by
+/// `stream_close` to grab the handle before the tracker is dropped (which
+/// removes it from the registry).
+pub fn take_cpu_runtime_handle(context_id: i64) -> Option<tokio::runtime::Handle> {
+    QUERY_REGISTRY.get(&context_id).and_then(|trackers| {
+        trackers
+            .last()
+            .and_then(|t| t.cpu_runtime_handle.get().cloned())
+    })
+}
+
+/// Clone a cancellation token for the given context_id, if registered.
+///
+/// With multiple streams under one id this returns the MOST RECENTLY
+/// registered tracker's token — callers that own a `QueryTrackingContext`
+/// should prefer its own token (see `QueryTrackingContext::cancellation_token`)
+/// over this registry lookup, which can go stale mid-stream.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
-    QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+    QUERY_REGISTRY
+        .get(&context_id)
+        .and_then(|trackers| trackers.last().map(|t| t.cancellation_token.clone()))
 }
 
 /// Store the CPU task's AbortHandle for the given context_id.
+///
+/// Targets the most recently registered tracker for the id — matching the
+/// call pattern where a stream registers its context then immediately
+/// attaches its handles.
 pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
-    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
-        tracker.abort_handle.set(handle).ok();
+    if let Some(trackers) = QUERY_REGISTRY.get(&context_id) {
+        if let Some(tracker) = trackers.last() {
+            tracker.abort_handle.set(handle).ok();
+        }
+    }
+}
+
+/// Store the CPU runtime handle for the given context_id so that
+/// `cancel_query` can flush deferred drops on that runtime.
+pub fn set_cpu_runtime_handle(context_id: i64, handle: tokio::runtime::Handle) {
+    if let Some(trackers) = QUERY_REGISTRY.get(&context_id) {
+        if let Some(tracker) = trackers.last() {
+            tracker.cpu_runtime_handle.set(handle).ok();
+        }
     }
 }
 
@@ -370,12 +538,13 @@ pub fn count_cancelled_running(threshold: Duration) -> (i64, i64) {
     let threshold_nanos = threshold.as_nanos() as u64;
     let now_nanos = PROCESS_START.elapsed().as_nanos() as u64;
     for entry in QUERY_REGISTRY.iter() {
-        let tracker = entry.value();
-        let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
-        if cancelled_nanos > 0 && (now_nanos - cancelled_nanos) >= threshold_nanos {
-            match tracker.query_type {
-                QueryType::Shard => shard_count += 1,
-                QueryType::Coordinator => coordinator_count += 1,
+        for tracker in entry.value() {
+            let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
+            if cancelled_nanos > 0 && (now_nanos - cancelled_nanos) >= threshold_nanos {
+                match tracker.query_type {
+                    QueryType::Shard => shard_count += 1,
+                    QueryType::Coordinator => coordinator_count += 1,
+                }
             }
         }
     }
@@ -404,7 +573,11 @@ impl QueryTrackingContext {
     /// disabled and `memory_pool()` returns `None`.
     pub fn new(context_id: i64, global_pool: Arc<dyn MemoryPool>, query_type: QueryType) -> Self {
         if context_id == 0 {
-            return Self { tracker: None, phantom_reservation: None, phantom_corrector: None };
+            return Self {
+                tracker: None,
+                phantom_reservation: None,
+                phantom_corrector: None,
+            };
         }
         let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
         let tracker = Arc::new(QueryTracker {
@@ -414,11 +587,18 @@ impl QueryTrackingContext {
             memory_pool: query_pool,
             cancellation_token: CancellationToken::new(),
             abort_handle: OnceLock::new(),
+            cpu_runtime_handle: OnceLock::new(),
             cancelled_at_nanos: AtomicU64::new(0),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
-        QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
+        // Append, don't insert: a second stream registering under the same
+        // context_id (LM queries have two reduce sinks) must not orphan the
+        // first stream's tracker.
+        QUERY_REGISTRY
+            .entry(context_id)
+            .or_default()
+            .push(Arc::clone(&tracker));
         Self {
             tracker: Some(tracker),
             phantom_reservation: None,
@@ -443,10 +623,11 @@ impl QueryTrackingContext {
 
     /// Apply pending phantom correction from the self-correcting budget.
     pub fn apply_pending_phantom_correction(&mut self) {
-        let (corrector, reservation) = match (&self.phantom_corrector, &mut self.phantom_reservation) {
-            (Some(c), Some(r)) => (c, r),
-            _ => return,
-        };
+        let (corrector, reservation) =
+            match (&self.phantom_corrector, &mut self.phantom_reservation) {
+                (Some(c), Some(r)) => (c, r),
+                _ => return,
+            };
         let delta = corrector.take_pending_delta();
         if delta == 0 {
             return;
@@ -474,6 +655,16 @@ impl QueryTrackingContext {
     pub fn context_id(&self) -> i64 {
         self.tracker.as_ref().map_or(0, |t| t.context_id)
     }
+
+    /// This context's OWN cancellation token, or `None` if tracking is
+    /// disabled. Prefer this over `get_cancellation_token(context_id)` when a
+    /// `QueryTrackingContext` is at hand: the registry lookup targets the most
+    /// recently registered tracker for the id (which may be a sibling stream)
+    /// and returns `None` once the entry is gone — silently making the
+    /// caller's await uncancellable.
+    pub fn cancellation_token(&self) -> Option<CancellationToken> {
+        self.tracker.as_ref().map(|t| t.cancellation_token.clone())
+    }
 }
 
 impl Drop for QueryTrackingContext {
@@ -492,12 +683,24 @@ impl Drop for QueryTrackingContext {
             // query is never simultaneously visible in both the registry scan
             // (current) and the total counter — preventing double-counting in
             // snapshot_cancellation_stats.
-            QUERY_REGISTRY.remove(&tracker.context_id);
+            //
+            // Remove ONLY this context's own tracker (ptr_eq), never the whole
+            // key blindly: sibling streams under the same context_id may still
+            // be live. Drop the key when the Vec empties.
+            if let Some(mut entry) = QUERY_REGISTRY.get_mut(&tracker.context_id) {
+                entry.retain(|t| !Arc::ptr_eq(t, tracker));
+                let now_empty = entry.is_empty();
+                drop(entry);
+                if now_empty {
+                    QUERY_REGISTRY.remove_if(&tracker.context_id, |_, v| v.is_empty());
+                }
+            }
 
             // If this query was cancelled and ran past the threshold, bump the total counter.
             let cancelled_nanos = tracker.cancelled_at_nanos.load(Ordering::Acquire);
             if cancelled_nanos > 0 {
-                let elapsed_since_cancel = PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
+                let elapsed_since_cancel =
+                    PROCESS_START.elapsed().as_nanos() as u64 - cancelled_nanos;
                 if elapsed_since_cancel >= cancel_stats_threshold().as_nanos() as u64 {
                     match tracker.query_type {
                         QueryType::Shard => {
@@ -518,7 +721,7 @@ mod tests {
     use super::*;
     use datafusion::execution::memory_pool::GreedyMemoryPool;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn make_global_pool(limit: usize) -> Arc<dyn MemoryPool> {
         Arc::new(GreedyMemoryPool::new(limit))
@@ -622,15 +825,74 @@ mod tests {
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
     }
 
+    /// Regression test for the ~5s late-materialization stall: an LM query
+    /// registers TWO reduce streams under the SAME context_id (stage-1 and
+    /// stage-3 sinks both pass ctx.taskId()). The old `DashMap<i64, Arc<_>>`
+    /// registry overwrote the first tracker at insert and removed the whole
+    /// key at first Drop — so `cancel_query` on the shared id found nothing
+    /// and the surviving stream could never be interrupted.
+    #[test]
+    fn test_sibling_stream_drop_does_not_orphan_survivor() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 50_042;
+        let first = QueryTrackingContext::new(ctx_id, Arc::clone(&global), QueryType::Coordinator);
+        let second = QueryTrackingContext::new(ctx_id, global, QueryType::Coordinator);
+
+        // Both trackers visible under the shared id.
+        assert_eq!(QUERY_REGISTRY.get(&ctx_id).unwrap().len(), 2);
+
+        // First stream closes (stage-1 drains to EOF and drops) …
+        drop(first);
+
+        // … the survivor MUST still be registered and cancellable.
+        assert_eq!(QUERY_REGISTRY.get(&ctx_id).unwrap().len(), 1);
+        let survivor_token = second.cancellation_token().unwrap();
+        assert!(!survivor_token.is_cancelled());
+        cancel_query(ctx_id);
+        assert!(survivor_token.is_cancelled());
+
+        drop(second);
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+    }
+
+    /// cancel_query on a shared id must cancel EVERY live tracker, not just one.
+    #[test]
+    fn test_cancel_query_cancels_all_siblings() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 50_043;
+        let a = QueryTrackingContext::new(ctx_id, Arc::clone(&global), QueryType::Coordinator);
+        let b = QueryTrackingContext::new(ctx_id, global, QueryType::Coordinator);
+
+        let tok_a = a.cancellation_token().unwrap();
+        let tok_b = b.cancellation_token().unwrap();
+        cancel_query(ctx_id);
+        assert!(tok_a.is_cancelled());
+        assert!(tok_b.is_cancelled());
+
+        drop(a);
+        drop(b);
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+    }
+
     #[test]
     fn test_wall_secs_ticks_while_running() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_002;
         let _ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
-        let t1 = QUERY_REGISTRY.get(&ctx_id).unwrap().wall_secs();
+        let t1 = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .wall_secs();
         thread::sleep(Duration::from_millis(50));
-        let t2 = QUERY_REGISTRY.get(&ctx_id).unwrap().wall_secs();
+        let t2 = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .wall_secs();
         assert!(t2 - t1 >= 0.04);
 
         drop(_ctx);
@@ -760,7 +1022,7 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         // Not cancelled yet
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        let tracker = Arc::clone(QUERY_REGISTRY.get(&ctx_id).unwrap().last().unwrap());
         assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) == 0);
 
         // Cancel
@@ -779,11 +1041,23 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         cancel_query(ctx_id);
-        let first = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+        let first = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
 
         thread::sleep(Duration::from_millis(10));
         cancel_query(ctx_id);
-        let second = QUERY_REGISTRY.get(&ctx_id).unwrap().cancelled_at_nanos.load(Ordering::Relaxed);
+        let second = QUERY_REGISTRY
+            .get(&ctx_id)
+            .unwrap()
+            .last()
+            .unwrap()
+            .cancelled_at_nanos
+            .load(Ordering::Relaxed);
 
         // Second cancel should not overwrite the first timestamp
         assert_eq!(first, second);
@@ -797,7 +1071,7 @@ mod tests {
         let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
 
         // Not cancelled — cancelled_at_nanos should be 0
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        let tracker = Arc::clone(QUERY_REGISTRY.get(&ctx_id).unwrap().last().unwrap());
         assert_eq!(tracker.cancelled_at_nanos.load(Ordering::Relaxed), 0);
         drop(tracker);
 
@@ -805,7 +1079,7 @@ mod tests {
         cancel_query(ctx_id);
 
         // Now cancelled_at_nanos should be > 0
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
+        let tracker = Arc::clone(QUERY_REGISTRY.get(&ctx_id).unwrap().last().unwrap());
         assert!(tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
         drop(tracker);
 
@@ -822,18 +1096,19 @@ mod tests {
         let coord_id = 60_006;
 
         let shard_ctx = QueryTrackingContext::new(shard_id, Arc::clone(&global), QueryType::Shard);
-        let coord_ctx = QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
+        let coord_ctx =
+            QueryTrackingContext::new(coord_id, Arc::clone(&global), QueryType::Coordinator);
 
         cancel_query(shard_id);
         cancel_query(coord_id);
 
         // Verify each query is registered, cancelled, and has correct type
-        let shard_tracker = QUERY_REGISTRY.get(&shard_id).unwrap();
+        let shard_tracker = Arc::clone(QUERY_REGISTRY.get(&shard_id).unwrap().last().unwrap());
         assert!(shard_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
         assert_eq!(shard_tracker.query_type, QueryType::Shard);
         drop(shard_tracker);
 
-        let coord_tracker = QUERY_REGISTRY.get(&coord_id).unwrap();
+        let coord_tracker = Arc::clone(QUERY_REGISTRY.get(&coord_id).unwrap().last().unwrap());
         assert!(coord_tracker.cancelled_at_nanos.load(Ordering::Relaxed) > 0);
         assert_eq!(coord_tracker.query_type, QueryType::Coordinator);
         drop(coord_tracker);
@@ -842,6 +1117,91 @@ mod tests {
         drop(coord_ctx);
     }
 
+    // -----------------------------------------------------------------------
+    // Flush-on-cancel tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_query_flushes_deferred_drops() {
+        use std::sync::atomic::AtomicBool;
+
+        // Tracks whether the captured state inside the spawned future was dropped.
+        struct DropSentinel(Arc<AtomicBool>);
+        impl Drop for DropSentinel {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+
+        let global = make_global_pool(10_000);
+        // Unique id: the QUERY_REGISTRY is process-wide and tests run in parallel, so this must not
+        // collide with any other test's id (70_001 collides with test_top_n_picks_highest_current_bytes).
+        let ctx_id = 80_001;
+        let ctx = QueryTrackingContext::new(ctx_id, global, QueryType::Shard);
+
+        // Build a dedicated executor with its own tokio runtime.
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.worker_threads(2).enable_all();
+        let exec = crate::executor::DedicatedExecutor::new("test-flush", builder, 2);
+
+        // Store the runtime handle in the tracker (mirrors production path).
+        if let Some(rt) = exec.handle() {
+            set_cpu_runtime_handle(ctx_id, rt);
+        }
+
+        // Spawn a task that holds the sentinel and blocks forever at an await.
+        let dropped = Arc::new(AtomicBool::new(false));
+        let sentinel = DropSentinel(Arc::clone(&dropped));
+
+        let (abort_handle, _join_fut) = exec.spawn_with_abort_handle(async move {
+            let _hold = sentinel; // captured in the future's state
+                                  // Block forever — only abort can end this.
+            futures::future::pending::<()>().await;
+        });
+
+        if let Some(h) = abort_handle {
+            set_abort_handle(ctx_id, h);
+        }
+
+        // Small delay to let the task actually park at the pending().await
+        thread::sleep(Duration::from_millis(10));
+
+        // Verify not yet dropped
+        assert!(
+            !dropped.load(Ordering::Acquire),
+            "sentinel should be alive before cancel"
+        );
+
+        // cancel_query aborts the task (marks it cancelled in the runtime)
+        cancel_query(ctx_id);
+
+        // The abort is async — the task future may not be dropped yet.
+        // flush_cpu_runtime gives the runtime scheduling opportunities to
+        // process the abort and drop the future (freeing the sentinel). A single
+        // flush is best-effort: it spawns a fixed number of yield tasks and
+        // returns once they finish, which under heavy parallel test load (a
+        // CPU-starved CI box running 1000+ tests against a 2-worker runtime) can
+        // race the runtime actually polling and dropping the aborted task. Poll
+        // the flush until the deferred drop is observed, bounded by a timeout so
+        // a genuine regression (flush never processes the drop) still fails.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !dropped.load(Ordering::Acquire) && Instant::now() < deadline {
+            flush_cpu_runtime(ctx_id);
+            if dropped.load(Ordering::Acquire) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        // After flushing, the sentinel must have been dropped.
+        assert!(
+            dropped.load(Ordering::Acquire),
+            "sentinel must be dropped after flush — deferred drop was not processed"
+        );
+
+        drop(ctx);
+        exec.join_blocking();
+    }
 
     // -----------------------------------------------------------------------
     // Top-N snapshot tests

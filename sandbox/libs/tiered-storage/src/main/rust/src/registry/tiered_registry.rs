@@ -164,8 +164,7 @@ impl FileRegistry for TieredStorageRegistry {
         let before = self.files.len();
         self.files.retain(|key, _| {
             // Check both with and without leading "/" since callers may pass either form
-            valid_keys.contains(key.as_str())
-                || valid_keys.contains(&format!("/{}", key))
+            valid_keys.contains(key.as_str()) || valid_keys.contains(&format!("/{}", key))
         });
         let removed = before.saturating_sub(self.files.len());
         if removed > 0 {
@@ -202,17 +201,11 @@ mod tests {
     }
 
     fn remote_entry() -> TieredFileEntry {
-        TieredFileEntry::new(
-            FileLocation::Remote,
-            Some(Arc::from("remote/a.parquet")),
-        )
+        TieredFileEntry::new(FileLocation::Remote, Some(Arc::from("remote/a.parquet")))
     }
 
     fn both_entry() -> TieredFileEntry {
-        TieredFileEntry::new(
-            FileLocation::Remote,
-            Some(Arc::from("remote/a.parquet")),
-        )
+        TieredFileEntry::new(FileLocation::Remote, Some(Arc::from("remote/a.parquet")))
     }
 
     // -- Register -----------------------------------------------------------

@@ -149,12 +149,14 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         }
 
         // Sort(Agg(Filter(Scan))) with limit — multi-shard so split fires, root stage is FINAL+Sort
-        // over an ER, narrowed to reduce-capable backends.
+        // over an ER, narrowed to reduce-capable backends. Filter pins `size` (field 1, a non-group
+        // column) so the aggregate keeps an unbounded group count; filtering the group key `status`
+        // to a constant would bound it to one row and SORT_REMOVE_REDUNDANT would drop the Sort.
         QueryDAG sortAggDag = buildAndFork(
             3,
             makeSort(
                 makeAggregate(
-                    makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                    makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(1, SqlTypeName.INTEGER, 200)),
                     sumCall()
                 ),
                 10

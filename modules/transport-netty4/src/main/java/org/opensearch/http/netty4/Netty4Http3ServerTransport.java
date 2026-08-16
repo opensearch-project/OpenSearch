@@ -327,7 +327,7 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                 ).build();
 
                 final Http3Settings http3Settings = new Http3Settings();
-                http3Settings.maxFieldSectionSize(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
+                http3Settings.maxFieldSectionSize(maxHeaderSize.getBytes());
 
                 ch.pipeline().addLast(Http3.newQuicServerCodecBuilder().sslEngineProvider(q -> {
                     final QuicSslEngine engine = sslContext.newEngine(q.alloc());

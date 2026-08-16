@@ -22,8 +22,10 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
 import org.opensearch.analytics.schema.BinaryType;
+import org.opensearch.analytics.schema.DateOnlyType;
 import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.TimeOnlyType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -380,6 +382,137 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
      */
     public void testMapFieldTypeReturnsNullOnNullInput() {
         assertNull(OpenSearchSchemaBuilder.mapFieldType(null));
+    }
+
+    /** date with date-only format produces a DateOnlyType marker (TIMESTAMP-backed). */
+    public void testDateFieldWithDateOnlyFormatProducesDateUDT() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("date_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertNotNull(field);
+        assertTrue("Expected DateOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof DateOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with time-only format produces a TimeOnlyType marker. */
+    public void testDateFieldWithTimeOnlyFormatProducesTimeUDT() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("time_only_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("t", true, false);
+        assertNotNull(field);
+        assertTrue("Expected TimeOnlyType marker, got " + field.getType().getClass(), field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date with mixed format defaults to plain TIMESTAMP. */
+    public void testDateFieldWithMixedFormatStaysTimestamp() throws Exception {
+        String mapping = "{\"properties\":{\"x\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd HH:mm:ss\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("mixed_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("mixed_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("x", true, false);
+        assertNotNull(field);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof DateOnlyType);
+        assertFalse("mixed format must NOT produce a Date/Time UDT", field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /** date without an explicit format keeps default TIMESTAMP behavior. */
+    public void testDateFieldWithoutFormatStaysTimestamp() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        Table table = schema.getTable("plain_date_idx");
+        RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataTypeField field = rowType.getField("d", true, false);
+        assertFalse(field.getType() instanceof DateOnlyType);
+        assertFalse(field.getType() instanceof TimeOnlyType);
+        assertEquals(SqlTypeName.TIMESTAMP, field.getType().getSqlTypeName());
+    }
+
+    /**
+     * Plain {@code date} with no format → {@code TIMESTAMP(3)} (millis). Pins the precision
+     * contract added by #22049 so the date-only / time-only UDT paths can mirror it.
+     */
+    public void testDateFieldWithoutFormatHasMillisPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("plain_date_idx", java.util.Map.of("d", "date")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("plain_date_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /** Plain {@code date_nanos} with no format → {@code TIMESTAMP(9)} (nanos). */
+    public void testDateNanosFieldWithoutFormatHasNanosPrecision() throws Exception {
+        ClusterState clusterState = buildClusterState(java.util.Map.of("nanos_idx", java.util.Map.of("d", "date_nanos")));
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("nanos_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertEquals("date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date} with date-only format produces a {@link DateOnlyType} that still carries
+     * millis precision. Without this, the parquet-read path's Timestamp(Millisecond) clashes
+     * with the schema's precision-0 default at coordinator reduce.
+     */
+    public void testDateFieldWithDateOnlyFormatHasMillisPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ms_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ms_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date must carry millis precision", 3, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with date-only format produces a {@link DateOnlyType} that carries
+     * nanos precision. This is the regression #22049 fixed for the plain-TIMESTAMP path; the
+     * UDT path must mirror it or multi-shard sort fails with
+     * {@code Timestamp(ms) got Timestamp(ns)} in the coordinator RowConverter.
+     */
+    public void testDateNanosFieldWithDateOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"d\":{\"type\":\"date_nanos\",\"format\":\"basic_date\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("date_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("date_only_ns_idx").getRowType(nanosTypeFactory()).getField("d", true, false);
+        assertTrue("Expected DateOnlyType marker", field.getType() instanceof DateOnlyType);
+        assertEquals("DateOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * {@code date_nanos} with time-only format produces a {@link TimeOnlyType} that carries
+     * nanos precision — same parquet-read constraint as {@link DateOnlyType}.
+     */
+    public void testDateNanosFieldWithTimeOnlyFormatHasNanosPrecision() throws Exception {
+        String mapping = "{\"properties\":{\"t\":{\"type\":\"date_nanos\",\"format\":\"hour_minute_second\"}}}";
+        ClusterState clusterState = buildClusterStateRaw("time_only_ns_idx", mapping);
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataTypeField field = schema.getTable("time_only_ns_idx").getRowType(nanosTypeFactory()).getField("t", true, false);
+        assertTrue("Expected TimeOnlyType marker", field.getType() instanceof TimeOnlyType);
+        assertEquals("TimeOnlyType over date_nanos must carry nanos precision", 9, field.getType().getPrecision());
+    }
+
+    /**
+     * Type factory whose {@code getMaxPrecision(TIMESTAMP)} is 9 — so a precision request from
+     * {@code buildLeafType} for {@code date_nanos} is observable rather than silently clamped to
+     * Calcite's default of 3. The production type factory mirrors this; the default
+     * {@code JavaTypeFactoryImpl} doesn't.
+     */
+    private static org.apache.calcite.jdbc.JavaTypeFactoryImpl nanosTypeFactory() {
+        return new org.apache.calcite.jdbc.JavaTypeFactoryImpl(new org.apache.calcite.rel.type.RelDataTypeSystemImpl() {
+            @Override
+            public int getMaxPrecision(SqlTypeName typeName) {
+                if (typeName == SqlTypeName.TIMESTAMP || typeName == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+                    return 9;
+                }
+                return super.getMaxPrecision(typeName);
+            }
+        });
     }
 
     /**

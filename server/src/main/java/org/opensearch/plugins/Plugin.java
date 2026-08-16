@@ -63,6 +63,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -247,6 +248,21 @@ public abstract class Plugin implements Closeable {
      * Returns a list of additional {@link Setting} definitions for this plugin.
      */
     public List<Setting<?>> getSettings() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Additional filesystem paths this plugin requires for normal operation, to be probed by
+     * {@link org.opensearch.monitor.fs.FsHealthService} alongside {@link org.opensearch.env.NodeEnvironment#nodeDataPaths()}.
+     * Failure of any returned path will mark the node {@code UNHEALTHY} and is eligible to trigger
+     * cluster fault detection.
+     *
+     * <p>Called once during {@code Node} construction, before {@code FsHealthService} is started.
+     *
+     * @param settings the node settings
+     * @return paths to probe; empty by default
+     */
+    public List<Path> getAdditionalHealthPaths(Settings settings) {
         return Collections.emptyList();
     }
 

@@ -122,9 +122,10 @@ public class BackpressureProducerIT extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put("node.native_memory.limit", "512mb")
-            .put(NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT, 256 * MB)
             .put(NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX, FLIGHT_POOL_CAP_BYTES)
+            .put(NativeAllocatorPoolConfig.SETTING_INGEST_MIN, 8 * MB)
             .put(NativeAllocatorPoolConfig.SETTING_INGEST_MAX, 16 * MB)
+            .put(NativeAllocatorPoolConfig.SETTING_QUERY_MIN, 8 * MB)
             .put(NativeAllocatorPoolConfig.SETTING_QUERY_MAX, 16 * MB)
             .put(ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.getKey(), new ByteSizeValue(GRPC_THRESHOLD_BYTES, ByteSizeUnit.BYTES))
             .build();

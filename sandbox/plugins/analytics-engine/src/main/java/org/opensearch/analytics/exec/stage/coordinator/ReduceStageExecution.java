@@ -23,6 +23,7 @@ import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -47,6 +48,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     private final ExchangeSink downstream;
     private final Executor reduceExecutor;
     private final BufferAllocator allocator;
+    private final boolean profile;
 
     public ReduceStageExecution(Stage stage, QueryContext config, ReducingExchangeSink backendSink, ExchangeSink downstream) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
@@ -55,6 +57,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
         this.reduceExecutor = config.reduceExecutor();
         this.allocator = config.bufferAllocator();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
+        this.profile = config.profile();
     }
 
     @Override
@@ -96,15 +99,25 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     @Override
     protected List<StageTask> materializeTasks() {
-        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> {
+        final StageTask[] holder = new StageTask[1];
+        holder[0] = new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> {
             reduceExecutor.execute(() -> {
                 try {
-                    backendSink.reduce(listener);
+                    backendSink.reduce(ActionListener.wrap(v -> {
+                        if (profile) {
+                            byte[] metrics = backendSink.getExecutionMetrics();
+                            if (metrics != null) {
+                                holder[0].setDataNodeMetrics(metrics);
+                            }
+                        }
+                        listener.onResponse(v);
+                    }, listener::onFailure));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
             });
-        }));
+        });
+        return List.of(holder[0]);
     }
 
     @Override

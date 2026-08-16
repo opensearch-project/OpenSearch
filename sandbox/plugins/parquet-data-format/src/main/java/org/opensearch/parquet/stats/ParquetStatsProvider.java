@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.plugin.stats.DataFormatStatsProvider;
 import org.opensearch.plugin.stats.DataFormatStatsProviderRegistry;
 
@@ -37,13 +38,18 @@ import java.util.concurrent.ConcurrentHashMap;
 @ExperimentalApi
 public final class ParquetStatsProvider implements DataFormatStatsProvider<ParquetShardStats> {
 
-    public static final String FORMAT_NAME = "parquet";
+    /** Canonical format name, sourced from {@link ParquetDataFormat} to avoid duplicating the literal. */
+    public static final String FORMAT_NAME = ParquetDataFormat.PARQUET_DATA_FORMAT_NAME;
 
     private static final Logger logger = LogManager.getLogger(ParquetStatsProvider.class);
 
     private static volatile ParquetStatsProvider INSTANCE;
 
     private final Map<ShardId, ParquetShardStatsTracker> trackers = new ConcurrentHashMap<>();
+
+    // Node-level thread pool backing parquet ingestion writes. Set post-construction (the pool
+    // isn't available when the provider is built in createGuiceModules). May be null in tests.
+    private volatile org.opensearch.threadpool.ThreadPool threadPool;
 
     public ParquetStatsProvider() {
         // First instance wins. Subsequent constructions are no-ops on the singleton slot.
@@ -57,6 +63,11 @@ public final class ParquetStatsProvider implements DataFormatStatsProvider<Parqu
     /** Returns the singleton instance, or {@code null} if the plugin has not been constructed yet. */
     public static ParquetStatsProvider getInstance() {
         return INSTANCE;
+    }
+
+    /** Sets the node thread pool used to read live {@code parquet_native_write} pool stats. */
+    public void setThreadPool(org.opensearch.threadpool.ThreadPool threadPool) {
+        this.threadPool = threadPool;
     }
 
     /** Registers a tracker for a shard. Called from {@code ParquetIndexingEngine}'s constructor. */
@@ -100,19 +111,38 @@ public final class ParquetStatsProvider implements DataFormatStatsProvider<Parqu
         for (ParquetShardStatsTracker t : trackers.values()) {
             agg = agg.add(t.stats());
         }
-        // Attach native runtime metrics — only at node level. If the FFM/JNI bridge is
-        // unavailable (e.g., test infra without lib loaded) we still return the per-shard
-        // aggregate; missing runtime metrics shouldn't break the whole stats request.
-        // Catching Exception (not Throwable) so we still propagate JVM-fatal Errors.
+        // Node-level decoration: the live parquet_native_write pool snapshot + the Rust runtime
+        // metrics. Both are best-effort — a null pool or an unavailable native bridge simply
+        // leaves that block off rather than failing the whole stats request.
+        ParquetIngestPoolStats ingestPool = collectIngestPoolStats();
+        ParquetNativeRuntimeStats runtime = null;
         try {
-            ParquetNativeRuntimeStats runtime = ParquetNativeRuntimeStats.fromArray(
-                org.opensearch.parquet.bridge.RustBridge.collectRuntimeMetrics()
-            );
-            return Optional.of(agg.withNativeRuntime(runtime));
+            runtime = ParquetNativeRuntimeStats.fromArray(org.opensearch.parquet.bridge.RustBridge.collectRuntimeMetrics());
         } catch (Exception e) {
-            logger.warn("Failed to collect native runtime metrics; returning per-shard aggregate without runtime block", e);
-            return Optional.of(agg);
+            logger.warn("Failed to collect native runtime metrics; node stats will omit the native_runtime block", e);
         }
+        return Optional.of(agg.withNodeStats(runtime, ingestPool));
+    }
+
+    /**
+     * Reads the live {@code parquet_native_write} pool stats from the node thread pool, or returns
+     * {@code null} if the thread pool is unavailable or the pool is not present.
+     */
+    private ParquetIngestPoolStats collectIngestPoolStats() {
+        org.opensearch.threadpool.ThreadPool tp = threadPool;
+        if (tp == null) {
+            return null;
+        }
+        try {
+            for (org.opensearch.threadpool.ThreadPoolStats.Stats s : tp.stats()) {
+                if (org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME.equals(s.getName())) {
+                    return ParquetIngestPoolStats.from(s);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to collect parquet ingest pool stats", e);
+        }
+        return null;
     }
 
     @Override

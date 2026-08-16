@@ -33,9 +33,6 @@ public final class NativeAllocatorPoolConfig {
     /** Pool name for query-execution memory (analytics-engine fragments and per-query allocators). */
     public static final String POOL_QUERY = "query";
 
-    /** Setting key for the root allocator limit. */
-    public static final String SETTING_ROOT_LIMIT = "native.allocator.root.limit";
-
     /** Setting key for the Flight pool minimum. */
     public static final String SETTING_FLIGHT_MIN = "native.allocator.pool.flight.min";
     /** Setting key for the Flight pool maximum. */

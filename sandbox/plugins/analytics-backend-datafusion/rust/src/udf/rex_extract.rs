@@ -38,7 +38,6 @@
 //!   * the requested group doesn't exist in the pattern
 //!   * the pattern matches but the requested group didn't participate
 
-use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, StringBuilder};
@@ -78,9 +77,6 @@ impl Default for RexExtractUdf {
 }
 
 impl ScalarUDFImpl for RexExtractUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn name(&self) -> &str {
         "rex_extract"
     }
@@ -126,20 +122,26 @@ impl ScalarUDFImpl for RexExtractUdf {
 
         // Materialize column-valued operands lazily; keep the ArrayRef alive
         // alongside the StringArrayView (the view borrows the underlying buffers).
-        let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(args.args[1].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let group_arr_ref: Option<ArrayRef> = if group_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
-            Some(args.args[2].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let pattern_array: Option<StringArrayView<'_>> =
-            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
-        let group_array: Option<StringArrayView<'_>> =
-            group_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let pattern_arr_ref: Option<ArrayRef> =
+            if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
+                Some(args.args[1].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let group_arr_ref: Option<ArrayRef> =
+            if group_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
+                Some(args.args[2].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let pattern_array: Option<StringArrayView<'_>> = pattern_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
+        let group_array: Option<StringArrayView<'_>> = group_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
 
         let mut builder = StringBuilder::with_capacity(n, n * 16);
         for i in 0..n {
@@ -150,7 +152,10 @@ impl ScalarUDFImpl for RexExtractUdf {
 
             // Resolve the regex — scalar fast-path or per-row column lookup.
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
+            let regex: &Regex = match (
+                &scalar_regex,
+                pattern_array.as_ref().and_then(|a| a.cell(i)),
+            ) {
                 (Some(r), _) => r,
                 (None, Some(s)) => {
                     regex_owned = compile_pattern(s)?;
@@ -163,14 +168,15 @@ impl ScalarUDFImpl for RexExtractUdf {
             };
 
             // Resolve the group name (or numeric index, if it parses as one).
-            let group_name: &str = match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
-                (Some(g), _) => g.as_str(),
-                (None, Some(s)) => s,
-                _ => {
-                    builder.append_null();
-                    continue;
-                }
-            };
+            let group_name: &str =
+                match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
+                    (Some(g), _) => g.as_str(),
+                    (None, Some(s)) => s,
+                    _ => {
+                        builder.append_null();
+                        continue;
+                    }
+                };
 
             match extract_group(regex, input_value, group_name) {
                 Some(s) => builder.append_value(s),
@@ -231,7 +237,10 @@ mod tests {
     fn extract_named_group_first_match() {
         let r = compile_pattern("(?<host>[^@]+)@(?<domain>.+)").unwrap();
         assert_eq!(extract_group(&r, "user@example.com", "host"), Some("user"));
-        assert_eq!(extract_group(&r, "user@example.com", "domain"), Some("example.com"));
+        assert_eq!(
+            extract_group(&r, "user@example.com", "domain"),
+            Some("example.com")
+        );
     }
 
     #[test]

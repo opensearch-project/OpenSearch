@@ -66,6 +66,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -630,18 +632,63 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testStartReplicationListenerSuccess() throws InterruptedException {
         sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
         SegmentReplicationTargetService spy = spy(sut);
+        // Model the replica's achieved checkpoint. A successful round advances it to the checkpoint it targeted, so
+        // the done-handler observes the replica has caught up and does not retrigger another round.
+        IndexShard spyReplicaShard = spy(replicaShard);
+        AtomicReference<ReplicationCheckpoint> achieved = new AtomicReference<>(replicaShard.getLatestReplicationCheckpoint());
+        doAnswer(i -> achieved.get()).when(spyReplicaShard).getLatestReplicationCheckpoint();
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(i -> {
+            achieved.set(i.getArgument(1));
             ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(3)).onReplicationDone(state);
             latch.countDown();
             return null;
         }).when(spy).startReplication(any(), any(), anyBoolean(), any());
         doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
-        spy.afterIndexShardStarted(replicaShard);
+        spy.afterIndexShardStarted(spyReplicaShard);
 
         latch.await(2, TimeUnit.SECONDS);
-        verify(spy, (atLeastOnce())).updateVisibleCheckpoint(eq(0L), eq(replicaShard));
+        verify(spy, (atLeastOnce())).updateVisibleCheckpoint(eq(0L), eq(spyReplicaShard));
+        // Only the initial entry from afterIndexShardStarted; the done-handler must not retrigger since the replica
+        // caught up to the targeted checkpoint.
         verify(spy, times(1)).processLatestReceivedCheckpoint(any(), any());
+    }
+
+    /**
+     * Regression test for the scenario described in #20550 / #20551. After a failed round is retried, the retry may
+     * finalize against a stale metadata checkpoint returned by the primary, leaving the replica behind the checkpoint
+     * it was asked to sync to. The done-handler must detect that the replica is still behind the primary's latest
+     * known checkpoint - by comparing against the replica's achieved checkpoint, not the checkpoint the round targeted -
+     * and trigger another round so the replica eventually catches up. Here the first round finalizes without advancing
+     * the replica's checkpoint (stale sync); the second round advances it, after which no further round is triggered.
+     */
+    public void testStartReplicationRetriggersWhenReplicaSyncedToStaleCheckpoint() throws InterruptedException {
+        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard spyReplicaShard = spy(replicaShard);
+        AtomicReference<ReplicationCheckpoint> achieved = new AtomicReference<>(replicaShard.getLatestReplicationCheckpoint());
+        doAnswer(i -> achieved.get()).when(spyReplicaShard).getLatestReplicationCheckpoint();
+        AtomicInteger rounds = new AtomicInteger(0);
+        CountDownLatch latch = new CountDownLatch(2);
+        doAnswer(i -> {
+            // First round finalizes against a stale checkpoint and does NOT advance the replica. The second
+            // (retriggered) round successfully advances the replica to the checkpoint it was asked to sync to.
+            if (rounds.incrementAndGet() >= 2) {
+                achieved.set(i.getArgument(1));
+            }
+            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(3)).onReplicationDone(state);
+            latch.countDown();
+            return null;
+        }).when(spy).startReplication(any(), any(), anyBoolean(), any());
+        doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
+        spy.afterIndexShardStarted(spyReplicaShard);
+
+        assertTrue("expected the replica to be retriggered until it caught up", latch.await(5, TimeUnit.SECONDS));
+        // Two rounds: the initial stale round plus the retriggered catch-up round.
+        verify(spy, times(2)).startReplication(eq(spyReplicaShard), any(), anyBoolean(), any());
+        // processLatestReceivedCheckpoint: once from afterIndexShardStarted and once from the done-handler after the
+        // first (stale) round. The second round catches up, so the done-handler does not retrigger again.
+        verify(spy, org.mockito.Mockito.atLeast(2)).processLatestReceivedCheckpoint(any(), any());
     }
 
     public void testStartReplicationListenerFailure() throws InterruptedException {

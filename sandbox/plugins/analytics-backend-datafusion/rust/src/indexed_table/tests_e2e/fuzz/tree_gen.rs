@@ -499,7 +499,9 @@ mod tests {
                 cs.iter().for_each(|c| count_fanouts(c, sum, count));
             }
             BoolNode::Not(c) => count_fanouts(c, sum, count),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => {}
+            BoolNode::Collector { .. }
+            | BoolNode::Predicate(_)
+            | BoolNode::DelegationPossible { .. } => {}
         }
     }
 
@@ -522,7 +524,9 @@ mod tests {
         match n {
             BoolNode::And(cs) | BoolNode::Or(cs) => 1 + cs.iter().map(depth).max().unwrap_or(0),
             BoolNode::Not(c) => 1 + depth(c),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => 0,
+            BoolNode::Collector { .. }
+            | BoolNode::Predicate(_)
+            | BoolNode::DelegationPossible { .. } => 0,
         }
     }
 
@@ -532,7 +536,9 @@ mod tests {
                 cs.len().max(cs.iter().map(max_fanout).max().unwrap_or(0))
             }
             BoolNode::Not(c) => max_fanout(c),
-            BoolNode::Collector { .. } | BoolNode::Predicate(_) | BoolNode::DelegationPossible { .. } => 0,
+            BoolNode::Collector { .. }
+            | BoolNode::Predicate(_)
+            | BoolNode::DelegationPossible { .. } => 0,
         }
     }
 }

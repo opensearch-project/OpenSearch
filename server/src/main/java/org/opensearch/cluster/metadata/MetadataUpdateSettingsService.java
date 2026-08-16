@@ -67,6 +67,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -573,13 +574,11 @@ public class MetadataUpdateSettingsService {
             return;
         }
 
-        // Check if remote store is enabled
-        boolean isRemoteStoreEnabled = clusterService.state()
-            .nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .allMatch(DiscoveryNode::isRemoteStoreNode);
+        // Remote store is enabled only when there is at least one node and every node is a
+        // remote-store node (allMatch is vacuously true on an empty node set, which must not
+        // count as remote-store enabled).
+        Collection<DiscoveryNode> nodes = clusterService.state().nodes().getNodes().values();
+        boolean isRemoteStoreEnabled = !nodes.isEmpty() && nodes.stream().allMatch(DiscoveryNode::isRemoteStoreNode);
         if (!isRemoteStoreEnabled) {
             throw new IllegalArgumentException(
                 "Setting ["

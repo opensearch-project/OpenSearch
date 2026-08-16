@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.resilience;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -174,6 +175,24 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
         assertNotNull(response);
     }
 
+    /** True if {@code t}'s cause chain carries a 429 OpenSearchException or a known memory-pressure message marker. */
+    private static boolean hasMemoryPressureSignal(Throwable t) {
+        for (Throwable c = t; c != null && c != c.getCause(); c = c.getCause()) {
+            if (c instanceof OpenSearchException ose && ose.status() == org.opensearch.core.rest.RestStatus.TOO_MANY_REQUESTS) {
+                return true;
+            }
+            String msg = c.getMessage();
+            if (msg != null
+                && (msg.contains("CircuitBreakingException")
+                    || msg.contains("Resources exhausted")
+                    || msg.contains("analytics_backend_datafusion")
+                    || msg.contains("insufficient memory budget"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void testQueryRejectedWhenPoolExhausted() throws Exception {
         createIndexAndIngest();
 
@@ -189,11 +208,13 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
                 Exception.class,
                 () -> executePPL("source = " + INDEX_NAME + " | stats count() by url")
             );
+            // The shard fragment wraps the failure as "Stage N failed", so the memory-pressure signal lives
+            // in the CAUSE CHAIN, not the top-level message. The native trip is converted on the data node
+            // (NativeErrorConverter) to a 429-bearing OpenSearchException; walk the chain for that 429 (or
+            // the legacy message markers as a fallback).
             assertTrue(
-                "Should contain CircuitBreakingException or ResourcesExhausted in message, got: " + ex.getMessage(),
-                ex.getMessage() != null && (ex.getMessage().contains("CircuitBreakingException")
-                    || ex.getMessage().contains("Resources exhausted")
-                    || ex.getMessage().contains("analytics_backend_datafusion"))
+                "Memory-pool exhaustion must surface as HTTP 429 somewhere in the failure chain, got: " + ex,
+                hasMemoryPressureSignal(ex)
             );
         } finally {
             // Reset so cluster teardown doesn't fail

@@ -12,6 +12,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -172,6 +174,78 @@ public class ShardsLimitAllocationDeciderRemoteStoreEnabledIT extends RemoteStor
             }
         });
         cleanUp("test1");
+    }
+
+    public void testIndexTemplateWithPrimaryShardLimit() throws Exception {
+        // Put an index template that carries index.routing.allocation.total_primary_shards_per_node.
+        // On an all-remote-store cluster this must be acknowledged: the template validator should
+        // recognise the cluster as remote-store-enabled (via node attributes) rather than looking for
+        // the index-local index.remote_store.enabled flag, which a template can never carry.
+        AcknowledgedResponse templateResponse = client().admin()
+            .indices()
+            .preparePutTemplate("primary-shard-limit-template")
+            .setPatterns(Collections.singletonList("template-test*"))
+            .setSettings(
+                Settings.builder()
+                    .put(remoteStoreIndexSettings(0, 4))  // 4 shards, 0 replicas
+                    .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            )
+            .get();
+
+        assertTrue("Template carrying total_primary_shards_per_node should be acknowledged", templateResponse.isAcknowledged());
+
+        // Auto-create the index by indexing a document so the template (not a create-request settings
+        // block) fully drives the index settings — including number_of_shards and the primary shard limit.
+        client().prepareIndex("template-test1").setId("1").setSource("field", "value").get();
+
+        // The setting (and the injected remote-store flag) must have flowed from the template onto the
+        // concrete index — this is the core of the bug: previously the template PUT was rejected with 400.
+        ClusterState createdState = client().admin().cluster().prepareState().get().getState();
+        Settings indexSettings = createdState.metadata().index("template-test1").getSettings();
+        assertEquals(
+            "Index created from template should carry 4 primary shards",
+            4,
+            createdState.metadata().index("template-test1").getNumberOfShards()
+        );
+        assertEquals(
+            "Index created from template should carry the primary shard limit",
+            Integer.valueOf(1),
+            INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings)
+        );
+        assertTrue(
+            "Index created from template on a remote-store cluster should be remote-store enabled",
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
+        );
+
+        // And the limit must actually be enforced at allocation time: with 4 primaries, a limit of 1
+        // per node and 3 data nodes, at least one primary stays unassigned and no node holds more than one.
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+            int assignedShards = 0;
+            int unassignedShards = 0;
+            Map<String, Integer> nodePrimaryCount = new HashMap<>();
+
+            for (IndexShardRoutingTable shardRouting : state.routingTable().index("template-test1")) {
+                for (ShardRouting shard : shardRouting) {
+                    if (shard.assignedToNode()) {
+                        assignedShards++;
+                        nodePrimaryCount.merge(shard.currentNodeId(), 1, Integer::sum);
+                    } else {
+                        unassignedShards++;
+                    }
+                }
+            }
+
+            assertEquals("template-test1 should have 3 assigned primaries (one per data node)", 3, assignedShards);
+            assertEquals("template-test1 should have 1 unassigned primary (blocked by the per-node limit)", 1, unassignedShards);
+            for (Integer count : nodePrimaryCount.values()) {
+                assertTrue("No node should have more than 1 primary shard of template-test1", count <= 1);
+            }
+        });
+
+        client().admin().indices().prepareDeleteTemplate("primary-shard-limit-template").get();
+        cleanUp("template-test1");
     }
 
     public void testClusterPrimaryShardLimitss() throws Exception {

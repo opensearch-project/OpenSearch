@@ -33,7 +33,7 @@ opensearch.experimental.feature.transport.stream.enabled: true
 -Dio.netty.noUnsafe=false
 -Dio.netty.tryUnsafe=true
 -Dio.netty.tryReflectionSetAccessible=true
---add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+--add-opens=java.base/java.nio=ALL-UNNAMED
 ```
 
 3. Install and run the plugin manually

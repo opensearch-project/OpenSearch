@@ -1,0 +1,44 @@
+# min/max constant-folded to PlaceholderRowExec (resolved from parquet metadata at plan time).
+# Scrubbed numeric literals: actual values are data-dependent, structure is what matters.
+query: q7
+ppl_file: q7.ppl
+applies: [prod2s, prod1s]
+plans:
+  prod2s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($1)], mode=[FINAL], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+            OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
+        OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+      [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($1)], mode=[FINAL], viableBackends=[[datafusion]])
+        OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[<scrubbed> as min(EventDate), <scrubbed> as max(EventDate)]
+        PlaceholderRowExec
+    coord_physical: |
+      AggregateExec: mode=Final, gby=[], aggr=[min(input-0.min(EventDate)) as min(EventDate), max(input-0.max(EventDate)) as max(EventDate)]
+        CoalescePartitionsExec
+          AggregateExec: mode=Partial, gby=[], aggr=[min(input-0.min(EventDate)) as min(EventDate), max(input-0.max(EventDate)) as max(EventDate)]
+            RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+              StreamingTableExec: partition_sizes=1, projection=[min(EventDate), max(EventDate)]
+  prod1s:
+    post_cbo: |
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    fragment: |
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
+        OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+    shard_physical: |
+      ProjectionExec: expr=[<scrubbed> as min(EventDate), <scrubbed> as max(EventDate)]
+        PlaceholderRowExec

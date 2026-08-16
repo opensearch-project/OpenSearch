@@ -13,7 +13,6 @@
 //! * `base` must be in the inclusive range `[2, 36]`
 //! * Output type is `Float64`
 
-use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -99,10 +98,6 @@ impl<'a> ValueSource<'a> {
 }
 
 impl ScalarUDFImpl for ToNumberUdf {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn name(&self) -> &str {
         "tonumber"
     }
@@ -152,9 +147,14 @@ impl ScalarUDFImpl for ToNumberUdf {
         };
         let values: ValueSource = match (&values_arr_ref, value_col) {
             (Some(arr), _) => ValueSource::Array(StringArrayView::from_array(arr)?),
-            (None, ColumnarValue::Scalar(
-                ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt),
-            )) => ValueSource::Scalar(opt.as_deref()),
+            (
+                None,
+                ColumnarValue::Scalar(
+                    ScalarValue::Utf8(opt)
+                    | ScalarValue::LargeUtf8(opt)
+                    | ScalarValue::Utf8View(opt),
+                ),
+            ) => ValueSource::Scalar(opt.as_deref()),
             (None, other) => {
                 return exec_err!("tonumber: value expected Utf8, got {other:?}");
             }
@@ -162,7 +162,10 @@ impl ScalarUDFImpl for ToNumberUdf {
 
         let mut builder = Float64Builder::with_capacity(n);
         for i in 0..n {
-            match values.at(i).and_then(|s| i64::from_str_radix(s, radix).ok()) {
+            match values
+                .at(i)
+                .and_then(|s| i64::from_str_radix(s, radix).ok())
+            {
                 Some(v) => builder.append_value(v as f64),
                 None => builder.append_null(),
             }

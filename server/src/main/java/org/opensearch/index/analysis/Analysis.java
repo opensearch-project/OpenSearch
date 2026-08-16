@@ -343,6 +343,9 @@ public class Analysis {
     }
 
     public static Path resolveAnalyzerPath(Environment env, String wordListPath) {
+        if (isUnderConfig(env, wordListPath) == false) {
+            throw new IllegalArgumentException("Resource path must be inside config directory: " + wordListPath);
+        }
         return env.configDir().resolve(wordListPath).normalize();
     }
 

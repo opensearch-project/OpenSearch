@@ -32,17 +32,75 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.Version;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotInfo> {
+
+    // Legacy Elasticsearch 7.10.2 version id: it lacks the OpenSearch version mask bit, so it is not
+    // supported and Version.fromId rejects it.
+    private static final int LEGACY_ES_7_10_2_VERSION_ID = 7100299;
+
+    private static String snapshotJson(String name, int versionId) {
+        return "{\"snapshot\":{\"name\":\""
+            + name
+            + "\",\"uuid\":\"uuid\",\"version_id\":"
+            + versionId
+            + ",\"state\":\"SUCCESS\",\"indices\":[\"idx-1\"],\"total_shards\":1,\"successful_shards\":1}}";
+    }
+
+    /** An unsupported {@code version_id} must parse to an unknown ({@code null}) version, not throw. */
+    public void testFromXContentInternalToleratesUnsupportedVersionId() throws IOException {
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            SnapshotInfo snapshotInfo = SnapshotInfo.fromXContentInternal(parser);
+            assertEquals("snap-legacy", snapshotInfo.snapshotId().getName());
+            assertNull(snapshotInfo.version());
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        }
+    }
+
+    /** A supported {@code version_id} must still resolve to its {@link Version}. */
+    public void testFromXContentInternalResolvesSupportedVersionId() throws IOException {
+        final String json = snapshotJson("snap-ok", Version.CURRENT.id);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            assertEquals(Version.CURRENT, SnapshotInfo.fromXContentInternal(parser).version());
+        }
+    }
+
+    /** A {@link SnapshotInfo} with an unknown (null) version must survive a wire round trip. */
+    public void testWireRoundTripWithUnknownVersion() throws IOException {
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
+        final SnapshotInfo original;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            original = SnapshotInfo.fromXContentInternal(parser);
+        }
+        assertNull(original.version());
+        SnapshotInfo roundTripped = copyInstance(original);
+        assertNull(roundTripped.version());
+        assertEquals(original, roundTripped);
+    }
+
+    /** With strict version parsing enabled, an unsupported {@code version_id} must fail fast rather than resolve to null. */
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_STRICT_VERSION_PARSING)
+    public void testUnsupportedVersionIdFailsWhenStrictParsingEnabled() throws IOException {
+        final String json = snapshotJson("snap-legacy", LEGACY_ES_7_10_2_VERSION_ID);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            expectThrows(Version.UnsupportedVersionException.class, () -> SnapshotInfo.fromXContentInternal(parser));
+        }
+    }
 
     @Override
     protected SnapshotInfo createTestInstance() {

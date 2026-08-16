@@ -58,7 +58,10 @@ pub fn cached_resident_bytes() -> i64 {
     let now_ms = base.elapsed().as_millis() as u64;
     let last = LAST_CHECK_MS.load(Ordering::Relaxed);
     if now_ms.wrapping_sub(last) >= RESIDENT_CACHE_INTERVAL_MS {
-        if LAST_CHECK_MS.compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+        if LAST_CHECK_MS
+            .compare_exchange(last, now_ms, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             let r = native_bridge_common::allocator::resident_bytes();
             CACHED_RESIDENT.store(r, Ordering::Relaxed);
             return r;
@@ -92,6 +95,22 @@ static ADMISSION_THROTTLE_X1000: AtomicU64 = AtomicU64::new(750);
 static ADMISSION_REJECT_X1000: AtomicU64 = AtomicU64::new(850);
 static EXECUTION_SPILL_X1000: AtomicU64 = AtomicU64::new(850);
 static EXECUTION_CRITICAL_X1000: AtomicU64 = AtomicU64::new(950);
+
+// Total byte budget for the spill-gate exemption (see
+// `DynamicLimitPool::try_grow`). Limits how much memory spillable consumers can
+// be allowed through the 85% check at the same time, so several spills together
+// stay below the 95% limit. Default 512MB.
+static SPILL_EXEMPT_CAP_BYTES: AtomicU64 = AtomicU64::new(512 * 1024 * 1024);
+
+/// Set the spill-gate exemption byte cap at runtime.
+pub fn set_spill_exempt_cap_bytes(bytes: u64) {
+    SPILL_EXEMPT_CAP_BYTES.store(bytes, Ordering::Release);
+}
+
+/// Current spill-gate exemption byte cap.
+pub fn spill_exempt_cap_bytes() -> usize {
+    SPILL_EXEMPT_CAP_BYTES.load(Ordering::Acquire) as usize
+}
 
 /// Which layer is asking for the override check.
 #[derive(Debug, Clone, Copy)]
@@ -176,7 +195,9 @@ pub fn should_cancel_query(pool_limit_bytes: usize) -> bool {
     if resident <= 0 {
         return false;
     }
-    let critical_bytes = (pool_limit_bytes as u64).saturating_mul(EXECUTION_CRITICAL_X1000.load(Ordering::Acquire)) / 1000;
+    let critical_bytes = (pool_limit_bytes as u64)
+        .saturating_mul(EXECUTION_CRITICAL_X1000.load(Ordering::Acquire))
+        / 1000;
     resident >= critical_bytes as i64
 }
 
@@ -313,7 +334,8 @@ pub fn per_query_spill_budget() -> SpillBudget {
     let fraction_x1000 = DISK_FRACTION_X1000.load(Ordering::Acquire);
     let budget = available * fraction_x1000 / 1000;
 
-    if budget < 64 * 1024 * 1024 { // 64MB minimum viable spill
+    if budget < 64 * 1024 * 1024 {
+        // 64MB minimum viable spill
         log::warn!(
             "[disk-pressure] Spill budget too low: {} MB (available={} MB)",
             budget / (1024 * 1024),
@@ -360,7 +382,8 @@ mod tests {
     #[test]
     fn set_and_get_thresholds() {
         set_thresholds(MemoryThresholds {
-            admission_throttle: 0.60, admission_reject: 0.80,
+            admission_throttle: 0.60,
+            admission_reject: 0.80,
             execution_spill: 0.90,
             execution_critical: 0.97,
         });
@@ -370,6 +393,33 @@ mod tests {
         assert!((t.execution_critical - 0.97).abs() < 0.001);
         // Restore defaults
         set_thresholds(MemoryThresholds::default());
+    }
+
+    #[test]
+    fn set_and_get_spill_exempt_cap() {
+        // Default is 512MB.
+        assert_eq!(spill_exempt_cap_bytes(), 512 * 1024 * 1024);
+        // Round-trips an arbitrary value.
+        set_spill_exempt_cap_bytes(64 * 1024 * 1024);
+        assert_eq!(spill_exempt_cap_bytes(), 64 * 1024 * 1024);
+        // Zero is valid (disables the exemption budget).
+        set_spill_exempt_cap_bytes(0);
+        assert_eq!(spill_exempt_cap_bytes(), 0);
+        // Restore default.
+        set_spill_exempt_cap_bytes(512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn ffi_spill_exempt_cap_clamps_negative_to_zero() {
+        // The FFI export takes a signed i64 (Java long); negative inputs must clamp
+        // to 0 rather than wrap to a huge u64.
+        crate::ffm::df_set_spill_exempt_cap_bytes(-1);
+        assert_eq!(spill_exempt_cap_bytes(), 0);
+        // A positive value passes through unchanged.
+        crate::ffm::df_set_spill_exempt_cap_bytes(256 * 1024 * 1024);
+        assert_eq!(spill_exempt_cap_bytes(), 256 * 1024 * 1024);
+        // Restore default.
+        set_spill_exempt_cap_bytes(512 * 1024 * 1024);
     }
 
     #[test]
@@ -389,7 +439,10 @@ mod tests {
             return; // jemalloc not active in this test env (CI)
         }
         let result = should_override(large_pool, OverrideContext::Execution);
-        assert!(result, "With 1TB pool limit, resident should be well below threshold — override should fire");
+        assert!(
+            result,
+            "With 1TB pool limit, resident should be well below threshold — override should fire"
+        );
     }
 
     #[test]
@@ -424,7 +477,11 @@ mod tests {
     fn cached_resident_bytes_returns_non_negative() {
         // Returns > 0 when jemalloc is active, 0 when not (CI may not link jemalloc)
         let resident = cached_resident_bytes();
-        assert!(resident >= 0, "cached_resident_bytes() should never return negative, got {}", resident);
+        assert!(
+            resident >= 0,
+            "cached_resident_bytes() should never return negative, got {}",
+            resident
+        );
     }
 
     #[test]
@@ -497,8 +554,14 @@ mod tests {
         let spill_result = should_override(pool_at_midpoint, OverrideContext::Execution);
 
         // admission: resident (77%) >= threshold (70%) → NOT below → override = false
-        assert!(!admission_result, "At 77% RSS, admission override should NOT fire (threshold 70%)");
+        assert!(
+            !admission_result,
+            "At 77% RSS, admission override should NOT fire (threshold 70%)"
+        );
         // operator: resident (77%) < threshold (85%) → below → override = true
-        assert!(spill_result, "At 77% RSS, spill override SHOULD fire (threshold 85%)");
+        assert!(
+            spill_result,
+            "At 77% RSS, spill override SHOULD fire (threshold 85%)"
+        );
     }
 }
