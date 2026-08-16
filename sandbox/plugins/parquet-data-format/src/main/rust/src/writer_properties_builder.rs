@@ -66,32 +66,64 @@ pub fn read_format_version(metadata: &FileMetaData) -> String {
 /// - **Dependency Inversion**: Depends on NativeSettings abstraction
 pub struct WriterPropertiesBuilder;
 
-/// Returns the type that column properties apply to. Parquet encodes a LIST column's leaf, not
-/// the list wrapper, so encoding/compression decisions must be made on the element type.
-fn effective_type(dt: &arrow::datatypes::DataType) -> &arrow::datatypes::DataType {
-    use arrow::datatypes::DataType::*;
-    match dt {
-        List(f) | LargeList(f) | FixedSizeList(f, _) => effective_type(f.data_type()),
-        other => other,
-    }
+/// A primitive parquet leaf of a top-level Arrow field: its full column path and the Arrow type
+/// that encoding/compression decisions should be keyed off.
+type Leaf<'a> = (
+    parquet::schema::types::ColumnPath,
+    &'a arrow::datatypes::DataType,
+);
+
+/// Collects every primitive parquet leaf of a top-level Arrow field, each with its full column path.
+///
+/// Per-column encoding, compression, and bloom-filter settings address *leaves*, not the nested
+/// wrapper: `ColumnPath::from(String)` yields a single-segment path, which only matches a primitive
+/// column, so settings on a nested column silently no-op unless the full path is spelled out. The
+/// path segments mirror what the arrow-rs writer emits for the corresponding Arrow type:
+///
+/// - primitive `n`         → `n`
+/// - `LIST<element>` `n`   → `n.list.element`
+/// - `MAP<k, v>` `n`       → `n.entries.key` and `n.entries.value` (two leaves)
+///
+/// Nested group names come from the Arrow child field names rather than being hardcoded, so they
+/// track whatever the schema actually declares. `nested_leaf_paths_match_arrow_rs_writer` pins this
+/// against the paths arrow-rs really produces.
+fn leaves_for(field: &arrow::datatypes::Field) -> Vec<Leaf<'_>> {
+    let mut leaves = Vec::new();
+    collect_leaves(vec![field.name().clone()], field.data_type(), &mut leaves);
+    leaves
 }
 
-/// Builds the parquet `ColumnPath` for a top-level Arrow field.
-///
-/// `ColumnPath::from(String)` yields a single-segment path, which only matches primitive columns.
-/// A LIST column's leaf lives at `<field>.list.element`, so per-column encoding, compression, and
-/// bloom-filter settings silently no-op for lists unless the full path is spelled out. The
-/// `list`/`element` segment names match what the arrow-rs writer emits for `DataType::List`.
-fn column_path_for(field: &arrow::datatypes::Field) -> parquet::schema::types::ColumnPath {
+fn collect_leaves<'a>(
+    prefix: Vec<String>,
+    dt: &'a arrow::datatypes::DataType,
+    out: &mut Vec<Leaf<'a>>,
+) {
     use arrow::datatypes::DataType::*;
-    let mut parts = vec![field.name().clone()];
-    let mut current = field.data_type();
-    while let List(child) | LargeList(child) | FixedSizeList(child, _) = current {
-        parts.push("list".to_string());
-        parts.push(child.name().clone());
-        current = child.data_type();
+    match dt {
+        List(child) | LargeList(child) | FixedSizeList(child, _) => {
+            let mut parts = prefix;
+            parts.push("list".to_string());
+            parts.push(child.name().clone());
+            collect_leaves(parts, child.data_type(), out);
+        }
+        // A MAP's single child is the repeated entries group; its struct children are the leaves.
+        Map(entries, _) => {
+            let mut parts = prefix;
+            parts.push(entries.name().clone());
+            collect_leaves(parts, entries.data_type(), out);
+        }
+        Struct(children) => {
+            for child in children {
+                let mut parts = prefix.clone();
+                parts.push(child.name().clone());
+                collect_leaves(parts, child.data_type(), out);
+            }
+        }
+        primitive => out.push((
+            parquet::schema::types::ColumnPath::new(prefix),
+            primitive,
+        )),
     }
-    parquet::schema::types::ColumnPath::new(parts)
 }
 
 /// Maps an Arrow DataType to a lowercase string key used for cluster-level type config lookups.
@@ -224,27 +256,13 @@ impl WriterPropertiesBuilder {
         config: &NativeSettings,
         schema: &ArrowSchema,
     ) -> Result<parquet::file::properties::WriterPropertiesBuilder, String> {
-        // Key config decisions off the element type and address the column by its full leaf path,
-        // so a LIST column is configured like the scalar column of its element type.
-        type FieldEntry<'a> = (
-            &'a arrow::datatypes::DataType,
-            String,
-            parquet::schema::types::ColumnPath,
-        );
-        let type_map: std::collections::HashMap<&str, FieldEntry<'_>> = schema
+        // Key config decisions off each leaf's own type and address it by its full leaf path, so a
+        // LIST column is configured like the scalar column of its element type and a MAP column's
+        // key and value leaves are each configured like the scalar column of their type.
+        let type_map: std::collections::HashMap<&str, Vec<Leaf<'_>>> = schema
             .fields()
             .iter()
-            .map(|f| {
-                let element_type = effective_type(f.data_type());
-                (
-                    f.name().as_str(),
-                    (
-                        element_type,
-                        arrow_type_key(element_type),
-                        column_path_for(f),
-                    ),
-                )
-            })
+            .map(|f| (f.name().as_str(), leaves_for(f)))
             .collect();
 
         let mut field_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
@@ -263,8 +281,8 @@ impl WriterPropertiesBuilder {
                 .as_ref()
                 .and_then(|m| m.get(field_name));
 
-            let (arrow_type, type_key, column_path) = match type_map.get(field_name) {
-                Some(v) => (v.0, Some(v.1.as_str()), v.2.clone()),
+            let leaves = match type_map.get(field_name) {
+                Some(v) => v,
                 None => {
                     return Err(format!(
                         "Field '{}' in field_configs does not exist in schema",
@@ -273,6 +291,39 @@ impl WriterPropertiesBuilder {
                 }
             };
 
+            // A nested field has more than one leaf (a MAP has key and value); the field's settings
+            // apply to each of them independently.
+            for (column_path, arrow_type) in leaves {
+                let column_path = column_path.clone();
+                let arrow_type = *arrow_type;
+                let type_key_owned = arrow_type_key(arrow_type);
+                let type_key = Some(type_key_owned.as_str());
+                builder = Self::apply_leaf_config(
+                    builder,
+                    config,
+                    field_name,
+                    index_cfg,
+                    column_path,
+                    arrow_type,
+                    type_key,
+                )?;
+            }
+        }
+        Ok(builder)
+    }
+
+    /// Applies encoding, compression, and bloom-filter settings to a single parquet leaf.
+    #[allow(clippy::too_many_arguments)]
+    fn apply_leaf_config(
+        mut builder: parquet::file::properties::WriterPropertiesBuilder,
+        config: &NativeSettings,
+        field_name: &str,
+        index_cfg: Option<&crate::field_config::FieldConfig>,
+        column_path: parquet::schema::types::ColumnPath,
+        arrow_type: &arrow::datatypes::DataType,
+        type_key: Option<&str>,
+    ) -> Result<parquet::file::properties::WriterPropertiesBuilder, String> {
+        {
             // Encoding: parse once, validate, apply. Skip if nothing set.
             let encoding: Option<Encoding> =
                 if let Some(enc) = index_cfg.and_then(|fc| fc.encoding_type.as_deref()) {
@@ -1509,6 +1560,129 @@ mod tests {
                 .is_some(),
             "bloom filter must be enabled on the list leaf path"
         );
+    }
+
+    /// A `flat_object` column is a `MAP<Utf8, Utf8>`: one Arrow field, two parquet leaves.
+    fn map_schema(name: &str) -> ArrowSchema {
+        let key = std::sync::Arc::new(Field::new("key", ArrowDataType::Utf8, false));
+        let value = std::sync::Arc::new(Field::new("value", ArrowDataType::Utf8, true));
+        let entries = std::sync::Arc::new(Field::new(
+            "entries",
+            ArrowDataType::Struct(vec![key, value].into()),
+            false,
+        ));
+        ArrowSchema::new(vec![Field::new(
+            name,
+            ArrowDataType::Map(entries, false),
+            true,
+        )])
+    }
+
+    fn map_leaf_path(name: &str, leaf: &str) -> parquet::schema::types::ColumnPath {
+        parquet::schema::types::ColumnPath::new(vec![
+            name.to_string(),
+            "entries".to_string(),
+            leaf.to_string(),
+        ])
+    }
+
+    /// The leaf paths `leaves_for` derives are only useful if they are the paths arrow-rs actually
+    /// writes. Deriving them from the arrow schema and asserting against the converted parquet
+    /// schema pins that correspondence, so a change in arrow-rs's nested naming fails here rather
+    /// than silently turning every per-column setting on a nested field back into a no-op.
+    #[test]
+    fn nested_leaf_paths_match_arrow_rs_writer() {
+        for schema in [map_schema("attrs"), list_schema("tags", ArrowDataType::Utf8)] {
+            let parquet_schema = parquet::arrow::ArrowSchemaConverter::new()
+                .convert(&schema)
+                .expect("schema converts");
+            let actual: std::collections::HashSet<String> = parquet_schema
+                .columns()
+                .iter()
+                .map(|c| c.path().string())
+                .collect();
+            let derived: std::collections::HashSet<String> = schema
+                .fields()
+                .iter()
+                .flat_map(|f| leaves_for(f))
+                .map(|(path, _)| path.string())
+                .collect();
+            assert_eq!(
+                derived, actual,
+                "derived leaf paths must match the parquet schema arrow-rs produces"
+            );
+        }
+    }
+
+    #[test]
+    fn test_map_column_applies_config_to_both_leaves() {
+        let mut field_configs = HashMap::new();
+        field_configs.insert(
+            "attrs".to_string(),
+            FieldConfig {
+                encoding_type: Some("DELTA_BYTE_ARRAY".to_string()),
+                ..Default::default()
+            },
+        );
+        let config = NativeSettings {
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let props = WriterPropertiesBuilder::build(&config, &map_schema("attrs")).unwrap();
+
+        for leaf in ["key", "value"] {
+            assert_eq!(
+                props.encoding(&map_leaf_path("attrs", leaf)),
+                Some(Encoding::DELTA_BYTE_ARRAY),
+                "encoding must be set on the map's {} leaf",
+                leaf
+            );
+        }
+        // The wrapper path carries nothing — it is not a column.
+        assert_eq!(
+            props.encoding(&parquet::schema::types::ColumnPath::from("attrs")),
+            None
+        );
+    }
+
+    #[test]
+    fn test_map_column_resolves_type_level_config_by_leaf_type() {
+        // A MAP's leaves are Utf8, so a cluster-level `utf8` rule must reach them. Before leaf-wise
+        // resolution the type key came from the Debug string of the whole Map type and matched
+        // nothing, so string leaves silently lost their compression default.
+        let mut type_compression = HashMap::new();
+        type_compression.insert("utf8".to_string(), "SNAPPY".to_string());
+        let config = NativeSettings {
+            type_compression_configs: Some(type_compression),
+            ..Default::default()
+        };
+        let props = WriterPropertiesBuilder::build(&config, &map_schema("attrs")).unwrap();
+        for leaf in ["key", "value"] {
+            assert!(matches!(
+                props.compression(&map_leaf_path("attrs", leaf)),
+                Compression::SNAPPY
+            ));
+        }
+    }
+
+    #[test]
+    fn test_map_column_encoding_validated_against_leaf_type() {
+        // DELTA_BINARY_PACKED is invalid for Utf8; validation must see the leaf type, not the Map.
+        let mut field_configs = HashMap::new();
+        field_configs.insert(
+            "attrs".to_string(),
+            FieldConfig {
+                encoding_type: Some("DELTA_BINARY_PACKED".to_string()),
+                ..Default::default()
+            },
+        );
+        let config = NativeSettings {
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let err = WriterPropertiesBuilder::build(&config, &map_schema("attrs"))
+            .expect_err("DELTA_BINARY_PACKED must be rejected for Utf8 map leaves");
+        assert!(err.contains("not supported"), "unexpected error: {}", err);
     }
 
     #[test]

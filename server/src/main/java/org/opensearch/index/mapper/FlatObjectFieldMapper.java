@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -31,8 +32,11 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -125,7 +129,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             FlatObjectFieldType fft = new FlatObjectFieldType(buildFullName(context), null, valueFieldType, valueAndPathFieldType);
 
-            return new FlatObjectFieldMapper(name, Defaults.FIELD_TYPE, fft);
+            // A pluggable data format stores the whole object as one column and reconstructs _source
+            // from it, so derived source is satisfied by the format rather than by the Lucene
+            // field-value generator. Capture the flag so the mapper can accept derived source in that
+            // mode while still rejecting it for a plain Lucene index, where nested source cannot be
+            // rebuilt from the flattened doc-value sub-fields.
+            boolean pluggableDataFormatEnabled = context.indexSettings()
+                .getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+            return new FlatObjectFieldMapper(name, Defaults.FIELD_TYPE, fft, pluggableDataFormatEnabled);
         }
     }
 
@@ -211,6 +222,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        /**
+         * flat_object leaves are keyword-like (term queries over the {@code _value} /
+         * {@code _valueAndPath} sub-fields), so it requests the same search capability keyword does.
+         * Without this override {@link MappedFieldType#requestedCapabilities()} throws for any
+         * flat_object field in a pluggable-data-format index, because the base implementation has no
+         * capability to report for a searchable field.
+         */
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         NamedAnalyzer normalizer() {
@@ -538,12 +561,39 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     private final KeywordFieldType valueFieldType;
     private final KeywordFieldType valueAndPathFieldType;
+    private final boolean pluggableDataFormatEnabled;
 
-    FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType) {
+    FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType, boolean pluggableDataFormatEnabled) {
         super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         valueFieldType = mappedFieldType.valueFieldType;
         valueAndPathFieldType = mappedFieldType.valueAndPathFieldType;
+        this.pluggableDataFormatEnabled = pluggableDataFormatEnabled;
+    }
+
+    /**
+     * flat_object cannot rebuild its nested source from the flattened {@code path=value} doc-value
+     * sub-fields through the generic field-value generator, so derived source is unsupported for a
+     * plain Lucene index. Under a pluggable data format the whole object is stored as one column and
+     * the format reconstructs {@code _source} from it, so derived source is allowed there and the
+     * Lucene {@link #deriveSource} path below is never taken.
+     */
+    @Override
+    public void canDeriveSource() {
+        if (pluggableDataFormatEnabled == false) {
+            throw new UnsupportedOperationException(
+                "Derive source is not supported for field [" + name() + "] with field type [" + fieldType().typeName() + "]"
+            );
+        }
+    }
+
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) {
+        // A flat_object column is reconstructed by the pluggable data format, not through the Lucene
+        // reader, so this must never be reached. Fail loudly rather than emit an empty/incorrect field.
+        throw new UnsupportedOperationException(
+            "Derive source for flat_object field [" + name() + "] is handled by the data format, not the Lucene reader"
+        );
     }
 
     @Override
@@ -563,17 +613,45 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        HashSet<String> pathParts = parseObjectPathParts(context);
+        HashSet<String> pathParts = parseObjectPathParts(context, null);
         if (pathParts != null) {
             createPathFields(context, pathParts);
         }
     }
 
     /**
+     * Feeds a pluggable data format one entry per flat_object leaf, as {@code (relative path, value)}
+     * pairs in document order. A columnar format backs the field with a single {@code MAP<key, value>}
+     * column, so the whole attribute set is handed over in one {@code addField} call rather than as N
+     * separate values — that keeps the field single-arity (no {@code multi_value} declaration needed)
+     * while the map itself holds however many entries the document had.
+     * <p>
+     * Keys are relative to this field ({@code http.status}, not {@code LogAttributes.http.status}):
+     * the column name already carries the field prefix that Lucene's {@code _valueAndPath} sub-field
+     * has to spell out. Duplicate keys are preserved rather than collapsed — {@code {"a": [1, 2]}}
+     * yields two {@code a} entries, which a Parquet MAP represents natively as a repeated key/value
+     * group.
+     * <p>
+     * Nothing is added for a null or absent object, so the column stays null and remains
+     * distinguishable from an empty object, which yields a zero-entry map.
+     */
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        List<Map.Entry<String, String>> entries = new ArrayList<>();
+        if (parseObjectPathParts(context, entries) == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), entries);
+    }
+
+    /**
      * Parses the flat_object field value and returns the collected path parts,
      * or {@code null} if the field should be skipped (null value or not searchable/stored/docvalues).
+     *
+     * @param entries when non-null, leaf {@code (relative path, value)} pairs are appended here and no
+     *                Lucene fields are created — the pluggable-data-format mode
      */
-    private HashSet<String> parseObjectPathParts(ParseContext context) throws IOException {
+    private HashSet<String> parseObjectPathParts(ParseContext context, List<Map.Entry<String, String>> entries) throws IOException {
         XContentParser ctxParser = context.parser();
         if (fieldType().isSearchable() == false && fieldType().isStored() == false && fieldType().hasDocValues() == false) {
             ctxParser.skipChildren();
@@ -596,7 +674,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldType().name()));
         HashSet<String> pathParts = new HashSet<>();
         while (ctxParser.currentToken() != XContentParser.Token.END_OBJECT) {
-            parseToken(ctxParser, context, path, pathParts);
+            parseToken(ctxParser, context, path, pathParts, entries);
         }
         return pathParts;
     }
@@ -615,13 +693,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    private void createPathFieldsForPluggableFormat(ParseContext context, HashSet<String> pathParts) {
-        for (String part : pathParts) {
-            final BytesRef value = new BytesRef(name() + DOT_SYMBOL + part);
-            context.documentInput().addField(fieldType(), value);
-        }
-    }
-
     private static String getDVPrefix(String rootFieldName) {
         return rootFieldName + DOT_SYMBOL;
     }
@@ -630,12 +701,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         return path + EQUAL_SYMBOL;
     }
 
-    private void parseToken(XContentParser parser, ParseContext context, Deque<String> path, HashSet<String> pathParts) throws IOException {
+    private void parseToken(
+        XContentParser parser,
+        ParseContext context,
+        Deque<String> path,
+        HashSet<String> pathParts,
+        List<Map.Entry<String, String>> entries
+    ) throws IOException {
         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
             final String currentFieldName = parser.currentName();
             path.addLast(currentFieldName); // Pushing onto the stack *must* be matched by pop
             parser.nextToken(); // advance to the value of fieldName
-            parseToken(parser, context, path, pathParts); // parse the value for fieldName (which will be an array, an object,
+            parseToken(parser, context, path, pathParts, entries); // parse the value for fieldName (which will be an array, an object,
             // or a primitive value)
             path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
             // Note that whichever other branch we just passed through has already ended with nextToken(), so we
@@ -643,13 +720,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             parser.nextToken();
             while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
-                parseToken(parser, context, path, pathParts);
+                parseToken(parser, context, path, pathParts, entries);
             }
             parser.nextToken();
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             parser.nextToken();
             while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                parseToken(parser, context, path, pathParts);
+                parseToken(parser, context, path, pathParts, entries);
             }
             parser.nextToken();
         } else {
@@ -663,6 +740,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 value = normalizeValue(normalizer, name(), value);
             }
             final String leafPath = Strings.collectionToDelimitedString(path, ".");
+            final String relativePath = leafPath.substring(name().length() + 1);
+            if (entries != null) {
+                // Pluggable-format mode: the leaf becomes one MAP entry. No Lucene fields are built —
+                // the columnar format owns storage for this field.
+                entries.add(Map.entry(relativePath, value));
+                parser.nextToken();
+                return;
+            }
             final String valueAndPath = getPathPrefix(leafPath) + value;
             if (fieldType().isSearchable() || fieldType().isStored()) {
                 context.doc().add(new Field(valueFieldType.name(), new BytesRef(value), fieldType));
@@ -675,7 +760,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     .add(new SortedSetDocValuesField(valueAndPathFieldType.name(), new BytesRef(getDVPrefix(name()) + valueAndPath)));
             }
 
-            pathParts.addAll(Arrays.asList(leafPath.substring(name().length() + 1).split("\\.")));
+            pathParts.addAll(Arrays.asList(relativePath.split("\\.")));
             parser.nextToken();
         }
     }

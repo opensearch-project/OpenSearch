@@ -10,6 +10,7 @@ package org.opensearch.parquet.fields;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -76,6 +77,19 @@ public abstract class ParquetField {
     }
 
     /**
+     * Returns the child fields of this column's own Arrow type, or null for a primitive column.
+     * <p>
+     * Only nested types (e.g. a {@code MAP<key, value>} column, whose Arrow type requires an
+     * {@code entries} struct child) override this. It describes the field's <em>intrinsic</em>
+     * structure and is unrelated to the {@code LIST} wrapper {@code multi_value} adds.
+     *
+     * @return the child fields, or null if this column is primitive
+     */
+    protected List<Field> getChildren() {
+        return null;
+    }
+
+    /**
      * Builds the Arrow field describing this column, including any child fields.
      * <p>
      * When {@code multiValue} is true the result is a {@code LIST<element>} whose child carries
@@ -87,7 +101,7 @@ public abstract class ParquetField {
      */
     public final Field toArrowField(String name, boolean multiValue) {
         if (multiValue == false) {
-            return new Field(name, getFieldType(), null);
+            return new Field(name, getFieldType(), getChildren());
         }
         if (supportsMultiValue() == false) {
             throw new IllegalArgumentException(
@@ -114,7 +128,10 @@ public abstract class ParquetField {
         assert fieldType != null : "MappedFieldType cannot be null";
         assert managedVSR != null : "ManagedVSR cannot be null";
         FieldVector vector = managedVSR.getVector(fieldType.name());
-        if (vector instanceof ListVector listVector) {
+        // MapVector extends ListVector but carries a (key, value) struct child instead of a plain
+        // element, so it must not go through the LIST writer. Its owning ParquetField writes it in
+        // addToGroup, where the key/value shape of the parsed value is known.
+        if (vector instanceof ListVector listVector && vector instanceof MapVector == false) {
             writeList(fieldType, managedVSR, listVector, parseValue);
             return;
         }

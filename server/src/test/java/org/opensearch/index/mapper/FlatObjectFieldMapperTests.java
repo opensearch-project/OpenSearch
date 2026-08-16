@@ -17,6 +17,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -28,6 +30,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
@@ -429,5 +432,56 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(json));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatEmitsOneMapEntryPerLeaf() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .startObject("http")
+            .field("status", 500)
+            .field("method", "GET")
+            .endObject()
+            .array("tags", "a", "b")
+            .endObject()
+            .endObject()
+            .toString();
+        mapper.parse(source(json), docInput);
+
+        // A single addField call for the whole object; the value is the ordered list of leaf entries
+        // (relative path, stringified value), so the column stays a single MAP.
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields()
+            .stream()
+            .filter(e -> e.getKey().name().equals("field"))
+            .collect(java.util.stream.Collectors.toList());
+        assertEquals("flat_object must be handed over in one addField call", 1, captured.size());
+
+        @SuppressWarnings("unchecked")
+        List<Map.Entry<String, String>> entries = (List<Map.Entry<String, String>>) captured.get(0).getValue();
+        MatcherAssert.assertThat(
+            entries,
+            containsInAnyOrder(
+                Map.entry("http.status", "500"),
+                Map.entry("http.method", "GET"),
+                Map.entry("tags", "a"),
+                Map.entry("tags", "b")
+            )
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullObjectSkipped() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        assertFalse(docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field")));
     }
 }

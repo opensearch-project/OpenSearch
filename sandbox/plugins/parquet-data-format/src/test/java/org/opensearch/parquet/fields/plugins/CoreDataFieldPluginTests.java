@@ -11,6 +11,7 @@ package org.opensearch.parquet.fields.plugins;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -31,8 +32,9 @@ public class CoreDataFieldPluginTests extends OpenSearchTestCase {
     }
 
     public void testFieldCount() {
-        // 10 numeric + 2 temporal + 1 boolean + 3 text + 1 binary = 17
-        assertEquals(18, fields.size());
+        // 10 numeric + 2 temporal + 1 boolean + 4 text (text, keyword, ip, match_only_text) + 1 binary
+        // + 1 flat_object = 19
+        assertEquals(19, fields.size());
     }
 
     public void testAllNumericTypesPresent() {
@@ -57,6 +59,10 @@ public class CoreDataFieldPluginTests extends OpenSearchTestCase {
     public void testBooleanAndBinaryPresent() {
         assertNotNull(fields.get(BooleanFieldMapper.CONTENT_TYPE));
         assertNotNull(fields.get(BinaryFieldMapper.CONTENT_TYPE));
+    }
+
+    public void testObjectTypesPresent() {
+        assertNotNull(fields.get(FlatObjectFieldMapper.CONTENT_TYPE));
     }
 
     public void testAllValuesNonNull() {
