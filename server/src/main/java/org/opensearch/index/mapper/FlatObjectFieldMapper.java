@@ -589,11 +589,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) {
-        // A flat_object column is reconstructed by the pluggable data format, not through the Lucene
-        // reader, so this must never be reached. Fail loudly rather than emit an empty/incorrect field.
-        throw new UnsupportedOperationException(
-            "Derive source for flat_object field [" + name() + "] is handled by the data format, not the Lucene reader"
-        );
+        // Under a pluggable data format the object's leaves live only in that format's column (a
+        // Parquet MAP), never in the Lucene reader this method is handed — LuceneDocumentInput
+        // strips doc values and stored fields for a field the primary format owns. So there is
+        // nothing here to rebuild the object from, and the field is omitted rather than throwing:
+        // this is reachable via TranslogLeafReader when index.derived_source.translog.enabled is
+        // set, where throwing would break realtime GET for the whole document.
+        // Consequence: a flat_object field does not currently round-trip into derived _source. It is
+        // durable in the columnar format; surfacing it back is the format's read path to implement.
     }
 
     @Override
