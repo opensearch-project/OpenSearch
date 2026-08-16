@@ -155,6 +155,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -9518,6 +9519,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @SuppressWarnings("removal")
     public void testDeleteRoutingPreservedThroughPrepareDelete() throws IOException {
         Engine.Delete withRouting = engine.prepareDelete(
             "1",
@@ -9574,6 +9576,23 @@ public class InternalEngineTests extends EngineTestCase {
             "my-routing"
         );
         assertEquals("my-routing", directDeleteWithRouting.routing());
+
+        // Exercise the Delete(Delete template, VersionType) copy constructor
+        Engine.Delete copiedDelete = new Engine.Delete(directDeleteWithRouting, VersionType.EXTERNAL);
+        assertEquals("my-routing", copiedDelete.routing());
+
+        // Exercise the deprecated static IndexShard.prepareDelete (no routing) overload
+        Engine.Delete fromShardDeprecated = IndexShard.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(fromShardDeprecated.routing());
     }
 
 }
