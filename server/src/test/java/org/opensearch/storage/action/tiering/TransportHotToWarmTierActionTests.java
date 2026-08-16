@@ -17,9 +17,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.storage.common.tiering.TieringUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -31,10 +34,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * Unit tests for the pre-tiering flush logic in {@link TransportHotToWarmTierAction}.
  * <p>
  * These tests verify the core decision logic:
- * - DFA indices get read-only block + prepare + tier
+ * - DFA indices get write block + prepare + tier
  * - Non-DFA indices skip prepare and go directly to tier
  * - Retry logic on partial shard failures
- * - Failure handling removes read-only block
+ * - Failure handling removes write block
  * <p>
  * The tests use a testable helper that replicates the action's logic without
  * requiring a full transport layer, since TransportAction.execute() is final.
@@ -103,13 +106,13 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Adds a read-only block to the cluster state (same logic as TransportHotToWarmTierAction.addReadOnlyBlockAndPrepare).
+     * Adds a write block to the cluster state (same logic as TransportHotToWarmTierAction.addWriteBlockAndPrepare).
      */
     private ClusterState addReadOnlyBlock(ClusterState currentState, String indexName) {
         IndexMetadata indexMetadata = currentState.metadata().index(indexName);
         Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(indexMetadata.getSettings())
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true);
+            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
             .settings(indexSettingsBuilder)
@@ -117,22 +120,23 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        blocks.addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        blocks.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
 
         return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
     }
 
     /**
-     * Removes the read-only block from the cluster state (same logic as TransportHotToWarmTierAction.removeReadOnlyBlock).
+     * Removes the write block (same logic as TransportHotToWarmTierAction.removeWriteBlock). The tiering
+     * state is never mutated.
      */
-    private ClusterState removeReadOnlyBlock(ClusterState currentState, String indexName) {
+    private ClusterState removeWriteBlock(ClusterState currentState, String indexName) {
         IndexMetadata indexMetadata = currentState.metadata().index(indexName);
         if (indexMetadata == null) {
             return currentState;
         }
         Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(indexMetadata.getSettings())
-            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false);
+            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
             .settings(indexSettingsBuilder)
@@ -140,7 +144,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        blocks.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        blocks.removeIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
 
         return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
     }
@@ -195,7 +199,28 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that for DFA indices, the action adds a read_only_allow_delete block
+     * The prepare request's timeout must be derived from the {@code cluster.tiering.prepare_timeout}
+     * cluster setting ({@link TieringUtils#PREPARE_TIERING_TIMEOUT}) — the same expression
+     * {@code executePrepareTiering} uses — and NOT the outer request's 30s AcknowledgedRequest default.
+     */
+    public void testPrepareRequestTimeout_DerivedFromPrepareTieringTimeoutSetting() {
+        // Default: 90s when the setting is unset (matches PREPARE_TIERING_TIMEOUT default).
+        PrepareTieringRequest defaultReq = new PrepareTieringRequest("test-dfa-index");
+        defaultReq.timeout(TieringUtils.PREPARE_TIERING_TIMEOUT.get(Settings.EMPTY));
+        assertEquals(TimeValue.timeValueSeconds(90), defaultReq.timeout());
+
+        // A custom (dynamic) value flows through to the prepare request.
+        Settings custom = Settings.builder().put(TieringUtils.PREPARE_TIERING_TIMEOUT_KEY, "75s").build();
+        PrepareTieringRequest customReq = new PrepareTieringRequest("test-dfa-index");
+        customReq.timeout(TieringUtils.PREPARE_TIERING_TIMEOUT.get(custom));
+        assertEquals(TimeValue.timeValueSeconds(75), customReq.timeout());
+
+        // Must not regress to the old 30s ack-timeout default.
+        assertNotEquals(TimeValue.timeValueSeconds(30), customReq.timeout());
+    }
+
+    /**
+     * Tests that for DFA indices, the action adds a write block
      * and calls prepareTieringAction. On success, tiering proceeds.
      */
     public void testDfaIndex_AddsReadOnlyBlockAndCallsPrepareTiering() {
@@ -204,20 +229,17 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         assertTrue("Index should be detected as DFA", isDfaIndex(indexName, state));
 
-        // Add read-only block (simulates the cluster state update task)
+        // Add write block (simulates the cluster state update task)
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
 
         // Verify block was added
         assertTrue(
             "Read-only block setting should be true",
-            stateWithBlock.metadata()
-                .index(indexName)
-                .getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+            stateWithBlock.metadata().index(indexName).getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
         );
         assertTrue(
             "Read-only cluster block should be present",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Simulate prepare tiering succeeding
@@ -238,13 +260,13 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that prepare action failure (after retries) removes the read-only block and fails the request.
+     * Tests that prepare action failure (after retries) removes the write block and fails the request.
      */
     public void testDfaIndex_PrepareFailureAfterRetriesRemovesBlockAndFails() {
         String indexName = "test-dfa-index";
         ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
 
-        // Add read-only block
+        // Add write block
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
 
         AtomicInteger prepareCalls = new AtomicInteger(0);
@@ -256,11 +278,11 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
             listener.onFailure(new RuntimeException("Remote store sync failed"));
         }, ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")), ActionListener.wrap(e -> {
             capturedFailure.set(e);
-            // Simulate removing the read-only block on failure
-            ClusterState restored = removeReadOnlyBlock(stateWithBlock, indexName);
+            // Simulate removing the write block on failure
+            ClusterState restored = removeWriteBlock(stateWithBlock, indexName);
             assertFalse(
                 "Read-only block should be removed after failure",
-                restored.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+                restored.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
             );
             blockRemoved.set(true);
         }, ex -> fail("unexpected")), 1);
@@ -397,7 +419,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that the read-only block is properly removed from the cluster state.
+     * Tests that the write block is properly removed from the cluster state.
      */
     public void testRemoveReadOnlyBlock_RestoresOriginalState() {
         String indexName = "test-dfa-index";
@@ -405,24 +427,109 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         // Add block
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
-        assertTrue(
-            "Block should be present",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        assertTrue("Block should be present", stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
 
         // Remove block
-        ClusterState stateWithoutBlock = removeReadOnlyBlock(stateWithBlock, indexName);
-        assertFalse(
-            "Block should be removed",
-            stateWithoutBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        ClusterState stateWithoutBlock = removeWriteBlock(stateWithBlock, indexName);
+        assertFalse("Block should be removed", stateWithoutBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
         assertFalse(
             "Read-only setting should be false",
             stateWithoutBlock.metadata()
                 .index(indexName)
                 .getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
         );
+    }
+
+    // ── applyWriteBlock idempotency: settingsVersion must bump IFF the setting actually changes ──
+    // These exercise the REAL TransportHotToWarmTierAction.applyWriteBlock (not a local copy), which
+    // is the fix for the node-fatal AssertionError at IndexService.updateMetadata (settingsVersion
+    // bumped without a settings change) hit on cancel-then-re-tier.
+
+    public void testApplyWriteBlock_AddWhenUnblocked_SetsBlockAndBumpsVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        IndexMetadata before = state.metadata().index(indexName);
+
+        ClusterState result = TransportHotToWarmTierAction.applyWriteBlock(state, before, true);
+        IndexMetadata after = result.metadata().index(indexName);
+
+        assertTrue(
+            "blocks.write setting should be true",
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertTrue(
+            "INDEX_WRITE_BLOCK cluster block should be present",
+            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
+        assertEquals("settingsVersion should bump by 1 on a real change", before.getSettingsVersion() + 1, after.getSettingsVersion());
+    }
+
+    public void testApplyWriteBlock_AddWhenAlreadyBlocked_DoesNotBumpVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        // First add → blocked (this is the legitimate version bump).
+        ClusterState blocked = TransportHotToWarmTierAction.applyWriteBlock(state, state.metadata().index(indexName), true);
+        IndexMetadata before = blocked.metadata().index(indexName);
+
+        // Second add while already blocked (e.g. re-tier after a cancel that retained the block):
+        // must NOT bump settingsVersion, or IndexService.updateMetadata's invariant trips.
+        ClusterState result = TransportHotToWarmTierAction.applyWriteBlock(blocked, before, true);
+        IndexMetadata after = result.metadata().index(indexName);
+
+        assertEquals(
+            "settingsVersion must NOT change when blocks.write is already true",
+            before.getSettingsVersion(),
+            after.getSettingsVersion()
+        );
+        assertTrue(
+            "blocks.write should remain true",
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertTrue(
+            "cluster block should still be present (re-asserted idempotently)",
+            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
+    }
+
+    public void testApplyWriteBlock_RemoveWhenBlocked_ClearsAndBumpsVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        ClusterState blocked = TransportHotToWarmTierAction.applyWriteBlock(state, state.metadata().index(indexName), true);
+        IndexMetadata before = blocked.metadata().index(indexName);
+
+        ClusterState result = TransportHotToWarmTierAction.applyWriteBlock(blocked, before, false);
+        IndexMetadata after = result.metadata().index(indexName);
+
+        assertFalse(
+            "blocks.write setting should be false",
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertFalse(
+            "INDEX_WRITE_BLOCK cluster block should be removed",
+            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+        );
+        assertEquals("settingsVersion should bump by 1 on a real change", before.getSettingsVersion() + 1, after.getSettingsVersion());
+    }
+
+    public void testApplyWriteBlock_RemoveWhenAlreadyCleared_DoesNotBumpVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1); // starts unblocked
+        IndexMetadata before = state.metadata().index(indexName);
+
+        ClusterState result = TransportHotToWarmTierAction.applyWriteBlock(state, before, false);
+        IndexMetadata after = result.metadata().index(indexName);
+
+        assertEquals(
+            "settingsVersion must NOT change when blocks.write is already false/absent",
+            before.getSettingsVersion(),
+            after.getSettingsVersion()
+        );
+        assertFalse(
+            "blocks.write should remain unset",
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertFalse("cluster block should be absent", result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
     }
 
     /**
@@ -477,7 +584,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that adding a read-only block when it is already present (retry scenario) is idempotent.
+     * Tests that adding a write block when it is already present (retry scenario) is idempotent.
      */
     public void testDfaIndex_ReadOnlyBlockAlreadyPresent_IsIdempotent() {
         String indexName = "test-dfa-index";
@@ -487,21 +594,21 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
         assertTrue(
             "Block should be present after first add",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Add block again (simulates retry scenario)
         ClusterState stateWithBlockAgain = addReadOnlyBlock(stateWithBlock, indexName);
         assertTrue(
             "Block should still be present after second add",
-            stateWithBlockAgain.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateWithBlockAgain.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertTrue(
             "Read-only setting should still be true",
             stateWithBlockAgain.metadata()
                 .index(indexName)
                 .getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
         );
 
         // Verify prepare still works after idempotent block add
@@ -526,10 +633,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         // Add block
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
-        assertTrue(
-            "Block should be present",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        assertTrue("Block should be present", stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
 
         // Simulate index deletion: prepare fails because index no longer exists
         AtomicReference<Exception> capturedFailure = new AtomicReference<>();
@@ -543,15 +647,15 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         assertNotNull("Failure should be captured", capturedFailure.get());
 
-        // Simulate removeReadOnlyBlock with null metadata (index deleted)
+        // Simulate removeWriteBlock with null metadata (index deleted)
         Metadata emptyMetadata = Metadata.builder().build();
         ClusterState stateWithoutIndex = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(emptyMetadata)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
 
-        // removeReadOnlyBlock should handle null metadata gracefully (return state unchanged)
-        ClusterState result = removeReadOnlyBlock(stateWithoutIndex, indexName);
+        // removeWriteBlock should handle null metadata gracefully (return state unchanged)
+        ClusterState result = removeWriteBlock(stateWithoutIndex, indexName);
         assertNotNull("Result should not be null", result);
         assertSame("State should be unchanged when index metadata is null", stateWithoutIndex, result);
     }
@@ -568,14 +672,14 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
         assertTrue(
             "Block should already be present (from previous master)",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // New master retries: adds block again (idempotent) then runs prepare
         ClusterState stateAfterRetryBlock = addReadOnlyBlock(stateWithBlock, indexName);
         assertTrue(
             "Block should remain present after retry",
-            stateAfterRetryBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateAfterRetryBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Prepare succeeds on first attempt after failover
@@ -598,7 +702,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     // ── Preflight validation ordering tests ──────────────────────────────────────
 
     /**
-     * When preflight validation fails for a DFA index, the read-only block must NOT be added
+     * When preflight validation fails for a DFA index, the write block must NOT be added
      * and the listener must receive the failure immediately.
      *
      * This is the key ordering fix: validate BEFORE adding block or running prepare.
@@ -609,10 +713,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         // Precondition: index is DFA
         assertTrue("Precondition: index must be DFA", isDfaIndex(indexName, state));
-        // Precondition: no read-only block yet
+        // Precondition: no write block yet
         assertFalse(
-            "Precondition: no read-only block before validation",
-            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "Precondition: no write block before validation",
+            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Simulate preflight validation failure (e.g. warm nodes full)
@@ -645,16 +749,16 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         assertNotNull("Listener must have received validation failure", capturedFailure.get());
         assertEquals("Failure must be the validation error", validationError, capturedFailure.get());
 
-        // Verify: read-only block was NOT added (state unchanged)
+        // Verify: write block was NOT added (state unchanged)
         assertFalse(
             "Read-only block must NOT be added when preflight validation fails",
-            stateAfterBlock.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateAfterBlock.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
     /**
      * When preflight validation passes for a DFA index, the flow proceeds to add the
-     * read-only block and run prepare. This is the happy-path ordering.
+     * write block and run prepare. This is the happy-path ordering.
      */
     public void testDfaPreflightValidationPassesThenAddsReadOnlyBlock() {
         String indexName = "dfa-validate-pass";
@@ -663,8 +767,8 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Precondition
         assertTrue("Precondition: index must be DFA", isDfaIndex(indexName, state));
         assertFalse(
-            "Precondition: no read-only block before validation",
-            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "Precondition: no write block before validation",
+            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Simulate preflight validation SUCCESS (no exception thrown)
@@ -689,10 +793,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Verify: no failure
         assertNull("Listener must NOT have received a failure when validation passes", capturedFailure.get());
 
-        // Verify: read-only block WAS added (flow proceeded)
+        // Verify: write block WAS added (flow proceeded)
         assertTrue(
             "Read-only block must be added after preflight validation passes",
-            stateAfterBlock.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateAfterBlock.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
@@ -724,10 +828,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Verify: the DFA gate correctly identifies this as non-DFA
         assertFalse("Non-DFA index must not pass isDfaIndex() check — preflight not called for non-DFA", isDfaIndex(indexName, state));
 
-        // Verify: no read-only block is added for non-DFA (non-DFA goes directly to super.clusterManagerOperation)
+        // Verify: no write block is added for non-DFA (non-DFA goes directly to super.clusterManagerOperation)
         assertFalse(
-            "Non-DFA index must not have a read-only block added (no DFA path taken)",
-            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "Non-DFA index must not have a write block added (no DFA path taken)",
+            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
@@ -742,7 +846,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
 
         assertEquals(
-            "settingsVersion must increment by 1 when read-only block is added",
+            "settingsVersion must increment by 1 when write block is added",
             originalVersion + 1,
             stateWithBlock.metadata().index(indexName).getSettingsVersion()
         );
@@ -766,7 +870,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         );
         assertTrue(
             "Read-only block setting must be true after add",
-            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
         );
     }
 
@@ -786,47 +890,95 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         );
     }
 
-    /** removeReadOnlyBlock must increment settingsVersion by 1. */
+    /** removeWriteBlock must increment settingsVersion by 1. */
     public void testRemoveReadOnlyBlock_IncrementsSettingsVersion() {
         String indexName = "test-dfa-index";
         ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
         long versionBeforeRemove = stateWithBlock.metadata().index(indexName).getSettingsVersion();
 
-        ClusterState stateAfterRemove = removeReadOnlyBlock(stateWithBlock, indexName);
+        ClusterState stateAfterRemove = removeWriteBlock(stateWithBlock, indexName);
 
         assertEquals(
-            "settingsVersion must increment by 1 when read-only block is removed",
+            "settingsVersion must increment by 1 when write block is removed",
             versionBeforeRemove + 1,
             stateAfterRemove.metadata().index(indexName).getSettingsVersion()
         );
     }
 
-    /** removeReadOnlyBlock on a state where block was never added must return state unchanged (no-op). */
+    /** removeWriteBlock on a state where block was never added must return state unchanged (no-op). */
     public void testRemoveReadOnlyBlock_WhenBlockNotPresent_IsNoOp() {
         String indexName = "test-dfa-index";
         ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
 
         // Block is NOT present
-        assertFalse(
-            "Precondition: block must not be present",
-            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        assertFalse("Precondition: block must not be present", state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
 
-        // removeReadOnlyBlock should still work (settings.put(false) on already-false value)
+        // removeWriteBlock should still work (settings.put(false) on already-false value)
         // — it does NOT return the same state object because it rebuilds, but it must not throw
-        ClusterState result = removeReadOnlyBlock(state, indexName);
+        ClusterState result = removeWriteBlock(state, indexName);
         assertNotNull("Result must not be null", result);
         assertFalse(
             "Block must not be present after removing a non-existent block",
-            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
         assertFalse(
             "Read-only setting must be false after removing a non-existent block",
-            result.metadata()
-                .index(indexName)
-                .getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+            result.metadata().index(indexName).getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+    }
+
+    // ── write-block add/remove ──────────────────────────────────────────────────
+
+    /** Adding the write block must set the write-block setting and cluster block without touching tiering state. */
+    public void testAddWriteBlock_SetsWriteBlock_DoesNotMutateTieringState() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+
+        ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
+
+        assertTrue("Write block must be present", stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
+        assertTrue(
+            "Write-block setting must be true",
+            stateWithBlock.metadata().index(indexName).getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertNull(
+            "Tiering state must not be written when adding the write block",
+            stateWithBlock.metadata().index(indexName).getSettings().get(IndexModule.INDEX_TIERING_STATE.getKey())
+        );
+    }
+
+    /** Removing the write block must lift the block and leave the tiering state untouched. */
+    public void testRemoveWriteBlock_RemovesBlock_DoesNotMutateTieringState() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+
+        // Simulate the write block present and the tiering state already advanced to HOT_TO_WARM.
+        IndexMetadata indexMetadata = state.metadata().index(indexName);
+        Settings.Builder settings = Settings.builder()
+            .put(indexMetadata.getSettings())
+            .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true)
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT_TO_WARM.name());
+        Metadata metadata = Metadata.builder(state.metadata())
+            .put(IndexMetadata.builder(indexMetadata).settings(settings).settingsVersion(1 + indexMetadata.getSettingsVersion()))
+            .build();
+        ClusterBlocks blocks = ClusterBlocks.builder()
+            .blocks(state.blocks())
+            .addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+            .build();
+        ClusterState blockedState = ClusterState.builder(state).metadata(metadata).blocks(blocks).build();
+
+        ClusterState result = removeWriteBlock(blockedState, indexName);
+
+        assertFalse("Write block must be removed", result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
+        assertFalse(
+            "Write-block setting must be false after removal",
+            result.metadata().index(indexName).getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
+        );
+        assertEquals(
+            "Tiering state must be left untouched by write-block removal",
+            IndexModule.TieringState.HOT_TO_WARM.name(),
+            result.metadata().index(indexName).getSettings().get(IndexModule.INDEX_TIERING_STATE.getKey())
         );
     }
 
@@ -1153,15 +1305,15 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Step 2: preflight validation passes (simulated by no exception)
         boolean validationPassed = true; // no exception thrown
 
-        // Step 3: add read-only block
+        // Step 3: add write block
         ClusterState stateWithBlock = null;
         if (validationPassed) {
             stateWithBlock = addReadOnlyBlock(state, indexName);
         }
         assertNotNull("Block state must not be null", stateWithBlock);
         assertTrue(
-            "Step 3: read-only block must be present",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "Step 3: write block must be present",
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
 
         // Step 4: prepare tiering — succeeds immediately
@@ -1190,7 +1342,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
      * 2. Preflight validation passes
      * 3. addReadOnlyBlock → block present
      * 4. executePrepareTiering → fails all 3 retries
-     * 5. removeReadOnlyBlock → block removed from cluster state
+     * 5. removeWriteBlock → block removed from cluster state
      * 6. Failure callback invoked with error message
      */
     public void testFullFailurePath_DfaIndex_ValidationPassesPrepareFails_BlockRemoved() {
@@ -1200,10 +1352,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Steps 1-3: DFA, validate passes, block added
         assertTrue("Step 1: must be DFA", isDfaIndex(indexName, state));
         ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
-        assertTrue(
-            "Step 3: block must be present",
-            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        assertTrue("Step 3: block must be present", stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK));
 
         // Step 4: prepare fails all retries
         AtomicReference<Exception> capturedFailure = new AtomicReference<>();
@@ -1215,8 +1364,8 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
             ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
             ActionListener.wrap(e -> {
                 capturedFailure.set(e);
-                // Step 5: simulate removeReadOnlyBlock on failure
-                stateAfterCleanup.set(removeReadOnlyBlock(stateWithBlock, indexName));
+                // Step 5: simulate removeWriteBlock on failure
+                stateAfterCleanup.set(removeWriteBlock(stateWithBlock, indexName));
             }, ex -> fail("unexpected")),
             1
         );
@@ -1225,14 +1374,14 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         assertNotNull("Step 6: failure must be captured", capturedFailure.get());
         assertTrue("Error must mention attempts", capturedFailure.get().getMessage().contains("attempts"));
         assertFalse(
-            "Step 5: read-only block must be removed after prepare failure",
-            stateAfterCleanup.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            "Step 5: write block must be removed after prepare failure",
+            stateAfterCleanup.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 
     /**
      * Full failure path: preflight validation fails immediately —
-     * NO read-only block added, NO prepare called, immediate failure returned.
+     * NO write block added, NO prepare called, immediate failure returned.
      */
     public void testFullFailurePath_DfaIndex_ValidationFails_NothingDone() {
         String indexName = "validation-fail-dfa";
@@ -1266,7 +1415,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         assertEquals("Prepare must NOT be called when validation fails", 0, prepareCalls.get());
         assertFalse(
             "Read-only block must NOT be present when validation fails",
-            stateAfterAttempt.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            stateAfterAttempt.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
         );
     }
 

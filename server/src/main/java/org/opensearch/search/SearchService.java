@@ -158,6 +158,7 @@ import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -529,7 +530,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        WorkloadGroupService workloadGroupService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -543,7 +545,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+            workloadGroupService
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
         this.taskResourceTrackingService = taskResourceTrackingService;

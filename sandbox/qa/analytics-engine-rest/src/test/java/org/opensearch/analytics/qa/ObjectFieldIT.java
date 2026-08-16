@@ -30,7 +30,8 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -93,6 +94,7 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
     }
 
     public void testFilterOnDeeplyNestedObjectField() throws IOException {
+        // This test treats latitude as a double, not geo point.
         assertRowsEqual(
             "source=" + DATASET.indexName + " | where city.location.latitude > 40 | fields city.name",
             row("Seattle"),
@@ -157,7 +159,7 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
     private final void assertRowsEqual(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
@@ -170,12 +172,5 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
 }

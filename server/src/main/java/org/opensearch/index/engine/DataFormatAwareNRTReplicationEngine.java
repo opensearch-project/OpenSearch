@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -36,10 +35,11 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CommitFileManager;
+import org.opensearch.index.engine.exec.DocumentLookupSupport;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
@@ -47,6 +47,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -67,6 +68,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -77,6 +79,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -90,6 +93,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -120,6 +124,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     private final Store store;
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
+    private final CatalogSnapshotStatsCache statsCache;
+    private final DocumentLookupSupport documentLookup;
     private volatile long lastWriteNanos = System.nanoTime();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -136,6 +142,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
+        DocumentMetadataResolver resolver = engineConfig.getDocumentMetadataResolver() != null
+            ? engineConfig.getDocumentMetadataResolver()
+            : DocumentMetadataResolver.NOOP;
+        this.documentLookup = new DocumentLookupSupport(shardId, engineConfig.getDocumentLookupProvider(), resolver);
 
         store.incRef();
         Map<DataFormat, EngineReaderManager<?>> readerManagersRef = null;
@@ -174,7 +184,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                             }
                         };
                     }
-                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles())));
+                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles(), engineConfig.getIndexSettings())));
             }
             readerManagersRef = Map.copyOf(aggregated);
 
@@ -195,6 +205,17 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
             this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
+
+            // Create and register stats cache as refresh listener
+            this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManager, store, engineConfig, () -> {
+                try {
+                    return committer.getLastCommittedData();
+                } catch (IOException e) {
+                    logger.warn("Failed to get last committed data for stats cache", e);
+                    return Collections.emptyMap();
+                }
+            }, logger);
+            this.internalRefreshListeners.add(statsCache);
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             this.localCheckpointTracker = new LocalCheckpointTracker(seqNoInfo.maxSeqNo, seqNoInfo.localCheckpoint);
@@ -386,6 +407,23 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         }
     }
 
+    /**
+     * Resolves {@code get} against the replicated segment snapshot via the installed
+     * {@link DocumentLookupProvider}, with read-time version-conflict checks. No live version map,
+     * so reads go straight to the snapshot.
+     */
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            try (GatedCloseable<Reader> readerRef = acquireReader()) {
+                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
+                return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
+            }
+        }
+    }
+
     @Override
     public boolean refreshNeeded() {
         return false;
@@ -448,8 +486,15 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         return translogManager.getLastSyncedGlobalCheckpoint();
     }
 
+    /** Replication engine does not have local indexing buffers. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /** Replication engine does not have local indexing buffers. */
+    @Override
+    public long getNativeBytesUsed() {
         return 0;
     }
 
@@ -493,6 +538,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     catalogSnapshotManager.bumpGeneration();
                 }
                 commitCatalogSnapshot();
+                // Notify stats cache that flush completed to refresh committed state
+                statsCache.onFlushCompleted();
             } catch (IOException e) {
                 maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);
@@ -529,7 +576,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         ensureOpen();
-        return catalogSnapshotManager.acquireSnapshot();
+        return acquireLastCommittedSnapshot(false);
     }
 
     @Override
@@ -544,8 +591,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         ensureOpen();
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            return new SafeCommitInfo(localCheckpointTracker.getProcessedCheckpoint(), (int) snapshot.get().getNumDocs());
+        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireCommittedSnapshot(true)) {
+            CatalogSnapshot cs = snapshot.get();
+            String lcp = cs.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            long localCheckpoint = lcp != null ? Long.parseLong(lcp) : SequenceNumbers.NO_OPS_PERFORMED;
+            return new SafeCommitInfo(localCheckpoint, (int) cs.getNumDocs());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -586,6 +636,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 List<Closeable> closeables = new ArrayList<>(readerManagers.values());
                 closeables.add(catalogSnapshotManager);
                 closeables.add(translogManager);
+                // Note: statsCache doesn't implement Closeable, it's a RefreshListener that gets cleaned up automatically
                 IOUtils.close(closeables);
             } catch (Exception e) {
                 logger.error("failed to close engine", e);
@@ -619,6 +670,18 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public MergeStats getMergeStats() {
         return new MergeStats();
+    }
+
+    /** Replicas do not run merges; they consume segments via segment replication. */
+    @Override
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /** Replicas do not run merges; the active count is always zero. */
+    @Override
+    public int getActiveMergeCount() {
+        return 0;
     }
 
     @Override
@@ -741,26 +804,40 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     @Override
     public DocsStats docStats() {
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            long count = snapshot.get().getNumDocs();
-            // Total size: sum across all format files — each format contributes distinct bytes on disk.
-            long totalSize = snapshot.get()
-                .getSegments()
-                .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::getTotalSize)
-                .sum();
-            assert count >= 0 : "doc count must be non-negative but was: " + count;
-            assert totalSize >= 0 : "total size must be non-negative but was: " + totalSize;
-            return new DocsStats.Builder().deleted(0L).count(count).totalSizeInBytes(totalSize).build();
-        } catch (IOException ex) {
-            throw new OpenSearchException(ex);
-        }
+        ensureOpen();
+        return statsCache.getDocsStats();
+    }
+
+    @Override
+    public List<Segment> segments(boolean verbose) {
+        ensureOpen();
+        return statsCache.getSegments();
     }
 
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        return new SegmentsStats();
+        ensureOpen();
+        // includeUnloadedSegments is a Lucene concept (segments on disk not yet loaded into a SegmentReader).
+        // In DFANRE, all segments are tracked in the catalog snapshot regardless of load state — no distinction exists.
+
+        if (includeSegmentFileSizes) {
+            // When file sizes are requested, compute on-demand with current snapshot
+            try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                CatalogSnapshot snapshot = snapshotRef.get();
+
+                return statsCache.buildSegmentsStats(
+                    0L, // nativeBytesUsed - replica has no native memory usage
+                    -1L, // maxUnsafeAutoIdTimestamp - replica doesn't track auto-id timestamps
+                    snapshot
+                );
+            } catch (Exception e) {
+                logger.warn("Failed to compute segments stats with file sizes, falling back to cached stats", e);
+                return statsCache.getSegmentsStats();
+            }
+        } else {
+            // Fast path - return precomputed stats from cache (without file sizes)
+            return statsCache.getSegmentsStats();
+        }
     }
 
     @Override
@@ -991,6 +1068,13 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             final CatalogSnapshot snapshot = lastSnapshot;
             acquiredSnapshots.add(snapshot);
             return new GatedCloseable<>(snapshot, () -> { acquiredSnapshots.remove(snapshot); });
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            // Replicas track safe commit info on the engine itself (see DataFormatAwareNRTReplicationEngine#getSafeCommitInfo);
+            // this policy is not used to compute it.
+            return SafeCommitInfo.EMPTY;
         }
 
         /**

@@ -81,7 +81,7 @@ spotless {
 }
 
 run.jvmArgs += [
-  '--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED'
+  '--add-opens=java.base/java.nio=ALL-UNNAMED'
 ]
 
 run.environment += [

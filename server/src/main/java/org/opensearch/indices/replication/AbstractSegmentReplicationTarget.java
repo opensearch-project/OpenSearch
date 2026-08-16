@@ -9,9 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.util.CancellableThreads;
@@ -271,8 +268,8 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
 
     // pkg private for tests
     private boolean validateLocalChecksum(StoreFileMetadata file) {
-        try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.READONCE)) {
-            String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
+        try {
+            final String checksum = indexShard.store().checksumLocalFile(file.name());
             if (file.checksum().equals(checksum)) {
                 return true;
             } else {

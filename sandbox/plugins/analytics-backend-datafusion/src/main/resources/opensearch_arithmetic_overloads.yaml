@@ -1,0 +1,25 @@
+%YAML 1.2
+---
+# Floating-point overloads for substrait's `modulus`. The standard
+# functions_arithmetic.yaml declares modulus on i8/i16/i32/i64 only, so isthmus
+# refuses to emit MOD(fp32,fp32) / MOD(fp64,fp64) — even though DataFusion's
+# native `%` operator handles fp via Rust's IEEE 754 fmod. Adding overloads
+# under the same URN lets the standard name reach DataFusion with fp operands.
+#
+# Same precedent as opensearch_rounding_overloads.yaml (ceil/floor i32 overloads).
+urn: extension:io.substrait:functions_arithmetic
+scalar_functions:
+  - name: "modulus"
+    impls:
+      - args:
+          - name: x
+            value: fp32
+          - name: y
+            value: fp32
+        return: fp32
+      - args:
+          - name: x
+            value: fp64
+          - name: y
+            value: fp64
+        return: fp64

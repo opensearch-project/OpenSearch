@@ -13,6 +13,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
 import org.opensearch.plugins.BlockCacheStats;
+import org.opensearch.plugins.BlockCacheTieredStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
@@ -549,5 +550,59 @@ public class NodeCacheServiceTests extends OpenSearchTestCase {
         assertEquals(300, combined.evictionBytes());
         assertEquals(1536, combined.diskBytesUsed());
         assertEquals(3072, combined.totalBytes());
+    }
+
+    public void testCombinedBlockCacheStatsPropagatesTieredStatsFromTieredCache() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+
+        // Non-tiered cache (default mock → tieredStats() == null).
+        BlockCache singleTier = mock(BlockCache.class);
+        when(singleTier.stats()).thenReturn(new BlockCacheStats(10, 5, 0, 0, 0, 0, 0, 0, 0, 1024, 2048, 0));
+
+        // Tiered cache exposing a per-tier breakdown.
+        BlockCacheTieredStats tiered = sampleTieredStats();
+        BlockCache tieredCache = mock(BlockCache.class);
+        when(tieredCache.stats()).thenReturn(new BlockCacheStats(20, 3, 0, 0, 0, 0, 0, 0, 0, 512, 1024, 0));
+        when(tieredCache.tieredStats()).thenReturn(tiered);
+
+        orc.addBlockCache(singleTier);
+        orc.addBlockCache(tieredCache);
+
+        BlockCacheStats combined = orc.combinedBlockCacheStats();
+        assertNotNull(combined);
+        assertEquals("tiered breakdown must propagate into the combined stats", tiered, combined.tieredStats());
+    }
+
+    public void testCombinedBlockCacheStatsNullTieredWhenNoCacheIsTiered() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+        orc.addBlockCache(mockBlockCache(1, 0, 0, 0, 10L));
+        orc.addBlockCache(mockBlockCache(2, 0, 0, 0, 20L));
+        assertNull("combined tieredStats must be null when no cache is tiered", orc.combinedBlockCacheStats().tieredStats());
+    }
+
+    public void testCombinedBlockCacheStatsPicksFirstTieredWhenMultiplePresent() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+
+        // Two distinct (but equal-valued) instances — identity proves "first wins".
+        BlockCacheTieredStats first = sampleTieredStats();
+        BlockCacheTieredStats second = sampleTieredStats();
+        BlockCache bc1 = mock(BlockCache.class);
+        when(bc1.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, 0));
+        when(bc1.tieredStats()).thenReturn(first);
+        BlockCache bc2 = mock(BlockCache.class);
+        when(bc2.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, 0));
+        when(bc2.tieredStats()).thenReturn(second);
+
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+
+        assertSame("first non-null tieredStats must win", first, orc.combinedBlockCacheStats().tieredStats());
+    }
+
+    private BlockCacheTieredStats sampleTieredStats() {
+        return new BlockCacheTieredStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22);
     }
 }

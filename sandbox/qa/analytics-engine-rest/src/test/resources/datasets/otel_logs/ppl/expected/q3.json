@@ -1,0 +1,15 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "serviceName", "type": "string"}
+  ],
+  "datarows": [
+    [30, "cart"],
+    [25, "checkout"],
+    [20, "payment"],
+    [15, "search"],
+    [10, "recommendation"]
+  ],
+  "total": 5,
+  "size": 5
+}

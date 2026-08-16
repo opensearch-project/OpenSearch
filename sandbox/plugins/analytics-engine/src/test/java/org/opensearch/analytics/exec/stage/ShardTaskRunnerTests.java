@@ -32,9 +32,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link ShardTaskRunner}'s per-node admission queue behavior — verifies
- * tasks on the same node share a {@link PendingExecutions} queue while tasks on different
- * nodes get separate queues.
+ * Tests {@link ShardTaskRunner}'s per-node admission queues: tasks on the same node share one
+ * {@link PendingExecutions}, tasks on different nodes get separate ones, and the shared queue enforces
+ * the configured per-node concurrency limit.
  */
 public class ShardTaskRunnerTests extends OpenSearchTestCase {
 
@@ -64,6 +64,41 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
         assertNotSame("tasks on different nodes get distinct queues", captured.get(0), captured.get(1));
     }
 
+    /**
+     * The queue is built from {@code maxConcurrentShardRequestsPerNode}: at a limit of 2, a third
+     * same-node task is held until a permit frees.
+     */
+    public void testRespectsConfiguredPerNodeConcurrencyLimit() {
+        List<PendingExecutions> captured = new ArrayList<>();
+        ShardFragmentStageExecution stage = mock(ShardFragmentStageExecution.class);
+        QueryContext config = mock(QueryContext.class);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(2);
+        when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
+
+        // Gating lives in the transport's pending.tryRun call; emulate it here and hold the permit
+        // (never finish) so the limit is observable.
+        AnalyticsSearchTransportService transport = mock(AnalyticsSearchTransportService.class);
+        doAnswer(inv -> {
+            PendingExecutions pending = inv.getArgument(4);
+            pending.tryRun(() -> captured.add(pending)); // holds a permit; never finished
+            return null;
+        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any(), any());
+
+        Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> mock(FragmentExecutionRequest.class);
+        ShardTaskRunner runner = new ShardTaskRunner(stage, config, transport, requestBuilder);
+
+        // Three tasks on the same node share one queue (limit 2) — the third is held in the queue.
+        runner.run(shardTask(0, "node-A"), noopHandle());
+        runner.run(shardTask(1, "node-A"), noopHandle());
+        runner.run(shardTask(2, "node-A"), noopHandle());
+
+        assertEquals("only 2 of 3 same-node tasks run while at the per-node limit", 2, captured.size());
+
+        // Release one permit → the queued third task runs.
+        captured.get(0).finishAndRunNext();
+        assertEquals("third task runs once a permit frees", 3, captured.size());
+    }
+
     public void testPendingQueueIsLazilyCreatedAndCached() {
         List<PendingExecutions> captured = new ArrayList<>();
         ShardTaskRunner runner = newRunner(captured);
@@ -85,14 +120,14 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
     private ShardTaskRunner newRunner(List<PendingExecutions> capturedQueues) {
         ShardFragmentStageExecution stage = mock(ShardFragmentStageExecution.class);
         QueryContext config = mock(QueryContext.class);
-        when(config.maxConcurrentShardRequests()).thenReturn(5);
+        when(config.maxConcurrentShardRequestsPerNode()).thenReturn(5);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
 
         AnalyticsSearchTransportService transport = mock(AnalyticsSearchTransportService.class);
         doAnswer(inv -> {
             capturedQueues.add(inv.getArgument(4));  // 5th arg is PendingExecutions
             return null;
-        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any());
+        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any(), any());
 
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> mock(FragmentExecutionRequest.class);
         return new ShardTaskRunner(stage, config, transport, requestBuilder);
@@ -101,7 +136,7 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
     private static ShardStageTask shardTask(int partitionId, String nodeId) {
         DiscoveryNode node = mock(DiscoveryNode.class);
         when(node.getId()).thenReturn(nodeId);
-        ShardExecutionTarget target = new ShardExecutionTarget(node, new ShardId("idx", "_na_", partitionId));
+        ShardExecutionTarget target = new ShardExecutionTarget(node, new ShardId("idx", "_na_", partitionId), partitionId);
         return new ShardStageTask(new StageTaskId(0, partitionId), target);
     }
 

@@ -12,9 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
@@ -33,15 +31,18 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
+import org.opensearch.index.engine.exec.DocumentLookupSupport;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Indexer;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -55,6 +56,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -71,6 +73,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -119,12 +122,28 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     private final GatedCloseable<CatalogSnapshot> permanentSnapshotRef;
     private final DataFormatAwareEngine.DataFormatAwareReader reader;
 
+    // Stats cache — populated once at construction (snapshot is permanent for this engine).
+    private final CatalogSnapshotStatsCache statsCache;
+
+    private final DocumentLookupSupport documentLookup;
+
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
+        this(engineConfig, null);
+    }
+
+    public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig, @Nullable DocumentLookupProvider documentLookupProvider) {
         this.logger = Loggers.getLogger(DataFormatAwareReadOnlyEngine.class, engineConfig.getShardId());
         assert engineConfig.isReadOnlyReplica() == false : "DataFormatAwareReadOnlyEngine must only be created for primary shards; shard "
             + engineConfig.getShardId();
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
+        DocumentLookupProvider provider = documentLookupProvider != null
+            ? documentLookupProvider
+            : engineConfig.getDocumentLookupProvider();
+        DocumentMetadataResolver resolver = engineConfig.getDocumentMetadataResolver() != null
+            ? engineConfig.getDocumentMetadataResolver()
+            : DocumentMetadataResolver.NOOP;
+        this.documentLookup = new DocumentLookupSupport(shardId, provider, resolver);
         this.store = engineConfig.getStore();
 
         store.incRef();
@@ -158,7 +177,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                             format,
                             registry,
                             store.shardPath(),
-                            store.getDataformatAwareStoreHandles()
+                            store.getDataformatAwareStoreHandles(),
+                            engineConfig.getIndexSettings()
                         )
                     )
                 );
@@ -166,16 +186,22 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             readerManagersRef = Map.copyOf(aggregated);
             this.readerManagers = readerManagersRef;
 
-            // Register reader managers as catalog snapshot lifecycle listeners so they are notified
-            // (via installSnapshot → afterRefresh) BEFORE latestCatalogSnapshot is swapped. This
-            // guarantees readers are updated before the snapshot becomes externally visible.
-            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>(readerManagersRef.values());
+            // Register reader managers as BOTH files listeners and snapshot lifecycle listeners.
+            // Files listeners make IndexFileDeleter fire onFilesAdded for the committed snapshot
+            // at open, eagerly warming the metadata cache before the first query; snapshot
+            // listeners build the reader before latestCatalogSnapshot is swapped.
+            Map<String, FilesListener> filesListeners = new HashMap<>();
+            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>();
+            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagersRef.entrySet()) {
+                filesListeners.put(entry.getKey().name(), entry.getValue());
+                snapshotListeners.add(entry.getValue());
+            }
 
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
                 new NoOpCatalogSnapshotDeletionPolicy(),
                 compositeDeleter,
-                Map.of(),
+                filesListeners,
                 snapshotListeners,
                 store.shardPath(),
                 committer
@@ -215,6 +241,18 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                 }
             }
             this.reader = new DataFormatAwareEngine.DataFormatAwareReader(permanentSnapshotRef, readers);
+
+            // Build stats cache — snapshot is permanent for this engine, so populate once at construction.
+            this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManagerRef, store, engineConfig, () -> {
+                try {
+                    return committer.getLastCommittedData();
+                } catch (IOException e) {
+                    logger.warn("Failed to get last committed data for stats cache", e);
+                    return Collections.emptyMap();
+                }
+            }, logger);
+            this.statsCache.forceRefresh();
+
             success = true;
             logger.info("Created DataFormatAwareReadOnlyEngine");
         } catch (IOException e) {
@@ -290,6 +328,13 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
         throw new UnsupportedOperationException("DataFormatAwareReadOnlyEngine does not support no-ops");
+    }
+
+    @Override
+    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException {
+        DocumentLookupResult result = documentLookup.getById(get, reader);
+        return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
     }
 
     @Override
@@ -482,8 +527,15 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         return 0;
     }
 
+    /** Read-only engine does not have indexing buffers. */
     @Override
-    public long getIndexBufferRAMBytesUsed() {
+    public long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /** Read-only engine does not have indexing buffers. */
+    @Override
+    public long getNativeBytesUsed() {
         return 0;
     }
 
@@ -500,35 +552,22 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public CommitStats commitStats() {
         ensureOpen();
-        try {
-            return new CommitStats(store.readLastCommittedSegmentsInfo());
-        } catch (Exception e) {
-            logger.debug("Unable to read last committed SegmentInfos; returning empty CommitStats", e);
-            return new CommitStats(new SegmentInfos(org.apache.lucene.util.Version.LATEST.major));
-        }
+        return committer.getCommitStats();
     }
 
     @Override
     public DocsStats docStats() {
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            long count = snapshot.get().getNumDocs();
-            long totalSize = snapshot.get()
-                .getSegments()
-                .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::getTotalSize)
-                .sum();
-            assert count >= 0 : "doc count must be non-negative but was: " + count;
-            assert totalSize >= 0 : "total size must be non-negative but was: " + totalSize;
-            return new DocsStats.Builder().deleted(0L).count(count).totalSizeInBytes(totalSize).build();
-        } catch (IOException ex) {
-            throw new OpenSearchException(ex);
-        }
+        return statsCache.getDocsStats();
+    }
+
+    @Override
+    public List<Segment> segments(boolean verbose) {
+        return statsCache.getSegments();
     }
 
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        return new SegmentsStats();
+        return statsCache.getSegmentsStats();
     }
 
     @Override
@@ -544,6 +583,18 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public MergeStats getMergeStats() {
         return new MergeStats();
+    }
+
+    /** Read-only primaries do not run merges. */
+    @Override
+    public boolean hasPendingMerges() {
+        return false;
+    }
+
+    /** Read-only primaries do not run merges; the active count is always zero. */
+    @Override
+    public int getActiveMergeCount() {
+        return 0;
     }
 
     // ---- Recovery and Snapshot support (Task 6) ----
@@ -719,6 +770,11 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         @Override
         public List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) {
             return Collections.emptyList();
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            return SafeCommitInfo.EMPTY;
         }
     }
 

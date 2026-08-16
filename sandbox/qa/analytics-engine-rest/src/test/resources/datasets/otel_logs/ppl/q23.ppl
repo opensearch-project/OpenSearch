@@ -1,0 +1,1 @@
+source=otel_logs | eval is_error = case(severityNumber >= 17, 1 else 0) | stats sum(is_error) as errors by serviceName | sort - errors

@@ -53,6 +53,7 @@ class OpenSearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             repositories {
+                maven { url = uri("https://ci.opensearch.org/maven2/") }
                 mavenCentral()
             }
 

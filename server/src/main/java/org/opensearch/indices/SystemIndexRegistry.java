@@ -39,7 +39,10 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  */
 @ExperimentalApi
 public class SystemIndexRegistry {
-    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
+    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new UnrestrictedSystemIndexDescriptor(
+        TASK_INDEX + "*",
+        "Task Result Index"
+    );
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(TASK_INDEX_DESCRIPTOR)
@@ -58,6 +61,12 @@ public class SystemIndexRegistry {
 
     public static Set<String> matchesSystemIndexPattern(Set<String> indexExpressions) {
         return indexExpressions.stream().filter(pattern -> Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, pattern)).collect(Collectors.toSet());
+    }
+
+    public static Set<SystemIndexDescriptor> matchesSystemIndexDescriptor(Set<String> indexExpressions) {
+        return getAllDescriptors().stream()
+            .filter(descriptor -> indexExpressions.stream().anyMatch(pattern -> Regex.simpleMatch(descriptor.getIndexPattern(), pattern)))
+            .collect(Collectors.toSet());
     }
 
     public static boolean matchesSystemIndexPattern(String index) {

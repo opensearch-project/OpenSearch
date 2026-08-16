@@ -65,7 +65,7 @@ abstract class VectorStreamInput extends StreamInput {
      * outlives the next Flight batch. Released by {@link NativeArrow#close()} unless the
      * response takes ownership via {@link NativeArrow#claimOwnership()}.
      */
-    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
+    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry, byte[] metadata) {
         if (streamRoot.getFieldVectors().isEmpty()) {
             throw new IllegalStateException("Native Arrow batch has no field vectors");
         }
@@ -79,7 +79,11 @@ abstract class VectorStreamInput extends StreamInput {
             consumerRoot.close();
             throw t;
         }
-        return new NativeArrow(consumerRoot, registry);
+        return new NativeArrow(consumerRoot, registry, metadata);
+    }
+
+    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
+        return forNativeArrow(streamRoot, registry, null);
     }
 
     /**
@@ -202,9 +206,11 @@ abstract class VectorStreamInput extends StreamInput {
     /** Native Arrow input: consumer root carrying vectors transferred from the Flight stream. */
     static final class NativeArrow extends VectorStreamInput implements ArrowStreamInput {
         private boolean transferred = false;
+        private final byte[] metadata;
 
-        NativeArrow(VectorSchemaRoot root, NamedWriteableRegistry registry) {
+        NativeArrow(VectorSchemaRoot root, NamedWriteableRegistry registry, byte[] metadata) {
             super(root, registry);
+            this.metadata = metadata;
         }
 
         @Override
@@ -220,6 +226,11 @@ abstract class VectorStreamInput extends StreamInput {
         @Override
         public void claimOwnership() {
             transferred = true;
+        }
+
+        @Override
+        public byte[] getMetadata() {
+            return metadata;
         }
 
         /** Releases the consumer root unless {@link #claimOwnership()} was called. */

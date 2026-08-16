@@ -45,7 +45,8 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -213,6 +214,48 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         assertEquals("neq2 between adjacent-second TIMESTAMP literals must be true", Boolean.TRUE, cell);
     }
 
+    // ── Shape F-DATE: TIMESTAMP(<date column>) lifts via native CAST, not to_timestamp ──
+
+    public void testShapeFDateColumnLiftsToTimestamp() throws IOException {
+        // date0 at key00 → 2004-04-15; midnight UTC.
+        assertFirstRowString(
+            oneRow("key00") + "| eval v = date_format(timestamp(date0), '%Y-%m-%d %H:%i:%s') | fields v",
+            "2004-04-15 00:00:00"
+        );
+    }
+
+    // ── TIME-vs-{DATE,TIMESTAMP} comparison routes through ComparisonTemporalCoercionAdapter ──
+    // Pre-fix every shape failed plan-time with "Unable to convert call to_timestamp(precision_time<9>?)".
+
+    /** TIME = DATE — today-anchored midnight is not 2004-07-09. */
+    public void testTimeEqualsDate() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = time('00:00:00') = date('2004-07-09') | fields v");
+        assertEquals(Boolean.FALSE, cell);
+    }
+
+    /** {@code DATE < TIME} — TIME lifts to today-anchored TIMESTAMP, so a past DATE is less than today. */
+    public void testDateLessThanTime() throws IOException {
+        Object cell = firstRowFirstCell(oneRow("key00") + "| eval v = date('2020-09-16') < time('09:07:00') | fields v");
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIME = TIMESTAMP — same time-of-day on today's date holds. */
+    public void testTimeEqualsTimestampSameTimeOfDay() throws IOException {
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = time('10:20:30') = timestamp('" + today + " 10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
+    }
+
+    /** TIMESTAMP != TIME — opposite direction. */
+    public void testTimestampNotEqualsTime() throws IOException {
+        Object cell = firstRowFirstCell(
+            oneRow("key00") + "| eval v = timestamp('1984-12-15 10:20:30') != time('10:20:30') | fields v"
+        );
+        assertEquals(Boolean.TRUE, cell);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
@@ -224,23 +267,15 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
     private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
         return rows.get(0).get(0);
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     private void assertErrorContains(String ppl, String expectedSubstring) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
+        Request request = new Request("POST", "/_plugins/_ppl");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         try {
             Response response = client().performRequest(request);
@@ -249,8 +284,8 @@ public class TimestampFunctionIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(

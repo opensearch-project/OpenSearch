@@ -54,9 +54,9 @@ import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginNodeStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -70,10 +70,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Services exposed to nodes
@@ -109,6 +107,18 @@ public class NodeService implements Closeable {
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
 
+    /**
+     * Supplier for native allocator pool stats. Constructor-injected via discovery from
+     * {@code pluginComponents} in {@code Node.java} (looks up a published
+     * {@link org.opensearch.plugin.stats.NativeAllocatorStatsRegistry} from
+     * {@code ArrowBasePlugin.createComponents()}). When no plugin publishes a registry, the
+     * supplier is {@code null} and {@code _nodes/stats/native_allocator} returns no allocator
+     * stats. The supplier itself is responsible for returning {@code null} once its underlying
+     * allocator is closed.
+     */
+    @Nullable
+    private final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
+
     NodeService(
         Settings settings,
         ThreadPool threadPool,
@@ -135,7 +145,8 @@ public class NodeService implements Closeable {
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
-        CacheService cacheService
+        CacheService cacheService,
+        @Nullable Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -165,6 +176,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
+        this.nativeAllocatorStatsSupplier = nativeAllocatorStatsSupplier;
     }
 
     public NodeInfo info(
@@ -251,7 +263,6 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
-        boolean pluginStats,
         boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -289,19 +300,18 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            pluginStats ? collectPluginStats() : Collections.emptyMap(),
-            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null
+            nativeMemory ? collectNativeAllocatorStats() : null,
+            // Always capture the process-level native memory estimate on this data node.
+            // Serialized over the wire so the coordinator renders the source node's value,
+            // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is
+            // unreadable.
+            OsProbe.getInstance().getProcessNativeMemoryBytes()
         );
     }
 
-    private Map<String, PluginNodeStats> collectPluginStats() {
-        Map<String, PluginNodeStats> result = new HashMap<>();
-        for (Plugin plugin : pluginService.filterPlugins(Plugin.class)) {
-            for (PluginNodeStats stats : plugin.nodeStats()) {
-                result.put(stats.getWriteableName(), stats);
-            }
-        }
-        return result;
+    @Nullable
+    private NativeAllocatorPoolStats collectNativeAllocatorStats() {
+        return nativeAllocatorStatsSupplier != null ? nativeAllocatorStatsSupplier.get() : null;
     }
 
     public IngestService getIngestService() {

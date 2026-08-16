@@ -1,0 +1,1 @@
+source=%INDEX% | stats count() as c | appendcols [ source=%INDEX% | stats sum(amount) as s ]

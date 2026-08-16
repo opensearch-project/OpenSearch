@@ -8,7 +8,15 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
+
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * SPI extension point for backend query engine plugins.
@@ -105,20 +113,132 @@ public interface AnalyticsSearchBackendPlugin {
      * Called by Core after obtaining the handle from the accepting backend.
      *
      * <p>The driving backend registers the handle so that FFM upcalls from Rust
-     * (createProvider, createCollector, collectDocs) route to it.
+     * (createProvider, createCollector, collectDocs) route to the correct per-query binding.
      *
-     * @param handle the delegation handle from the accepting backend
+     * @param contextId      the per-query identifier (task ID), threaded through every FFM upcall
+     * @param handle         the delegation handle from the accepting backend
+     * @param tracker        the thread tracker for resource attribution, or {@code null}
      * @param backendContext the driving backend's execution context (from instruction handlers)
+     * @return a cleanup action that must be called (in a finally block) after query execution
      */
-    default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
+    default Runnable configureFilterDelegation(
+        long contextId,
+        FilterDelegationHandle handle,
+        DelegationThreadTracker tracker,
+        BackendExecutionContext backendContext
+    ) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
 
     /**
-     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
-     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
+     * Returns a snapshot of this backend's currently-tracked queries, keyed by {@code contextId}.
+     *
+     * <p>The map is a point-in-time view — entries can register or drain concurrently on the
+     * backend side. Implementations MUST return a non-null map (empty when nothing is tracked)
+     * and SHOULD make it unmodifiable so callers cannot mutate backend state.
+     *
+     * <p>Implementations MAY cap the result to a top-N subset by current memory usage to bound
+     * the FFI cost (the DataFusion backend caps at the heaviest 10 live queries). Callers that
+     * need a complete enumeration should not rely on this method.
+     *
+     * <p>Default implementation returns an empty map so backends that do not track per-query
+     * metrics don't have to opt in.
      */
-    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+    default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Evaluates whether a shard can possibly match the given serialized filter predicates.
+     * Used by the can-match pre-filter phase to prune shards before fragment dispatch.
+     *
+     * <p>Default returns true (fail-open: shard is kept). Backends that store data with
+     * rich metadata statistics should override to check row-group min/max against the
+     * filter range.
+     *
+     * @param shard the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @return true if the shard can possibly match, false if provably cannot
+     */
+    default boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return true;
+    }
+
+    /**
+     * Outcome of a can-match probe.
+     *
+     * <p>The two fields fail open in opposite directions because their risks differ.
+     * {@code canMatch=false} says "don't run this shard" — wrong means lost data, so uncertainty
+     * must yield {@code true}. {@code bounds} is only a hint, so {@code null} costs nothing. The
+     * fail-open answer for both is therefore {@code (true, null)}.
+     *
+     * @param canMatch true if the shard may match, false if it provably cannot
+     * @param bounds   min/max of the requested sort column, or {@code null}
+     */
+    record CanMatchResult(boolean canMatch, ShardSortBounds bounds) {
+
+        /** Shard may match; {@code bounds} may be null if none were requested or available. */
+        public static CanMatchResult matched(ShardSortBounds bounds) {
+            return new CanMatchResult(true, bounds);
+        }
+
+        /** Shard provably cannot match; bounds aren't collected for a pruned shard. */
+        public static CanMatchResult pruned() {
+            return new CanMatchResult(false, null);
+        }
+
+        /** Probe couldn't run — the {@code true} here is a fail-open default, not an answer. */
+        public static CanMatchResult unavailable() {
+            return new CanMatchResult(true, null);
+        }
+    }
+
+    /**
+     * Evaluates the prune predicate and, for surviving shards, folds the sort column's min/max.
+     *
+     * <p>One method rather than two so the backend can acquire the shard reader once for both
+     * answers and skip the fold for a shard it just pruned.
+     *
+     * <p>Implementations must fail open everywhere: uncertainty yields {@code canMatch=true}
+     * and/or null bounds, never a wrong prune or a guessed range.
+     *
+     * @param shard       the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @param sortColumn  column to fold min/max for, or {@code null} to skip that work
+     */
+    default CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        // Backends without statistics have no bounds to give.
+        return new CanMatchResult(canMatch(shard, filterBytes), null);
+    }
+
+    /**
+     * QTF fetch phase: reads specific rows by global row ID.
+     * Row IDs are passed as a BigIntVector for zero-copy transfer to native.
+     *
+     * @param reader the index reader for the target shard
+     * @param rowIdVector Arrow BigIntVector containing global row IDs
+     * @param columns column names to read
+     * @param allocator Arrow buffer allocator for result import
+     * @return a result stream containing the requested rows
+     */
+    default EngineResultStream fetchByRowIds(
+        Reader reader,
+        BigIntVector rowIdVector,
+        String[] columns,
+        BufferAllocator allocator,
+        long contextId
+    ) {
+        throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Cooperatively cancels in-flight backend work for {@code contextId} (e.g. fire the per-context
+     * cancellation token). Called from a task cancellation listener for the fetch path, which —
+     * unlike the query path's {@code SearchExecEngine} — returns an opaque {@link EngineResultStream}.
+     * Implementations must signal the native execution to unwind, not close the stream cross-thread
+     * (that races the in-flight pull). No-op for an unknown {@code contextId}; default no-op.
+     */
+    default void cancelByContext(long contextId) {}
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.
@@ -134,5 +254,23 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default Exception convertException(Exception original) {
         return original;
+    }
+
+    /**
+     * Returns the backend's subtree convertor for combining multiple delegated predicates
+     * into a single serialized expression, or {@code null} if the backend cannot combine.
+     * When {@code null}, the framework falls back to one {@link DelegatedExpression} per leaf.
+     */
+    default DelegatedSubtreeConvertor getDelegatedSubtreeConvertor() {
+        return null;
+    }
+
+    /**
+     * Per-function serializers for delegated predicates this backend can accept.
+     * Keyed by {@link ScalarFunction} — the framework dispatches to the matching
+     * serializer during fragment conversion when a predicate is delegated to this backend.
+     */
+    default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+        return Map.of();
     }
 }

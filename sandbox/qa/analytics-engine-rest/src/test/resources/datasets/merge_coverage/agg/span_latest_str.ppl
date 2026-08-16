@@ -1,0 +1,1 @@
+source=%INDEX% | stats latest(label, ts) by span(amount, 5)

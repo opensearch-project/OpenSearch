@@ -44,30 +44,27 @@ public class RestPPLQueryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String queryText;
+        String queryText = null;
+        boolean profile = false;
         try (XContentParser parser = request.contentParser()) {
-            queryText = parseQueryText(parser);
-        }
-        boolean explain = request.path().endsWith("/_explain");
-        PPLRequest pplRequest = new PPLRequest(queryText, explain);
-        return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
-    }
-
-    private String parseQueryText(XContentParser parser) throws IOException {
-        String query = null;
-        parser.nextToken(); // START_OBJECT
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            String fieldName = parser.currentName();
             parser.nextToken();
-            if ("query".equals(fieldName)) {
-                query = parser.text();
-            } else {
-                parser.skipChildren();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String fieldName = parser.currentName();
+                parser.nextToken();
+                if ("query".equals(fieldName)) {
+                    queryText = parser.text();
+                } else if ("profile".equals(fieldName)) {
+                    profile = parser.booleanValue();
+                } else {
+                    parser.skipChildren();
+                }
             }
         }
-        if (query == null || query.isEmpty()) {
+        if (queryText == null || queryText.isEmpty()) {
             throw new IllegalArgumentException("Request body must contain a 'query' field");
         }
-        return query;
+        boolean enableProfile = profile || request.path().endsWith("/_explain");
+        PPLRequest pplRequest = new PPLRequest(queryText, enableProfile);
+        return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
     }
 }

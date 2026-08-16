@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 
 /**
  * Example front-end plugin using analytics-engine.
- * {@code EngineContext} and {@code QueryPlanExecutor}
+ * {@code EngineContextProvider} and {@code QueryPlanExecutor}
  * are received by {@link TestPPLTransportAction} via Guice injection.
  */
 public class TestPPLPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {

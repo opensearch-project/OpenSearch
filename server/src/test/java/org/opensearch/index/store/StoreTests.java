@@ -51,6 +51,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -86,6 +87,7 @@ import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
@@ -1463,6 +1465,79 @@ public class StoreTests extends OpenSearchTestCase {
         assertEquals("numDocs must be 0 for DFA", 0L, loaded.numDocs);
 
         IOUtils.close(store);
+    }
+
+    public void testChecksumLocalFileWithLuceneCodecFooter() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        // Write a .si file with a valid Lucene codec footer
+        try (IndexOutput output = store.directory().createOutput("_0.si", IOContext.DEFAULT)) {
+            output.writeBytes(new byte[] { 1, 2, 3, 4, 5 }, 5);
+            CodecUtil.writeFooter(output);
+        }
+        String checksum = store.checksumLocalFile("_0.si");
+        assertNotNull(checksum);
+        // Verify it matches what CodecUtil.retrieveChecksum returns
+        try (IndexInput input = store.directory().openInput("_0.si", IOContext.DEFAULT)) {
+            String expected = Store.digestToString(CodecUtil.retrieveChecksum(input));
+            assertEquals(expected, checksum);
+        }
+        IOUtils.close(store);
+    }
+
+    public void testChecksumLocalFileWithDataFormatAwareDirectory() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Path tempDir = createTempDir();
+        final Path shardDir = tempDir.resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        // Create a DataFormatAwareStoreDirectory with a "parquet" checksum strategy (CRC32)
+        Directory fsDir = newFSDirectory(shardPath.resolveIndex());
+        DataFormatAwareStoreDirectory dfaDir = new DataFormatAwareStoreDirectory(
+            fsDir,
+            shardPath,
+            Map.of("parquet", new GenericCRC32ChecksumHandler())
+        );
+        Store store = new Store(shardId, INDEX_SETTINGS, dfaDir, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath, null);
+
+        // Write a parquet file (non-Lucene format — full-file CRC32)
+        byte[] parquetContent = new byte[] { 10, 20, 30, 40, 50, 60 };
+        try (IndexOutput output = dfaDir.createOutput("parquet/_0.parquet", IOContext.DEFAULT)) {
+            output.writeBytes(parquetContent, parquetContent.length);
+        }
+        // Write a Lucene .si file with codec footer
+        try (IndexOutput output = dfaDir.createOutput("_0.si", IOContext.DEFAULT)) {
+            output.writeBytes(new byte[] { 1, 2, 3 }, 3);
+            CodecUtil.writeFooter(output);
+        }
+
+        // Verify parquet file uses CRC32 checksum (not codec footer)
+        String parquetChecksum = store.checksumLocalFile("parquet/_0.parquet");
+        assertNotNull(parquetChecksum);
+        java.util.zip.CRC32 crc32 = new java.util.zip.CRC32();
+        crc32.update(parquetContent);
+        String expectedParquet = Store.digestToString(crc32.getValue());
+        assertEquals("parquet file should use full-file CRC32", expectedParquet, parquetChecksum);
+
+        // Verify .si file uses Lucene codec footer checksum
+        String siChecksum = store.checksumLocalFile("_0.si");
+        assertNotNull(siChecksum);
+        try (IndexInput input = dfaDir.openInput("_0.si", IOContext.DEFAULT)) {
+            String expectedSi = Store.digestToString(CodecUtil.retrieveChecksum(input));
+            assertEquals("Lucene file should use codec footer", expectedSi, siChecksum);
+        }
+
+        IOUtils.close(store);
+    }
+
+    public void testChecksumLocalFileThrowsOnClosedStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        try (IndexOutput output = store.directory().createOutput("_0.si", IOContext.DEFAULT)) {
+            output.writeBytes(new byte[] { 1, 2, 3 }, 3);
+            CodecUtil.writeFooter(output);
+        }
+        store.close();
+        expectThrows(AlreadyClosedException.class, () -> store.checksumLocalFile("_0.si"));
     }
 
     public void testShardFormatDirectoryResolverRoutesByFormat() throws IOException {

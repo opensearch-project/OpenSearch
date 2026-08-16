@@ -40,10 +40,6 @@ import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.cache.service.NodeCacheStats;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -65,8 +61,8 @@ import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.plugins.BlockCacheStats;
-import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -78,8 +74,6 @@ import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -183,10 +177,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
 
-    private Map<String, PluginNodeStats> pluginStats;
-
     @Nullable
-    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
+    private NativeAllocatorPoolStats nativeAllocatorStats;
+
+    /**
+     * Process-level native-memory estimate captured on the data node hosting this {@code NodeStats}.
+     * Computed once in {@link org.opensearch.node.NodeService#stats} via
+     * {@code OsProbe.getProcessNativeMemoryBytes()} and serialized over the wire so the coordinator
+     * renders the source node's value, not its own. {@code -1} when the probe could not read
+     * {@code /proc/self/status} (non-Linux platforms or restricted environments).
+     */
+    private long totalEstimatedNativeBytes;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -281,56 +282,24 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            pluginStats = readPluginStats(in);
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            nativeAllocatorStats = in.readOptionalWriteable(NativeAllocatorPoolStats::new);
+        } else if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: V_3_7_0 wrote old-format NativeAllocatorPoolStats (3 VLongs + pools with 4 fields); read and discard.
+            in.readOptionalWriteable(NativeAllocatorPoolStats::readAndDiscardV3_7);
+            nativeAllocatorStats = null;
         } else {
-            pluginStats = Collections.emptyMap();
+            nativeAllocatorStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+            // BWC: V_3_7_0 wrote AnalyticsBackendNativeMemoryStats here; read and discard.
+            in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            totalEstimatedNativeBytes = in.readLong();
         } else {
-            nativeMemoryStats = null;
+            totalEstimatedNativeBytes = -1L;
         }
-    }
-
-    /**
-     * Reads the plugin nodeStats map from the wire. Each entry is framed as
-     * {@code (name, length-prefixed bytes)} so a receiver can skip any entry whose
-     * {@link PluginNodeStats} type is not registered locally — for example a
-     * coordinator that lacks a plugin a data node has installed. Unknown entries
-     * are dropped silently (counted in the debug log) instead of failing the entire
-     * NodeStats deserialization for that node.
-     */
-    private static Map<String, PluginNodeStats> readPluginStats(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            return Collections.emptyMap();
-        }
-        NamedWriteableRegistry registry = in.namedWriteableRegistry();
-        Map<String, PluginNodeStats> result = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String name = in.readString();
-            BytesReference payload = in.readBytesReference();
-            if (registry == null) {
-                // No registry attached to the parent stream — we can't deserialize any
-                // entry. Drop the whole map. This branch is defensive; production paths
-                // always set a registry when they expect named writeables.
-                continue;
-            }
-            try (
-                StreamInput rawIn = payload.streamInput();
-                NamedWriteableAwareStreamInput payloadIn = new NamedWriteableAwareStreamInput(rawIn, registry)
-            ) {
-                payloadIn.setVersion(in.getVersion());
-                PluginNodeStats stats = payloadIn.readNamedWriteable(PluginNodeStats.class);
-                result.put(name, stats);
-            } catch (IOException | IllegalArgumentException e) {
-                // Receiver doesn't have the plugin's NamedWriteable registered (typical
-                // during rolling upgrades or in a non-uniform plugin install). Drop the
-                // entry; the rest of NodeStats remains decodable.
-            }
-        }
-        return result;
     }
 
     public NodeStats(
@@ -366,8 +335,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
-        @Nullable Map<String, PluginNodeStats> pluginStats,
-        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
+        @Nullable NativeAllocatorPoolStats nativeAllocatorStats,
+        long totalEstimatedNativeBytes
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -401,8 +370,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
-        this.pluginStats = pluginStats == null ? Collections.emptyMap() : pluginStats;
-        this.nativeMemoryStats = nativeMemoryStats;
+        this.nativeAllocatorStats = nativeAllocatorStats;
+        this.totalEstimatedNativeBytes = totalEstimatedNativeBytes;
     }
 
     public long getTimestamp() {
@@ -580,16 +549,21 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return remoteStoreNodeStats;
     }
 
-    public Map<String, PluginNodeStats> getPluginStats() {
-        return pluginStats == null ? Collections.emptyMap() : pluginStats;
+    /**
+     * Returns the native allocator pool stats (Arrow allocator), or {@code null} if not available.
+     */
+    @Nullable
+    public NativeAllocatorPoolStats getNativeAllocatorStats() {
+        return nativeAllocatorStats;
     }
 
     /**
-     * Returns the analytics backend native memory stats, or {@code null} if not available.
+     * Returns the process-level native-memory estimate captured on this node
+     * (RssAnon - JVM heap committed - JVM non-heap committed), or {@code -1} when the probe
+     * could not read {@code /proc/self/status}.
      */
-    @Nullable
-    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
-        return nativeMemoryStats;
+    public long getTotalEstimatedNativeBytes() {
+        return totalEstimatedNativeBytes;
     }
 
     @Override
@@ -657,29 +631,18 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
-            writePluginStats(out, pluginStats == null ? Collections.emptyMap() : pluginStats);
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalWriteable(nativeAllocatorStats);
+        } else if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            // BWC: write old-format NativeAllocatorPoolStats for V_3_7_0 nodes
+            NativeAllocatorPoolStats.writeV3_7(out, nativeAllocatorStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
-            out.writeOptionalWriteable(nativeMemoryStats);
+            // BWC: V_3_7_0 expects AnalyticsBackendNativeMemoryStats here; write null.
+            out.writeOptionalWriteable(null);
         }
-    }
-
-    /**
-     * Writes the plugin nodeStats map with each entry framed as
-     * {@code (name, length-prefixed bytes)} so a receiver can skip entries whose
-     * {@link PluginNodeStats} type is not registered locally. Symmetric with
-     * {@link #readPluginStats(StreamInput)}.
-     */
-    private static void writePluginStats(StreamOutput out, Map<String, PluginNodeStats> stats) throws IOException {
-        out.writeVInt(stats.size());
-        for (Map.Entry<String, PluginNodeStats> entry : stats.entrySet()) {
-            out.writeString(entry.getKey());
-            try (BytesStreamOutput payloadOut = new BytesStreamOutput()) {
-                payloadOut.setVersion(out.getVersion());
-                payloadOut.writeNamedWriteable(entry.getValue());
-                out.writeBytesReference(payloadOut.bytes());
-            }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeLong(totalEstimatedNativeBytes);
         }
     }
 
@@ -801,14 +764,24 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
         }
-        for (Map.Entry<String, PluginNodeStats> e : getPluginStats().entrySet()) {
-            builder.startObject(e.getKey());
-            e.getValue().toXContent(builder, params);
+        // total_estimated_bytes ≈ RssAnon - JVM heap committed - JVM non-heap committed.
+        // native_memory: unified view of all native memory pools and jemalloc stats.
+        // NativeAllocatorPoolStats now includes jemalloc allocated/resident + all pools.
+        builder.startObject("native_memory");
+        builder.field("total_estimated_bytes", totalEstimatedNativeBytes);
+        if (getNativeAllocatorStats() != null) {
+            NativeAllocatorPoolStats stats = getNativeAllocatorStats();
+            builder.startObject("runtime");
+            builder.field("allocated_bytes", stats.getNativeAllocatedBytes());
+            builder.field("resident_bytes", stats.getNativeResidentBytes());
+            builder.endObject();
+            builder.startObject("memory_pools");
+            for (var entry : stats.getGroupedStats().entrySet()) {
+                entry.getValue().toXContent(builder, params);
+            }
             builder.endObject();
         }
-        if (getAnalyticsBackendNativeMemoryStats() != null) {
-            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
-        }
+        builder.endObject();
         return builder;
     }
 }

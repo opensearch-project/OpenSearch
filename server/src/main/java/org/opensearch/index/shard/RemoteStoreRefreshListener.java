@@ -255,7 +255,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 }
 
                 try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
-                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get();
+                    // Clone to freeze lastCommitGeneration and other mutable state for the
+                    // duration of this upload cycle. Without cloning, a concurrent flush can
+                    // call CatalogSnapshotManager.updateLastCommitInfo which mutates the live
+                    // snapshot's lastCommitGeneration — causing the retry path (which runs
+                    // asynchronously) to serialize segment metadata with a different generation
+                    // than the one used for the initial segment file upload.
+                    CatalogSnapshot catalogSnapshot = catalogSnapshotRef.get().clone();
                     final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(catalogSnapshot);
                     if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
                         throw new IllegalStateException(

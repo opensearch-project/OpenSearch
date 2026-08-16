@@ -5,32 +5,24 @@
       "type": "bigint"
     },
     {
-      "name": "exception_type",
+      "name": "level",
       "type": "string"
     }
   ],
   "datarows": [
     [
-      16,
-      "IOException"
+      33,
+      "FATAL"
     ],
     [
-      16,
-      "RuntimeException"
+      33,
+      "WARN"
     ],
     [
-      17,
-      "Exception while getting WebSocket session"
-    ],
-    [
-      17,
-      "NullPointerException"
-    ],
-    [
-      17,
-      "SQLTransientConnectionException"
+      34,
+      "ERROR"
     ]
   ],
-  "total": 5,
-  "size": 5
+  "total": 3,
+  "size": 3
 }

@@ -15,35 +15,52 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.analytics.exec.AnalyticsFragmentSlowLog;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
+import org.opensearch.analytics.exec.AnalyticsSearchSlowLog;
 import org.opensearch.analytics.exec.CoordinatorAllocatorHandle;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
+import org.opensearch.analytics.exec.ReaderContextStore;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.stats.AnalyticsStats;
+import org.opensearch.analytics.stats.AnalyticsStatsCollector;
+import org.opensearch.analytics.stats.RestAnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.AnalyticsStatsAction;
+import org.opensearch.analytics.stats.transport.TransportAnalyticsStatsAction;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginComponentRegistry;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -64,7 +81,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
+public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin, SearchStatsContributor {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
 
@@ -82,10 +99,33 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
 
+    // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
+    // queries share the coordinator allocator with no per-query cap.
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
-        256L * 1024 * 1024,
         0L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls the metadata-only driver vs. value-producing peer choice when both are viable
+     * for a stage:
+     *
+     * <ul>
+     *   <li>{@code true} (default) — collapse to the metadata-only alternative (e.g. Lucene)
+     *       whenever it can run the stage end-to-end (today: count fast path). Stage ships
+     *       exactly one {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor
+     *       runs once per stage; data node skips per-request alternative selection.</li>
+     *   <li>{@code false} — force the value-producing backend (DataFusion). All metadata-only
+     *       alternatives are dropped from every stage. A/B comparison knob and regression
+     *       escape hatch.</li>
+     * </ul>
+     */
+    public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(
+        "analytics.planner.prefer_metadata_driver",
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -96,9 +136,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
-    private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
+    private AnalyticsSearchSlowLog analyticsSearchSlowLog;
+    private AnalyticsFragmentSlowLog analyticsFragmentSlowLog;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
+    private ReaderContextStore readerContextStore;
+    private final AnalyticsStatsCollector statsCollector = new AnalyticsStatsCollector();
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -124,15 +167,25 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
-        operatorTable = aggregateOperatorTables();
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, nativeAllocator, namedWriteableRegistry);
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
+        readerContextStore = new ReaderContextStore(threadPool);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
+        analyticsSearchSlowLog = new AnalyticsSearchSlowLog(clusterService);
+        analyticsFragmentSlowLog = new AnalyticsFragmentSlowLog();
+        searchService = new AnalyticsSearchService(
+            backEndsByName,
+            List.of(analyticsFragmentSlowLog),
+            nativeAllocator,
+            namedWriteableRegistry,
+            readerContextStore
+        );
+        DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
@@ -141,7 +194,20 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
         );
 
-        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle);
+        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle, analyticsSearchSlowLog, statsCollector);
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new RestAnalyticsStatsAction());
     }
 
     @Override
@@ -150,7 +216,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         return List.of(b -> {
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
-            b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            b.bind(EngineContextProvider.class).to(DefaultEngineContextProvider.class);
             // Singleton bind on the concrete class so node-injector lookups for
             // QueryScheduler.class don't fall back to a JIT binding (which would
             // re-instantiate AnalyticsSearchTransportService, whose ctor registers
@@ -162,12 +228,21 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+        return List.of(
+            new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+        );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COORDINATOR_BUFFER_LIMIT);
+        List<Setting<?>> settings = new java.util.ArrayList<>();
+        settings.add(COORDINATOR_BUFFER_LIMIT);
+        settings.add(PREFER_METADATA_DRIVER);
+        settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
+        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
+        return List.copyOf(settings);
     }
 
     @Override
@@ -181,6 +256,31 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     static int schedulerPoolSize() {
         return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    @Override
+    public SearchStats contributeSearchStats() {
+        // Contribute per-shard fragment task counts so the node-level search counters
+        // exposed via _nodes/stats match Lucene's per-shard accounting (one increment
+        // per shard query phase, not per user query).
+        //
+        // The queries.elapsed_ms bucket counts 1-per-query, which undercounts the
+        // rate by the shard fan-out factor and drops most queries' latency (the
+        // start/end window in AnalyticsStatsCollector#recordExecution is commonly
+        // 0 when stage timestamps aren't populated). The SHARD_FRAGMENT stage
+        // bucket counts 1-per-(query, node-hosting-shards), still missing the
+        // per-shard granularity Lucene reports. fragments.total walks each
+        // SHARD_FRAGMENT execution's per-shard StageTasks, giving per-shard
+        // counts matching Lucene's onPreQueryPhase semantics.
+        AnalyticsStats snapshot = statsCollector.snapshot();
+        AnalyticsStats.Fragments fragments = snapshot.fragments();
+        if (fragments == null || fragments.total() == 0) {
+            return null;
+        }
+        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(fragments.total())
+            .queryTimeInMillis(fragments.elapsedMs().sumMs())
+            .build();
+        return new SearchStats(stats, 0, null);
     }
 
     @Override
@@ -199,15 +299,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     /**
-     * Default implementation of {@link EngineContext}.
+     * Default implementation of {@link EngineContextProvider}. The {@link IndexNameExpressionResolver}
+     * is the cluster's resolver — built by the OpenSearch server with security-plugin extensions,
+     * system-index access checks, and ThreadContext threading. Building schemas with a fresh
+     * resolver would silently bypass those checks.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
+    record DefaultEngineContextProvider(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver, Map<
         String,
-        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
+        AnalyticsSearchBackendPlugin> backends) implements EngineContextProvider {
 
         @Override
-        public SchemaPlus getSchema() {
-            return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+        public QueryRequestContext getContext(ClusterState clusterState) {
+            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
+            return new QueryRequestContext(clusterState, schema);
+        }
+
+        @Override
+        public QueryRequestContext getContext() {
+            return getContext(clusterService.state());
         }
 
         @Override

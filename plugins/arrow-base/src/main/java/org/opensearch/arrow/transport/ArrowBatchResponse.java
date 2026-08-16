@@ -79,24 +79,42 @@ import java.io.IOException;
 public abstract class ArrowBatchResponse extends ActionResponse {
 
     private final VectorSchemaRoot batchRoot;
+    private final byte[] metadata;
 
     /**
-     * Send-side constructor: wraps a root populated by the producer.
+     * Send-side: wraps a root populated by the producer.
+     *
      * @param batchRoot the root to send; ownership transfers to the transport
      */
     protected ArrowBatchResponse(VectorSchemaRoot batchRoot) {
-        this.batchRoot = batchRoot;
+        this(batchRoot, null);
     }
 
     /**
-     * Receive-side constructor: claims ownership of the batch from the input.
-     * @param in must also implement {@link ArrowStreamInput}; throws otherwise
+     * Send-side: wraps a root with opaque application metadata that travels on the same
+     * Arrow Flight frame ({@code putNext(ArrowBuf)}). Use for per-batch metadata (row
+     * offsets, watermarks) or, by attaching to the last batch, stream-terminal payloads
+     * (profiling counters, summary stats).
+     *
+     * @param batchRoot the root to send; ownership transfers to the transport
+     * @param metadata opaque bytes to attach to this batch, or {@code null}
+     */
+    protected ArrowBatchResponse(VectorSchemaRoot batchRoot, byte[] metadata) {
+        this.batchRoot = batchRoot;
+        this.metadata = metadata;
+    }
+
+    /**
+     * Receive-side: claims ownership of the batch and pulls any attached metadata.
+     *
+     * @param in must also implement {@link ArrowStreamInput}
      * @throws IOException if reading fails
      */
     protected ArrowBatchResponse(StreamInput in) throws IOException {
         super(in);
         if (in instanceof ArrowStreamInput arrowIn) {
             this.batchRoot = arrowIn.getRoot();
+            this.metadata = arrowIn.getMetadata();
             arrowIn.claimOwnership();
         } else {
             throw new IllegalStateException(
@@ -111,6 +129,11 @@ public abstract class ArrowBatchResponse extends ActionResponse {
     /** Returns the Arrow root holding the response vectors. */
     public VectorSchemaRoot getRoot() {
         return batchRoot;
+    }
+
+    /** Returns the application metadata attached to this batch, or {@code null} if none. */
+    public byte[] getMetadata() {
+        return metadata;
     }
 
     @Override

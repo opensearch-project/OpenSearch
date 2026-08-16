@@ -37,7 +37,8 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
 
     private static boolean dataProvisioned = false;
 
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -149,7 +150,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
             "source=" + DATASET.indexName + " | where bool0 xor bool1 | fields bool0, bool1"
         );
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("xor query returned no rows block", rows);
         // The calcs dataset contains rows where bool0 != bool1; assert the filter surfaces them.
         assertTrue("xor should return at least 1 row, got " + rows.size(), !rows.isEmpty());
@@ -206,6 +207,52 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * fp MOD reaches DataFusion via the substrait {@code modulus} fp overloads supplied by
+     * {@code opensearch_arithmetic_overloads.yaml} (standard substrait declares integer impls
+     * only). num0=12.3 (fp64) % 2 = ~0.3 — within 1e-6 of decimal 0.3 because fp64 representation
+     * of 12.3 is accurate to ~15 sig digits.
+     */
+    public void testArithmeticModFp() throws IOException {
+        assertSingleRowApprox(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 2 | fields r",
+            0.3,
+            1e-6
+        );
+    }
+
+    /** MOD on zero divisor → NaN, which opensearch-sql renders as JSON null (not "NaN" string). */
+    public void testArithmeticModByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 0 | fields r",
+            null
+        );
+    }
+
+    /** DIVIDE by zero → ±Infinity, which opensearch-sql renders as JSON null. */
+    public void testArithmeticDivideByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval q = num0 / 0 | fields q",
+            null
+        );
+    }
+
+    /** Literal-literal {@code 22 / 0} → null. */
+    public void testArithmeticDivideByZeroLiteral() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval q = 22 / 0 | fields q",
+            null
+        );
+    }
+
+    /** Literal-literal {@code mod(5, 0)} → null. */
+    public void testArithmeticModByZeroLiteral() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = mod(5, 0) | fields r",
+            null
+        );
+    }
+
     // ── Project-side comparisons: eval boolean result, filter by it ───────────
 
     public void testEqualsInEvalProjection() throws IOException {
@@ -242,7 +289,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertRowCount(String ppl, int expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Row count mismatch for query: " + ppl, expected, rows.size());
     }
@@ -250,7 +297,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertSingleRowField(String ppl, Object expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected exactly 1 row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -260,7 +307,7 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
     private void assertSingleRowApprox(String ppl, double expected, double tolerance) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'rows' for query: " + ppl, rows);
         assertEquals("Expected exactly 1 row for query: " + ppl, 1, rows.size());
         Object actual = rows.get(0).get(0);
@@ -271,13 +318,6 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
 
     /**
      * Numeric-tolerant cell comparison: Integer/Long/Double arriving from JSON parsing

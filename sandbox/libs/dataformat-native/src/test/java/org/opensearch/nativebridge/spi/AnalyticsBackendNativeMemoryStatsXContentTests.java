@@ -20,63 +20,41 @@ import java.util.Map;
 /**
  * Property-based tests for {@link AnalyticsBackendNativeMemoryStats} XContent rendering correctness.
  *
- * Uses randomized testing to verify that {@code toXContent} produces a JSON object with
- * the correct structure and field values for all valid long inputs, including the error
- * sentinel value (-1).
+ * <p>The class now emits a single inner block:
+ * <pre>{@code
+ * "analytics_backend": { "allocated_bytes": ..., "resident_bytes": ... }
+ * }</pre>
+ * The {@code native_memory} parent wrapper and {@code total_estimated_bytes} field are owned by
+ * {@code NodeStats.toXContent} and tested there; this class is responsible only for the inner
+ * {@code analytics_backend} object.
  */
 public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTestCase {
 
     /**
-     * Property 2: XContent rendering correctness.
-     *
-     * For any valid AnalyticsBackendNativeMemoryStats object (including error state where fields are -1),
-     * calling toXContent SHALL produce a JSON object with key "native_memory" containing
-     * exactly two fields: "allocated_bytes" with the correct long value and "resident_bytes"
-     * with the correct long value.
-     *
-     * Validates: Requirements 2.2, 6.1, 6.2, 6.3
+     * Property: any valid (allocatedBytes, residentBytes) pair renders as a single
+     * {@code analytics_backend} object with both fields verbatim. Iterates 100 random
+     * inputs, including the {@code -1} error sentinel.
      */
     public void testXContentRenderingCorrectness() throws Exception {
         for (int i = 0; i < 100; i++) {
-            // Generate random values, occasionally including -1 (error sentinel)
             long allocatedBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
 
-            AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes, 0);
 
-            // Render to JSON string via Strings.toString (wraps fragment in root object)
+            // Render to JSON string via Strings.toString (wraps fragment in root object).
             String json = Strings.toString(MediaTypeRegistry.JSON, stats);
-
-            // Parse the JSON into a map
             Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
-            // Assert top-level key is "native_memory"
-            assertTrue(
-                "Expected top-level key 'native_memory' on iteration "
-                    + i
-                    + " for values: ["
-                    + allocatedBytes
-                    + ", "
-                    + residentBytes
-                    + "], got keys: "
-                    + root.keySet(),
-                root.containsKey("native_memory")
-            );
+            // Top-level key must be "analytics_backend" and nothing else.
+            assertTrue("Expected 'analytics_backend' on iteration " + i + ", got: " + root.keySet(), root.containsKey("analytics_backend"));
             assertEquals("Expected exactly one top-level key on iteration " + i, 1, root.size());
 
-            // Assert the native_memory object contains total_estimated_bytes and analytics_backend
+            // analytics_backend must contain exactly the three fields.
             @SuppressWarnings("unchecked")
-            Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
-            assertNotNull("native_memory value should not be null on iteration " + i, nativeMemory);
-            assertEquals("Expected exactly 2 fields in native_memory on iteration " + i, 2, nativeMemory.size());
-            assertTrue("Expected 'total_estimated_bytes' field on iteration " + i, nativeMemory.containsKey("total_estimated_bytes"));
-            assertTrue("Expected 'analytics_backend' field on iteration " + i, nativeMemory.containsKey("analytics_backend"));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+            Map<String, Object> analyticsBackend = (Map<String, Object>) root.get("analytics_backend");
             assertNotNull("analytics_backend should not be null on iteration " + i, analyticsBackend);
-
-            // Assert correct values (JSON numbers are parsed as Long or Integer depending on size)
+            assertEquals("Expected exactly 3 fields on iteration " + i, 3, analyticsBackend.size());
             assertEquals(
                 "allocated_bytes mismatch on iteration " + i + " for value: " + allocatedBytes,
                 allocatedBytes,
@@ -87,50 +65,41 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
                 residentBytes,
                 ((Number) analyticsBackend.get("resident_bytes")).longValue()
             );
+            assertEquals("purge_count mismatch on iteration " + i, 0L, ((Number) analyticsBackend.get("purge_count")).longValue());
+
+            // Sanity: the parent-level fields are NOT emitted by this class.
+            assertFalse("native_memory wrapper should be opened by NodeStats, not this class", root.containsKey("native_memory"));
+            assertFalse(
+                "total_estimated_bytes is computed in NodeStats from OsProbe, not emitted here",
+                root.containsKey("total_estimated_bytes")
+            );
         }
     }
 
-    /**
-     * XContent rendering with error state values (-1).
-     *
-     * Verifies that the error sentinel value (-1) for both fields is correctly rendered
-     * in the JSON output as the numeric value -1.
-     *
-     * Validates: Requirements 2.2, 6.1, 6.2, 6.3
-     */
+    /** Error sentinel (-1, -1) renders verbatim. */
     public void testXContentRenderingWithErrorState() throws Exception {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
-        assertNotNull("native_memory should be present", nativeMemory);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+        Map<String, Object> analyticsBackend = (Map<String, Object>) root.get("analytics_backend");
+        assertNotNull("analytics_backend should be present", analyticsBackend);
         assertEquals(-1L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
         assertEquals(-1L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
     }
 
-    /**
-     * XContent rendering with zero values.
-     *
-     * Verifies that zero values are correctly rendered in the JSON output.
-     *
-     * Validates: Requirements 2.2, 6.1, 6.2, 6.3
-     */
+    /** Zero values render as 0, not omitted. */
     public void testXContentRenderingWithZeroValues() throws Exception {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0L, 0L);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0L, 0L, 0);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
-        assertNotNull("native_memory should be present", nativeMemory);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+        Map<String, Object> analyticsBackend = (Map<String, Object>) root.get("analytics_backend");
+        assertNotNull("analytics_backend should be present", analyticsBackend);
         assertEquals(0L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
         assertEquals(0L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
     }

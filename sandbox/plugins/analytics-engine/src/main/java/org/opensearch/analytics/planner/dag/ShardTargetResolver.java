@@ -9,8 +9,12 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
-import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.action.search.TransportSearchAction;
+import org.opensearch.analytics.planner.IndexResolution;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -20,6 +24,7 @@ import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedMap;
 
 /**
  * Resolves {@link ShardExecutionTarget}s for a DATA_NODE scan stage.
@@ -36,10 +41,12 @@ public class ShardTargetResolver extends TargetResolver {
 
     private final String indexName;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
-        this.indexName = findTableName(fragment);
+    public ShardTargetResolver(RelNode fragment, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexName = RelNodeUtils.findTableName(fragment);
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         if (this.indexName == null) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
@@ -47,29 +54,60 @@ public class ShardTargetResolver extends TargetResolver {
 
     @Override
     public List<ExecutionTarget> resolve(ClusterState clusterState, @Nullable Object childManifest) {
+        // Expand the table name (alias or concrete) to its concrete indices against the freshest
+        // cluster state. operationRouting().searchShards requires concrete names — aliases are
+        // not accepted there — so the expansion has to happen here, not at construction time.
+        IndexResolution resolution = IndexResolution.resolve(indexName, clusterState, indexNameExpressionResolver);
+        String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { indexName }, null, null);
+            .searchShards(clusterState, concreteNames, null, null);
+        // Same operator-facing ceiling vanilla search enforces, read live so a dynamic update takes
+        // effect on the next query. Unlimited by default: the can-match pre-filter phase and the
+        // per-node dispatch throttle are what bound fan-out in normal operation, and this stays a
+        // valve for operators who want a hard stop.
+        long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
+        int shardCount = shardIterators.size();
+        if (shardCount > shardCountLimit) {
+            String sourceType = describeIndexSource(indexName, clusterState);
+            throw new IllegalArgumentException(
+                "Query via "
+                    + sourceType
+                    + " targets ["
+                    + shardCount
+                    + "] shards which exceeds the limit of ["
+                    + shardCountLimit
+                    + "] set by ["
+                    + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
+                    + "]. This limit exists because querying many shards at the same time can make the job of the "
+                    + "coordinating node very CPU and/or memory intensive. Query fewer indices, or raise the limit."
+            );
+        }
         List<ExecutionTarget> targets = new ArrayList<>();
+        int ordinal = 0;
         for (ShardIterator shardIt : shardIterators) {
             ShardRouting shard = shardIt.nextOrNull();
             if (shard != null) {
                 DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                 if (node != null) {
-                    targets.add(new ShardExecutionTarget(node, shard.shardId()));
+                    // Pass the remaining iterator + cluster state to the target so dispatch
+                    // failure can fall over to a replica copy via ShardExecutionTarget.nextCopy.
+                    targets.add(new ShardExecutionTarget(node, shard.shardId(), ordinal++, shardIt, clusterState));
                 }
             }
         }
         return targets;
     }
 
-    private static String findTableName(RelNode node) {
-        if (node instanceof OpenSearchTableScan scan) {
-            return scan.getTable().getQualifiedName().getLast();
+    private static String describeIndexSource(String name, ClusterState clusterState) {
+        SortedMap<String, IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
+        IndexAbstraction abstraction = lookup != null ? lookup.get(name) : null;
+        if (abstraction != null) {
+            return switch (abstraction.getType()) {
+                case ALIAS -> "alias [" + name + "]";
+                case DATA_STREAM -> "data stream [" + name + "]";
+                case CONCRETE_INDEX -> "index [" + name + "]";
+            };
         }
-        for (RelNode input : node.getInputs()) {
-            String name = findTableName(input);
-            if (name != null) return name;
-        }
-        return null;
+        return "index pattern [" + name + "]";
     }
 }

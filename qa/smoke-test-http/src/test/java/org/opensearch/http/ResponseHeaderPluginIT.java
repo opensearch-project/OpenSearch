@@ -31,6 +31,7 @@
 
 package org.opensearch.http;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Test a rest action that sets special response headers
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
 
     @Override

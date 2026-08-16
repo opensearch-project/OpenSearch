@@ -132,8 +132,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.ADMISSION_CONTROL.containedIn(metrics),
             NodesStatsRequest.Metric.CACHE_STATS.containedIn(metrics),
             NodesStatsRequest.Metric.REMOTE_STORE.containedIn(metrics),
-            NodesStatsRequest.Metric.PLUGIN_STATS.containedIn(metrics),
-            NodesStatsRequest.Metric.NATIVE_MEMORY.containedIn(metrics)
+            NodesStatsRequest.Metric.NATIVE_MEMORY.containedIn(metrics) || NodesStatsRequest.Metric.NATIVE_ALLOCATOR.containedIn(metrics)
         );
     }
 

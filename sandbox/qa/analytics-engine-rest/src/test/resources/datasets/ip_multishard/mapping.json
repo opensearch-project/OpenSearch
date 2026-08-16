@@ -1,0 +1,8 @@
+{
+  "settings": { "number_of_shards": 2, "number_of_replicas": 0 },
+  "mappings": { "properties": {
+    "id": { "type": "integer" },
+    "client_ip": { "type": "ip" },
+    "status_code": { "type": "integer" }
+  }}
+}

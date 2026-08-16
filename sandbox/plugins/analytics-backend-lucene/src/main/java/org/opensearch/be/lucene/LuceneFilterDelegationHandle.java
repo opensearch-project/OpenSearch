@@ -11,6 +11,8 @@ package org.opensearch.be.lucene;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -102,7 +104,10 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                 StreamInput rawInput = StreamInput.wrap(expr.getExpressionBytes());
                 StreamInput input = new NamedWriteableAwareStreamInput(rawInput, registry);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                Query query = queryBuilder.toQuery(context);
+                // Rewrite FieldExistsQuery → a postings-only equivalent: the lucene-secondary segment
+                // has no doc_values/norms (they live in the parquet primary), so a FieldExistsQuery
+                // built from an _exists_ clause (PPL `search field!=value`) would throw at rewrite().
+                Query query = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(context));
                 queries.put(expr.getAnnotationId(), query);
             } catch (IOException exception) {
                 throw new IllegalStateException(
@@ -150,7 +155,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         LeafReaderContext leaf = null;
         for (LeafReaderContext lrc : leaves) {
-            if (((SegmentReader) lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+            if (unwrapSegmentReader(lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
                 leaf = lrc;
                 break;
             }
@@ -272,6 +277,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     public void close() {
         weightsByProviderKey.clear();
         scorersByCollectorKey.clear();
+    }
+
+    private SegmentReader unwrapSegmentReader(LeafReader reader) {
+        LeafReader current = reader;
+        while (current instanceof FilterLeafReader flr) {
+            current = flr.getDelegate();
+        }
+        return (SegmentReader) current;
     }
 
     private static final class ScorerHandle {

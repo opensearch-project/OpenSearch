@@ -25,191 +25,293 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Post-Volcano distributed-aggregate decomposition for FINAL aggregate calls. Classifies
- * each call via {@link AggregateFunction#intermediateFields} into pass-through,
- * function-swap (e.g. COUNT→SUM), or engine-native merge (reducer == self), and rebuilds
- * its argList, function, and return type accordingly. Sole owner of
- * {@link AggregateCall#create} on the FINAL side.
+ * Adapts a FINAL {@link OpenSearchAggregate}'s input chain after the DAG is fragmented:
+ * re-types the StageInputScan, inserts a literal-Project for STATE_EXPANDING aggregates, and
+ * rebinds aggCalls via {@link FinalAggCallBuilder} when anything changed. Called from
+ * {@code BackendPlanAdapter.adaptNode}.
+ *
+ * <p>TODO: {@link FinalAggCallBuilder} is also used by the split rule, so {@code planner.rules}
+ * reaches into {@code planner.dag} — backwards from the usual layering. Move it to
+ * {@code planner.rel} once a third construction-time consumer appears.
  *
  * @opensearch.internal
  */
-final class DistributedAggregateRewriter {
+public final class DistributedAggregateRewriter {
 
     private DistributedAggregateRewriter() {}
 
     static RelNode rewrite(OpenSearchAggregate finalAgg) {
+        assert finalAgg.getMode() == AggregateMode.FINAL : "rewrite is only called on FINAL aggregates";
         RelNode exchange = finalAgg.getInput();
         if (exchange.getInputs().isEmpty()) return finalAgg;
-        if (!(exchange.getInputs().get(0) instanceof OpenSearchStageInputScan stageInput)) return finalAgg;
+        if (!(exchange.getInputs().get(0) instanceof OpenSearchStageInputScan)) return finalAgg;
 
-        RelDataTypeFactory tf = finalAgg.getCluster().getTypeFactory();
-        int groupCount = finalAgg.getGroupSet().cardinality();
-        boolean hasEmptyGroup = finalAgg.getGroupSet().isEmpty();
+        TransformResult result = TransformResult.initial(exchange);
+        result = overrideExchangeType(finalAgg, result);
+        result = insertLiteralProject(finalAgg, result);
+        if (!result.changed(exchange)) return finalAgg;
 
-        RelDataType originalExchangeType = stageInput.getRowType();
-        List<RelDataType> exchangeTypes = new ArrayList<>(originalExchangeType.getFieldCount());
-        List<String> exchangeNames = new ArrayList<>(originalExchangeType.getFieldCount());
-        for (RelDataTypeField f : originalExchangeType.getFieldList()) {
-            exchangeTypes.add(f.getType());
-            exchangeNames.add(f.getName());
-        }
-
-        List<IntermediateField> perCallField = new ArrayList<>(finalAgg.getAggCallList().size());
-        for (int i = 0; i < finalAgg.getAggCallList().size(); i++) {
-            AggregateCall call = finalAgg.getAggCallList().get(i);
-            List<IntermediateField> fields = AggregateFunction.fromSqlAggFunction(call.getAggregation()).intermediateFields();
-            IntermediateField field;
-            if (fields == null) {
-                field = null;
-            } else if (fields.size() == 1) {
-                field = fields.get(0);
-                RelDataType partialOutputType = originalExchangeType.getFieldList().get(groupCount + i).getType();
-                exchangeTypes.set(groupCount + i, field.typeResolver().resolve(List.of(partialOutputType), tf));
-            } else {
-                throw new IllegalStateException(
-                    "Multi-field decomposition for ["
-                        + call.getAggregation().getName()
-                        + "] should have been reduced by OpenSearchAggregateReduceRule during HEP marking"
-                );
-            }
-            perCallField.add(field);
-        }
-
-        RelDataType overriddenExchangeType = tf.createStructType(exchangeTypes, exchangeNames);
-        RelNode newFinalInput;
-        if (overriddenExchangeType.equals(originalExchangeType)) {
-            newFinalInput = exchange;
-        } else {
-            OpenSearchStageInputScan newStageInput = new OpenSearchStageInputScan(
-                stageInput.getCluster(),
-                stageInput.getTraitSet(),
-                stageInput.getChildStageId(),
-                overriddenExchangeType,
-                stageInput.getViableBackends()
-            );
-            newFinalInput = exchange.copy(exchange.getTraitSet(), List.of(newStageInput));
-        }
-
-        // Re-create captured literal aggregate-args (e.g. TAKE's N) as constant Project
-        // columns. SubstraitPlanRewriter.visit(Aggregate) inlines them into the substrait.
-        Map<Integer, List<RexLiteral>> extraLiterals = finalAgg.getFinalExtraLiteralArgs();
-        Map<Integer, List<Integer>> extraLiteralColIdxByCallIdx;
-        if (extraLiterals.isEmpty()) {
-            extraLiteralColIdxByCallIdx = Map.of();
-        } else {
-            int origColCount = newFinalInput.getRowType().getFieldCount();
-            List<RexNode> projectExprs = new ArrayList<>(origColCount);
-            List<String> projectNames = new ArrayList<>(origColCount);
-            for (int idx = 0; idx < origColCount; idx++) {
-                RelDataType fieldType = newFinalInput.getRowType().getFieldList().get(idx).getType();
-                projectExprs.add(new RexInputRef(idx, fieldType));
-                projectNames.add(newFinalInput.getRowType().getFieldList().get(idx).getName());
-            }
-            java.util.LinkedHashMap<Integer, List<Integer>> idxMap = new java.util.LinkedHashMap<>();
-            for (Map.Entry<Integer, List<RexLiteral>> entry : extraLiterals.entrySet()) {
-                List<Integer> colIdxs = new ArrayList<>(entry.getValue().size());
-                for (int litI = 0; litI < entry.getValue().size(); litI++) {
-                    RexLiteral lit = entry.getValue().get(litI);
-                    int colIdx = projectExprs.size();
-                    projectExprs.add(lit);
-                    projectNames.add("$lit_call" + entry.getKey() + "_" + litI);
-                    colIdxs.add(colIdx);
-                }
-                idxMap.put(entry.getKey(), List.copyOf(colIdxs));
-            }
-            RelDataTypeFactory.Builder rowTypeBuilder = tf.builder();
-            for (int idx = 0; idx < projectExprs.size(); idx++) {
-                rowTypeBuilder.add(projectNames.get(idx), projectExprs.get(idx).getType());
-            }
-            newFinalInput = new OpenSearchProject(
-                newFinalInput.getCluster(),
-                newFinalInput.getTraitSet(),
-                newFinalInput,
-                projectExprs,
-                rowTypeBuilder.build(),
-                finalAgg.getViableBackends()
-            );
-            extraLiteralColIdxByCallIdx = idxMap;
-        }
-
-        List<AggregateCall> rebuiltCalls = new ArrayList<>(finalAgg.getAggCallList().size());
-        for (int i = 0; i < finalAgg.getAggCallList().size(); i++) {
-            AggregateCall call = finalAgg.getAggCallList().get(i);
-            IntermediateField field = perCallField.get(i);
-            int stateColIdx = groupCount + i;
-            String name = overriddenExchangeType.getFieldList().get(stateColIdx).getName();
-            List<Integer> extraColIdxs = extraLiteralColIdxByCallIdx.getOrDefault(i, List.of());
-            rebuiltCalls.add(buildFinalCall(call, field, stateColIdx, extraColIdxs, name, newFinalInput, hasEmptyGroup));
-        }
-
-        return new OpenSearchAggregate(
-            finalAgg.getCluster(),
-            finalAgg.getTraitSet(),
-            newFinalInput,
-            finalAgg.getGroupSet(),
-            finalAgg.getGroupSets(),
-            rebuiltCalls,
-            AggregateMode.FINAL,
-            finalAgg.getViableBackends(),
-            finalAgg.getCallAnnotations(),
-            // Cleared so a later copy doesn't re-inject the literal Project.
-            Map.of()
+        List<AggregateCall> rebuiltCalls = FinalAggCallBuilder.buildFinalCalls(
+            finalAgg.getAggCallList(),
+            finalAgg.getIntermediateFields(),
+            finalAgg.getGroupSet().cardinality(),
+            result.finalInput(),
+            finalAgg.getGroupSet().isEmpty(),
+            result.extraLiteralColIdxByCallIdx()
         );
+        return OpenSearchAggregate.finalAfterRewrite(finalAgg, result.finalInput(), rebuiltCalls);
     }
 
-    private static AggregateCall buildFinalCall(
-        AggregateCall call,
-        IntermediateField field,
-        int finalArgIdx,
-        List<Integer> extraColIdxs,
-        String name,
-        RelNode newFinalInput,
-        boolean hasEmptyGroup
-    ) {
-        SqlAggFunction aggFunc;
-        RelDataType explicitType;
-        if (field == null) {
-            aggFunc = call.getAggregation();
-            explicitType = null;
-        } else if (field.reducer() == AggregateFunction.fromSqlAggFunction(call.getAggregation())) {
-            // Engine-native merge: keep function identity, pin return type. STATE_EXPANDING
-            // pins to the StageInputScan column (PARTIAL's output shape); APPROXIMATE keeps
-            // the user-facing return type (e.g. HLL FINAL → BIGINT).
-            aggFunc = call.getAggregation();
-            AggregateFunction enumFn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
-            if (enumFn.getType() == AggregateFunction.Type.STATE_EXPANDING) {
-                explicitType = newFinalInput.getRowType().getFieldList().get(finalArgIdx).getType();
-            } else {
-                explicitType = call.getType();
-            }
-        } else {
-            aggFunc = field.reducer().toSqlAggFunction();
-            explicitType = null;
+    /** Carries the running input chain plus the per-call indexes of any literal columns added. */
+    private record TransformResult(RelNode finalInput, Map<Integer, List<Integer>> extraLiteralColIdxByCallIdx) {
+
+        static TransformResult initial(RelNode finalInput) {
+            return new TransformResult(finalInput, Map.of());
         }
 
-        // State column followed by any forwarded literal-arg columns.
-        List<Integer> argList = new ArrayList<>(1 + extraColIdxs.size());
-        argList.add(finalArgIdx);
-        argList.addAll(extraColIdxs);
+        boolean changed(RelNode original) {
+            return finalInput != original || !extraLiteralColIdxByCallIdx.isEmpty();
+        }
+    }
 
-        return AggregateCall.create(
-            aggFunc,
-            call.isDistinct(),
-            call.isApproximate(),
-            call.ignoreNulls(),
-            call.rexList,
-            List.copyOf(argList),
-            call.filterArg,
-            call.distinctKeys,
-            call.collation,
-            hasEmptyGroup,
-            newFinalInput,
-            explicitType,
-            name
+    // ── Transformer 1: StageInputScan re-typing ─────────────────────────────
+
+    /**
+     * Re-types the StageInputScan when an aggregate's intermediate state has a different shape
+     * than PARTIAL's declared output (e.g. APPROX_COUNT_DISTINCT emits a {@code VARBINARY} HLL
+     * sketch). Reads the per-call classification stored on FINAL — never re-classifies.
+     */
+    private static TransformResult overrideExchangeType(OpenSearchAggregate finalAgg, TransformResult current) {
+        RelNode exchange = current.finalInput();
+        if (exchange.getInputs().isEmpty()) return current;
+        if (!(exchange.getInputs().get(0) instanceof OpenSearchStageInputScan stageInput)) return current;
+
+        List<IntermediateField> intermediateFields = finalAgg.getIntermediateFields();
+        if (intermediateFields.isEmpty()) return current;
+
+        RelDataTypeFactory typeFactory = finalAgg.getCluster().getTypeFactory();
+        RelDataType stageInputType = stageInput.getRowType();
+        int groupCount = finalAgg.getGroupSet().cardinality();
+
+        RelDataTypeFactory.Builder rebuiltType = typeFactory.builder();
+        boolean changed = false;
+        for (int idx = 0; idx < stageInputType.getFieldCount(); idx++) {
+            RelDataTypeField column = stageInputType.getFieldList().get(idx);
+            // Group keys (idx < groupCount) keep their type; agg columns resolve through the SPI.
+            RelDataType resolvedType = resolveColumnType(column, idx - groupCount, intermediateFields, typeFactory);
+            if (!resolvedType.equals(column.getType())) changed = true;
+            rebuiltType.add(column.getName(), resolvedType);
+        }
+        if (!changed) return current;
+
+        OpenSearchStageInputScan rebuiltStageInput = new OpenSearchStageInputScan(
+            stageInput.getCluster(),
+            stageInput.getTraitSet(),
+            stageInput.getChildStageId(),
+            rebuiltType.build(),
+            stageInput.getViableBackends(),
+            stageInput.getOutputFieldStorage()
         );
+        RelNode rebuiltExchange = exchange.copy(exchange.getTraitSet(), List.of(rebuiltStageInput));
+        return new TransformResult(rebuiltExchange, current.extraLiteralColIdxByCallIdx());
+    }
+
+    private static RelDataType resolveColumnType(
+        RelDataTypeField column,
+        int callIdx,
+        List<IntermediateField> intermediateFields,
+        RelDataTypeFactory typeFactory
+    ) {
+        if (callIdx < 0 || callIdx >= intermediateFields.size()) return column.getType();
+        IntermediateField field = intermediateFields.get(callIdx);
+        if (field == null) return column.getType();
+        return field.typeResolver().resolve(List.of(column.getType()), typeFactory);
+    }
+
+    // ── Transformer 2: literal-Project insertion ────────────────────────────
+
+    private static final String LITERAL_COL_PREFIX = "$lit_call";
+
+    /**
+     * Re-introduces a STATE_EXPANDING aggregate's literal config args (e.g. {@code take(field, 10)}'s
+     * {@code 10}) as constant columns above the StageInputScan. PARTIAL emits only state, so FINAL
+     * needs the literals projected back in to reference them by index.
+     */
+    private static TransformResult insertLiteralProject(OpenSearchAggregate finalAgg, TransformResult current) {
+        Map<Integer, List<RexLiteral>> literalsByCall = finalAgg.getFinalExtraLiteralArgs();
+        if (literalsByCall.isEmpty()) return current;
+
+        RelNode input = current.finalInput();
+        RelDataType inputType = input.getRowType();
+        RelDataTypeFactory.Builder projectType = finalAgg.getCluster().getTypeFactory().builder();
+        List<RexNode> projectExpressions = new ArrayList<>(inputType.getFieldCount() + literalsByCall.size());
+
+        // Forward existing input columns unchanged.
+        for (int idx = 0; idx < inputType.getFieldCount(); idx++) {
+            RelDataType columnType = inputType.getFieldList().get(idx).getType();
+            String columnName = inputType.getFieldList().get(idx).getName();
+            projectExpressions.add(new RexInputRef(idx, columnType));
+            projectType.add(columnName, columnType);
+        }
+
+        // Append one column per captured literal; record where each call's literals landed.
+        Map<Integer, List<Integer>> literalColumnsByCall = new LinkedHashMap<>();
+        for (Map.Entry<Integer, List<RexLiteral>> entry : literalsByCall.entrySet()) {
+            int callIdx = entry.getKey();
+            List<RexLiteral> literals = entry.getValue();
+            List<Integer> columnIdxs = new ArrayList<>(literals.size());
+            for (int litIdx = 0; litIdx < literals.size(); litIdx++) {
+                RexLiteral literal = literals.get(litIdx);
+                columnIdxs.add(projectExpressions.size()); // capture index BEFORE adding
+                projectExpressions.add(literal);
+                projectType.add(LITERAL_COL_PREFIX + callIdx + "_" + litIdx, literal.getType());
+            }
+            literalColumnsByCall.put(callIdx, List.copyOf(columnIdxs));
+        }
+
+        OpenSearchProject project = new OpenSearchProject(
+            input.getCluster(),
+            input.getTraitSet(),
+            input,
+            projectExpressions,
+            projectType.build(),
+            finalAgg.getViableBackends()
+        );
+        return new TransformResult(project, Map.copyOf(literalColumnsByCall));
+    }
+
+    // ── FinalAggCallBuilder: construction-time aggCall factory ──────────────
+
+    /**
+     * Construction-time factory for FINAL aggCalls. Owns argList rebase to {@code groupCount + i},
+     * function swap (e.g. COUNT→SUM), and return-type pinning. Pure: no rel-tree walking.
+     *
+     * <p>Called by the split rule (so Volcano's {@code typeMatchesInferred} passes) and again by
+     * {@link #rewrite} when an input adapter changed the chain — idempotent given the same
+     * {@code intermediateFields} list.
+     */
+    public static final class FinalAggCallBuilder {
+
+        private FinalAggCallBuilder() {}
+
+        /**
+         * Returns the {@link IntermediateField} per call (parallel to {@code originalCalls}).
+         * Run on the ORIGINAL aggCalls — classifying a post-swap call could pick the wrong
+         * reducer. A {@code null} entry means the aggregate has no SPI decomposition; FINAL
+         * passes such a call through unchanged.
+         */
+        public static List<IntermediateField> classify(List<AggregateCall> originalCalls) {
+            List<IntermediateField> result = new ArrayList<>(originalCalls.size());
+            for (AggregateCall call : originalCalls) {
+                List<IntermediateField> fields = AggregateFunction.fromSqlAggFunction(call.getAggregation()).intermediateFields();
+                if (fields == null) {
+                    result.add(null);
+                } else if (fields.size() == 1) {
+                    result.add(fields.get(0));
+                } else {
+                    // Multi-field decompositions (AVG, STDDEV, ...) must be reduced upstream.
+                    throw new IllegalStateException(
+                        "Aggregate [" + call.getAggregation().getName() + "] has multiple intermediate fields; expected at most one"
+                    );
+                }
+            }
+            // List.copyOf would NPE on the null pass-through entries.
+            return Collections.unmodifiableList(result);
+        }
+
+        /** Overload for callers without literal-arg columns to forward (the common case). */
+        public static List<AggregateCall> buildFinalCalls(
+            List<AggregateCall> calls,
+            List<IntermediateField> intermediateFields,
+            int groupCount,
+            RelNode finalInput,
+            boolean hasEmptyGroup
+        ) {
+            return buildFinalCalls(calls, intermediateFields, groupCount, finalInput, hasEmptyGroup, Map.of());
+        }
+
+        /**
+         * Rebuilds FINAL aggCalls bound against {@code finalInput}. Each call's argList becomes
+         * {@code [groupCount + i, ...extras]}; the function is swapped per its
+         * {@link IntermediateField#reducer}; the return type is re-inferred or pinned per the
+         * engine-native-merge rules.
+         */
+        public static List<AggregateCall> buildFinalCalls(
+            List<AggregateCall> calls,
+            List<IntermediateField> intermediateFields,
+            int groupCount,
+            RelNode finalInput,
+            boolean hasEmptyGroup,
+            Map<Integer, List<Integer>> extraLiteralColIdxByCallIdx
+        ) {
+            List<AggregateCall> rebuilt = new ArrayList<>(calls.size());
+            for (int i = 0; i < calls.size(); i++) {
+                AggregateCall call = calls.get(i);
+                int stateColIdx = groupCount + i;
+                String name = finalInput.getRowType().getFieldList().get(stateColIdx).getName();
+                List<Integer> extraColIdxs = extraLiteralColIdxByCallIdx.getOrDefault(i, List.of());
+                rebuilt.add(buildOne(call, intermediateFields.get(i), stateColIdx, extraColIdxs, name, finalInput, hasEmptyGroup));
+            }
+            return rebuilt;
+        }
+
+        private static AggregateCall buildOne(
+            AggregateCall call,
+            IntermediateField field,
+            int finalArgIdx,
+            List<Integer> extraColIdxs,
+            String name,
+            RelNode finalInput,
+            boolean hasEmptyGroup
+        ) {
+            SqlAggFunction aggFunc;
+            RelDataType explicitType;
+            if (field == null) {
+                // No decomposition — pass through, let Calcite re-infer.
+                aggFunc = call.getAggregation();
+                explicitType = null;
+            } else {
+                AggregateFunction enumFn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
+                boolean isEngineNativeMerge = field.reducer() == enumFn;
+                if (isEngineNativeMerge) {
+                    // Same function on FINAL: STATE_EXPANDING pins to the state column type;
+                    // others keep the user-facing return type.
+                    aggFunc = call.getAggregation();
+                    explicitType = enumFn.getType() == AggregateFunction.Type.STATE_EXPANDING
+                        ? finalInput.getRowType().getFieldList().get(finalArgIdx).getType()
+                        : call.getType();
+                } else {
+                    // Function swap (COUNT → SUM, etc.). Let Calcite re-infer.
+                    aggFunc = field.reducer().toSqlAggFunction();
+                    explicitType = null;
+                }
+            }
+
+            List<Integer> argList = new ArrayList<>(1 + extraColIdxs.size());
+            argList.add(finalArgIdx);
+            argList.addAll(extraColIdxs);
+
+            return AggregateCall.create(
+                aggFunc,
+                call.isDistinct(),
+                call.isApproximate(),
+                call.ignoreNulls(),
+                call.rexList,
+                List.copyOf(argList),
+                -1,  // filterArg dropped: FILTER consumed by PARTIAL on raw rows; FINAL only merges states.
+                call.distinctKeys,
+                call.collation,
+                hasEmptyGroup,
+                finalInput,
+                explicitType,
+                name
+            );
+        }
     }
 }

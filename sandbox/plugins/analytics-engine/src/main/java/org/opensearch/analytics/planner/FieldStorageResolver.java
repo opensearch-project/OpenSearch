@@ -62,17 +62,19 @@ public class FieldStorageResolver {
         boolean luceneAvailable = LUCENE_FORMAT.equals(primaryFormat)
             || indexMetadata.getSettings().getAsList(SECONDARY_DATA_FORMATS_SETTING).contains(LUCENE_FORMAT);
 
+        // A mapping-less index (created empty, never written to) declares no fields — it
+        // contributes nothing to the field-storage union. Aliases and index patterns legitimately
+        // span such indices next to populated ones (schema-side resolution skips them the same
+        // way), so treat "no mapping" / "no properties" as an empty field set rather than an error.
+        // A query that references only such indices fails upstream at Calcite validation with
+        // "table not found" (the schema builder yields no row type), never reaching this resolver.
         MappingMetadata mapping = indexMetadata.mapping();
-        if (mapping == null) {
-            throw new IllegalStateException("No mapping found for index [" + indexName + "]");
-        }
-        Map<String, Object> properties = (Map<String, Object>) mapping.sourceAsMap().get("properties");
-        if (properties == null) {
-            throw new IllegalStateException("No properties in mapping for index [" + indexName + "]");
-        }
+        Map<String, Object> properties = mapping == null ? null : (Map<String, Object>) mapping.sourceAsMap().get("properties");
 
         this.fieldStorage = new HashMap<>();
-        populateFromProperties(properties, "", primaryFormat, luceneAvailable);
+        if (properties != null) {
+            populateFromProperties(properties, "", primaryFormat, luceneAvailable);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -95,13 +97,32 @@ public class FieldStorageResolver {
         }
     }
 
+    /**
+     * Unions the field storage of several per-index resolvers into one. First declaration of a
+     * field wins; {@link IndexResolution#resolve} has already verified that any field declared by
+     * more than one backing index agrees on type, so the choice of source index is immaterial.
+     *
+     * <p>Used when a table name resolves to multiple concrete indices (alias or index pattern) with
+     * differing field sets: the scan's row type is the union across all of them, so resolving every
+     * requested field against a single index would spuriously fail on fields that index omits.
+     */
+    static FieldStorageResolver merged(List<FieldStorageResolver> perIndex) {
+        Map<String, FieldStorageInfo> union = new HashMap<>();
+        for (FieldStorageResolver resolver : perIndex) {
+            for (Map.Entry<String, FieldStorageInfo> entry : resolver.fieldStorage.entrySet()) {
+                union.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+        }
+        return new FieldStorageResolver(union);
+    }
+
     /** Resolves storage info for the requested fields in order. */
     public List<FieldStorageInfo> resolve(List<String> fieldNames) {
         List<FieldStorageInfo> result = new ArrayList<>(fieldNames.size());
         for (String fieldName : fieldNames) {
             FieldStorageInfo info = fieldStorage.get(fieldName);
             if (info == null) {
-                throw new IllegalStateException("Field [" + fieldName + "] not found in field storage for index");
+                throw new IllegalArgumentException("Field [" + fieldName + "] not found in field storage for index");
             }
             result.add(info);
         }
@@ -140,7 +161,30 @@ public class FieldStorageResolver {
             docValueFormats,
             indexFormats,
             storedFieldFormats,
-            false
+            false,
+            exactMatchSubfieldOf(fieldType, fieldProps)
         );
+    }
+
+    /**
+     * For a {@code text} field with a {@code fields} multifield block, returns the name of the
+     * first {@code keyword} subfield (e.g. {@code "keyword"}), or {@code null} if there is none.
+     * Exact-equality predicates route to this subfield (see {@link FieldStorageInfo#getExactMatchSubfield()}).
+     */
+    @SuppressWarnings("unchecked")
+    private static String exactMatchSubfieldOf(String fieldType, Map<String, Object> fieldProps) {
+        if (!"text".equals(fieldType)) {
+            return null;
+        }
+        Object fields = fieldProps.get("fields");
+        if (!(fields instanceof Map<?, ?> subfields)) {
+            return null;
+        }
+        for (Map.Entry<?, ?> entry : subfields.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> subProps && "keyword".equals(subProps.get("type"))) {
+                return String.valueOf(entry.getKey());
+            }
+        }
+        return null;
     }
 }

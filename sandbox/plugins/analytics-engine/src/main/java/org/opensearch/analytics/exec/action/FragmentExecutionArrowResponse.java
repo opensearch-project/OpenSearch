@@ -26,6 +26,10 @@ public class FragmentExecutionArrowResponse extends ArrowBatchResponse {
         super(root);
     }
 
+    public FragmentExecutionArrowResponse(VectorSchemaRoot root, byte[] metadata) {
+        super(root, metadata);
+    }
+
     public FragmentExecutionArrowResponse(StreamInput in) throws IOException {
         super(in);
     }

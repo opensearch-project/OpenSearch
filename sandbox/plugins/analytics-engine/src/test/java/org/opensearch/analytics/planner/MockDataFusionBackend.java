@@ -76,6 +76,13 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         AggregateFunction.AVG
     );
 
+    // STATE_EXPANDING aggregates carrying a literal config arg — exercised by the literal-arg
+    // Project-split plan-shape tests. Registered via the stateExpanding factory (not simple()).
+    private static final Set<AggregateFunction> STATE_EXPANDING_AGG_FUNCTIONS = Set.of(
+        AggregateFunction.PERCENTILE_APPROX,
+        AggregateFunction.TAKE
+    );
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
@@ -90,6 +97,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         Set<AggregateCapability> caps = new HashSet<>();
         for (AggregateFunction func : AGG_FUNCTIONS) {
             caps.add(AggregateCapability.simple(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
+        }
+        for (AggregateFunction func : STATE_EXPANDING_AGG_FUNCTIONS) {
+            caps.add(AggregateCapability.stateExpanding(func, SUPPORTED_TYPES, DATAFUSION_FORMATS));
         }
         AGG_CAPS = caps;
     }
@@ -138,9 +148,10 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
 
     @Override
     protected Set<WindowCapability> windowCapabilities() {
-        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — SUM/AVG/COUNT/MIN/MAX
-        // for PPL eventstats; ROW_NUMBER backs PPL top/rare/dedup and the streamstats … by …
-        // helper sequence column.
+        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — the *PPL form*
+        // of dc/earliest/latest is advertised; the actual rewrite to FIRST_VALUE /
+        // LAST_VALUE / COUNT(DISTINCT) happens in BackendPlanAdapter before substrait
+        // emission.
         return Set.of(
             new WindowCapability(
                 Set.of(
@@ -149,7 +160,12 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
                     WindowFunction.COUNT,
                     WindowFunction.MIN,
                     WindowFunction.MAX,
-                    WindowFunction.ROW_NUMBER
+                    WindowFunction.ARG_MIN,
+                    WindowFunction.ARG_MAX,
+                    WindowFunction.DISTINCT_COUNT_APPROX,
+                    WindowFunction.ROW_NUMBER,
+                    WindowFunction.RANK,
+                    WindowFunction.DENSE_RANK
                 ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
@@ -184,7 +200,12 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         // Logical connectives (projection-side composition: `case(a and b, …)`)
         ScalarFunction.AND,
         ScalarFunction.OR,
-        ScalarFunction.NOT
+        ScalarFunction.NOT,
+        // String — used by QTF plan-shape tests covering composite expressions / dedup.
+        ScalarFunction.CONCAT,
+        ScalarFunction.UPPER,
+        ScalarFunction.SIN,
+        ScalarFunction.ABS
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;

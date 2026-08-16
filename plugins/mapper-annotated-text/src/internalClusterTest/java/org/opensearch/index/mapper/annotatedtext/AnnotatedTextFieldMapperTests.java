@@ -47,8 +47,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -605,87 +603,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.field("position_increment_gap", 0);
             })));
             assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
-        }
-    }
-
-    private Settings pluggableSettings() {
-        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatAnnotatedText() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
-
-        boolean found = docInput.getCapturedFields()
-            .stream()
-            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("some annotated text"));
-        assertTrue("Expected annotated_text field captured with value", found);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatNullValueSkipped() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.nullField("field")), docInput);
-
-        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
-        assertFalse("Expected no captured field for null value", hasField);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatWithExternalValue() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {
-            b.startObject("text_field");
-            b.field("type", "text");
-            b.startObject("fields");
-            b.startObject("annotated").field("type", "annotated_text").endObject();
-            b.endObject();
-            b.endObject();
-        }));
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.field("text_field", "external_value")), docInput);
-
-        boolean found = docInput.getCapturedFields()
-            .stream()
-            .anyMatch(e -> e.getKey().name().equals("text_field.annotated") && e.getValue().equals("external_value"));
-        assertTrue("Expected annotated_text sub-field captured with external value", found);
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
-        // Scenario 1: annotated text value
-        {
-            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.field("field", "some annotated text")));
-            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
-
-            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-            CapturingDocumentInput docInput = new CapturingDocumentInput();
-            pluggableMapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
-
-            assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
-            assertEquals("some annotated text", luceneFields[0].stringValue());
-            boolean pluggableFound = docInput.getCapturedFields()
-                .stream()
-                .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("some annotated text"));
-            assertTrue("Pluggable path should capture field 'field' with value 'some annotated text'", pluggableFound);
-        }
-
-        // Scenario 2: null value — no field produced
-        {
-            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.nullField("field")));
-            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
-
-            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-            CapturingDocumentInput docInput = new CapturingDocumentInput();
-            pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
-
-            assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
-            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
-            assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
         }
     }
 }

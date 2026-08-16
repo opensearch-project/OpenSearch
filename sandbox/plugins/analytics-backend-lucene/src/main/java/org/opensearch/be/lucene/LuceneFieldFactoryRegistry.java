@@ -9,13 +9,17 @@
 package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.Map;
@@ -34,6 +38,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @ExperimentalApi
 public final class LuceneFieldFactoryRegistry {
 
+    private static final FieldType ID_FIELD_TYPE = new FieldType();
+
+    static {
+        ID_FIELD_TYPE.setTokenized(false);
+        ID_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        ID_FIELD_TYPE.setOmitNorms(true);
+        ID_FIELD_TYPE.setStored(false);
+        ID_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
+        ID_FIELD_TYPE.freeze();
+    }
+
     // ── Default factories ──
     private static final LuceneFieldFactory TEXT_FACTORY = (doc, ft, value, lft) -> {
         doc.add(new Field(ft.name(), value.toString(), lft));
@@ -48,11 +63,11 @@ public final class LuceneFieldFactoryRegistry {
     };
 
     private static final LuceneFieldFactory ID_FIELD_FACTORY = (doc, ft, value, lft) -> {
-        doc.add(new Field(ft.name(), new BytesRef((byte[]) value), IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(ft.name(), new BytesRef((byte[]) value), ID_FIELD_TYPE));
     };
 
     private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
-        doc.add(new LongPoint(ft.name(), (long) value));
+        // do nothing for now since we don't want to index seq no indexing without soft deletes enabled.
     };
 
     // ── Registry ──
@@ -66,8 +81,15 @@ public final class LuceneFieldFactoryRegistry {
         register(TextFieldMapper.CONTENT_TYPE, TEXT_FACTORY);
         register(KeywordFieldMapper.CONTENT_TYPE, KEYWORD_FACTORY);
         register(MatchOnlyTextFieldMapper.CONTENT_TYPE, MATCH_ONLY_TEXT_FACTORY);
+        registerMetaFields();
+    }
+
+    private void registerMetaFields() {
         register(IdFieldMapper.CONTENT_TYPE, ID_FIELD_FACTORY);
         register(SeqNoFieldMapper.CONTENT_TYPE, SEQ_NO_FIELD_FACTORY);
+        register(SeqNoFieldMapper.PRIMARY_TERM_NAME, (d, ft, v, lft) -> d.add(new SortedNumericDocValuesField(ft.name(), (long) v)));
+        register(SourceFieldMapper.CONTENT_TYPE, (d, ft, v, lft) -> d.add(new Field(ft.name(), (BytesRef) v, lft)));
+        // pending routing and ignored field handling
     }
 
     /**

@@ -29,13 +29,19 @@ repositories {
    *   - version 0.0.2 has the same class and one extra file just to make the jar different
    *   - used for propagating jar containing jdkjarhell jar from integ test runtime classpath
    */
-  maven {
-    name = "local-test"
-    url = file("sample_jars/build/testrepo")
-    metadataSources {
-      artifact()
+  exclusiveContent {
+    forRepositories(maven {
+      name = "local-test"
+      url = file("sample_jars/build/testrepo")
+      metadataSources {
+        artifact()
+      }
+    })
+    filter {
+      includeGroupByRegex "other\\.gradle.*|opensearch\\.gradle.*|org\\.other\\.gradle.*|org\\.opensearch\\.gradle.*|org\\.opensearch"
     }
   }
+  maven { url = uri("https://ci.opensearch.org/maven2/") }
   mavenCentral()
 }
 

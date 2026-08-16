@@ -90,7 +90,12 @@ public final class SqlPlannerTestFixture {
             throw new UnsupportedOperationException("View expansion not used in tests");
         }, validator, catalogReader, cluster, StandardConvertletTable.INSTANCE, SqlToRelConverter.config());
 
-        return converter.convertQuery(parsed, true, true).rel;
+        // Use RelRoot.project() rather than .rel: SqlToRelConverter at top level appends
+        // ORDER BY columns to the projection without trimming them (intentional — Calcite's
+        // contract is that the caller applies the trim via RelRoot's `fields` mask). Without
+        // this, queries like `SELECT URL ORDER BY EventDate` return a 2-column result.
+        // See org.apache.calcite.rel.RelRoot's class doc for the canonical example.
+        return converter.convertQuery(parsed, true, true).project();
     }
 
     /**

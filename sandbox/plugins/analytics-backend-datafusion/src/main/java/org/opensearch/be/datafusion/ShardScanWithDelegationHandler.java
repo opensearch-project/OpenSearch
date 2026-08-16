@@ -57,6 +57,7 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
+        String tableName = context.getTableName();
         FilterTreeShape treeShape = node.getTreeShape();
         int delegatedPredicateCount = node.getDelegatedPredicateCount();
 
@@ -67,11 +68,14 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
             SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
                 readerPtr,
                 runtimePtr,
-                context.getTableName(),
+                tableName,
                 contextId,
                 treeShape.ordinal(),
                 delegatedPredicateCount,
-                segment.address()
+                node.requestsRowIds(),
+                context.hasPartialAggregate(),
+                segment.address(),
+                context.getFragmentBytes()
             );
             return new DataFusionSessionState(sessionCtxHandle);
         }

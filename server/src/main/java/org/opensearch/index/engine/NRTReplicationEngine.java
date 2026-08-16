@@ -410,7 +410,7 @@ public class NRTReplicationEngine extends Engine {
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
-        return acquireLastCatalogSnapshot(false);
+        return acquireLastCommitedCatalogSnapshot(false);
     }
 
     /**
@@ -418,7 +418,7 @@ public class NRTReplicationEngine extends Engine {
      * in-memory {@code lastCommittedSegmentInfos} as a {@link SegmentInfosCatalogSnapshot} while
      * pinning the referenced files via {@code replicaFileTracker}. Avoids re-reading {@code segments_N}.
      */
-    private GatedCloseable<CatalogSnapshot> acquireLastCatalogSnapshot(boolean flushFirst) throws EngineException {
+    private GatedCloseable<CatalogSnapshot> acquireLastCommitedCatalogSnapshot(boolean flushFirst) throws EngineException {
         if (flushFirst) {
             flush(false, true);
         }

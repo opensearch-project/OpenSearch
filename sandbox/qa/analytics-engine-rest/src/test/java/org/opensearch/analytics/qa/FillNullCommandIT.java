@@ -23,7 +23,7 @@ import java.util.Map;
  * <p>Mirrors {@code CalciteFillNullCommandIT} from the {@code opensearch-project/sql}
  * repository so that the analytics-engine path can be verified inside core without
  * cross-plugin dependencies on the SQL plugin. Each test sends a PPL query through
- * {@code POST /_analytics/ppl} (exposed by the {@code test-ppl-frontend} plugin),
+ * {@code POST /_plugins/_ppl} (exposed by the {@code opensearch-sql} plugin),
  * which runs the same {@code UnifiedQueryPlanner} → {@code CalciteRelNodeVisitor} →
  * Substrait → DataFusion pipeline as the SQL plugin's force-routed analytics path.
  *
@@ -52,7 +52,8 @@ public class FillNullCommandIT extends AnalyticsRestTestCase {
      * static {@code client()} is not initialized until after {@code @BeforeClass}, but is
      * reliably available inside test bodies. Mirrors the pattern in {@code PplClickBenchIT}.
      */
-    private void ensureDataProvisioned() throws IOException {
+    @Override
+    protected void onBeforeQuery() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
@@ -356,7 +357,7 @@ public class FillNullCommandIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Send a PPL query to {@code POST /_analytics/ppl} and assert the response's {@code rows}
+     * Send a PPL query to {@code POST /_plugins/_ppl} and assert the response's {@code rows}
      * match the expected list element-by-element using a numeric-tolerant comparator
      * (Java JSON parsing returns Integer/Long/Double interchangeably, but PPL doesn't
      * preserve that distinction at the API surface).
@@ -366,8 +367,8 @@ public class FillNullCommandIT extends AnalyticsRestTestCase {
     private final void assertRows(String ppl, List<Object>... expected) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' field for query: " + ppl, actualRows);
         assertEquals("Row count mismatch for query: " + ppl, expected.length, actualRows.size());
         for (int i = 0; i < expected.length; i++) {
             List<Object> want = expected[i];
@@ -398,8 +399,8 @@ public class FillNullCommandIT extends AnalyticsRestTestCase {
         } catch (ResponseException e) {
             String body;
             try {
-                body = org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap(e.getResponse()).toString();
-            } catch (IOException ioe) {
+                body = org.apache.hc.core5.http.io.entity.EntityUtils.toString(e.getResponse().getEntity());
+            } catch (Exception ioe) {
                 body = e.getMessage();
             }
             assertTrue(
@@ -411,14 +412,8 @@ public class FillNullCommandIT extends AnalyticsRestTestCase {
         }
     }
 
-    /** Send {@code POST /_analytics/ppl} and return the parsed JSON body. */
-    private Map<String, Object> executePpl(String ppl) throws IOException {
-        ensureDataProvisioned();
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        return assertOkAndParse(response, "PPL: " + ppl);
-    }
+    /** Send {@code POST /_plugins/_ppl} and return the parsed JSON body. */
+
 
     /**
      * Compare two cells with numeric tolerance. JSON parsing produces Integer/Long/Double

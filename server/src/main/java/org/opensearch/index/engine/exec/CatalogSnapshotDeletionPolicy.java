@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
@@ -42,6 +43,11 @@ public interface CatalogSnapshotDeletionPolicy {
                 return Collections.emptyList();
             }
             return new ArrayList<>(commits.subList(0, commits.size() - 1));
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            return SafeCommitInfo.EMPTY;
         }
     };
 
@@ -81,4 +87,9 @@ public interface CatalogSnapshotDeletionPolicy {
     default CatalogSnapshot findSafeCommit(List<CatalogSnapshot> commits) throws IOException {
         throw new UnsupportedOperationException("findSafeCommit not supported by this policy");
     }
+
+    /**
+     * Returns information about the safe commit, for making decisions about recoveries.
+     */
+    SafeCommitInfo getSafeCommitInfo();
 }

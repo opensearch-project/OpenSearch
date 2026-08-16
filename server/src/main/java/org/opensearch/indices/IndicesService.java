@@ -110,6 +110,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -160,6 +161,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -174,6 +176,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchStatsContributor;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -454,6 +457,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
+    private final IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry;
     private final Supplier<IngestService> ingestServiceSupplier;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
@@ -481,6 +485,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
+    private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
     private final DataFormatRegistry dataFormatRegistry;
     private final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
@@ -521,6 +526,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry ingestionPayloadDecoderRegistry,
         Supplier<IngestService> ingestServiceSupplier,
         RecoverySettings recoverySettings,
         CacheService cacheService,
@@ -592,6 +598,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
+        this.ingestionPayloadDecoderRegistry = ingestionPayloadDecoderRegistry;
         this.ingestServiceSupplier = ingestServiceSupplier;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -608,7 +615,8 @@ public class IndicesService extends AbstractLifecycleComponent
                         indicesFieldDataCache,
                         cacheCleaner,
                         indicesRequestCache,
-                        indicesQueryCache
+                        indicesQueryCache,
+                        ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -709,6 +717,7 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
+        IngestionPayloadDecoderRegistry payloadDecoderRegistry,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -742,6 +751,7 @@ public class IndicesService extends AbstractLifecycleComponent
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
             ingestionConsumerFactories,
+            payloadDecoderRegistry,
             () -> null,
             recoverySettings,
             cacheService,
@@ -750,7 +760,7 @@ public class IndicesService extends AbstractLifecycleComponent
             null,
             null,
             null,
-            null
+            new DataFormatRegistry(pluginsService)
         );
     }
 
@@ -896,6 +906,12 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
                 case Search:
                     commonStats.search.add(oldShardsStats.searchStats);
+                    for (SearchStatsContributor contributor : searchStatsContributors) {
+                        SearchStats contributed = contributor.contributeSearchStats();
+                        if (contributed != null) {
+                            commonStats.search.add(contributed);
+                        }
+                    }
                     break;
                 case Merge:
                     commonStats.merge.add(oldShardsStats.mergeStats);
@@ -1226,7 +1242,12 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
-        return new EngineConfigFactory(this.pluginsService, idxSettings);
+        return new EngineConfigFactory(
+            this.pluginsService,
+            idxSettings,
+            dataFormatRegistry.getDocumentLookupProvider(),
+            dataFormatRegistry.getDocumentMetadataResolver()
+        );
     }
 
     private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
@@ -1262,7 +1283,11 @@ public class IndicesService extends AbstractLifecycleComponent
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
-            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier);
+            IngestionPayloadDecoderFactory decoderFactory = ingestionPayloadDecoderRegistry.get(
+                indexMetadata.getIngestionSource().getDecoderType()
+            );
+            decoderFactory.validate(indexMetadata.getIngestionSource().getDecoderSettings());
+            return new IngestionEngineFactory(ingestionConsumerFactory, ingestServiceSupplier, decoderFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
@@ -2147,6 +2172,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Updates the native memory budget used by the IndexingMemoryController for flush/throttle decisions.
+     * Called when the indexing pool group's effective limit changes.
+     */
+    public void setNativeIndexBufferBytes(long bytes) {
+        indexingMemoryController.setNativeBufferBytes(bytes);
+    }
+
+    /**
      * Cache something calculated at the shard level.
      * @param shard the shard this item is part of
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
@@ -2469,6 +2502,13 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+    }
+
+    /**
+     * Sets the list of search stats contributors. Called by {@code Node} after plugin discovery.
+     */
+    public void setSearchStatsContributors(List<SearchStatsContributor> contributors) {
+        this.searchStatsContributors = contributors;
     }
 
     private boolean isFixedRefreshIntervalSchedulingEnabled() {

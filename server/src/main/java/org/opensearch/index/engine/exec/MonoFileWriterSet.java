@@ -116,8 +116,8 @@ public final class MonoFileWriterSet extends WriterFileSet {
     /**
      * Deserializes a MonoFileWriterSet from a stream.
      */
-    public MonoFileWriterSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), in.readString(), in.readLong(), in.readLong());
+    public MonoFileWriterSet(StreamInput in, String directory, long version) throws IOException {
+        this(directory, in.readLong(), in.readString(), in.readLong(), version);
     }
 
     /**

@@ -1,0 +1,1 @@
+source=otel_logs | where severityNumber >= 13 | where `log.http.status_code` >= 500 | stats count()

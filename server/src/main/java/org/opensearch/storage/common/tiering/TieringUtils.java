@@ -12,12 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.storage.action.tiering.IndexTieringRequest;
 
 import java.util.Arrays;
@@ -121,6 +124,34 @@ public class TieringUtils {
         100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Timeout for the prepare tiering action (merge drain + flush + sync + remote upload).
+     * Controls how long each shard waits for in-flight merges to complete before timing out.
+     * Default is 90 seconds — large indices with many segments may need significant time
+     * for the remote store upload after flush. The default is kept just under the coordinator's
+     * transport channel timeout so the per-shard timeout fires first with diagnostic detail.
+     */
+    public static final String PREPARE_TIERING_TIMEOUT_KEY = "cluster.tiering.prepare_timeout";
+    /** Setting for prepare tiering timeout. Dynamically updatable via cluster settings API. */
+    public static final Setting<TimeValue> PREPARE_TIERING_TIMEOUT = Setting.timeSetting(
+        PREPARE_TIERING_TIMEOUT_KEY,
+        TimeValue.timeValueSeconds(90),
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String REPLICA_SYNC_TIMEOUT_KEY = "tiering.prepare.replica_sync_timeout";
+    /** Setting for how long to wait for replicas to sync during tiering preparation. Dynamically updatable. */
+    public static final Setting<TimeValue> REPLICA_SYNC_TIMEOUT_SETTING = Setting.timeSetting(
+        REPLICA_SYNC_TIMEOUT_KEY,
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -370,6 +401,14 @@ public class TieringUtils {
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    /**
+     * Checks if the index has pluggable data format enabled (is a DFA index).
+     */
+    public static boolean isDfaIndex(IndexMetadata indexMetadata) {
+        return indexMetadata != null
+            && indexMetadata.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
     }
 
 }

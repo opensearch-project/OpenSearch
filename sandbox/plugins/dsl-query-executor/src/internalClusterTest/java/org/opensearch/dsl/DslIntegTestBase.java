@@ -39,7 +39,6 @@ public abstract class DslIntegTestBase extends OpenSearchIntegTestCase {
         createIndex(INDEX);
         ensureGreen();
         client().prepareIndex(INDEX)
-            .setId("1")
             .setSource("{\"name\":\"laptop\",\"price\":1200,\"brand\":\"brandX\",\"rating\":4.5}", XContentType.JSON)
             .get();
         refresh(INDEX);

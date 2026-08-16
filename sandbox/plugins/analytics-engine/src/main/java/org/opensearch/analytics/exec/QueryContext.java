@@ -14,9 +14,14 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,50 +34,70 @@ import java.util.concurrent.Executors;
  */
 public class QueryContext {
 
-    // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
-    private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
+    /** Setting defaults for {@code analytics.query.*}; used by test contexts and as the baseline. */
+    private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE = AnalyticsQuerySettings.MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE
+        .get(Settings.EMPTY);
+    private static final int DEFAULT_PRE_FILTER_SHARD_SIZE = AnalyticsQuerySettings.PRE_FILTER_SHARD_SIZE.get(Settings.EMPTY);
 
     private final QueryDAG dag;
     private final ThreadPool threadPool;
     private final AnalyticsQueryTask parentTask;
-    private final int maxConcurrentShardRequests;
+    private final int maxConcurrentShardRequestsPerNode;
+    private final int preFilterShardSize;
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
+    private final boolean profile;
     private volatile ExecutorService localTaskExecutor;
     private boolean closed;  // guarded by `this`
+    /**
+     * HACK: side-table for cross-stage routing of resolved {@link ShardExecutionTarget}s.
+     * Today's only consumer is the QTF (late-materialization) Phase C, which needs to map
+     * an incoming row's {@code ___ugsi} ordinal back to the {@code (DiscoveryNode, ShardId)}
+     * to dispatch a fetch. Stage 1 (SHARD_FRAGMENT) populates this once after resolve;
+     * Stage 3 (LM) reads it.
+     *
+     * <p>TODO: this is a placeholder seam. {@code QueryContext} should not be a generic
+     * "things stages leave for other stages to find" map. Cleaner shapes: cache on
+     * {@code Stage} alongside {@code targetResolver}, or reify a typed cross-stage routing
+     * table. Revisit when a second consumer appears or when extending QTF to UNION/JOIN.
+     *
+     * <p>The inner map is a {@link java.util.concurrent.ConcurrentHashMap} because
+     * {@code retargetForRetry} may update entries concurrently when multiple shards
+     * fail and retry in parallel on the scheduler thread pool.
+     */
+    private final Map<Integer, Map<Integer, ShardExecutionTarget>> resolvedTargetsByStage = new ConcurrentHashMap<>();
 
+    /** Full-parameter constructor. Tests use {@link #forTest} factories. */
     public QueryContext(
         QueryDAG dag,
         ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
-        BufferAllocator allocator,
-        boolean ownsAllocator
-    ) {
-        this(dag, threadPool, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, List.of(), allocator, ownsAllocator);
-    }
-
-    /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
-    private QueryContext(
-        QueryDAG dag,
-        ThreadPool threadPool,
-        AnalyticsQueryTask parentTask,
-        int maxConcurrentShardRequests,
+        int maxConcurrentShardRequestsPerNode,
+        int preFilterShardSize,
         List<AnalyticsOperationListener> operationListeners,
         BufferAllocator allocator,
-        boolean ownsAllocator
+        boolean ownsAllocator,
+        boolean profile
     ) {
         this.dag = dag;
         this.threadPool = threadPool;
         this.parentTask = parentTask;
-        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+        this.maxConcurrentShardRequestsPerNode = maxConcurrentShardRequestsPerNode;
+        this.preFilterShardSize = preFilterShardSize;
         this.operationListeners = operationListeners;
         this.allocator = allocator;
         this.ownsAllocator = ownsAllocator;
+        this.profile = profile;
     }
 
     public QueryDAG dag() {
         return dag;
+    }
+
+    /** Whether profiling is enabled for this query (data nodes should collect and return metrics). */
+    public boolean profile() {
+        return profile;
     }
 
     public Executor searchExecutor() {
@@ -95,13 +120,58 @@ public class QueryContext {
         return dag.queryId();
     }
 
-    public int maxConcurrentShardRequests() {
-        return maxConcurrentShardRequests;
+    /** Max in-flight shard fragment requests the coordinator dispatches to any single data node. */
+    public int maxConcurrentShardRequestsPerNode() {
+        return maxConcurrentShardRequestsPerNode;
+    }
+
+    /**
+     * Fan-out above which the can-match pre-filter phase runs. Snapshotted from
+     * {@code analytics.query.pre_filter_shard_size} at query start by {@link DefaultPlanExecutor},
+     * so a mid-query settings change cannot make one stage probe and another not.
+     */
+    public int preFilterShardSize() {
+        return preFilterShardSize;
     }
 
     /** Returns the operation listeners for this query. */
     public List<AnalyticsOperationListener> operationListeners() {
         return operationListeners;
+    }
+
+    /**
+     * Records the {@link ShardExecutionTarget}s resolved for a stage. Called once by the
+     * stage execution after {@code TargetResolver.resolve(...)} runs. See the field-level
+     * Javadoc on {@code resolvedTargetsByStage} for context on why this lives on
+     * {@code QueryContext}.
+     */
+    public void recordResolvedTargets(int stageId, List<ShardExecutionTarget> targets) {
+        Map<Integer, ShardExecutionTarget> byOrdinal = new ConcurrentHashMap<>(targets.size());
+        for (ShardExecutionTarget t : targets) {
+            byOrdinal.put(t.ordinal(), t);
+        }
+        resolvedTargetsByStage.put(stageId, byOrdinal);
+    }
+
+    /**
+     * Updates a single resolved target after a successful shard retry on a different copy.
+     * This ensures downstream stages (e.g. LM fetch) route to the node that actually
+     * executed the query, not the original primary that failed.
+     */
+    public void updateResolvedTarget(int stageId, int ordinal, ShardExecutionTarget target) {
+        Map<Integer, ShardExecutionTarget> byOrdinal = resolvedTargetsByStage.get(stageId);
+        if (byOrdinal != null) {
+            byOrdinal.put(ordinal, target);
+        }
+    }
+
+    /**
+     * Returns the resolved targets for a stage keyed by per-shard ordinal (UGSI), or
+     * {@code null} if that stage hasn't resolved yet (or doesn't have a resolver). The
+     * Map is built once at record time so callers can do O(1) ordinal-to-target lookup.
+     */
+    public Map<Integer, ShardExecutionTarget> getResolvedTargets(int stageId) {
+        return resolvedTargetsByStage.get(stageId);
     }
 
     public BufferAllocator bufferAllocator() {
@@ -159,6 +229,16 @@ public class QueryContext {
     /** Creates a test context with synchronous executors and the supplied operation listeners. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask, List<AnalyticsOperationListener> operationListeners) {
         BufferAllocator testAllocator = TEST_ROOT.newChildAllocator("test-" + dag.queryId(), 0, Long.MAX_VALUE);
-        return new QueryContext(dag, null, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, operationListeners, testAllocator, true);
+        return new QueryContext(
+            dag,
+            null,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+            DEFAULT_PRE_FILTER_SHARD_SIZE,
+            operationListeners,
+            testAllocator,
+            true,
+            false
+        );
     }
 }

@@ -8,22 +8,41 @@
 
 package org.opensearch.analytics.exec.task;
 
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.spi.NativeTaskIdManager;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.CancellableTask;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Data-node shard task representing a single shard fragment execution.
- * Analogous to {@link org.opensearch.action.search.SearchShardTask}.
- * Cancelling this task does not cascade to children.
+ * <p>Extends {@link SearchShardTask} so that search backpressure and
+ * {@code TaskResourceTrackingService} observe and track analytics shard
+ * tasks alongside regular search shard tasks. The native-memory tracker
+ * in {@code SearchBackpressureService} filters by {@code SearchShardTask},
+ * so inheriting from it is the integration point that exposes per-query
+ * DataFusion memory to cancellation.
+ *
+ * <p>Cancelling this task does not cascade to children (inherited behaviour
+ * from {@link SearchShardTask}).
  *
  * @opensearch.internal
  */
-public class AnalyticsShardTask extends CancellableTask {
+public class AnalyticsShardTask extends SearchShardTask {
 
     private final AtomicReference<Runnable> cancellationListener = new AtomicReference<>();
+    /**
+     * JVM-unique id keying this execution's native tracking context. {@link #getId()}
+     * must not be used for that: task ids are per-node counters and collide in the
+     * process-wide native registry when nodes share a JVM (internal test clusters).
+     */
+    private final long nativeTaskId = NativeTaskIdManager.next();
+
+    /** JVM-unique id for this execution's native tracking context (see field javadoc). */
+    public long getNativeTaskId() {
+        return nativeTaskId;
+    }
 
     public AnalyticsShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);

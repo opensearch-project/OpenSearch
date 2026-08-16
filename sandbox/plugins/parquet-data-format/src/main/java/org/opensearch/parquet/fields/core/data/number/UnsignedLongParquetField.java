@@ -12,13 +12,12 @@ import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 64-bit unsigned long values using {@link UInt8Vector}.
  */
-public class UnsignedLongParquetField extends ParquetField {
+public class UnsignedLongParquetField extends NumericParquetField {
 
     /** Creates a new UnsignedLongParquetField. */
     public UnsignedLongParquetField() {}

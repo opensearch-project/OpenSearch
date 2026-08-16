@@ -13,8 +13,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.IndexSearcher;
@@ -26,6 +28,8 @@ import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneWriter;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -43,6 +47,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -60,8 +65,12 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link LuceneReaderManager} lifecycle with CatalogSnapshot interactions.
+ * All tests use a non-null ShardId to exercise the OpenSearchDirectoryReader wrapping
+ * path that production code requires for IndicesQueryCache compatibility.
  */
 public class LuceneReaderManagerTests extends OpenSearchTestCase {
+
+    private static final ShardId SHARD_ID = new ShardId("test_index", "_na_", 0);
 
     private IndexWriter indexWriter;
     private Directory directory;
@@ -102,6 +111,17 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         return DirectoryReader.open(indexWriter);
     }
 
+    private LuceneReaderManager createManager(
+        DirectoryReader reader,
+        org.opensearch.common.CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> refresher
+    ) throws IOException {
+        return new LuceneReaderManager(dataFormat, reader, new java.util.concurrent.ConcurrentHashMap<>(), refresher, SHARD_ID);
+    }
+
+    private LuceneReaderManager createManager(DirectoryReader reader) throws IOException {
+        return createManager(reader, (dr, sis) -> DirectoryReader.openIfChanged(dr));
+    }
+
     private CatalogSnapshot stubSnapshot(long generation) {
         return stubSnapshot(generation, List.of());
     }
@@ -112,7 +132,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
      * corresponding leaf will report from {@code SegmentCommitInfo.files()}.
      */
     private CatalogSnapshot stubSnapshot(long generation, List<Long> segmentGenerations) {
-        // Build segments with file sets that match the current IndexWriter's segments.
         List<Segment> segs = buildSegmentsWithFiles(segmentGenerations);
         return buildCatalogSnapshot(generation, segs);
     }
@@ -240,12 +259,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         stampLatestSegmentGeneration(generation);
     }
 
-    /**
-     * Stamps the most recently written segment with the {@code writer_generation} attribute
-     * that {@link LuceneReaderManager#afterRefresh}'s assertion expects. In production this
-     * is done by {@code LuceneWriterCodec}; tests that write directly through a plain
-     * {@link IndexWriter} must stamp it themselves.
-     */
     @SuppressForbidden(reason = "Need reflection to stamp writer_generation on segments for testing")
     private void stampLatestSegmentGeneration(long generation) throws IOException {
         try {
@@ -264,40 +277,302 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         }
     }
 
+    // --- Core lifecycle tests ---
+
     public void testAfterRefreshCreatesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
+        LuceneReaderManager rm = createManager(openReader());
         CatalogSnapshot snap = stubSnapshot(1);
 
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
         rm.afterRefresh(true, snap);
         assertNotNull(rm.getReader(snap));
+        rm.close();
     }
 
     public void testAfterRefreshNoOpWhenDidRefreshFalse() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
+        LuceneReaderManager rm = createManager(openReader());
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(false, snap);
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
+        rm.close();
     }
 
-    public void testMultipleRefreshesWithIndexing() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+    public void testGetReaderThrowsForUnknownSnapshot() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
+        expectThrows(IllegalStateException.class, () -> rm.getReader(stubSnapshot(42)));
+        rm.close();
+    }
+
+    public void testDuplicateAfterRefreshIsIdempotent() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1);
+
+        rm.afterRefresh(true, snap);
+        LuceneReader first = rm.getReader(snap);
+
+        rm.afterRefresh(true, snap);
+        assertSame(first, rm.getReader(snap));
+
+        rm.onDeleted(snap);
+        expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
+    }
+
+    public void testOnDeletedUnknownSnapshotIsNoOp() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
+        rm.onDeleted(stubSnapshot(99));
+        rm.close();
+    }
+
+    // --- OpenSearchDirectoryReader wrapping tests ---
+
+    public void testReaderIsWrappedInOpenSearchDirectoryReader() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1);
+        rm.afterRefresh(true, snap);
+
+        DirectoryReader reader = rm.getReader(snap).directoryReader();
+        assertTrue(
+            "Reader must be an OpenSearchDirectoryReader for IndicesQueryCache compatibility",
+            reader instanceof OpenSearchDirectoryReader
         );
+        assertEquals(SHARD_ID, ((OpenSearchDirectoryReader) reader).shardId());
+        rm.close();
+    }
+
+    public void testWrappedReaderLeavesExposeShardId() throws IOException {
+        addDoc("doc1", 10L);
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1, List.of(10L));
+        rm.afterRefresh(true, snap);
+
+        DirectoryReader reader = rm.getReader(snap).directoryReader();
+        List<LeafReaderContext> leaves = reader.leaves();
+        assertFalse("Should have at least one leaf", leaves.isEmpty());
+
+        for (LeafReaderContext lrc : leaves) {
+            assertTrue("Leaf reader must be an OpenSearchLeafReader", lrc.reader() instanceof OpenSearchLeafReader);
+            ShardId extracted = ShardUtils.extractShardId(lrc.reader());
+            assertNotNull("ShardUtils.extractShardId must succeed (required by IndicesQueryCache)", extracted);
+            assertEquals(SHARD_ID, extracted);
+        }
+        rm.close();
+    }
+
+    public void testWrappedReaderLeavesCanBeUnwrappedToSegmentReader() throws IOException {
+        addDoc("doc1", 10L);
+        LuceneReaderManager rm = createManager(openReader());
+        CatalogSnapshot snap = stubSnapshot(1, List.of(10L));
+        rm.afterRefresh(true, snap);
+
+        DirectoryReader reader = rm.getReader(snap).directoryReader();
+        for (LeafReaderContext lrc : reader.leaves()) {
+            // LuceneFilterDelegationHandle needs to unwrap to SegmentReader for segment name lookup
+            org.apache.lucene.index.LeafReader current = lrc.reader();
+            while (current instanceof FilterLeafReader flr) {
+                current = flr.getDelegate();
+            }
+            assertTrue("Unwrapped leaf must be a SegmentReader", current instanceof org.apache.lucene.index.SegmentReader);
+        }
+        rm.close();
+    }
+
+    // --- Ref counting with wrapped readers ---
+
+    public void testWrappedReaderRefCountOnSingleSnapshot() throws IOException {
+        DirectoryReader rawReader = openReader();
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> null);
+
+        CatalogSnapshot snap = stubSnapshot(1);
+        rm.afterRefresh(true, snap);
+
+        DirectoryReader wrappedReader = rm.getReader(snap).directoryReader();
+        assertTrue(wrappedReader instanceof OpenSearchDirectoryReader);
+        // Wrapper refCount: 1 (creation/initial) + 1 (snapshot incRef) = 2
+        assertEquals(2, wrappedReader.getRefCount());
+
+        rm.onDeleted(snap);
+        // After onDeleted: -1 (map decRef) -1 (releaseInitialReader) = 0
+        assertEquals(0, wrappedReader.getRefCount());
+    }
+
+    public void testWrappedReaderRefCountOnMultipleSnapshots() throws IOException {
+        DirectoryReader rawReader = openReader();
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> null);
+
+        CatalogSnapshot snap1 = stubSnapshot(1);
+        CatalogSnapshot snap2 = stubSnapshot(2);
+        CatalogSnapshot snap3 = stubSnapshot(3);
+
+        rm.afterRefresh(true, snap1);
+        rm.afterRefresh(true, snap2);
+        rm.afterRefresh(true, snap3);
+
+        // All snapshots share the same wrapped reader (initial wrapper)
+        DirectoryReader wrapped = rm.getReader(snap1).directoryReader();
+        assertSame(wrapped, rm.getReader(snap2).directoryReader());
+        assertSame(wrapped, rm.getReader(snap3).directoryReader());
+
+        // RefCount: 1 (creation) + 3 (one incRef per snapshot) = 4
+        assertEquals(4, wrapped.getRefCount());
+
+        // First onDeleted: -1 (map) -1 (releaseInitialReader) = 2
+        rm.onDeleted(snap1);
+        assertEquals(2, wrapped.getRefCount());
+
+        // Second onDeleted: -1 (map) = 1
+        rm.onDeleted(snap2);
+        assertEquals(1, wrapped.getRefCount());
+
+        // Third onDeleted: -1 (map) = 0 → closed
+        rm.onDeleted(snap3);
+        assertEquals(0, wrapped.getRefCount());
+    }
+
+    public void testCloseReleasesAllWrappedReaderRefs() throws IOException {
+        DirectoryReader rawReader = openReader();
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> null);
+
+        rm.afterRefresh(true, stubSnapshot(1));
+        rm.afterRefresh(true, stubSnapshot(2));
+        rm.afterRefresh(true, stubSnapshot(3));
+
+        DirectoryReader wrapped = rm.getReader(stubSnapshot(1)).directoryReader();
+        // RefCount: 1 (creation) + 3 (snapshots) = 4
+        assertEquals(4, wrapped.getRefCount());
+
+        // close() decRefs 3 map entries + 1 releaseInitialReader = 0
+        rm.close();
+        assertEquals(0, wrapped.getRefCount());
+    }
+
+    // --- Refresh produces new reader: new wrapper lifecycle ---
+
+    public void testRefreshCreatesNewWrapper() throws IOException {
+        DirectoryReader rawReader = openReader();
+        DirectoryReader[] nextReader = { null };
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> nextReader[0]);
+
+        // snap1: no refresh (null) → uses initial wrapper
+        nextReader[0] = null;
+        CatalogSnapshot snap1 = stubSnapshot(1);
+        rm.afterRefresh(true, snap1);
+        DirectoryReader initialWrapper = rm.getReader(snap1).directoryReader();
+        assertTrue(initialWrapper instanceof OpenSearchDirectoryReader);
+
+        // snap2: refresh with new reader → new wrapper created
+        addDoc("doc1", 10L);
+        DirectoryReader refreshedRaw = openReader();
+        nextReader[0] = refreshedRaw;
+        CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
+        rm.afterRefresh(true, snap2);
+        DirectoryReader newWrapper = rm.getReader(snap2).directoryReader();
+        assertTrue(newWrapper instanceof OpenSearchDirectoryReader);
+        assertNotSame("Refresh must produce a new wrapper", initialWrapper, newWrapper);
+
+        // Initial wrapper: creation(1) + snap1 incRef(1) = 2
+        assertEquals(2, initialWrapper.getRefCount());
+        // New wrapper: creation ref only (serves as snap2's ref) = 1
+        assertEquals(1, newWrapper.getRefCount());
+
+        // Delete snap1 → releases initial wrapper (map -1, releaseInitial -1 = 0)
+        rm.onDeleted(snap1);
+        assertEquals(0, initialWrapper.getRefCount());
+
+        // Delete snap2 → releases new wrapper (map -1 = 0)
+        rm.onDeleted(snap2);
+        assertEquals(0, newWrapper.getRefCount());
+    }
+
+    public void testMultipleRefreshesEachCreateNewWrapper() throws IOException {
+        DirectoryReader rawReader = openReader();
+        DirectoryReader[] nextReader = { null };
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> nextReader[0]);
+
+        // snap1: initial wrapper
+        nextReader[0] = null;
+        CatalogSnapshot snap1 = stubSnapshot(1);
+        rm.afterRefresh(true, snap1);
+        DirectoryReader wrapper1 = rm.getReader(snap1).directoryReader();
+
+        // snap2: first refresh
+        addDoc("doc1", 10L);
+        nextReader[0] = openReader();
+        CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
+        rm.afterRefresh(true, snap2);
+        DirectoryReader wrapper2 = rm.getReader(snap2).directoryReader();
+
+        // snap3: second refresh
+        addDoc("doc2", 20L);
+        nextReader[0] = openReader();
+        CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L, 20L));
+        rm.afterRefresh(true, snap3);
+        DirectoryReader wrapper3 = rm.getReader(snap3).directoryReader();
+
+        // All different wrappers
+        assertNotSame(wrapper1, wrapper2);
+        assertNotSame(wrapper2, wrapper3);
+        assertNotSame(wrapper1, wrapper3);
+
+        // Each new wrapper has refCount=1 (creation=snapshot ref); initial has 1+1=2
+        assertEquals(2, wrapper1.getRefCount());
+        assertEquals(1, wrapper2.getRefCount());
+        assertEquals(1, wrapper3.getRefCount());
+
+        // close() cleans up all
+        rm.close();
+        assertEquals(0, wrapper1.getRefCount());
+        assertEquals(0, wrapper2.getRefCount());
+        assertEquals(0, wrapper3.getRefCount());
+    }
+
+    public void testRefreshThenNoRefreshSharesNewWrapper() throws IOException {
+        DirectoryReader rawReader = openReader();
+        DirectoryReader[] nextReader = { null };
+        LuceneReaderManager rm = createManager(rawReader, (dr, sis) -> nextReader[0]);
+
+        // snap1: initial wrapper
+        nextReader[0] = null;
+        CatalogSnapshot snap1 = stubSnapshot(1);
+        rm.afterRefresh(true, snap1);
+        DirectoryReader initialWrapper = rm.getReader(snap1).directoryReader();
+
+        // snap2: refresh → new wrapper (creation ref = snap2's ref)
+        addDoc("doc1", 10L);
+        nextReader[0] = openReader();
+        CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
+        rm.afterRefresh(true, snap2);
+        DirectoryReader newWrapper = rm.getReader(snap2).directoryReader();
+        assertEquals(1, newWrapper.getRefCount());
+
+        // snap3: no refresh → shares new wrapper (incRef)
+        nextReader[0] = null;
+        CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L));
+        rm.afterRefresh(true, snap3);
+        DirectoryReader snap3Reader = rm.getReader(snap3).directoryReader();
+        assertSame("snap3 must get the same wrapped reader", newWrapper, snap3Reader);
+        // newWrapper: creation(1 for snap2) + incRef(1 for snap3) = 2
+        assertEquals(2, newWrapper.getRefCount());
+
+        // onDeleted(snap2): decRefs newWrapper (-1) and releases initialWrapper via releaseInitialReader (-1)
+        rm.onDeleted(snap2);
+        assertEquals(1, newWrapper.getRefCount());
+        // initialWrapper had: creation(1) + snap1 incRef(1) - releaseInitial(1) = 1
+        assertEquals(1, initialWrapper.getRefCount());
+
+        // onDeleted(snap3): decRefs newWrapper (-1) → 0
+        rm.onDeleted(snap3);
+        assertEquals(0, newWrapper.getRefCount());
+
+        // onDeleted(snap1): decRefs initialWrapper (-1) → 0
+        rm.onDeleted(snap1);
+        assertEquals(0, initialWrapper.getRefCount());
+    }
+
+    // --- Functional tests with indexing ---
+
+    public void testMultipleRefreshesWithIndexing() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
 
         // Empty initial reader — no segments yet.
         CatalogSnapshot snap1 = stubSnapshot(1);
@@ -314,6 +589,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         assertEquals(1, new IndexSearcher(lr2.directoryReader()).count(new MatchAllDocsQuery()));
         assertNotNull(lr2.generationToSegmentName().get(10L));
 
+        // Old snapshot still sees 0 docs
         assertEquals(0, new IndexSearcher(lr1.directoryReader()).count(new MatchAllDocsQuery()));
 
         // Add doc2 in generation 20.
@@ -332,59 +608,17 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.onDeleted(snap3);
     }
 
-    public void testOnDeletedClosesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
+    public void testOnDeletedClosesWrappedReader() throws IOException {
+        LuceneReaderManager rm = createManager(openReader());
         CatalogSnapshot snap = stubSnapshot(1);
         rm.afterRefresh(true, snap);
 
         LuceneReader lr = rm.getReader(snap);
-        assertTrue(lr.directoryReader().getRefCount() > 0);
+        DirectoryReader wrapped = lr.directoryReader();
+        assertTrue(wrapped.getRefCount() > 0);
 
         rm.onDeleted(snap);
-        expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
-    }
-
-    public void testOnDeletedUnknownSnapshotIsNoOp() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
-        rm.onDeleted(stubSnapshot(99));
-    }
-
-    public void testGetReaderThrowsForUnknownSnapshot() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
-        expectThrows(IllegalStateException.class, () -> rm.getReader(stubSnapshot(42)));
-    }
-
-    public void testDuplicateAfterRefreshIsIdempotent() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            openReader(),
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> DirectoryReader.openIfChanged(dr)
-        );
-        CatalogSnapshot snap = stubSnapshot(1);
-
-        rm.afterRefresh(true, snap);
-        LuceneReader first = rm.getReader(snap);
-
-        rm.afterRefresh(true, snap);
-        assertSame(first, rm.getReader(snap));
-
-        rm.onDeleted(snap);
+        assertEquals(0, wrapped.getRefCount());
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
     }
 
@@ -437,7 +671,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                 dataFormat,
                 mock(DataFormatRegistry.class),
                 shardPath,
-                Map.of()
+                Map.of(),
+                null
             );
 
             EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);
@@ -454,149 +689,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             dataFormat,
             mock(DataFormatRegistry.class),
             null,
-            Map.of()
+            Map.of(),
+            null
         );
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
         assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
-    }
-
-    // --- Tests for null-refresher (incRef) path and ref-count correctness ---
-
-    public void testAfterRefreshWithNullRefresherIncRefsCurrentReader() throws IOException {
-        DirectoryReader initialReader = openReader();
-        long initialRefCount = initialReader.getRefCount();
-
-        // Refresher always returns null — simulates no new segments
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            initialReader,
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> null
-        );
-
-        CatalogSnapshot snap1 = stubSnapshot(1);
-        rm.afterRefresh(true, snap1);
-
-        // Reader should be the same instance with incRef'd count
-        assertSame(initialReader, rm.getReader(snap1).directoryReader());
-        assertEquals(initialRefCount + 1, initialReader.getRefCount());
-
-        rm.onDeleted(snap1);
-    }
-
-    public void testMultipleSnapshotsShareReaderWhenRefresherReturnsNull() throws IOException {
-        DirectoryReader initialReader = openReader();
-        long initialRefCount = initialReader.getRefCount();
-
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            initialReader,
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> null
-        );
-
-        CatalogSnapshot snap1 = stubSnapshot(1);
-        CatalogSnapshot snap2 = stubSnapshot(2);
-        CatalogSnapshot snap3 = stubSnapshot(3);
-
-        rm.afterRefresh(true, snap1);
-        rm.afterRefresh(true, snap2);
-        rm.afterRefresh(true, snap3);
-
-        // All three snapshots should share the same reader
-        assertSame(initialReader, rm.getReader(snap1).directoryReader());
-        assertSame(initialReader, rm.getReader(snap2).directoryReader());
-        assertSame(initialReader, rm.getReader(snap3).directoryReader());
-
-        // RefCount should be initial + 3 (one incRef per afterRefresh)
-        assertEquals(initialRefCount + 3, initialReader.getRefCount());
-
-        // First onDeleted: -1 for map entry, -1 for releaseInitialReader (idempotent thereafter).
-        rm.onDeleted(snap1);
-        assertEquals(initialRefCount + 1, initialReader.getRefCount());
-
-        // Subsequent onDeleted: -1 for map entry only.
-        rm.onDeleted(snap2);
-        assertEquals(initialRefCount, initialReader.getRefCount());
-
-        rm.onDeleted(snap3);
-        assertEquals(initialRefCount - 1, initialReader.getRefCount());
-    }
-
-    public void testCloseDecRefsAllAccumulatedReaders() throws IOException {
-        DirectoryReader initialReader = openReader();
-        long initialRefCount = initialReader.getRefCount();
-
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            initialReader,
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> null
-        );
-
-        // Accumulate 3 snapshots sharing the same reader
-        rm.afterRefresh(true, stubSnapshot(1));
-        rm.afterRefresh(true, stubSnapshot(2));
-        rm.afterRefresh(true, stubSnapshot(3));
-        assertEquals(initialRefCount + 3, initialReader.getRefCount());
-
-        // close() decRefs the 3 map entries and the initial open(writer) reference: refCount → 0.
-        rm.close();
-        assertEquals(initialRefCount - 1, initialReader.getRefCount());
-    }
-
-    public void testMixedRefreshSomeNullSomeNew() throws IOException {
-        // Scenario: snap1 gets null from refresher (no change), snap2 gets a new reader (doc added),
-        // snap3 gets null again (same reader as snap2). Verify ref-counts are correct throughout.
-        DirectoryReader initialReader = openReader();
-
-        // Use a controllable refresher
-        DirectoryReader[] nextReader = { null };
-        LuceneReaderManager rm = new LuceneReaderManager(
-            dataFormat,
-            initialReader,
-            new java.util.concurrent.ConcurrentHashMap<>(),
-            (dr, sis) -> nextReader[0]
-        );
-
-        // snap1: refresher returns null → incRef initialReader
-        nextReader[0] = null;
-        CatalogSnapshot snap1 = stubSnapshot(1);
-        rm.afterRefresh(true, snap1);
-        assertSame(initialReader, rm.getReader(snap1).directoryReader());
-        long refAfterSnap1 = initialReader.getRefCount();
-
-        // snap2: add a doc, open a new reader, refresher returns it
-        addDoc("doc1", 10L);
-        DirectoryReader newReader = openReader();
-        nextReader[0] = newReader;
-        CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
-        rm.afterRefresh(true, snap2);
-        assertSame(newReader, rm.getReader(snap2).directoryReader());
-        assertNotSame(initialReader, newReader);
-
-        // snap3: refresher returns null → incRef newReader (currentReader is now newReader)
-        nextReader[0] = null;
-        CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L));
-        rm.afterRefresh(true, snap3);
-        assertSame(newReader, rm.getReader(snap3).directoryReader());
-
-        long newReaderRefCount = newReader.getRefCount();
-
-        // Delete snap3 → decRef newReader
-        rm.onDeleted(snap3);
-        assertEquals(newReaderRefCount - 1, newReader.getRefCount());
-
-        // Delete snap1 → decRef initialReader
-        long initialRefBefore = initialReader.getRefCount();
-        rm.onDeleted(snap1);
-        assertEquals(initialRefBefore - 1, initialReader.getRefCount());
-
-        // Delete snap2 → decRef newReader
-        long newRefBefore = newReader.getRefCount();
-        rm.onDeleted(snap2);
-        assertEquals(newRefBefore - 1, newReader.getRefCount());
     }
 
 }

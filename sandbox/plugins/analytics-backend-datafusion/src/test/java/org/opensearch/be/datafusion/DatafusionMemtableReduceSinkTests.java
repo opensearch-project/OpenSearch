@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -47,6 +49,7 @@ import io.substrait.extension.SimpleExtension;
  * batches, same downstream assertion — exercises the buffered-batch handoff path instead of the
  * streaming sender path.
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
 
     public void testInputIdConstantMatchesDesign() {
