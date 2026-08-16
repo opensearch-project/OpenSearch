@@ -95,7 +95,8 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.REGEXP,
         ScalarFunction.WILDCARD_QUERY,
         ScalarFunction.QUERY,
-        ScalarFunction.MATCHALL
+        ScalarFunction.MATCHALL,
+        ScalarFunction.IDS
     );
 
     // Field types Lucene's secondary data format actually indexes (see LuceneFieldFactoryRegistry).
