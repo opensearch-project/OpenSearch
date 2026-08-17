@@ -104,7 +104,8 @@ public class VSRManager implements AutoCloseable {
     private final Map<String, Long> nestedGlobalOffset = new LinkedHashMap<>();
 
     /** The parallel {@code LIST} leaf columns and the bridge offset/count columns of one nested path. */
-    private record PathLayout(List<String> listColumns, String offsetColumn, String countColumn) {}
+    private record PathLayout(List<String> listColumns, String offsetColumn, String countColumn) {
+    }
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).

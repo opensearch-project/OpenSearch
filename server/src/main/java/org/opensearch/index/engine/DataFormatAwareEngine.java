@@ -1102,9 +1102,7 @@ public class DataFormatAwareEngine implements Indexer {
                             // Counted over document segments only: one writer that also produced a
                             // child table is still one segment to the merge decision, and asking for a
                             // spare generation it cannot use would burn generations on every refresh.
-                            long nextGen = documentNew.size() > 1
-                                ? writerGenerationCounter.incrementAndGet()
-                                : RefreshInput.NO_GENERATION;
+                            long nextGen = documentNew.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
                             RefreshInput refreshInput = new RefreshInput(documentExisting, documentNew, nextGen);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);

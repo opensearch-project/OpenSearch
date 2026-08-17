@@ -781,7 +781,11 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         verify(secondaryMerger, times(2)).merge(inputs.capture());
         MergeInput childInput = inputs.getAllValues().get(1);
         assertEquals(expectedChildGeneration, childInput.newWriterGeneration());
-        assertEquals("child files must be reachable under the storage name", 1, childInput.getFilesForFormat(secondaryFormat.name()).size());
+        assertEquals(
+            "child files must be reachable under the storage name",
+            1,
+            childInput.getFilesForFormat(secondaryFormat.name()).size()
+        );
         assertTrue("child files must not be keyed by the catalog name", childInput.getFilesForFormat(childFormatName()).isEmpty());
     }
 

@@ -28,11 +28,7 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record FileInfos(
-    Map<DataFormat, WriterFileSet> writerFilesMap,
-    RowIdMapping rowIdMapping,
-    List<Segment> auxiliarySegments
-) {
+public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap, RowIdMapping rowIdMapping, List<Segment> auxiliarySegments) {
 
     public FileInfos {
         writerFilesMap = Map.copyOf(new HashMap<>(writerFilesMap));

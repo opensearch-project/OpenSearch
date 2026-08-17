@@ -128,7 +128,8 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
      * and {@code values} are parallel; a leaf absent from this element is simply not listed (it becomes
      * a null at this element's position in that leaf's list column).
      */
-    public record NestedElement(String nestedPath, int ordinal, List<String> leafNames, List<Object> values) {}
+    public record NestedElement(String nestedPath, int ordinal, List<String> leafNames, List<Object> values) {
+    }
 
     private void ensureOpen() {
         if (isClosed) {

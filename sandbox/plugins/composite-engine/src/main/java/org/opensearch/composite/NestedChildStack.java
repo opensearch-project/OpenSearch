@@ -157,12 +157,9 @@ class NestedChildStack implements Closeable {
      * @param elements    the parent's nested elements, in source order
      * @param inherited   parent metadata every child row carries
      */
-    private record StagedParent(
-        long parentRowId,
-        long parentSeqNo,
-        List<CompositeDocumentInput.NestedElement> elements,
-        List<CompositeDocumentInput.FieldValue> inherited
-    ) {}
+    private record StagedParent(long parentRowId, long parentSeqNo, List<CompositeDocumentInput.NestedElement> elements, List<
+        CompositeDocumentInput.FieldValue> inherited) {
+    }
 
     /**
      * Creates the child stack for one parent writer generation, opening a child writer on the
@@ -422,8 +419,7 @@ class NestedChildStack implements Closeable {
             writeRows(remapped, parent.parentSeqNo(), parent.elements(), parent.inherited());
         }
         logger.info(
-            "Remapped [{}] nested child rows across [{}] parent documents through the flush permutation "
-                + "for child generation [{}]",
+            "Remapped [{}] nested child rows across [{}] parent documents through the flush permutation " + "for child generation [{}]",
             stagedElementCount,
             staged.size(),
             childGeneration

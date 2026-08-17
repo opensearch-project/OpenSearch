@@ -154,7 +154,10 @@ class ElementIndexStack implements Closeable {
 
             WriteResult result = elementWriter.addDoc(elementDoc);
             if (result instanceof WriteResult.Failure failure) {
-                throw new IOException("Failed to index element doc [" + elementDocId + "] for parent row [" + parentRowId + "]", failure.cause());
+                throw new IOException(
+                    "Failed to index element doc [" + elementDocId + "] for parent row [" + parentRowId + "]",
+                    failure.cause()
+                );
             }
             elementDocId++;
         }

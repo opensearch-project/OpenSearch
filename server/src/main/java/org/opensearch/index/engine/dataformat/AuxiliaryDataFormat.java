@@ -132,9 +132,7 @@ public final class AuxiliaryDataFormat extends DataFormat {
         Objects.requireNonNull(delegate, "delegate data format is required");
         Objects.requireNonNull(role, "role is required");
         if (delegate.isAuxiliary()) {
-            throw new IllegalArgumentException(
-                "Cannot nest auxiliary formats: delegate [" + delegate.name() + "] is already auxiliary"
-            );
+            throw new IllegalArgumentException("Cannot nest auxiliary formats: delegate [" + delegate.name() + "] is already auxiliary");
         }
         if (role.isEmpty() || role.contains(ROLE_SEPARATOR)) {
             throw new IllegalArgumentException(
