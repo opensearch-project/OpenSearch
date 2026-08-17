@@ -38,6 +38,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -117,7 +118,7 @@ public class MultiValueModeTests extends OpenSearchTestCase {
         assertEquals(1, selected.docID());
         assertEquals(3, selected.advance(3));
         assertEquals(3, selected.docID());
-        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
     }
 
     // GITHUB#17140 / #21537: the same advance() gap existed on the nested unsigned-long, binary, and
@@ -167,7 +168,7 @@ public class MultiValueModeTests extends OpenSearchTestCase {
         );
         assertEquals(1, selected.advance(1));
         assertEquals(3, selected.advance(3));
-        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
     }
 
     // GITHUB#17140: the nested double select advances by parent doc (like the other nested selects),
@@ -211,7 +212,127 @@ public class MultiValueModeTests extends OpenSearchTestCase {
         );
         assertEquals(1, selected.advance(1));
         assertEquals(3, selected.advance(3));
-        assertEquals(org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    public void testNestedSortedSetSelectAdvanceSkipsParentsWithoutOrds() throws Exception {
+        final int numDocs = 8;
+        // Parents at 1, 3, 5, 7; their children are 0, 2, 4, 6. Only children 0 and 4 carry an ord, so
+        // advanceExact() returns false for parents 3 and 7 and advance() has to scan past them.
+        final long[][] array = new long[numDocs][];
+        for (int i = 0; i < numDocs; ++i) {
+            array[i] = new long[0];
+        }
+        array[0] = new long[] { 0 };
+        array[4] = new long[] { 1 };
+
+        final SortedSetDocValues values = new AbstractSortedSetDocValues() {
+            int doc;
+            int i;
+
+            @Override
+            public long nextOrd() {
+                if (i < array[doc].length) {
+                    return array[doc][i++];
+                }
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public boolean advanceExact(int docID) {
+                this.doc = docID;
+                i = 0;
+                return array[doc].length > 0;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                return new BytesRef(Long.toString(ord));
+            }
+
+            @Override
+            public long getValueCount() {
+                return 2;
+            }
+
+            @Override
+            public int docValueCount() {
+                return array[doc].length;
+            }
+        };
+
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        rootDocs.set(5);
+        rootDocs.set(7);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+        innerDocs.set(4);
+        innerDocs.set(6);
+
+        final SortedDocValues selected = MultiValueMode.MIN.select(values, rootDocs, new BitSetIterator(innerDocs, 0L), Integer.MAX_VALUE);
+        // Ordinals have no missing-value fallback, so the values are sparse.
+        // Parent 1 has an ord: advance() lands directly on the target.
+        assertEquals(1, selected.advance(0));
+        assertEquals(1, selected.docID());
+        // Parent 3 has none: advance() must skip it and land on parent 5.
+        assertEquals(5, selected.advance(2));
+        assertEquals(5, selected.docID());
+        // Parent 7 is the last parent and has no ord: the scan must terminate, not read past the bitset.
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(6));
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.docID());
+        // And a target beyond the bitset returns NO_MORE_DOCS without touching nextSetBit at all.
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
+    }
+
+    public void testNestedBinarySelectSupportsAdvance() throws Exception {
+        final int numDocs = 4;
+        final BytesRef[] array = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
+        final SortedBinaryDocValues values = FieldData.singleton(new AbstractBinaryDocValues() {
+            int docID;
+
+            @Override
+            public boolean advanceExact(int target) {
+                docID = target;
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return array[docID];
+            }
+        });
+
+        final FixedBitSet rootDocs = new FixedBitSet(numDocs);
+        rootDocs.set(1);
+        rootDocs.set(3);
+        final FixedBitSet innerDocs = new FixedBitSet(numDocs);
+        innerDocs.set(0);
+        innerDocs.set(2);
+
+        final BinaryDocValues selected = MultiValueMode.MIN.select(
+            values,
+            new BytesRef("_missing_"),
+            rootDocs,
+            new BitSetIterator(innerDocs, 0L),
+            numDocs,
+            Integer.MAX_VALUE
+        );
+        // A missing value is emitted when no child matches, so every parent has a value and
+        // advance(target) lands on target.
+        assertEquals(1, selected.advance(1));
+        assertEquals(1, selected.docID());
+        assertEquals(new BytesRef("a"), selected.binaryValue());
+        assertEquals(3, selected.advance(3));
+        assertEquals(3, selected.docID());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, selected.advance(numDocs));
     }
 
     @FunctionalInterface
