@@ -10,13 +10,15 @@ plans:
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[datafusion]])
           OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
             OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
-              OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
-                OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+              OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
+                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
-        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[datafusion]])
@@ -42,13 +44,15 @@ plans:
   prod1s:
     post_cbo: |
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
-        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
-        OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+        OpenSearchProject(URL=[$85], viableBackends=[[datafusion]])
+          OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[datafusion]])
+            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       AggregateExec: mode=Final, gby=[], aggr=[count(1) as count()]
         CoalescePartitionsExec
