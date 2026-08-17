@@ -930,4 +930,36 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }));
         assertTrue(explicit.fieldType("field").isSearchable());
     }
+
+    /**
+     * A field added by a later mapping update also defaults to not-indexed, and the update leaves the
+     * value of the already-mapped field unchanged.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateDefaultsNewFieldToNotIndexed() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        assertFalse(mapperService.fieldType("field").isSearchable());
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.endObject();
+        }));
+
+        assertFalse("newly added field should default to not-indexed", mapperService.fieldType("field2").isSearchable());
+        assertFalse("existing field's value should be preserved across the update", mapperService.fieldType("field").isSearchable());
+    }
+
+    /** A mapping update that sets index:true on a new field is rejected on a pluggable data format index. */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateRejectsIndexTrue() throws IOException {
+        MapperService mapperService = createMapperService(pluggableSettings(), fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.field("index", true);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+    }
 }
