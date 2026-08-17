@@ -29,6 +29,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.query.FuzzyQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for {@link QuerySerializerRegistry} serializers — optional parameter round-trips
@@ -57,6 +59,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(
         List.of(
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, FuzzyQueryBuilder.NAME, FuzzyQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchQueryBuilder.NAME, MatchQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new),
@@ -90,6 +93,15 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
 
     private static final SqlFunction QUERY_FUNCTION = new SqlFunction(
         "QUERY",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction FUZZY_FUNCTION = new SqlFunction(
+        "FUZZY",
         SqlKind.OTHER_FUNCTION,
         ReturnTypes.BOOLEAN,
         null,
@@ -1040,6 +1052,241 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
             expected.flags(SimpleQueryStringFlag.ALL);
             assertEquals(expected, simpleQsQb);
         }
+    }
+
+    // --- FuzzySerializer tests ---
+
+    /**
+     * Tests FuzzySerializer round-trip with defaults: field + value only.
+     */
+    public void testFuzzySerializerRoundTripDefaults() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue(deserialized instanceof FuzzyQueryBuilder);
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) deserialized;
+            assertEquals("title", fuzzyQb.fieldName());
+            assertEquals("laptop", fuzzyQb.value());
+            assertEquals(Fuzziness.AUTO, fuzzyQb.fuzziness());
+            assertEquals(FuzzyQueryBuilder.DEFAULT_MAX_EXPANSIONS, fuzzyQb.maxExpansions());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer with custom fuzziness=1.
+     */
+    public void testFuzzySerializerWithCustomFuzziness() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("fuzziness", "1"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals(Fuzziness.ONE, fuzzyQb.fuzziness());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer with all supported optional params.
+     */
+    public void testFuzzySerializerWithAllParams() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams(
+            "title",
+            "laptop",
+            "FUZZY",
+            Map.of("fuzziness", "2", "prefix_length", "3", "max_expansions", "100", "transpositions", "false", "rewrite", "constant_score")
+        );
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("title", fuzzyQb.fieldName());
+            assertEquals("laptop", fuzzyQb.value());
+            assertEquals(Fuzziness.TWO, fuzzyQb.fuzziness());
+            assertEquals(3, fuzzyQb.prefixLength());
+            assertEquals(100, fuzzyQb.maxExpansions());
+            assertFalse(fuzzyQb.transpositions());
+            assertEquals("constant_score", fuzzyQb.rewrite());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer with rewrite pass-through.
+     */
+    public void testFuzzySerializerWithRewritePassThrough() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("rewrite", "top_terms_10"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("top_terms_10", fuzzyQb.rewrite());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer with transpositions=false in isolation.
+     */
+    public void testFuzzySerializerWithTranspositionsFalse() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("transpositions", "false"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertFalse(fuzzyQb.transpositions());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer throws when field MAP is missing.
+     */
+    public void testFuzzySerializerThrowsWhenFieldMissing() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("laptop")
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(FUZZY_FUNCTION, queryMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue("Exception message must contain 'fuzzy', got: " + exception.getMessage(), exception.getMessage().contains("fuzzy"));
+    }
+
+    /**
+     * Tests FuzzySerializer ignores unrecognized params.
+     */
+    public void testFuzzySerializerIgnoresUnrecognizedParams() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("unknown_param", "value"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            FuzzyQueryBuilder fuzzyQb = (FuzzyQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("title", fuzzyQb.fieldName());
+            assertEquals("laptop", fuzzyQb.value());
+            // Defaults should be preserved
+            assertEquals(Fuzziness.AUTO, fuzzyQb.fuzziness());
+        }
+    }
+
+    /**
+     * Tests FuzzySerializer throws IllegalArgumentException for a malformed integer parameter.
+     */
+    public void testFuzzySerializerThrowsOnMalformedIntegerParam() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("prefix_length", "abc"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must name the offending parameter, got: " + exception.getMessage(),
+            exception.getMessage().contains("prefix_length")
+        );
+    }
+
+    /**
+     * Tests FuzzySerializer throws IllegalArgumentException for an unrecognised boolean value.
+     */
+    public void testFuzzySerializerThrowsOnInvalidBooleanParam() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.FUZZY);
+        assertNotNull("FUZZY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "laptop", "FUZZY", Map.of("transpositions", "yes"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must name the offending parameter, got: " + exception.getMessage(),
+            exception.getMessage().contains("transpositions")
+        );
+    }
+
+    // --- Registry key-set assertion test ---
+
+    /**
+     * Asserts the registry's key set matches the expected set of ScalarFunctions.
+     * Ensures new serializer registrations are deliberate and accounted for.
+     * Mirrors the registry key-set assertion pattern used by sibling test classes.
+     */
+    public void testRegistryKeySetMatchesExpectedFunctions() {
+        assertEquals(
+            Set.of(
+                ScalarFunction.MATCH,
+                ScalarFunction.MATCH_PHRASE,
+                ScalarFunction.MATCH_BOOL_PREFIX,
+                ScalarFunction.MATCH_PHRASE_PREFIX,
+                ScalarFunction.MULTI_MATCH,
+                ScalarFunction.QUERY_STRING,
+                ScalarFunction.SIMPLE_QUERY_STRING,
+                ScalarFunction.WILDCARD_QUERY,
+                ScalarFunction.QUERY,
+                ScalarFunction.MATCHALL,
+                ScalarFunction.EQUALS,
+                ScalarFunction.NOT_EQUALS,
+                ScalarFunction.IS_NULL,
+                ScalarFunction.IS_NOT_NULL,
+                ScalarFunction.LIKE,
+                ScalarFunction.GREATER_THAN,
+                ScalarFunction.GREATER_THAN_OR_EQUAL,
+                ScalarFunction.LESS_THAN,
+                ScalarFunction.LESS_THAN_OR_EQUAL,
+                ScalarFunction.REGEXP,
+                ScalarFunction.SARG_PREDICATE,
+                ScalarFunction.FUZZY
+            ),
+            serializers.keySet()
+        );
     }
 
     // --- Helper methods ---

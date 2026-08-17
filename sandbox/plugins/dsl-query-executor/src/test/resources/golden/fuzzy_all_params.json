@@ -1,0 +1,44 @@
+{
+  "testName": "fuzzy_all_params",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "fuzzy": {
+        "name": {
+          "value": "laptop",
+          "fuzziness": "2",
+          "prefix_length": 2,
+          "max_expansions": 100,
+          "transpositions": false,
+          "rewrite": "constant_score"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[FUZZY(MAP('field', $0), MAP('query', 'laptop'), MAP('fuzziness', '2'), MAP('prefix_length', '2'), MAP('max_expansions', '100'), MAP('transpositions', 'false'), MAP('rewrite', 'constant_score'))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
