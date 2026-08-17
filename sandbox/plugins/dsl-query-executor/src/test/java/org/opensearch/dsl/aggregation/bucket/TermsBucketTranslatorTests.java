@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
 
-    private final TermsBucketTranslator translator = new TermsBucketTranslator();
+    private final TermsBucketTranslator translator = new TermsBucketTranslator(() -> null);
     private final TermsAggregationBuilder brandAgg = new TermsAggregationBuilder("by_brand").field("brand");
 
     public void testGetGrouping() {

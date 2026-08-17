@@ -18,6 +18,8 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -29,6 +31,8 @@ import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.dsl.result.SearchResponseBuilder;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -36,6 +40,7 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -51,6 +56,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     private final EngineContextProvider contextProvider;
     private final DslQueryPlanExecutor planExecutor;
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
@@ -71,6 +77,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         EngineContextProvider contextProvider,
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
         ClusterService clusterService,
+        IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ThreadPool threadPool
     ) {
@@ -78,6 +85,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         this.contextProvider = contextProvider;
         this.planExecutor = new DslQueryPlanExecutor(executor);
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
     }
@@ -91,7 +99,21 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             try {
                 String indexName = resolveToSingleIndex(request);
 
-                converter = new SearchSourceConverter(contextProvider.getContext().schema());
+                // Lazily resolves the target index's MapperService for response key typing and
+                // formats; a failed resolution degrades to the translator's sampling fallback.
+                // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
+                Supplier<MapperService> mapperServiceSupplier = () -> {
+                    try {
+                        ClusterState state = clusterService.state();
+                        IndexMetadata indexMetadata = state.metadata().index(indexName);
+                        return indicesService.createIndexMapperService(indexMetadata);
+                    } catch (Exception e) {
+                        logger.warn("Failed to resolve MapperService for index [{}]", indexName, e);
+                        return null;
+                    }
+                };
+
+                converter = new SearchSourceConverter(contextProvider.getContext().schema(), mapperServiceSupplier);
 
                 plans = converter.convert(request.source(), indexName);
             } catch (ConversionException e) {
