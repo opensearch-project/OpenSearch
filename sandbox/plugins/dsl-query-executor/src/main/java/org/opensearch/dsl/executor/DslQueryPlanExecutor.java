@@ -56,6 +56,22 @@ public class DslQueryPlanExecutor {
         executeNext(queryPlans, 0, results, listener);
     }
 
+    /**
+     * Executes a single plan, independent of any sequential chain. Used for the COUNT plan,
+     * which runs concurrently with the main plans so its cost is attributable separately.
+     *
+     * @param plan     the plan to execute
+     * @param listener receives the plan's result or the failure
+     */
+    public void executeOne(QueryPlans.QueryPlan plan, ActionListener<ExecutionResult> listener) {
+        RelNode relNode = plan.relNode();
+        logPlan(relNode);
+        executor.execute(relNode, null, ActionListener.wrap(rows -> {
+            logRows(rows);
+            listener.onResponse(new ExecutionResult(plan, rows));
+        }, listener::onFailure));
+    }
+
     private void executeNext(
         List<QueryPlans.QueryPlan> queryPlans,
         int index,

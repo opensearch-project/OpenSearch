@@ -14,8 +14,10 @@ import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
+import org.opensearch.dsl.aggregation.bucket.SizedBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.converter.PostAggregateConverter;
 import org.opensearch.dsl.util.ComparisonUtils;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -31,28 +33,28 @@ import java.util.stream.StreamSupport;
 
 /**
  * Converts execution results into OpenSearch InternalAggregations format.
- * Uses granularity-based matching to map flat tabular results to hierarchical aggregation structures.
  *
- * <p>A granularity is identified by its GROUP BY field names in <b>nesting order</b> (outer
- * bucket first) — the same order the {@code AggregationTreeWalker} accumulated them in and the
- * same order the response walk re-accumulates while descending the request's aggregation tree.
- * Results are keyed by the walker-produced {@link AggregationMetadata} carried on each plan, so
- * the key round-trips losslessly: sibling trees over the same field <em>set</em> but different
- * nesting order (e.g. {@code brand→category} vs {@code category→brand}) produce distinct plans
- * AND distinct keys. Re-deriving the key from the plan's group bit set would yield schema order
- * instead, forcing an order-insensitive (sorted) key under which such siblings collide.
+ * <p>Plans are per bucket aggregation, so results are keyed by the <b>aggregation-name path</b>
+ * (outer bucket first) — the walker records it on each plan's {@link AggregationMetadata}, and
+ * the response walk re-accumulates the same path while descending the request tree, so the key
+ * matches by construction. Aggregation names are unique among siblings by DSL contract, which
+ * makes the key unambiguous: sibling aggregations over the same field, or sibling trees over
+ * the same field set in different nesting orders, all have distinct paths and distinct plans.
  */
 public final class AggregationResponseBuilder {
 
-    /** NUL cannot appear in field names, so joined keys cannot collide. */
-    private static final String AGGREGATION_LEVEL_SEPARATOR = "\u0000";
-
     private final AggregationRegistry registry;
-    private final Map<String, ExecutionResult> granularityMap;
+    private final Map<String, ExecutionResult> resultsByAggPath;
+    private final CountTotals countTotals;
 
     public AggregationResponseBuilder(AggregationRegistry registry, List<ExecutionResult> aggResults) {
+        this(registry, aggResults, null);
+    }
+
+    public AggregationResponseBuilder(AggregationRegistry registry, List<ExecutionResult> aggResults, CountTotals countTotals) {
         this.registry = registry;
-        this.granularityMap = new HashMap<>();
+        this.countTotals = countTotals;
+        this.resultsByAggPath = new HashMap<>();
         for (ExecutionResult result : aggResults) {
             AggregationMetadata metadata = result.getPlan().aggregationMetadata();
             if (metadata == null) {
@@ -61,15 +63,13 @@ public final class AggregationResponseBuilder {
                         + "response builder must be created by SearchSourceConverter"
                 );
             }
-            String key = granularityKey(metadata.getGroupByFieldNames());
-            ExecutionResult previous = granularityMap.putIfAbsent(key, result);
+            String key = pathKey(metadata.getAggNamePath());
+            ExecutionResult previous = resultsByAggPath.putIfAbsent(key, result);
             if (previous != null) {
-                // The walker produces exactly one plan per nesting-order granularity, so a
-                // duplicate key means the walker invariant broke upstream. Fail loudly instead
-                // of silently overwriting one plan's results with another's.
-                throw new IllegalStateException(
-                    "Duplicate aggregation granularity [" + String.join(",", metadata.getGroupByFieldNames()) + "]"
-                );
+                // Sibling aggregation names are unique by DSL contract, so a duplicate path
+                // means the walker invariant broke upstream. Fail loudly instead of silently
+                // overwriting one plan's results with another's.
+                throw new IllegalStateException("Duplicate aggregation plan path [" + String.join(",", metadata.getAggNamePath()) + "]");
             }
         }
     }
@@ -90,7 +90,7 @@ public final class AggregationResponseBuilder {
      */
     private List<InternalAggregation> buildLevel(
         List<AggregationBuilder> aggs,
-        List<String> accumulatedGroupFields,
+        List<String> accumulatedAggNames,
         Map<String, Object> parentKeyFilter
     ) throws ConversionException {
 
@@ -101,9 +101,9 @@ public final class AggregationResponseBuilder {
             AggregationTranslator<AggregationBuilder> type = (AggregationTranslator<AggregationBuilder>) registry.get(agg.getClass());
 
             if (type instanceof MetricTranslator) {
-                result.add(buildMetric((MetricTranslator<AggregationBuilder>) type, agg, accumulatedGroupFields, parentKeyFilter));
+                result.add(buildMetric((MetricTranslator<AggregationBuilder>) type, agg, accumulatedAggNames, parentKeyFilter));
             } else if (type instanceof BucketTranslator) {
-                result.add(buildBucket((BucketTranslator<AggregationBuilder>) type, agg, accumulatedGroupFields, parentKeyFilter));
+                result.add(buildBucket((BucketTranslator<AggregationBuilder>) type, agg, accumulatedAggNames, parentKeyFilter));
             } else {
                 throw new ConversionException(
                     "No response translator for aggregation [" + agg.getName() + "] of type " + agg.getClass().getSimpleName()
@@ -115,22 +115,23 @@ public final class AggregationResponseBuilder {
 
     /**
      * Builds a metric aggregation by extracting the computed value from execution results.
-     * Finds the matching row using granularity key and parent filters.
+     * Metrics ride in their enclosing bucket aggregation's plan, so the lookup uses the
+     * enclosing aggregation-name path; parent filters locate the specific row.
      */
     private InternalAggregation buildMetric(
         MetricTranslator<AggregationBuilder> translator,
         AggregationBuilder agg,
-        List<String> accumulatedGroupFields,
+        List<String> accumulatedAggNames,
         Map<String, Object> parentKeyFilter
     ) throws ConversionException {
 
-        ExecutionResult result = granularityMap.get(granularityKey(accumulatedGroupFields));
+        ExecutionResult result = resultsByAggPath.get(pathKey(accumulatedAggNames));
 
         if (result == null) {
             return buildEmptyMetric(translator, agg);
         }
 
-        List<Object[]> rows = StreamSupport.stream(result.getRows().spliterator(), false).collect(Collectors.toList());
+        List<Object[]> rows = materialize(result);
 
         if (rows.isEmpty()) {
             return buildEmptyMetric(translator, agg);
@@ -145,7 +146,18 @@ public final class AggregationResponseBuilder {
 
         Object[] matchingRow = findMatchingRow(rows, colIndex, parentKeyFilter);
         Object value = (matchingRow != null) ? matchingRow[colIdx] : null;
-        return translator.toInternalAggregation(agg.getName(), value, AggregationTranslator.userMetadata(agg));
+        InternalAggregation metric = translator.toInternalAggregation(agg.getName(), value, AggregationTranslator.userMetadata(agg));
+        return metric;
+    }
+
+    /**
+     * Drains one granularity's rows into a re-readable list. The builder makes several passes over
+     * them (filter, group, per-bucket recursion), so the executor's iterable is materialized once
+     * per call.
+     */
+    private static List<Object[]> materialize(ExecutionResult result) {
+        List<Object[]> rows = StreamSupport.stream(result.getRows().spliterator(), false).collect(Collectors.toList());
+        return rows;
     }
 
     /**
@@ -169,21 +181,21 @@ public final class AggregationResponseBuilder {
     private InternalAggregation buildBucket(
         BucketTranslator<AggregationBuilder> translator,
         AggregationBuilder agg,
-        List<String> accumulatedGroupFields,
+        List<String> accumulatedAggNames,
         Map<String, Object> parentKeyFilter
     ) throws ConversionException {
 
         GroupingInfo grouping = translator.getGrouping(agg);
-        List<String> newGroupFields = new ArrayList<>(accumulatedGroupFields);
-        newGroupFields.addAll(grouping.getFieldNames());
+        List<String> newAggNames = new ArrayList<>(accumulatedAggNames);
+        newAggNames.add(agg.getName());
 
-        ExecutionResult result = granularityMap.get(granularityKey(newGroupFields));
+        ExecutionResult result = resultsByAggPath.get(pathKey(newAggNames));
 
         if (result == null) {
             return buildEmptyBucket(translator, agg);
         }
 
-        List<Object[]> rows = StreamSupport.stream(result.getRows().spliterator(), false).collect(Collectors.toList());
+        List<Object[]> rows = materialize(result);
 
         if (rows.isEmpty()) {
             return buildEmptyBucket(translator, agg);
@@ -215,12 +227,73 @@ public final class AggregationResponseBuilder {
 
             InternalAggregations subAggregations = subAggs.isEmpty()
                 ? InternalAggregations.EMPTY
-                : InternalAggregations.from(buildLevel(subAggs, newGroupFields, childFilter));
+                : InternalAggregations.from(buildLevel(subAggs, newAggNames, childFilter));
 
             buckets.add(new BucketEntry(entry.getKey(), docCount, subAggregations));
         }
 
-        return translator.toBucketAggregation(agg, buckets);
+        Long eligibleDocCount = resolveEligibleDocCount(result, filteredRows, colIndex);
+        if (eligibleDocCount != null && (translator instanceof SizedBucketTranslator) == false) {
+            // Fetch is only granted to granularities defined by a SizedBucketTranslator; a
+            // truncated plan rendered through the base contract would tail-sum a tail that
+            // never left the engine.
+            throw new ConversionException(
+                "Plan for aggregation [" + agg.getName() + "] carried a fetch but its translator is not a SizedBucketTranslator"
+            );
+        }
+
+        InternalAggregation bucketAgg = eligibleDocCount != null
+            ? ((SizedBucketTranslator<AggregationBuilder>) translator).toBucketAggregation(agg, buckets, eligibleDocCount)
+            : translator.toBucketAggregation(agg, buckets);
+        return bucketAgg;
+    }
+
+    /**
+     * Resolves the eligible-document total for a level whose plan is bounded. Root-level plans (a flat
+     * LIMIT) take the aggregation's eligible-document count from the COUNT plans
+     * ({@code COUNT(*)} when a {@code missing} value makes every matching doc eligible).
+     * Nested levels (a per-parent bound) read the parent's eligible total off the rows — the
+     * plan's window {@code SUM(_count) OVER (PARTITION BY parent)} rides every surviving row,
+     * constant within the parent. Returns null for unbounded plans, where the translator's own
+     * tail arithmetic is exact. A bounded level with no reachable eligible count is a wiring
+     * bug — rendering would silently understate {@code sum_other_doc_count}, so it fails
+     * loudly.
+     */
+    private Long resolveEligibleDocCount(ExecutionResult result, List<Object[]> filteredRows, Map<String, Integer> colIndex)
+        throws ConversionException {
+        AggregationMetadata metadata = result.getPlan().aggregationMetadata();
+
+        if (metadata.getPerParentFetch() != null) {
+            Integer eligibleIdx = colIndex.get(PostAggregateConverter.PARENT_ELIGIBLE_NAME);
+            if (eligibleIdx == null) {
+                throw new ConversionException(
+                    "Nested bounded plan result is missing the "
+                        + PostAggregateConverter.PARENT_ELIGIBLE_NAME
+                        + " column for aggregation ["
+                        + String.join(",", metadata.getAggNamePath())
+                        + "]"
+                );
+            }
+            if (filteredRows.isEmpty()) {
+                return 0L;
+            }
+            Object eligible = filteredRows.get(0)[eligibleIdx];
+            return eligible instanceof Number count ? count.longValue() : 0L;
+        }
+
+        if (metadata.getFetch() == null) {
+            return null;
+        }
+        // a flat-LIMIT plan is root-level and single-field by eligibility
+        String aggName = metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1);
+        Long eligibleDocCount = null;
+        if (countTotals != null) {
+            eligibleDocCount = metadata.eligibleDocCountIsTotal() ? countTotals.totalDocs() : countTotals.eligibleDocCounts().get(aggName);
+        }
+        if (eligibleDocCount == null) {
+            throw new ConversionException("COUNT plan result is missing the eligible-doc count for bounded aggregation [" + aggName + "]");
+        }
+        return eligibleDocCount;
     }
 
     /**
@@ -306,13 +379,12 @@ public final class AggregationResponseBuilder {
     }
 
     /**
-     * Canonical granularity key: group field names in nesting order (outer bucket first),
-     * NUL-joined. Insertion uses the walker's {@link AggregationMetadata#getGroupByFieldNames()}
-     * and lookup uses the response walk's accumulated fields — both are built in nesting order,
-     * so the key matches by construction. Not sorted: sorting would erase nesting order, the
-     * one thing distinguishing sibling trees over the same field set (see class javadoc).
+     * Canonical plan key: aggregation names in nesting order (outer bucket first), NUL-joined.
+     * Insertion uses the walker's {@link AggregationMetadata#getAggNamePath()} and lookup uses
+     * the response walk's accumulated names — both are built in nesting order, so the key
+     * matches by construction.
      */
-    private static String granularityKey(List<String> groupFieldNames) {
-        return String.join(AGGREGATION_LEVEL_SEPARATOR, groupFieldNames);
+    private static String pathKey(List<String> aggNames) {
+        return AggregationMetadata.pathKey(aggNames);
     }
 }

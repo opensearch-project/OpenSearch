@@ -25,8 +25,29 @@ public final class QueryPlans {
         /** Document hits. */
         HITS,
         /** Aggregation results. */
-        AGGREGATION
+        AGGREGATION,
+        /**
+         * Request totals: single-row aggregates supplying the counts that plan-level LIMITs
+         * remove from the main plans — {@code hits.total} and the {@code sum_other_doc_count}
+         * eligible-doc counts. A request may carry several COUNT plans (one flat plan for
+         * {@code COUNT(*)}/{@code COUNT(field)} columns, plus one per {@code min_doc_count}
+         * aggregation whose eligible count needs a HAVING-filtered sum). All execute concurrently
+         * with the main plans.
+         */
+        COUNT
     }
+
+    /** Column name of the COUNT plans' {@code COUNT(*)} — total docs matching the query. */
+    public static final String COUNT_TOTAL_COLUMN = "_total";
+
+    /**
+     * Column name prefix of a root sized aggregation's eligible-doc count, the total {@code sum_other_doc_count} is subtracted from:
+     * the documents eligible for its buckets, named {@code _eligible$<aggregationName>} (root
+     * names are unique among siblings by DSL contract). For {@code min_doc_count} ≤ 1 this is
+     * {@code COUNT(field)}; for higher thresholds it is the sum of counts over the
+     * HAVING-filtered groups, delivered by that aggregation's own COUNT plan.
+     */
+    public static final String COUNT_ELIGIBLE_COLUMN_PREFIX = "_eligible$";
 
     /**
      * A single plan pairing a {@link Type} with a Calcite {@link RelNode}.
@@ -38,8 +59,6 @@ public final class QueryPlans {
      *        so granularity matching uses the walker's exact nesting-order group fields instead
      *        of re-deriving them from the plan (which loses nesting order).
      */
-    // TODO: Nested aggregations may require multiple RelNodes per aggregation.
-    // Support linking child query plans for recursive nesting (e.g. nested sub-aggregations).
     public record QueryPlan(Type type, RelNode relNode, AggregationMetadata aggregationMetadata) {
         /**
          * Creates a query plan.
@@ -61,18 +80,6 @@ public final class QueryPlans {
          */
         public QueryPlan(Type type, RelNode relNode) {
             this(type, relNode, null);
-        }
-
-        /** Returns what part of the response this plan produces. */
-        @Override
-        public Type type() {
-            return type;
-        }
-
-        /** Returns the Calcite logical plan to execute. */
-        @Override
-        public RelNode relNode() {
-            return relNode;
         }
     }
 
