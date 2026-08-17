@@ -27,6 +27,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
@@ -156,6 +157,19 @@ public final class DistributionEnforcementPass {
         // 1. CBO exchange wrapper: peel it, recover the input's content + actual distribution. The parent
         // that consumes this node will re-enforce its own requirement, re-inserting an exchange only if
         // the recovered actual distribution doesn't satisfy it. The demand flows through the peel unchanged.
+        //
+        // EXCEPTION: an ER carrying a QTF overrideRowType is NOT a plain CBO enforcement decision — the
+        // late-materialization rewriter rebuilt it to DECLARE the coord-side `___ugsi` column that
+        // ShardFragmentStageExecution appends at runtime, together with the matching FieldStorageInfo.
+        // Peeling it and letting a parent re-gather via buildReducer() (which uses the 4-arg ctor) drops
+        // that declaration, so DatafusionReduceSink's schema validation then rejects the batch:
+        // "declared=<…__row_id__> batch=<…__row_id__ not null, ___ugsi>" → HTTP 500 on a wide
+        // `where … | sort … | head N`. Keep the QTF ER intact and report SINGLETON.
+        if (n instanceof OpenSearchExchangeReducer reducer && reducer.hasOverrideRowType()) {
+            Visited child = visit(reducer.getInput(0), demand);
+            RelNode rebuilt = copyWithInputs(reducer, List.of(child.rel));
+            return new Visited(rebuilt, traitDef.coordSingleton());
+        }
         if (n instanceof OpenSearchExchangeReducer || n instanceof OpenSearchShuffleExchange || n instanceof OpenSearchBroadcastExchange) {
             return visit(((RelNode) n).getInput(0), demand);
         }
@@ -163,6 +177,20 @@ public final class DistributionEnforcementPass {
         // 2. Leaf scan: its trait carries the actual (SHARD) distribution; nothing to enforce below.
         if (n instanceof OpenSearchTableScan) {
             return new Visited(n, distributionOf(n));
+        }
+
+        // 2b. A per-partition Sort RIDES its child's distribution. Both top-N rewriters place a shard-local
+        // Sort+fetch BELOW the gather so each shard ships only its local top-N
+        // (OpenSearchSortPushdownRewriter for the non-aggregate `sort … | head N`, OpenSearchTopKRewriter
+        // for the aggregate path); both mark it perPartition. Sort is NOT
+        // DistributionAware, so without this branch it falls to the step-3 non-aware handling, which
+        // re-gathers its input to SINGLETON — that hoists the shard Sort ABOVE the ER and leaves the shard
+        // fragment a bare scan streaming EVERY row to the coordinator. Measured cost of getting this wrong:
+        // `sort SearchPhrase | head 10` over 10M rows, 51ms (mpp off) vs 5391ms (mpp on).
+        if (n instanceof OpenSearchSort perPartitionSort && perPartitionSort.isPerPartition()) {
+            Visited child = visit(n.getInput(0), demand);
+            RelNode rebuilt = copyWithInputs(n, List.of(child.rel));
+            return new Visited(rebuilt, child.actualDistribution);
         }
 
         // 3a-pre. Row-transparent passthrough (Project/Filter with no requirement of its own): pass the
