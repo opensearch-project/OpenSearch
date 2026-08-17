@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet.docvaluescodec.bridge;
 
-import org.opensearch.parquet.bridge.RustBridge;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -70,7 +68,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
 
     /** Opens a numeric cursor with an explicit starting window. */
     public static DataFusionColumnReader open(Path file, String column, int initialBatchSize) throws IOException {
-        long handle = RustBridge.dfOpenIter(file.toString(), column, initialBatchSize);
+        long handle = ParquetDocValuesBridge.dfOpenIter(file.toString(), column, initialBatchSize);
         return new DataFusionColumnReader(handle, file, column);
     }
 
@@ -87,7 +85,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
     public void loadBatchContaining(long row) throws IOException {
         ensureOpen();
         DecodedBatch current = decodedBatch;
-        if (current != null && row < current.firstRow) {
+        if (current != null && row < current.firstRow()) {
             reopen();
         }
         loadNumericBatch(row);
@@ -96,7 +94,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
     /** Replaces the forward-only cursor with a fresh one at row zero. Only reached on a backward request. */
     private void reopen() throws IOException {
         decodedBatch = null;
-        RustBridge.dfResetIter(handle);
+        ParquetDocValuesBridge.dfResetIter(handle);
     }
 
     private void loadNumericBatch(long row) throws IOException {
@@ -119,7 +117,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
             MemorySegment validityBitOffsetOut = out.asSlice(4L * Long.BYTES, Long.BYTES);
             MemorySegment valueKindOut = out.asSlice(5L * Long.BYTES, Long.BYTES);
 
-            long rc = RustBridge.dfNextBatch(
+            long rc = ParquetDocValuesBridge.dfNextBatch(
                 handle,
                 row,
                 firstRowOut,
@@ -159,19 +157,18 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
 
         // Borrowed Arrow buffers, read in place: O(rows accessed), no copy. Valid until the next
         // batch call on this cursor; the resident batch is always replaced before that call.
-        DecodedBatch next = new DecodedBatch();
-        next.firstRow = firstRow;
-        next.lastRow = lastRow;
-        next.valueKind = kind;
-        next.values = MemorySegment.ofAddress(valuesAddr).reinterpret((long) batchRows * width);
+        MemorySegment values = MemorySegment.ofAddress(valuesAddr).reinterpret((long) batchRows * width);
+        MemorySegment presenceBits;
+        int presenceBitOffset;
         if (validityAddr == 0) {
-            next.presenceBits = null;
+            presenceBits = null;
+            presenceBitOffset = 0;
         } else {
             long presenceWords = ((long) bitOffset + batchRows + 63) >>> 6;
-            next.presenceBits = MemorySegment.ofAddress(validityAddr).reinterpret(presenceWords * Long.BYTES);
-            next.presenceBitOffset = bitOffset;
+            presenceBits = MemorySegment.ofAddress(validityAddr).reinterpret(presenceWords * Long.BYTES);
+            presenceBitOffset = bitOffset;
         }
-        decodedBatch = next;
+        decodedBatch = new DecodedBatch(firstRow, lastRow, values, kind, presenceBits, presenceBitOffset);
     }
 
     /** Byte width of a value KIND, rejecting any kind this reader does not understand. */
@@ -192,10 +189,10 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
     }
 
     private void checkStatus(long rc, long row) throws IOException {
-        if (rc == RustBridge.RC_EOF) {
+        if (rc == ParquetDocValuesBridge.RC_EOF) {
             throw new IOException("DataFusion numeric cursor exhausted before row " + row + " (" + file + "/" + column + ")");
         }
-        if (rc != RustBridge.RC_OK) {
+        if (rc != ParquetDocValuesBridge.RC_OK) {
             throw new IOException(
                 "Unexpected DataFusion numeric cursor status " + rc + " at row " + row + " (" + file + "/" + column + ")"
             );
@@ -216,6 +213,6 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
         long current = handle;
         handle = CLOSED_HANDLE;
         decodedBatch = null;
-        RustBridge.dfCloseIter(current);
+        ParquetDocValuesBridge.dfCloseIter(current);
     }
 }

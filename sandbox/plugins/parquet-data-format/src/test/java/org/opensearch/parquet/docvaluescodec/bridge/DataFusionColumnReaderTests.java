@@ -69,7 +69,7 @@ public class DataFusionColumnReaderTests extends OpenSearchTestCase {
                     batch = reader.decodedBatch();
                 }
                 assertTrue("row " + row + " should be in the batch", batch.contains(row));
-                assertEquals(DecodedBatch.KIND_LONG, batch.valueKind);
+                assertEquals(DecodedBatch.KIND_LONG, batch.valueKind());
                 assertTrue("row " + row + " should be present", batch.isPresent(row));
                 assertEquals("value at row " + row, expected(row), batch.valueAt(row));
             }
