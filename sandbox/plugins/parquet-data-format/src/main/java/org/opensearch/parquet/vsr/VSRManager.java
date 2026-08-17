@@ -13,8 +13,14 @@ import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BaseLargeVariableWidthVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -283,10 +289,16 @@ public class VSRManager implements AutoCloseable {
         switch (dataVector) {
             case VarCharVector varchar -> varchar.setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
             case BigIntVector bigint -> bigint.setSafe(index, ((Number) value).longValue());
+            case IntVector intVector -> intVector.setSafe(index, ((Number) value).intValue());
+            case SmallIntVector smallInt -> smallInt.setSafe(index, ((Number) value).shortValue());
+            case TinyIntVector tinyInt -> tinyInt.setSafe(index, ((Number) value).byteValue());
+            case Float8Vector doubleVector -> doubleVector.setSafe(index, ((Number) value).doubleValue());
+            case Float4Vector floatVector -> floatVector.setSafe(index, ((Number) value).floatValue());
+            case BitVector bit -> bit.setSafe(index, (value instanceof Boolean b ? b : Boolean.parseBoolean(value.toString())) ? 1 : 0);
             default -> throw new UnsupportedOperationException(
                 "Unsupported nested leaf element vector type ["
                     + dataVector.getClass().getSimpleName()
-                    + "]; v1 supports only string-family and long nested leaves"
+                    + "]; supported: string-family, integer/long/short/byte, float/double, boolean"
             );
         }
     }
