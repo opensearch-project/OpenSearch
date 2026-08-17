@@ -16,6 +16,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.query.range.RangeBoundMath;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.util.Optional;
 
@@ -85,14 +86,16 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
 
         Object adjusted = value;
         boolean adjustedInclusive = inclusive;
+        final boolean isInteger = RangeBoundMath.isIntegerType(fieldTypeName);
+        final boolean hasDecimal = isInteger && NumberFieldMapper.NumberType.hasDecimalPart(value);
 
         // Decimal bounds on integer fields per NumberFieldMapper INTEGER.rangeQuery:
         // truncate to int and adjust based on sign and bound direction.
-        if (RangeBoundMath.isIntegerType(fieldTypeName) && RangeBoundMath.hasDecimalPart(value)) {
+        if (isInteger && hasDecimal) {
             long truncated = RangeBoundMath.toLongValue(value);
             if (isLower) {
                 // Positive decimal lower bound -> increment
-                if (RangeBoundMath.signum(value) > 0) {
+                if (NumberFieldMapper.NumberType.signum(value) > 0) {
                     if (truncated >= RangeBoundMath.getMaxValueForType(fieldTypeName)) {
                         return ctx.getRexBuilder().makeLiteral(false);
                     }
@@ -102,7 +105,7 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
                 }
             } else {
                 // Negative decimal upper bound -> decrement
-                if (RangeBoundMath.signum(value) < 0) {
+                if (NumberFieldMapper.NumberType.signum(value) < 0) {
                     if (truncated <= RangeBoundMath.getMinValueForType(fieldTypeName)) {
                         return ctx.getRexBuilder().makeLiteral(false);
                     }
@@ -112,7 +115,7 @@ final class DefaultTranslatorMapper extends BaseTranslatorMapper {
                 }
             }
             adjustedInclusive = true; // decimal adjustment makes bound inclusive
-        } else if (RangeBoundMath.isIntegerType(fieldTypeName) && !RangeBoundMath.hasDecimalPart(value) && value instanceof Number) {
+        } else if (isInteger && !hasDecimal && value instanceof Number) {
             // Whole numeric value on integer field: range-checked narrow to field-appropriate type.
             // WHY: unchecked (int) cast silently truncates via JLS 5.1.3 narrowing, e.g.
             // 2147483648L becomes -2147483648 and matches everything.

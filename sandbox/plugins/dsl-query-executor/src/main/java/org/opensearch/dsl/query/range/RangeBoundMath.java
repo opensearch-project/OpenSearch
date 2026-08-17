@@ -13,7 +13,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.converter.ConversionException;
 
 /**
- * Generic numeric predicates and type-narrowing helpers shared by the range bound translation path.
+ * Numeric type-narrowing and overflow-guard helpers shared by the range bound translation path.
  */
 public final class RangeBoundMath {
 
@@ -124,29 +124,6 @@ public final class RangeBoundMath {
             || typeName == SqlTypeName.BIGINT
             || typeName == SqlTypeName.SMALLINT
             || typeName == SqlTypeName.TINYINT;
-    }
-
-    /**
-     * Returns true if the numeric value has a non-zero fractional part.
-     * Mirrors legacy NumberFieldMapper.hasDecimalPart.
-     */
-    public static boolean hasDecimalPart(Object value) {
-        if (value instanceof Number) {
-            double d = ((Number) value).doubleValue();
-            return d % 1 != 0;
-        }
-        return false;
-    }
-
-    /**
-     * Returns the signum (-1, 0, or 1) of a numeric value.
-     * Mirrors legacy NumberFieldMapper.signum.
-     */
-    public static double signum(Object value) {
-        if (value instanceof Number) {
-            return Math.signum(((Number) value).doubleValue());
-        }
-        return 0;
     }
 
     /**
