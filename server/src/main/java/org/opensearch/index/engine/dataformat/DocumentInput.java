@@ -27,6 +27,14 @@ public interface DocumentInput<T> extends AutoCloseable {
     String ROW_ID_FIELD = "__row_id__";
 
     /**
+     * Doc-value field on an Engine-4 element-index document holding the {@code __row_id__} of the
+     * parent document the element belongs to. It lets a nested filter's element matches be mapped back
+     * to parent rows (see the element delegation handle). Element grain, so it is not the element
+     * document's own {@link #ROW_ID_FIELD}.
+     */
+    String NESTED_PARENT_ROW_FIELD = "__parent_row__";
+
+    /**
      * Gets the final input representation.
      *
      * @return the final input of type T
@@ -73,5 +81,17 @@ public interface DocumentInput<T> extends AutoCloseable {
      */
     default void addNestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
         // no-op by default: formats that do not model nested elements ignore them
+    }
+
+    /**
+     * Adds a numeric doc-value column, named {@code field}, to this document. Used by the Engine-4
+     * element index to carry {@link #NESTED_PARENT_ROW_FIELD}. The default is a no-op; only formats
+     * with per-document doc-values (Lucene) implement it.
+     *
+     * @param field the doc-value field name
+     * @param value the numeric value
+     */
+    default void addNumericDocValue(String field, long value) {
+        // no-op by default: formats without doc-values ignore it
     }
 }

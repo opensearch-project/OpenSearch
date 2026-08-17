@@ -15,6 +15,8 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -31,6 +33,7 @@ import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.NestedColumns;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
@@ -40,7 +43,11 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -83,6 +90,21 @@ public class VSRManager implements AutoCloseable {
     private final int ROTATION_TIMEOUT = 120;
     private LongAdder rowCount = new LongAdder();
     private long acceptedRows = 0L;
+
+    /**
+     * Engine-4 nested layout, keyed by nested path, derived from the Arrow schema's field metadata
+     * (see {@link NestedColumns}). Empty for an index with no {@code nested} field.
+     */
+    private Map<String, PathLayout> nestedLayout;
+    /**
+     * Per-path running count of elements written so far in this file — the <em>global</em> element
+     * offset stamped into each row's bridge offset column. Spans VSR rotations (the whole file), so it
+     * stays in step with the co-located element index's global element doc ids.
+     */
+    private final Map<String, Long> nestedGlobalOffset = new LinkedHashMap<>();
+
+    /** The parallel {@code LIST} leaf columns and the bridge offset/count columns of one nested path. */
+    private record PathLayout(List<String> listColumns, String offsetColumn, String countColumn) {}
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
@@ -185,6 +207,112 @@ public class VSRManager implements AutoCloseable {
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
         this.writer = new NativeParquetWriter(fileName, stats);
+        this.nestedLayout = buildNestedLayout(schema);
+    }
+
+    /**
+     * Groups the schema's Engine-4 nested columns by path: each {@code LIST} leaf tagged with
+     * {@link NestedColumns#NESTED_PATH_META_KEY}, plus that path's bridge offset/count columns. Returns
+     * an empty map when the schema declares no nested field.
+     */
+    private static Map<String, PathLayout> buildNestedLayout(Schema schema) {
+        Map<String, List<String>> listColumnsByPath = new LinkedHashMap<>();
+        for (Field field : schema.getFields()) {
+            Map<String, String> meta = field.getMetadata();
+            if (meta == null) {
+                continue;
+            }
+            String path = meta.get(NestedColumns.NESTED_PATH_META_KEY);
+            // A bridge column also carries the path key; skip it here — it is addressed by name below.
+            if (path != null && meta.get(NestedColumns.NESTED_BRIDGE_META_KEY) == null) {
+                listColumnsByPath.computeIfAbsent(path, p -> new ArrayList<>()).add(field.getName());
+            }
+        }
+        Map<String, PathLayout> layout = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : listColumnsByPath.entrySet()) {
+            String path = entry.getKey();
+            layout.put(path, new PathLayout(entry.getValue(), NestedColumns.offsetColumn(path), NestedColumns.countColumn(path)));
+        }
+        return layout;
+    }
+
+    /**
+     * Lays this document's {@code nested} elements out into the parent row {@code rowIndex}: for each
+     * path, every sibling {@code LIST} leaf gets the same per-element positions (a null where an element
+     * lacks that leaf, so sibling offsets stay identical), and the bridge offset/count columns record
+     * where those elements live in the path's global value stream. No-op for a document with no nested
+     * element or an index with no nested field.
+     */
+    private void writeNestedColumns(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
+        if (nestedLayout.isEmpty()) {
+            return;
+        }
+        List<ParquetDocumentInput.NestedElement> allElements = doc.getNestedElements();
+        // Advance the per-path global offsets only after every path's write for this row has succeeded,
+        // so a mid-row failure (scrubbed by addDocument's catch) cannot leave a counter ahead of the
+        // rows actually written. Kept as a staging map for that reason.
+        Map<String, Long> advanced = new LinkedHashMap<>();
+        for (Map.Entry<String, PathLayout> entry : nestedLayout.entrySet()) {
+            String path = entry.getKey();
+            PathLayout layout = entry.getValue();
+            // This document's elements for this path, in source (ordinal) order.
+            List<ParquetDocumentInput.NestedElement> pathElements = new ArrayList<>();
+            for (ParquetDocumentInput.NestedElement element : allElements) {
+                if (element.nestedPath().equals(path)) {
+                    pathElements.add(element);
+                }
+            }
+            pathElements.sort((a, b) -> Integer.compare(a.ordinal(), b.ordinal()));
+            int count = pathElements.size();
+            long offset = nestedGlobalOffset.getOrDefault(path, 0L);
+
+            for (String leafColumn : layout.listColumns()) {
+                ListVector listVector = (ListVector) activeVSR.getVector(leafColumn);
+                int start = listVector.startNewValue(rowIndex);
+                FieldVector dataVector = listVector.getDataVector();
+                for (int j = 0; j < count; j++) {
+                    writeListElement(dataVector, start + j, valueOfLeaf(pathElements.get(j), leafColumn));
+                }
+                listVector.endValue(rowIndex, count);
+            }
+            ((BigIntVector) activeVSR.getVector(layout.offsetColumn())).setSafe(rowIndex, offset);
+            ((BigIntVector) activeVSR.getVector(layout.countColumn())).setSafe(rowIndex, count);
+            advanced.put(path, offset + count);
+        }
+        nestedGlobalOffset.putAll(advanced);
+    }
+
+    /** The value an element carries for {@code leafColumn}, or null if the element lacks that leaf. */
+    private static Object valueOfLeaf(ParquetDocumentInput.NestedElement element, String leafColumn) {
+        List<String> names = element.leafNames();
+        for (int i = 0; i < names.size(); i++) {
+            if (names.get(i).equals(leafColumn)) {
+                return element.values().get(i);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Writes one element value into a {@code LIST} column's child (data) vector at {@code index}. A null
+     * value becomes a null child slot, which is how a missing sub-field is preserved positionally so
+     * sibling leaves keep identical offsets. Supports the string family (UTF-8) and 64-bit longs; other
+     * element types are rejected until their per-type writer is added.
+     */
+    private static void writeListElement(FieldVector dataVector, int index, Object value) {
+        if (value == null) {
+            dataVector.setNull(index);
+            return;
+        }
+        switch (dataVector) {
+            case VarCharVector varchar -> varchar.setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
+            case BigIntVector bigint -> bigint.setSafe(index, ((Number) value).longValue());
+            default -> throw new UnsupportedOperationException(
+                "Unsupported nested leaf element vector type ["
+                    + dataVector.getClass().getSimpleName()
+                    + "]; v1 supports only string-family and long nested leaves"
+            );
+        }
     }
 
     /**
@@ -192,9 +320,9 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Single-value semantics are enforced at the {@link ParquetDocumentInput} layer:
-     * if an array field produces multiple values for the same field type, only the
-     * last value is retained (last-value-wins).
+     * A scalar leaf is single-valued: {@link ParquetDocumentInput#addField} rejects a second value for
+     * the same field type. Multi-valued data reaches this method only through {@code nested} elements,
+     * which are laid out into parallel {@code LIST} columns by {@link #writeNestedColumns}.
      *
      * @param doc the document input containing field-value pairs
      */
@@ -258,6 +386,10 @@ public class VSRManager implements AutoCloseable {
                 rowIdVector.setSafe(rowIndex, doc.getRowId());
                 rowIdWritten = true;
             }
+            // Engine-4: lay out this row's nested elements into the parallel LIST leaf columns and stamp
+            // the bridge offset/count. Done after the scalar fields and rowId so the row is otherwise
+            // complete; a failure here is scrubbed by the catch below (nested vectors included).
+            writeNestedColumns(doc, activeVSR, rowIndex);
             activeVSR.setRowCount(rowIndex + 1);
             acceptedRows++;
         } catch (Exception e) {
@@ -374,6 +506,9 @@ public class VSRManager implements AutoCloseable {
         }
         if (changed) {
             vsrPool.updateSchema(activeVSR.getSchema());
+            // A new nested leaf may have appeared with the mapping bump; rebuild the layout so the next
+            // addDocument lays it out as a LIST column too. Existing per-path offsets are preserved.
+            this.nestedLayout = buildNestedLayout(activeVSR.getSchema());
         } else {
             logger.debug("no changes in schema despite change in mapping version");
         }
@@ -553,8 +688,33 @@ public class VSRManager implements AutoCloseable {
         if (diff > activeVSR.getRowCount()) {
             throw new IllegalStateException("Cannot rollback " + diff + " rows: active VSR only has " + activeVSR.getRowCount() + " rows");
         }
-        activeVSR.setRowCount(activeVSR.getRowCount() - (int) diff);
+        int localCount = activeVSR.getRowCount();
+        // Engine-4: the trimmed rows are the last `diff` rows of the active VSR. Roll the per-path global
+        // element offset back by the elements those rows contributed (their bridge count column), so the
+        // counter stays in step with the rows that survive and with the element index.
+        rollbackNestedOffsets(activeVSR, localCount - (int) diff, localCount);
+        activeVSR.setRowCount(localCount - (int) diff);
         acceptedRows = rowCount;
+    }
+
+    /** Subtracts the element counts of local rows {@code [fromRow, toRow)} from each path's global offset. */
+    private void rollbackNestedOffsets(ManagedVSR activeVSR, int fromRow, int toRow) {
+        if (nestedLayout.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, PathLayout> entry : nestedLayout.entrySet()) {
+            BigIntVector countVector = (BigIntVector) activeVSR.getVector(entry.getValue().countColumn());
+            if (countVector == null) {
+                continue;
+            }
+            long removed = 0L;
+            for (int row = fromRow; row < toRow; row++) {
+                if (countVector.isNull(row) == false) {
+                    removed += countVector.get(row);
+                }
+            }
+            nestedGlobalOffset.merge(entry.getKey(), -removed, Long::sum);
+        }
     }
 
     /**

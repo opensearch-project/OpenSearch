@@ -41,6 +41,12 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
     private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Engine-4: {@code nested} elements staged for this document, in source order. Each becomes a
+     * position in the parallel {@code LIST<primitive>} leaf columns of the parent row; {@code VSRManager}
+     * consumes them at {@code addDocument}. Empty for a document with no nested field.
+     */
+    private final List<NestedElement> nestedElements = new ArrayList<>();
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -60,6 +66,28 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             );
         }
         collectedFields.add(new FieldValuePair(fieldType, value));
+    }
+
+    /**
+     * Engine-4: stages one element of a {@code nested} array. Nothing is added to
+     * {@link #collectedFields} — the element's leaf values are laid out as positions in the parent
+     * row's parallel {@code LIST} columns by {@code VSRManager}, and its bridge offset/count are
+     * derived there too, so a nested leaf never becomes a flat single-value field.
+     */
+    @Override
+    public void addNestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
+        ensureOpen();
+        assert fieldTypes.size() == values.size() : "fieldTypes and values must be parallel";
+        List<String> leafNames = new ArrayList<>(fieldTypes.size());
+        for (MappedFieldType fieldType : fieldTypes) {
+            leafNames.add(fieldType.name());
+        }
+        nestedElements.add(new NestedElement(nestedPath, ordinal, List.copyOf(leafNames), List.copyOf(values)));
+    }
+
+    /** Nested elements staged for this document, in source order. Never null. */
+    public List<NestedElement> getNestedElements() {
+        return nestedElements;
     }
 
     @Override
@@ -91,8 +119,16 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     public void close() {
         isClosed = true;
         collectedFields.clear();
+        nestedElements.clear();
         rowId = -1;
     }
+
+    /**
+     * One element of a {@code nested} array staged for the parallel-LIST write path. {@code leafNames}
+     * and {@code values} are parallel; a leaf absent from this element is simply not listed (it becomes
+     * a null at this element's position in that leaf's list column).
+     */
+    public record NestedElement(String nestedPath, int ordinal, List<String> leafNames, List<Object> values) {}
 
     private void ensureOpen() {
         if (isClosed) {

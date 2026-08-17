@@ -148,6 +148,16 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
         return rowId;
     }
 
+    /**
+     * Adds a numeric doc-value column to the underlying Lucene document. The Engine-4 element index
+     * uses this to store {@link DocumentInput#NESTED_PARENT_ROW_FIELD} on each element, so element
+     * matches can be resolved to parent rows without touching the parquet bridge columns.
+     */
+    @Override
+    public void addNumericDocValue(String field, long value) {
+        document.add(new SortedNumericDocValuesField(field, value));
+    }
+
     @Override
     public long getFieldCount(String fieldName) {
         return document.getFields(fieldName).length;

@@ -163,14 +163,18 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     }
 
     /**
-     * POC (child-table nested design): stages one element of a {@code nested} array. Nothing is
-     * broadcast to the per-format inputs — the element becomes a row of the co-located child table
-     * once {@link CompositeWriter} knows this document's row id (the foreign key).
+     * Engine-4 (parallel LIST columns + element index): stages one element of a {@code nested} array
+     * and broadcasts it to the primary format input. The primary (parquet) input lays the element's
+     * leaves out as positions in the parent row's parallel {@code LIST} columns and derives the bridge
+     * offset/count; the staged copy here feeds {@link CompositeWriter} the same elements for the
+     * co-located element index. Secondaries (the main Lucene index) do not model nested elements, so
+     * the broadcast is to the primary only.
      */
     @Override
     public void addNestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
         assert fieldTypes.size() == values.size() : "fieldTypes and values must be parallel";
         nestedElements.add(new NestedElement(nestedPath, ordinal, List.copyOf(fieldTypes), List.copyOf(values)));
+        primaryDocumentInput.addNestedElement(nestedPath, ordinal, fieldTypes, values);
     }
 
     /** Returns the nested elements staged for this document, in source order. Never null. */

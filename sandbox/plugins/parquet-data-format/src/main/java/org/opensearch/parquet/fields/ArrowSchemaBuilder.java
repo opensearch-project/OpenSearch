@@ -8,7 +8,9 @@
 
 package org.opensearch.parquet.fields;
 
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,13 +22,17 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Builds Apache Arrow schemas from OpenSearch MapperService field mappings.
@@ -46,6 +52,11 @@ public final class ArrowSchemaBuilder {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
         DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
+        // Engine-4: nested leaves become LIST<primitive> columns on the parent row. Collect the nested
+        // paths first, then decide per leaf whether to emit a flat column or a list column. Paths that
+        // actually own at least one leaf also get a pair of bridge columns (see NestedColumns).
+        final Set<String> nestedPaths = nestedPaths(documentMapper);
+        final Set<String> nestedPathsWithLeaves = new LinkedHashSet<>();
         if (documentMapper != null) {
             for (Mapper mapper : documentMapper.mappers()) {
                 if (isUnsupportedMetadataField(mapper)) {
@@ -54,19 +65,78 @@ public final class ArrowSchemaBuilder {
                 }
 
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
-                if (parquetField != null) {
+                if (parquetField == null) {
+                    logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+                    continue;
+                }
+                String nestedPath = enclosingNestedPath(mapper.name(), nestedPaths);
+                if (nestedPath != null) {
+                    fields.add(nestedLeafListField(mapper.name(), nestedPath, parquetField));
+                    nestedPathsWithLeaves.add(nestedPath);
+                    // A nested keyword's raw-value sibling is skipped in v1: the analytics path filters
+                    // nested keyword leaves via the element index, not a parent raw-value column.
+                } else {
                     fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
                     handleNormalizedField(mapper, documentMapper, fields, parquetField);
-                } else {
-                    logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 }
             }
+        }
+        // Bridge columns (plain longs) for every nested path that produced leaf columns.
+        for (String nestedPath : nestedPathsWithLeaves) {
+            fields.add(new Field(NestedColumns.offsetColumn(nestedPath), bridgeFieldType(NestedColumns.BRIDGE_OFFSET, nestedPath), null));
+            fields.add(new Field(NestedColumns.countColumn(nestedPath), bridgeFieldType(NestedColumns.BRIDGE_COUNT, nestedPath), null));
         }
         // Add row ID field (long)
         LongParquetField longField = new LongParquetField(false);
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
         fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false).getFieldType(), null));
         return new Schema(fields);
+    }
+
+    /** All {@code nested} object paths declared in the mapping. Empty when none / no mapper. */
+    private static Set<String> nestedPaths(DocumentMapper documentMapper) {
+        Set<String> paths = new LinkedHashSet<>();
+        if (documentMapper == null) {
+            return paths;
+        }
+        for (ObjectMapper objectMapper : documentMapper.mappers().objectMappers().values()) {
+            if (objectMapper.nested().isNested()) {
+                paths.add(objectMapper.fullPath());
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * Returns the deepest nested path that encloses {@code leafName} (i.e. {@code leafName} starts with
+     * {@code path + "."}), or null if the leaf is not under any nested object. Deepest-wins keeps a leaf
+     * assigned to its nearest nested ancestor if paths ever nest (rejected in v1, but harmless here).
+     */
+    private static String enclosingNestedPath(String leafName, Set<String> nestedPaths) {
+        String match = null;
+        for (String path : nestedPaths) {
+            if (leafName.startsWith(path + ".") && (match == null || path.length() > match.length())) {
+                match = path;
+            }
+        }
+        return match;
+    }
+
+    /** A {@code LIST<primitive>} field for a nested leaf, tagged with its nested path in field metadata. */
+    private static Field nestedLeafListField(String leafName, String nestedPath, ParquetField parquetField) {
+        Field element = new Field("element", parquetField.getFieldType(), null);
+        FieldType listType = new FieldType(true, ArrowType.List.INSTANCE, null, Map.of(NestedColumns.NESTED_PATH_META_KEY, nestedPath));
+        return new Field(leafName, listType, List.of(element));
+    }
+
+    /** A non-null {@code long} bridge column tagged with the path it describes and its role. */
+    private static FieldType bridgeFieldType(String bridgeRole, String nestedPath) {
+        return new FieldType(
+            false,
+            new ArrowType.Int(64, true),
+            null,
+            Map.of(NestedColumns.NESTED_BRIDGE_META_KEY, bridgeRole, NestedColumns.NESTED_PATH_META_KEY, nestedPath)
+        );
     }
 
     private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {
