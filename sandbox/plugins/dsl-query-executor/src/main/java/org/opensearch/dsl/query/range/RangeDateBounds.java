@@ -16,16 +16,14 @@ import java.time.Instant;
 import java.time.ZoneId;
 
 /**
- * Date parsing and rounding helpers used by {@link RangeQueryTranslator} for processing
- * date-valued range bounds. Handles date-math expressions, format conversion, timezone
- * application, and inclusivity-keyed rounding per legacy {@code DateFieldMapper.dateRangeQuery}.
+ * Utilities for resolving date-valued range bounds: type detection, date-math parsing, and inclusivity-keyed rounding.
  */
-public final class RangeDateParsing {
+public final class RangeDateBounds {
 
     /** Maximum nanosecond-representable instant: 2262-04-11T23:47:16.854775807Z. */
     static final Instant MAX_NANOSECOND_INSTANT = Instant.ofEpochSecond(9223372036L, 854775807L);
 
-    private RangeDateParsing() {}
+    private RangeDateBounds() {}
 
     /**
      * Resolution for date field parsing, mirroring legacy DateFieldMapper.Resolution vocabulary.

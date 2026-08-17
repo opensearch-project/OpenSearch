@@ -18,13 +18,13 @@ import org.apache.calcite.util.TimestampString;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.query.range.BoundRequest;
-import org.opensearch.dsl.query.range.RangeDateParsing;
+import org.opensearch.dsl.query.range.RangeDateBounds;
 
 import java.util.Optional;
 
 /**
  * Translator mapper for TIMESTAMP and DATE fields. Owns both halves of date bound translation:
- * parsing the raw bound value via {@link RangeDateParsing} and building the timestamp literal.
+ * parsing the raw bound value via {@link RangeDateBounds} and building the timestamp literal.
  *
  * <p>Overrides the wide {@link #translateBound(BoundRequest)} because it is the only mapper
  * that needs query-level {@code format} and {@code timeZone}. Mirrors legacy
@@ -47,7 +47,7 @@ final class TimestampTranslatorMapper extends BaseTranslatorMapper {
 
     /**
      * Wide entry point: parses the raw bound value as a date and builds the timestamp literal.
-     * Delegates parsing to {@link RangeDateParsing#parseDateValue} preserving the rounding rule
+     * Delegates parsing to {@link RangeDateBounds#parseDateValue} preserving the rounding rule
      * from legacy {@code DateFieldMapper.dateRangeQuery}.
      */
     @Override
@@ -96,7 +96,7 @@ final class TimestampTranslatorMapper extends BaseTranslatorMapper {
 
     /**
      * Processes a raw bound value for a date/timestamp field. String values are parsed via
-     * {@link RangeDateParsing#parseDateValue}; non-String values pass through unchanged
+     * {@link RangeDateBounds#parseDateValue}; non-String values pass through unchanged
      * (matching former {@code processValue} semantics where non-String returned as-is).
      *
      * @param value the raw bound value from the query
@@ -120,7 +120,7 @@ final class TimestampTranslatorMapper extends BaseTranslatorMapper {
         // Otherwise, for TIMESTAMP/DATE fields, all strings are date-parsed.
         // Both branches delegate to the same parseDateValue - the gate in the former
         // processValue always took one of these paths for date-typed fields.
-        return RangeDateParsing.parseDateValue(strValue, format, timeZone, roundUp, resolutionFor(fieldPrecision));
+        return RangeDateBounds.parseDateValue(strValue, format, timeZone, roundUp, resolutionFor(fieldPrecision));
     }
 
     /**
@@ -169,7 +169,7 @@ final class TimestampTranslatorMapper extends BaseTranslatorMapper {
     }
 
     /** Selects the date resolution matching the field precision. */
-    private static RangeDateParsing.DateResolution resolutionFor(int precision) {
-        return isNanoPrecision(precision) ? RangeDateParsing.DateResolution.NANOSECONDS : RangeDateParsing.DateResolution.MILLISECONDS;
+    private static RangeDateBounds.DateResolution resolutionFor(int precision) {
+        return isNanoPrecision(precision) ? RangeDateBounds.DateResolution.NANOSECONDS : RangeDateBounds.DateResolution.MILLISECONDS;
     }
 }

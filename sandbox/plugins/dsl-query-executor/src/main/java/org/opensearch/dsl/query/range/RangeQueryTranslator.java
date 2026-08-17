@@ -127,7 +127,7 @@ public class RangeQueryTranslator implements QueryTranslator {
 
         String format = rangeQuery.format();
         String timeZone = rangeQuery.timeZone();
-        boolean isDateField = RangeDateParsing.isDateType(fieldTypeName);
+        boolean isDateField = RangeDateBounds.isDateType(fieldTypeName);
 
         // Lower bound: rounding keyed on inclusivity per DateFieldMapper.dateRangeQuery
         if (rangeQuery.from() != null) {
@@ -244,8 +244,8 @@ public class RangeQueryTranslator implements QueryTranslator {
         String strValue = (String) value;
 
         // If format/timeZone specified or value is date-math, always date-parse
-        if (format != null || timeZone != null || RangeDateParsing.isDateMathExpression(strValue)) {
-            return RangeDateParsing.parseDateValue(strValue, format, timeZone, roundUp, resolutionFor(fieldPrecision));
+        if (format != null || timeZone != null || RangeDateBounds.isDateMathExpression(strValue)) {
+            return RangeDateBounds.parseDateValue(strValue, format, timeZone, roundUp, resolutionFor(fieldPrecision));
         }
 
         // Gate on field type
@@ -300,8 +300,8 @@ public class RangeQueryTranslator implements QueryTranslator {
     }
 
     /** Selects the date resolution matching the field precision. */
-    private static RangeDateParsing.DateResolution resolutionFor(int precision) {
-        return isNanoPrecision(precision) ? RangeDateParsing.DateResolution.NANOSECONDS : RangeDateParsing.DateResolution.MILLISECONDS;
+    private static RangeDateBounds.DateResolution resolutionFor(int precision) {
+        return isNanoPrecision(precision) ? RangeDateBounds.DateResolution.NANOSECONDS : RangeDateBounds.DateResolution.MILLISECONDS;
     }
 
 }
