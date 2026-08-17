@@ -28,6 +28,12 @@ import java.util.Set;
  * Stateless utility — does not hold any mutable state. Called once during
  * {@link IndexFileDeleter} construction to clean up files left behind by
  * a crash between ref-count decrement and physical deletion.
+ * <p>
+ * Keys are <em>storage</em> names, not catalog format names: this scans directories, and
+ * several catalog formats can share one (a side table's files sit beside its delegate's).
+ * A caller that passed catalog names would have each format see only its own files in a
+ * shared directory and delete every other format's as orphaned. See
+ * {@link IndexFileDeleter#deleteOrphanedFiles}, which does the grouping.
  */
 final class OrphanFileScanner {
 
@@ -37,20 +43,21 @@ final class OrphanFileScanner {
      * Finds orphaned files across all known format directories.
      *
      * @param shardPath        the shard's data path (null skips the scan)
-     * @param knownFilesByFormat map of format name to the set of file names currently tracked
+     * @param knownFilesByStorage map of <em>storage</em> name to every file name currently tracked
+     *                            in that storage, pooled across the catalog formats sharing it
      * @param commitFileManager optional manager that identifies commit-owned files (may be null)
-     * @return map of format name to orphaned file names; empty if nothing to clean up
+     * @return map of storage name to orphaned file names; empty if nothing to clean up
      */
     static Map<String, Collection<String>> findOrphans(
         ShardPath shardPath,
-        Map<String, Set<String>> knownFilesByFormat,
+        Map<String, Set<String>> knownFilesByStorage,
         CommitFileManager commitFileManager
     ) throws IOException {
         if (shardPath == null) {
             return Map.of();
         }
         Map<String, Collection<String>> orphansByFormat = new HashMap<>();
-        for (Map.Entry<String, Set<String>> entry : knownFilesByFormat.entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : knownFilesByStorage.entrySet()) {
             String formatName = entry.getKey();
             Set<String> knownFiles = entry.getValue();
             Path formatDir = "lucene".equals(formatName) ? shardPath.resolveIndex() : shardPath.getDataPath().resolve(formatName);

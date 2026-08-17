@@ -24,6 +24,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.WriterState;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.Closeable;
@@ -61,6 +62,16 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     private long mappingVersion;
     /** Successful addDoc count — every incoming rowId must equal this. */
     private long acceptedRows = 0L;
+    /** The engine, retained to open the nested child stack lazily. */
+    private final CompositeIndexingExecutionEngine engine;
+    /**
+     * POC (child-table nested design): the co-located child-table writer stack, opened on the first
+     * document that actually carries nested elements so an index without them pays nothing.
+     * Null until then, and permanently null when the shard has not opted in.
+     */
+    private NestedChildStack nestedChildStack;
+    /** True once we have determined the shard has not opted in, so the warning is logged once. */
+    private boolean nestedChildStackDisabled;
 
     /**
      * Constructs a CompositeWriter from the given engine and writer generation.
@@ -73,6 +84,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
      */
     @SuppressWarnings("unchecked")
     CompositeWriter(CompositeIndexingExecutionEngine engine, WriterConfig config) {
+        this.engine = engine;
         this.writerGeneration = config.writerGeneration();
 
         IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
@@ -158,7 +170,39 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             + " expected="
             + (1 + secondaryInputs.size());
         acceptedRows++;
+        writeNestedElements(doc);
         return primaryResult;
+    }
+
+    /**
+     * POC (child-table nested design): shreds this document's nested elements into the co-located
+     * child table, keyed by the row id the parent just committed to.
+     *
+     * <p>Deliberately runs <em>after</em> the parent row is accepted: the foreign key is the parent's
+     * final {@code __row_id__}, so stamping it earlier would risk keying a child row to a row that
+     * then rolls back. The cost is that the write is not atomic across the two stacks — a child
+     * failure here leaves the parent row without its elements. Making that atomic is a separate
+     * obligation the reduced proof does not take on (see {@code 09} §11b).
+     */
+    private void writeNestedElements(CompositeDocumentInput doc) throws IOException {
+        List<CompositeDocumentInput.NestedElement> elements = doc.getNestedElements();
+        if (elements.isEmpty() || nestedChildStackDisabled) {
+            return;
+        }
+        if (nestedChildStack == null) {
+            if (NestedChildStack.isEnabledFor(engine.mapperService()) == false) {
+                nestedChildStackDisabled = true;
+                logger.warn(
+                    "Dropping nested elements for this writer: index mapping declares neither [{}] nor [{}], so the child "
+                        + "table has nowhere to record the foreign key",
+                    NestedChildStack.PARENT_ROW_ID_FIELD,
+                    NestedChildStack.ELEMENT_ORDINAL_FIELD
+                );
+                return;
+            }
+            nestedChildStack = new NestedChildStack(engine, writerGeneration);
+        }
+        nestedChildStack.addElements(doc.getRowId(), elements, doc.getInheritedMetadata());
     }
 
     @Override
@@ -189,6 +233,21 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
                 builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
             }
         }
+        // POC (child-table nested design): flush the co-located child table too, and fold it in as a
+        // whole segment rather than extra entries in `builder`'s format map. It has its own
+        // generation and its own row count — elements, not documents — and the catalog requires both
+        // to be uniform within a segment.
+        //
+        // The parent's row permutation goes with it. `parent_row_id` is a position, so a sorted flush
+        // renumbering the parent invalidates every foreign key; the stack either translates its rows
+        // through this mapping or refuses to write them. `acceptedRows` lets it verify the mapping
+        // actually describes the rows those keys refer to.
+        if (nestedChildStack != null) {
+            for (Segment childSegment : nestedChildStack.flush(rowIdMapping, acceptedRows)) {
+                builder.addAuxiliarySegment(childSegment);
+            }
+        }
+
         FileInfos result = builder.build();
         assert result.writerFilesMap().isEmpty() || result.writerFilesMap().size() == 1 + secondaryWritersByFormat.size()
             : "flush must produce files for all formats or none; got "
@@ -236,9 +295,12 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     @Override
     public void close() throws IOException {
         try {
-            List<Closeable> allWriters = new ArrayList<>(1 + secondaryWritersByFormat.size());
+            List<Closeable> allWriters = new ArrayList<>(2 + secondaryWritersByFormat.size());
             allWriters.add(primaryWriter);
             allWriters.addAll(secondaryWritersByFormat.values());
+            if (nestedChildStack != null) {
+                allWriters.add(nestedChildStack);
+            }
             IOUtils.close(allWriters);
         } finally {
             closed = true;

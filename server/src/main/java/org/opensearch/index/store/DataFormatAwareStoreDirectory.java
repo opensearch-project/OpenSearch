@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler;
 import org.opensearch.index.store.checksum.LuceneChecksumHandler;
@@ -247,7 +248,11 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * @return file identifier string suitable for Directory operations
      */
     public static String toFileIdentifier(FileMetadata fm) {
-        String format = fm.dataFormat();
+        // Resolved through storageNameOf: this identifier is a *path*, and an auxiliary (side-table)
+        // format's files are written by its delegate's writer into the delegate's subdirectory. The
+        // logical name is deliberately not recovered from the identifier — listAll keeps serialize()
+        // for that — because only the path side of the distinction belongs here.
+        String format = DataFormat.storageNameOf(fm.dataFormat());
         if (isDefaultFormat(format)) {
             return fm.file();
         }
@@ -270,7 +275,14 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      */
     private long calculateChecksum(FileMetadata fm) throws IOException {
         String fileIdentifier = toFileIdentifier(fm);
-        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(fm.dataFormat(), DEFAULT_CHECKSUM_STRATEGY);
+        // Keyed on the storage name so a side table's file is checksummed by the strategy of the
+        // format that actually wrote it. Keying on the catalog name would miss and silently fall
+        // back to the default strategy, which for a pre-computed-checksum format like parquet means
+        // re-reading the file — or disagreeing with the checksum recorded at write time.
+        FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(
+            DataFormat.storageNameOf(fm.dataFormat()),
+            DEFAULT_CHECKSUM_STRATEGY
+        );
         return strategy.computeChecksum(this, fileIdentifier);
     }
 

@@ -35,6 +35,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -695,6 +696,24 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
         assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
+    }
+
+    public void testCreateReaderManagerForAuxiliaryFormatThrows() {
+        // A side table cannot share its delegate's Lucene stack: one directory is one index with one
+        // segments_N, and the delegate's readers map is keyed by catalog snapshot id, so the two
+        // managers would silently overwrite each other's readers. Refuse rather than half-wire it.
+        ReaderManagerConfig settings = new ReaderManagerConfig(
+            Optional.of(mock(org.opensearch.index.engine.exec.commit.IndexStoreProvider.class)),
+            new AuxiliaryDataFormat(dataFormat, AuxiliaryDataFormat.NESTED_CHILD_ROLE),
+            mock(DataFormatRegistry.class),
+            null,
+            Map.of(),
+            null
+        );
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("aux__lucene__nested"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("its own Lucene directory"));
     }
 
 }

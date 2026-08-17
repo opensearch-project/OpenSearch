@@ -62,9 +62,15 @@ public class DataFormatRegistry {
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
      * from the given {@link PluginsService}. Registers each data format with its indexing plugin and reader manager factory.
      *
+     * <p>{@linkplain DataFormatPlugin#getAuxiliaryDataFormats() Auxiliary} formats are registered by
+     * name and may be given a reader manager, but get no entry in the format-to-plugin map — see
+     * the constructor body for why.
+     *
      * @param pluginsService the plugins service used to discover data format plugins and search back-end plugins
-     * @throws IllegalArgumentException if a data format is registered by more than one plugin
-     * @throws IllegalStateException if the set of formats with indexing plugins does not match the set with reader managers
+     * @throws IllegalArgumentException if a data format is registered by more than one plugin, or if a plugin declares
+     *                                  an auxiliary format that is not {@link DataFormat#isAuxiliary()}
+     * @throws IllegalStateException if more than one {@link DocumentLookupProvider} or {@link DocumentMetadataResolver}
+     *                               is registered
      */
     public DataFormatRegistry(PluginsService pluginsService) {
         Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
@@ -78,6 +84,33 @@ public class DataFormatRegistry {
                 throw new IllegalArgumentException("DataFormat [" + format.name() + "] is already registered by plugin [" + existing + "]");
             }
             dataFormats.put(format.name(), format);
+
+            // Auxiliary (side-table) formats go into `dataFormats` only, which is what makes them
+            // resolvable by name and eligible for a reader manager below. They are deliberately kept
+            // out of `dataFormatPluginRegistry`: a side table has no indexing engine of its own — its
+            // writers come from the engine of the format it delegates to — and every consumer of that
+            // map (getIndexingEngine, getRegisteredFormats, supportsCapability, getStoreStrategies,
+            // assignCapabilities) reasons about the shard's documents, which a side table's rows are
+            // not. See AuxiliaryDataFormat.
+            for (DataFormat auxiliary : plugin.getAuxiliaryDataFormats()) {
+                if (auxiliary.isAuxiliary() == false) {
+                    throw new IllegalArgumentException(
+                        "DataFormat ["
+                            + auxiliary.name()
+                            + "] declared as auxiliary by plugin ["
+                            + plugin
+                            + "] does not carry the ["
+                            + DataFormat.AUXILIARY_NAME_PREFIX
+                            + "] prefix; its rows would be counted as documents"
+                    );
+                }
+                DataFormat previousAuxiliary = dataFormats.putIfAbsent(auxiliary.name(), auxiliary);
+                if (previousAuxiliary != null) {
+                    throw new IllegalArgumentException(
+                        "Auxiliary DataFormat [" + auxiliary.name() + "] declared by plugin [" + plugin + "] is already registered"
+                    );
+                }
+            }
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {

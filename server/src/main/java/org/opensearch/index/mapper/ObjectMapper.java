@@ -427,9 +427,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (type.equals(CONTENT_TYPE)) {
                     builder.nested = Nested.NO;
                 } else if (type.equals(NESTED_CONTENT_TYPE)) {
-                    if (isPluggableDataFormatEnabled(parserContext.getSettings())) {
-                        throw new MapperParsingException("nested type is not supported with pluggable data format on field [" + name + "]");
-                    }
+                    // POC (child-table nested design): allow `nested` to BUILD under the pluggable
+                    // data format instead of rejecting it. Ingest does NOT block-join it — see the
+                    // pluggable-format guard in DocumentParser.innerParseObject: Phase 1 ignores the
+                    // field, later phases shred its elements into a child composite table.
+                    // See MustangDevConfig design/nested-field-support/09 & 10.
                     nested = true;
                 } else {
                     throw new MapperParsingException(
@@ -1085,11 +1087,40 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void canDeriveSource() {
-        if (!this.enabled.value() || this.nested.isNested()) {
+        canDeriveSource(false);
+    }
+
+    /**
+     * POC (child-table nested design): variant of {@link #canDeriveSource()} that can tolerate a
+     * {@code nested} object.
+     *
+     * <p>A pluggable-data-format index has derived source forced on unconditionally
+     * ({@code IndexSettings}: {@code derivedSourceEnabled = INDEX_DERIVED_SOURCE_SETTING ||
+     * pluggableDataFormatEnabled}), because parquet stores no {@code _source} and must rebuild it
+     * from columns. That makes this the third guard rejecting {@code nested} on a composite index,
+     * after {@code parseNested} and {@code DocumentParser.innerParseObject}.
+     *
+     * <p>Passing {@code allowNested = true} lets the mapping build anyway, at a real and currently
+     * unpaid cost: the elements of a {@code nested} field live in a co-located <em>child table</em>,
+     * not in the parent row, so a derived {@code _source} cannot see them and the field comes back
+     * empty. Reconstructing it means reading the child table and re-nesting the array by
+     * {@code elem_ord} — design work the child-table proposal still owes.
+     *
+     * <p>{@code allowNested = false} reproduces the original behaviour exactly, so every non-composite
+     * derived-source index is unaffected.
+     *
+     * @param allowNested when true, a {@code nested} object is not by itself a rejection reason
+     */
+    void canDeriveSource(boolean allowNested) {
+        if (!this.enabled.value() || (this.nested.isNested() && allowNested == false)) {
             throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
         }
         for (final Mapper mapper : this.mappers.values()) {
-            mapper.canDeriveSource();
+            if (mapper instanceof ObjectMapper objectMapper) {
+                objectMapper.canDeriveSource(allowNested);
+            } else {
+                mapper.canDeriveSource();
+            }
         }
     }
 

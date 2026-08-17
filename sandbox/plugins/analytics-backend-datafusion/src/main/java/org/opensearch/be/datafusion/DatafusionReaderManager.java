@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.NativeStoreHandle;
@@ -74,7 +75,11 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         List<String> sortOrders
     ) {
         this.dataFormat = dataFormat;
-        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
+        // storageName(), not name(): a side table (the nested child table) is written by its delegate
+        // format's writer, so its files sit in the delegate's directory under a generation-derived
+        // name. The catalog lookup in afterRefresh still uses name(), which is what separates the two
+        // tables' files even though they share a directory.
+        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.storageName()).toString();
         this.dataFusionService = dataFusionService;
         this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
         this.sortFields = sortFields == null ? List.of() : List.copyOf(sortFields);
@@ -143,14 +148,27 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh == false) return;
         if (readers.containsKey(catalogSnapshot.getId())) return;
+        Collection<WriterFileSet> searchableFiles = catalogSnapshot.getSearchableFiles(dataFormat.name());
         DatafusionReader reader = new DatafusionReader(
             directoryPath,
-            catalogSnapshot.getSearchableFiles(dataFormat.name()),
+            searchableFiles,
             dataformatAwareStoreHandle,
             sortFields,
             sortOrders
         );
         readers.put(catalogSnapshot.getId(), reader);
+        // The format name is logged, not just the path: a side table shares its delegate's directory,
+        // so the path alone cannot tell a parent reader from a child one. This is the only place the
+        // two are distinguishable.
+        logger.debug(
+            "Opened DatafusionReader for format [{}] snapshot [{}] over file set(s) {} in [{}]",
+            dataFormat.name(),
+            catalogSnapshot.getId(),
+            searchableFiles == null
+                ? List.of()
+                : searchableFiles.stream().map(WriterFileSet::files).collect(Collectors.toList()),
+            directoryPath
+        );
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {

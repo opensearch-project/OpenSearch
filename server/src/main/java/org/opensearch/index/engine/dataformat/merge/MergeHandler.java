@@ -14,6 +14,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -84,9 +85,10 @@ public class MergeHandler {
         List<OneMerge> oneMerges = new ArrayList<>();
         try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
             List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
-            List<List<Segment>> mergeCandidates = mergePolicy.findMergeCandidates(segmentList);
+            List<Segment> documentSegments = documentSegments(segmentList);
+            List<List<Segment>> mergeCandidates = mergePolicy.findMergeCandidates(documentSegments);
             for (List<Segment> mergeGroup : mergeCandidates) {
-                oneMerges.add(new OneMerge(mergeGroup));
+                oneMerges.add(new OneMerge(withPairedAuxiliaries(mergeGroup, segmentList)));
             }
         } catch (Exception e) {
             logger.warn("Failed to acquire snapshots", e);
@@ -105,8 +107,10 @@ public class MergeHandler {
         List<OneMerge> oneMerges = new ArrayList<>();
         try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
             List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
-            List<List<Segment>> mergeCandidates = mergePolicy.findForceMergeCandidates(segmentList, maxSegmentCount);
-            for (List<Segment> mergeGroup : mergeCandidates) {
+            List<Segment> documentSegments = documentSegments(segmentList);
+            List<List<Segment>> mergeCandidates = mergePolicy.findForceMergeCandidates(documentSegments, maxSegmentCount);
+            for (List<Segment> candidateGroup : mergeCandidates) {
+                List<Segment> mergeGroup = withPairedAuxiliaries(candidateGroup, segmentList);
                 boolean hasConflict = false;
                 synchronized (this) {
                     for (Segment seg : mergeGroup) {
@@ -129,6 +133,75 @@ public class MergeHandler {
             throw new RuntimeException(e);
         }
         return oneMerges;
+    }
+
+    /**
+     * Filters a catalog segment list down to the document segments, i.e. drops side tables.
+     *
+     * <p>A {@link MergePolicy} reasons in documents: it sizes a segment by its row count, pairs
+     * similarly sized segments, and counts segments against a target. A side table breaks every one
+     * of those — its rows are elements rather than documents, so it is sized wrongly, and it must
+     * never be paired with an unrelated generation's side table or counted as a segment the force
+     * merge has to eliminate. Which side tables merge is not the policy's decision at all: it follows
+     * from which documents merge. See {@link #withPairedAuxiliaries}.
+     *
+     * <p>This mirrors the refresh path, where {@code DataFormatAwareEngine} keeps side tables away
+     * from the per-format indexing engines for the same reason.
+     */
+    private static List<Segment> documentSegments(List<Segment> segments) {
+        List<Segment> documentSegments = new ArrayList<>(segments.size());
+        for (Segment segment : segments) {
+            if (segment.isAuxiliaryOnly() == false) {
+                documentSegments.add(segment);
+            }
+        }
+        return documentSegments;
+    }
+
+    /**
+     * Returns {@code mergeGroup} followed by every side table belonging to one of its generations.
+     *
+     * <p>A side table's rows carry a foreign key into the documents of the generation that produced
+     * it. If those documents merge and the side table does not, that key points into a segment that
+     * no longer exists. So the two move together: selecting a document segment for merge selects its
+     * side tables with it, recovered by inverting the generation offset
+     * ({@link org.opensearch.index.engine.dataformat.AuxiliaryDataFormat#writerGenerationOf}).
+     *
+     * <p>The result is what the merge is actually over, so it is also what gets registered as
+     * merging and what the catalog swaps out on completion — a side table left behind in the catalog
+     * while its documents were replaced would be a dangling reference.
+     *
+     * @param mergeGroup   document segments the policy selected
+     * @param allSegments  every segment in the catalog snapshot, side tables included
+     * @return the merge group extended with its paired side tables
+     */
+    private List<Segment> withPairedAuxiliaries(List<Segment> mergeGroup, List<Segment> allSegments) {
+        Set<Long> mergingGenerations = new HashSet<>();
+        for (Segment segment : mergeGroup) {
+            mergingGenerations.add(segment.generation());
+        }
+        List<Segment> paired = new ArrayList<>(mergeGroup);
+        for (Segment segment : allSegments) {
+            if (segment.isAuxiliaryOnly() == false) {
+                continue;
+            }
+            if (AuxiliaryDataFormat.isAuxiliaryGeneration(segment.generation()) == false) {
+                // Auxiliary formats at a document generation cannot be paired, and merging them
+                // blind risks dropping their rows. Leave them out and say so — loudly, since this
+                // means something published a side table without the offset.
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Skipping auxiliary segment [{}] in merge selection: generation is not in the auxiliary range",
+                        segment
+                    )
+                );
+                continue;
+            }
+            if (mergingGenerations.contains(AuxiliaryDataFormat.writerGenerationOf(segment.generation()))) {
+                paired.add(segment);
+            }
+        }
+        return paired;
     }
 
     /**

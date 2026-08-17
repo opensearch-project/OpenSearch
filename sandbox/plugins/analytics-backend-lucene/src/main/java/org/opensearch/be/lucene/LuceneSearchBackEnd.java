@@ -58,6 +58,21 @@ final class LuceneSearchBackEnd {
     static EngineReaderManager<LuceneReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
+        // An auxiliary (side-table) format is declared supported so it can be resolved by name, but a
+        // manager cannot yet be built for one, and the two ways it would go wrong are both silent.
+        // Resolving the store through storageFormat() would hand back the *delegate's*
+        // LuceneFormatStore — whose readers map is keyed by catalog snapshot id and shared with the
+        // delegate's own manager, so the two would overwrite each other's readers and a parent query
+        // could execute against child rows. Not resolving it leaves getStore returning null and the
+        // fallback branch dereferencing it. Refusing outright is the only honest option until the
+        // child table has a Lucene directory and commit stack of its own; see NestedChildStack#flush.
+        if (settings.format().isAuxiliary()) {
+            throw new IllegalStateException(
+                "Cannot create a LuceneReaderManager for auxiliary format ["
+                    + settings.format().name()
+                    + "]: a side table needs its own Lucene directory and shared writer, not its delegate's"
+            );
+        }
         DirectoryReader directoryReader;
         Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
         CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher = null;

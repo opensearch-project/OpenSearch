@@ -123,6 +123,55 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         assertFalse(tracker.hasDeletedFile("a.parquet"));
     }
 
+    public void testDereferencingASideTableRoutesToItsDelegatesEngine() throws IOException {
+        // Every IndexingExecutionEngine#deleteFiles matches on its own format name, so a key of
+        // `aux__parquet__nested` reaches none of them — and the composite answers "nothing failed",
+        // which the deleter reads as success. The file would stay on disk while its ref count is
+        // dropped: a leak reported as a deletion.
+        FormatScopedFileDeleter parquetEngine = new FormatScopedFileDeleter("parquet");
+        String childFormat = "aux__parquet__nested";
+
+        CatalogSnapshot cs1 = snapshot(1, List.of(segment(1L << 40, childFormat, "child.parquet")), commitUserData(100, 100, "uuid"));
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            parquetEngine,
+            Map.of(),
+            List.of(cs1),
+            null,
+            null,
+            s -> {}
+        );
+
+        CatalogSnapshot cs2 = snapshot(2, List.of(segment(1, "parquet", "parent.parquet")), commitUserData(200, 200, "uuid"));
+        deleter.addFileReferences(cs2);
+        deleter.removeFileReferences(cs1);
+
+        assertTrue("the delegate's engine owns the directory and must be the one asked", parquetEngine.deleted.contains("child.parquet"));
+        assertFalse("nothing may be left pending — a leak would look like a clean delete", deleter.hasPendingDeletes());
+    }
+
+    /**
+     * A {@link FileDeleter} that behaves like a real per-format engine: it only acts on files keyed
+     * under its own format name and silently ignores every other key.
+     */
+    static class FormatScopedFileDeleter implements FileDeleter {
+        private final String formatName;
+        final Set<String> deleted = new HashSet<>();
+
+        FormatScopedFileDeleter(String formatName) {
+            this.formatName = formatName;
+        }
+
+        @Override
+        public Map<String, Collection<String>> deleteFiles(Map<String, Collection<String>> filesToDelete) {
+            Collection<String> mine = filesToDelete.get(formatName);
+            if (mine != null) {
+                deleted.addAll(mine);
+            }
+            return Map.of();
+        }
+    }
+
     // ---- onCommit ----
 
     public void testOnCommitDeletesOldCommitFiles() throws IOException {
@@ -367,6 +416,82 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         assertTrue(tracker.hasDeletedFile("orphan1.parquet"));
         assertTrue(tracker.hasDeletedFile("orphan2.parquet"));
         assertFalse(tracker.hasDeletedFile("known.parquet"));
+    }
+
+    public void testOrphanScanPoolsFilesAcrossFormatsSharingADirectory() throws IOException {
+        // A side table's files sit in its delegate's directory, told apart only by a
+        // generation-derived name. Scanning per *catalog* format, the parquet entry would see the
+        // child's file in parquet/ without it being in parquet's known set and delete it — silent
+        // data loss, surfacing on the next engine open as a missing file on the read path.
+        TrackingFileDeleter tracker = new TrackingFileDeleter();
+
+        Path tempDir = createTempDir();
+        ShardId shardId = new ShardId("test", "test", 0);
+        Path shardDir = tempDir.resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        Path parquetDir = shardDir.resolve("parquet");
+        Files.createDirectories(parquetDir);
+        Files.createFile(parquetDir.resolve("_parquet_file_generation_1.parquet"));
+        Files.createFile(parquetDir.resolve("_parquet_file_generation_10000000001.parquet"));
+        Files.createFile(parquetDir.resolve("orphan.parquet"));
+
+        ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+
+        String childFormat = "aux__parquet__nested";
+        CatalogSnapshot cs1 = snapshot(
+            1,
+            List.of(
+                segment(1, "parquet", "_parquet_file_generation_1.parquet"),
+                segment(1L << 40 | 1L, childFormat, "_parquet_file_generation_10000000001.parquet")
+            ),
+            commitUserData(100, 100, "uuid")
+        );
+
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            tracker,
+            Map.of(),
+            List.of(cs1),
+            shardPath,
+            null,
+            s -> {}
+        );
+
+        assertFalse(
+            "a side table's file is referenced, not orphaned, even though its catalog name is not the directory's",
+            tracker.hasDeletedFile("_parquet_file_generation_10000000001.parquet")
+        );
+        assertFalse(tracker.hasDeletedFile("_parquet_file_generation_1.parquet"));
+        assertTrue("a genuinely unreferenced file must still be collected", tracker.hasDeletedFile("orphan.parquet"));
+    }
+
+    public void testOrphanScanResolvesAnAuxiliaryNameToItsDelegatesDirectory() throws IOException {
+        // Same mapping, exercised through the one format whose directory is not its own name:
+        // `lucene` lives in index/. Without the storage-name resolution this would look for
+        // data/aux__lucene__nested, find nothing, and collect no orphan at all.
+        TrackingFileDeleter tracker = new TrackingFileDeleter();
+
+        Path tempDir = createTempDir();
+        ShardId shardId = new ShardId("test", "test", 0);
+        Path shardDir = tempDir.resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+        Files.createDirectories(shardPath.resolveIndex());
+        Files.createFile(shardPath.resolveIndex().resolve("_1.cfs"));
+        Files.createFile(shardPath.resolveIndex().resolve("_2.cfs"));
+
+        CatalogSnapshot cs1 = snapshot(1, List.of(segment(1, "aux__lucene__nested", "_1.cfs")), commitUserData(100, 100, "uuid"));
+
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            tracker,
+            Map.of(),
+            List.of(cs1),
+            shardPath,
+            null,
+            s -> {}
+        );
+
+        assertFalse(tracker.hasDeletedFile("_1.cfs"));
+        assertTrue("the scan must have reached index/, not data/aux__lucene__nested", tracker.hasDeletedFile("_2.cfs"));
     }
 
     public void testDeleteOrphanedFilesSkipsMissingDirectory() throws IOException {

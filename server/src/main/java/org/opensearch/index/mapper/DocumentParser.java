@@ -135,6 +135,65 @@ final class DocumentParser {
         return false;
     }
 
+    /**
+     * POC (child-table nested design): true when {@code fieldName} on {@code parentMapper} is a
+     * {@code nested} object mapper under the pluggable data format. Such fields are NOT block-joined
+     * at ingest; the caller shreds them into child-table elements instead. Single-level only
+     * for now (root-declared nested field) — multi-level nesting is deferred.
+     * See MustangDevConfig design/nested-field-support/09 and 10.
+     */
+    private static boolean isPluggableNestedField(ParseContext context, ObjectMapper parentMapper, String fieldName) {
+        return context.indexSettings().isPluggableDataFormatEnabled()
+            && parentMapper.getMapper(fieldName) instanceof ObjectMapper om
+            && om.nested().isNested();
+    }
+
+    /**
+     * POC (child-table nested design): consumes a {@code nested} field's value and offers each array
+     * element to the data format as a prospective child-table row, instead of block-joining it into
+     * hidden Lucene child documents.
+     * <p>
+     * The parser is expected to sit on the value token (the token after the field name). Both an array
+     * of objects and a bare single object are accepted. Leaves whose name has no mapper under the
+     * nested object are dropped — dynamic mapping of nested leaves is deferred. On return the parser
+     * sits on the value's closing token, matching what {@code skipChildren()} would have left behind.
+     *
+     * @param context      the parse context, source of the format's document input
+     * @param nestedMapper the nested object mapper whose value is being consumed
+     * @param parser       the parser, positioned on the nested field's value token
+     */
+    private static void shredNestedField(ParseContext context, ObjectMapper nestedMapper, XContentParser parser) throws IOException {
+        final XContentParser.Token token = parser.currentToken();
+        final List<?> elements;
+        if (token == XContentParser.Token.START_ARRAY) {
+            elements = parser.list();
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            elements = Collections.singletonList(parser.map());
+        } else {
+            // null or a scalar where an object was expected: nothing to shred
+            return;
+        }
+
+        final DocumentInput<?> documentInput = context.documentInput();
+        int ordinal = 0;
+        for (Object element : elements) {
+            if (element instanceof Map<?, ?> == false) {
+                continue;
+            }
+            Map<?, ?> fields = (Map<?, ?>) element;
+            List<MappedFieldType> fieldTypes = new ArrayList<>(fields.size());
+            List<Object> values = new ArrayList<>(fields.size());
+            for (Map.Entry<?, ?> entry : fields.entrySet()) {
+                Mapper leaf = nestedMapper.getMapper(String.valueOf(entry.getKey()));
+                if (leaf instanceof FieldMapper fieldMapper) {
+                    fieldTypes.add(fieldMapper.fieldType());
+                    values.add(entry.getValue());
+                }
+            }
+            documentInput.addNestedElement(nestedMapper.fullPath(), ordinal++, fieldTypes, values);
+        }
+    }
+
     private static void internalParseDocument(
         Mapping mapping,
         MetadataFieldMapper[] metadataFieldsMappers,
@@ -645,6 +704,15 @@ final class DocumentParser {
                     if (containsDisabledObjectMapper(mapper, paths)) {
                         parser.nextToken();
                         parser.skipChildren();
+                    } else if (isPluggableNestedField(context, mapper, currentFieldName)) {
+                        // POC (child-table nested design): do NOT block-join a `nested` field under
+                        // the pluggable data format. Shred its elements out to the data format, which
+                        // stores them as rows of a co-located child table keyed by a parent_row_id
+                        // foreign key. Nothing is added to the enclosing document.
+                        // See MustangDevConfig design/nested-field-support/09 & 10.
+                        ObjectMapper nestedMapper = (ObjectMapper) mapper.getMapper(currentFieldName);
+                        parser.nextToken();
+                        shredNestedField(context, nestedMapper, parser);
                     }
                 } else {
                     // Process different token types during object parsing

@@ -347,6 +347,12 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
         boolean isCommitted = resolveIsCommitted(lastCommitData);
         List<org.opensearch.index.engine.Segment> result = new java.util.ArrayList<>(getSegments().size());
         for (Segment dfSeg : getSegments()) {
+            // Auxiliary (side-table) segments are not reported: their numRows counts elements, not
+            // documents, so including them would inflate every docCount total built from this list.
+            // The trade-off is that a nested child table is invisible to the _segments API.
+            if (dfSeg.isAuxiliaryOnly()) {
+                continue;
+            }
             org.opensearch.index.engine.Segment seg = new org.opensearch.index.engine.Segment("_" + Long.toHexString(dfSeg.generation()));
             seg.search = true;
             seg.committed = isCommitted;

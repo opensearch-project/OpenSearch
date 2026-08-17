@@ -29,6 +29,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -98,6 +99,18 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     public static final int PARQUET_THREAD_POOL_QUEUE_SIZE = 10_000;
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
     public static final ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
+
+    /**
+     * Auxiliary parquet table holding one row per element of a {@code nested} field, written
+     * alongside the parent table by the composite engine's nested child stack. Registered here so
+     * the catalog can carry its files under their own format name and DataFusion can open a reader
+     * over just those files; it has no indexing engine of its own — the parent's parquet writer
+     * writes it. See {@link AuxiliaryDataFormat}.
+     */
+    public static final AuxiliaryDataFormat NESTED_CHILD_DATA_FORMAT = new AuxiliaryDataFormat(
+        PARQUET_DATA_FORMAT,
+        AuxiliaryDataFormat.NESTED_CHILD_ROLE
+    );
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
@@ -195,6 +208,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     @Override
     public DataFormat getDataFormat() {
         return PARQUET_DATA_FORMAT;
+    }
+
+    @Override
+    public Collection<DataFormat> getAuxiliaryDataFormats() {
+        return List.of(NESTED_CHILD_DATA_FORMAT);
     }
 
     @Override

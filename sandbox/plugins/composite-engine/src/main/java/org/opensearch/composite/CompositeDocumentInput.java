@@ -11,12 +11,17 @@ package org.opensearch.composite;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A composite {@link DocumentInput} that wraps one {@link DocumentInput} per registered
@@ -30,10 +35,26 @@ import java.util.Objects;
 @ExperimentalApi
 public class CompositeDocumentInput implements DocumentInput<List<? extends DocumentInput<?>>> {
 
+    /**
+     * Per-document metadata every child-table row inherits from its parent. {@code _id} and
+     * {@code _seq_no} let a later delete/update fan out to the child rows by value; the parquet
+     * document input additionally asserts all four are present on every row it admits.
+     */
+    private static final Set<String> INHERITED_METADATA_FIELDS = Set.of(
+        IdFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.PRIMARY_TERM_NAME
+    );
+
     private final DocumentInput<?> primaryDocumentInput;
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
     private long rowId = -1L;
+    /** Staged nested elements, in source order; empty for a document with no nested field. */
+    private final List<NestedElement> nestedElements = new ArrayList<>();
+    /** The subset of {@link #INHERITED_METADATA_FIELDS} seen on this document, in arrival order. */
+    private final List<FieldValue> inheritedMetadata = new ArrayList<>();
 
     /**
      * Constructs a CompositeDocumentInput with a primary format input and secondary format inputs.
@@ -56,6 +77,15 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
+        // Null-guarded rather than asserted: the engine sources metadata field types from the mapper
+        // service ({@code DataFormatAwareEngine#indexIntoEngine}), which yields null for a metadata
+        // field the mapping does not declare. The per-format inputs already accepted that before the
+        // child table started watching for inherited metadata, so reading name() here unguarded turns
+        // a tolerated case into a failed engine. A child row then inherits no seq_no, which the
+        // delete fan-out will have to account for — but that is a later obligation, not a crash now.
+        if (fieldType != null && INHERITED_METADATA_FIELDS.contains(fieldType.name())) {
+            inheritedMetadata.add(new FieldValue(fieldType, value));
+        }
         try {
             primaryDocumentInput.addField(fieldType, value);
         } catch (Exception e) {
@@ -130,5 +160,40 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
      */
     public Map<DataFormat, DocumentInput<?>> getSecondaryInputs() {
         return secondaryDocumentInputs;
+    }
+
+    /**
+     * POC (child-table nested design): stages one element of a {@code nested} array. Nothing is
+     * broadcast to the per-format inputs — the element becomes a row of the co-located child table
+     * once {@link CompositeWriter} knows this document's row id (the foreign key).
+     */
+    @Override
+    public void addNestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
+        assert fieldTypes.size() == values.size() : "fieldTypes and values must be parallel";
+        nestedElements.add(new NestedElement(nestedPath, ordinal, List.copyOf(fieldTypes), List.copyOf(values)));
+    }
+
+    /** Returns the nested elements staged for this document, in source order. Never null. */
+    public List<NestedElement> getNestedElements() {
+        return nestedElements;
+    }
+
+    /**
+     * Returns the document metadata a child row inherits from its parent ({@code _id},
+     * {@code _seq_no}, {@code _version}, {@code _primary_term}).
+     */
+    public List<FieldValue> getInheritedMetadata() {
+        return inheritedMetadata;
+    }
+
+    /** A field type paired with its value. */
+    public record FieldValue(MappedFieldType fieldType, Object value) {
+    }
+
+    /**
+     * One element of a {@code nested} array, destined to become a row of the child table.
+     * {@code fieldTypes} and {@code values} are parallel.
+     */
+    public record NestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
     }
 }

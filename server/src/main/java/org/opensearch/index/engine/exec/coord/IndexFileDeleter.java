@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
@@ -267,11 +268,13 @@ public class IndexFileDeleter {
                         + "] is pending deletion but has a live ref count."
                         + " This should never happen — once a segment file's ref count reaches 0, no new snapshot should reference it.";
                 }
+                // Storage name, for the reason spelled out on executeDeletesWithRetry.
+                String storageName = DataFormat.storageNameOf(formatName);
                 try {
                     Map<String, Collection<String>> failed = AccessController.doPrivilegedChecked(
-                        () -> fileDeleter.deleteFiles(Map.of(formatName, List.of(file)))
+                        () -> fileDeleter.deleteFiles(Map.of(storageName, List.of(file)))
                     );
-                    if (failed.getOrDefault(formatName, Set.of()).contains(file)) {
+                    if (failed.getOrDefault(storageName, Set.of()).contains(file)) {
                         stillFailed.add(file);
                     } else {
                         allDeleted.computeIfAbsent(formatName, k -> new HashSet<>()).add(file);
@@ -342,6 +345,14 @@ public class IndexFileDeleter {
      * is still unreferenced — a concurrent {@link #addFileReferences} may have re-referenced
      * a file between {@link #decRefFiles} and this call. Files that fail to delete are added
      * to {@link #pendingDeletes} for retry. Successfully deleted files trigger listener notification.
+     * <p>
+     * The map arriving here is keyed by <em>catalog</em> format name, but {@link FileDeleter} is a
+     * physical operation and every implementation matches on its own format name — so a side table's
+     * key reaches no engine, and the engine that owns the directory answers "nothing failed",
+     * reporting a file as deleted that is still on disk. Hence the
+     * {@linkplain DataFormat#storageNameOf storage name} on the way out and back, while
+     * {@link #pendingDeletes} and the listeners stay keyed by catalog name, which is what they
+     * resolve against.
      */
     private void executeDeletesWithRetry(Map<String, Collection<String>> filesByFormat) throws IOException {
         // Filter out files that were re-referenced since decRefFiles ran
@@ -365,12 +376,13 @@ public class IndexFileDeleter {
         for (Map.Entry<String, Collection<String>> entry : safeToDelete.entrySet()) {
             String formatName = entry.getKey();
             Collection<String> files = entry.getValue();
+            String storageName = DataFormat.storageNameOf(formatName);
             if (fileDeleter != null) {
                 try {
                     Map<String, Collection<String>> failed = AccessController.doPrivilegedChecked(
-                        () -> fileDeleter.deleteFiles(Map.of(formatName, files))
+                        () -> fileDeleter.deleteFiles(Map.of(storageName, files))
                     );
-                    Collection<String> failedForFormat = failed.getOrDefault(formatName, Set.of());
+                    Collection<String> failedForFormat = failed.getOrDefault(storageName, Set.of());
                     if (failedForFormat.isEmpty() == false) {
                         synchronized (this) {
                             pendingDeletes.computeIfAbsent(formatName, k -> new HashSet<>()).addAll(failedForFormat);
@@ -429,13 +441,23 @@ public class IndexFileDeleter {
      * Scans format directories for files not tracked by any snapshot and deletes them.
      * Called once during construction to clean up after a crash between ref-count
      * decrement and physical deletion.
+     * <p>
+     * The known-files map is pooled by {@linkplain DataFormat#storageNameOf storage name}, not by
+     * catalog format name, because the scan works on <em>directories</em> and several catalog
+     * formats can share one — a side table's files sit beside its delegate's, told apart only by a
+     * generation-derived file name. Keyed by catalog name, the delegate's entry would scan the
+     * shared directory holding only its own files and delete the side table's as orphaned: silent
+     * data loss on the next engine open, surfacing later as a missing file on the read path. The
+     * orphans that come back are therefore keyed by storage name too, which is always a registered
+     * format name and so still routes correctly through {@link FileDeleter#deleteFiles}.
      */
     private void deleteOrphanedFiles(ShardPath shardPath) throws IOException {
-        Map<String, Set<String>> knownFilesByFormat = new HashMap<>();
+        Map<String, Set<String>> knownFilesByStorage = new HashMap<>();
         for (Map.Entry<String, Map<String, AtomicInteger>> entry : fileRefCounts.entrySet()) {
-            knownFilesByFormat.put(entry.getKey(), new HashSet<>(entry.getValue().keySet()));
+            knownFilesByStorage.computeIfAbsent(DataFormat.storageNameOf(entry.getKey()), k -> new HashSet<>())
+                .addAll(entry.getValue().keySet());
         }
-        Map<String, Collection<String>> orphans = OrphanFileScanner.findOrphans(shardPath, knownFilesByFormat, commitFileManager);
+        Map<String, Collection<String>> orphans = OrphanFileScanner.findOrphans(shardPath, knownFilesByStorage, commitFileManager);
         if (orphans.isEmpty() == false) {
             executeDeletesWithRetry(orphans);
         }

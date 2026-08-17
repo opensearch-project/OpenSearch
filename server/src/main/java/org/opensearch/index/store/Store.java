@@ -298,12 +298,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * (per {@link DataFormatAwareStoreDirectory#isDefaultFormat}) live at {@code <shard>/index};
      * others at {@code <shard>/<formatName>}. Used when deserializing a {@link CatalogSnapshot}
      * on a replica/recovery target.
+     *
+     * <p>Resolved through {@link DataFormat#storageNameOf} so that an auxiliary (side-table) format
+     * lands in its delegate's directory, which is where its writer put the files. Keying the
+     * directory off the catalog name instead would point at a path that was never created.
      */
     @ExperimentalApi
     public Function<String, String> shardFormatDirectoryResolver() {
-        return formatName -> DataFormatAwareStoreDirectory.isDefaultFormat(formatName)
-            ? shardPath.resolveIndex().toString()
-            : shardPath.getDataPath().resolve(formatName).toString();
+        return formatName -> {
+            String storageName = DataFormat.storageNameOf(formatName);
+            return DataFormatAwareStoreDirectory.isDefaultFormat(storageName)
+                ? shardPath.resolveIndex().toString()
+                : shardPath.getDataPath().resolve(storageName).toString();
+        };
     }
 
     public boolean shouldSetParentField() {

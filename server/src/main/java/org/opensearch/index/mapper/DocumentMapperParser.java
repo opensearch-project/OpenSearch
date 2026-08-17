@@ -207,7 +207,10 @@ public class DocumentMapperParser {
 
         final DocumentMapper documentMapper = docBuilder.build(mapperService);
         if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
-            documentMapper.root().canDeriveSource();
+            // POC (child-table nested design): a pluggable-data-format index has derived source forced
+            // on, so without this carve-out a `nested` mapping could never build on a composite index.
+            // See ObjectMapper#canDeriveSource(boolean) for the cost this defers.
+            documentMapper.root().canDeriveSource(mapperService.getIndexSettings().isPluggableDataFormatEnabled());
         }
         return documentMapper;
     }

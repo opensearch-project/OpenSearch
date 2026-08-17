@@ -28,6 +28,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -80,6 +81,20 @@ public class LucenePlugin extends Plugin
         DocumentMetadataResolver {
 
     public static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+
+    /**
+     * Auxiliary Lucene index holding one posting set per element of a {@code nested} field, written
+     * alongside the parent's secondary index by the composite engine's nested child stack. Because
+     * an element is a row of the child table, a filter on a nested field is exact at element grain
+     * in this index — no block join needed. Registered so the catalog can carry its files under
+     * their own format name and a reader can be opened over just those files; it has no indexing
+     * engine of its own. See {@link AuxiliaryDataFormat}.
+     */
+    public static final AuxiliaryDataFormat NESTED_CHILD_DATA_FORMAT = new AuxiliaryDataFormat(
+        DATA_FORMAT,
+        AuxiliaryDataFormat.NESTED_CHILD_ROLE
+    );
+
     private final LuceneDocumentResolver documentResolver = new LuceneDocumentResolver();
 
     /** Creates a new LucenePlugin. */
@@ -91,6 +106,12 @@ public class LucenePlugin extends Plugin
     @Override
     public DataFormat getDataFormat() {
         return DATA_FORMAT;
+    }
+
+    /** {@inheritDoc} Returns the nested child table's Lucene format. */
+    @Override
+    public Collection<DataFormat> getAuxiliaryDataFormats() {
+        return List.of(NESTED_CHILD_DATA_FORMAT);
     }
 
     /**
@@ -134,10 +155,14 @@ public class LucenePlugin extends Plugin
         return LuceneDataFormat.LUCENE_FORMAT_NAME;
     }
 
-    /** {@inheritDoc} Returns a singleton list containing the Lucene data format. */
+    /**
+     * {@inheritDoc} Returns the Lucene data format and the nested child table's auxiliary format.
+     * Both are read by the same {@link LuceneReaderManager}, which is parameterised by
+     * {@link ReaderManagerConfig#format()} and so resolves the child's files, not the parent's.
+     */
     @Override
     public List<String> getSupportedFormats() {
-        return List.of(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        return List.of(LuceneDataFormat.LUCENE_FORMAT_NAME, NESTED_CHILD_DATA_FORMAT.name());
     }
 
     /**

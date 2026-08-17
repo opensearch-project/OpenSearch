@@ -45,6 +45,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
@@ -926,17 +927,25 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
-        NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
+        // storeHandle(), not a direct map lookup: for a side table the handle that applies is its
+        // delegate's, because the files are physically the delegate's. See ReaderManagerConfig.
+        NativeStoreHandle dataformatAwareStoreHandle = settings.storeHandle();
         // Pull index.sort.field / index.sort.order off IndexSettings so the native reader can declare
         // file sort order to DataFusion. Empty lists when the index has no index sort configured.
         // Two consumers downstream:
         // - Vanilla path: ListingOptions.with_file_sort_order so the planner can drop SortExec.
         // - Indexed path: indexed_executor reverses segment iteration when the query's leading
         // ORDER BY runs counter to the catalog direction.
+        //
+        // Withheld from an auxiliary (side-table) format: index.sort describes the order the shard's
+        // documents were written in, and a side table's rows are not those documents. The nested child
+        // table is written in element order within parent-row order, so handing it the parent's sort
+        // would let the planner drop a SortExec or reverse segment iteration on a claim that does not
+        // hold of these files.
         List<String> sortFields = List.of();
         List<String> sortOrders = List.of();
         IndexSettings indexSettings = settings.indexSettings();
-        if (indexSettings != null) {
+        if (indexSettings != null && settings.format().isAuxiliary() == false) {
             Settings rawSettings = indexSettings.getSettings();
             List<String> fields = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(rawSettings);
             if (!fields.isEmpty()) {
@@ -966,7 +975,11 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public List<String> getSupportedFormats() {
-        return List.of(SUPPORTED_FORMAT);
+        // The nested child table is parquet too — one row per element of a `nested` field — so the
+        // same DatafusionReaderManager reads it. It is named, not derived from a DataFormat instance,
+        // because this plugin has no compile dependency on parquet-data-format. The manager is
+        // parameterised by ReaderManagerConfig#format(), so it resolves the child's files.
+        return List.of(SUPPORTED_FORMAT, AuxiliaryDataFormat.nameFor(SUPPORTED_FORMAT, AuxiliaryDataFormat.NESTED_CHILD_ROLE));
     }
 
     @Override

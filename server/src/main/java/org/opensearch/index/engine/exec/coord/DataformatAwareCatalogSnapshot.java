@@ -332,7 +332,11 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     private static long computeNumDocs(List<Segment> segments) {
+        // Auxiliary (side-table) segments count elements, not documents — e.g. the nested child
+        // table holds one row per nested element. Summing them in would make a 2-document index
+        // report 5 docs. See Segment#isAuxiliaryOnly.
         return segments.stream()
+            .filter(segment -> segment.isAuxiliaryOnly() == false)
             .mapToLong(segment -> segment.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L))
             .sum();
     }

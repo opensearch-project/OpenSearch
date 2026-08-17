@@ -366,7 +366,15 @@ public class DataFormatAwareEngine implements Indexer {
                 List<CatalogSnapshot> initSnapshots = committer.listCommittedSnapshots();
                 if (initSnapshots.isEmpty() == false) {
                     for (Segment seg : initSnapshots.getLast().getSegments()) {
-                        maxGenFromCommit = Math.max(maxGenFromCommit, seg.generation());
+                        // Auxiliary (side-table) segments are excluded: their generation is derived
+                        // from the writer generation that produced them by a large fixed offset, so
+                        // it names a slot in a separate space rather than a writer that ever ran.
+                        // Seeding the counter from one would launch every subsequent writer inside
+                        // that space, where generation-derived file names collide with side tables
+                        // already on disk.
+                        if (seg.isAuxiliaryOnly() == false) {
+                            maxGenFromCommit = Math.max(maxGenFromCommit, seg.generation());
+                        }
                     }
                 }
             } catch (IOException e) {
@@ -1001,6 +1009,20 @@ public class DataFormatAwareEngine implements Indexer {
                                     newSegments.add(segment);
                                     rowsToRelease += segment.dfGroupedSearchableFiles().values().stream().findFirst().get().numRows();
                                 }
+                                // Side tables (the nested child table) arrive as whole segments at
+                                // their own generation, because their row count is elements not
+                                // documents. Deliberately excluded from rowsToRelease: that budget
+                                // tracks the parent rows this writer accepted, and an element is not
+                                // one of them.
+                                for (Segment auxiliary : fileInfos.auxiliarySegments()) {
+                                    logger.trace(
+                                        "Writer gen={} flushed auxiliary segment gen={} formats={}",
+                                        writerToFlush.generation(),
+                                        auxiliary.generation(),
+                                        auxiliary.dfGroupedSearchableFiles().keySet()
+                                    );
+                                    newSegments.add(auxiliary);
+                                }
                                 refreshed |= hasFiles;
                             } catch (Exception e) {
                                 IOUtils.closeWhileHandlingException(writerToFlush);
@@ -1063,8 +1085,27 @@ public class DataFormatAwareEngine implements Indexer {
 
                         if (refreshed) {
                             final long engineRefreshStartNanos = System.nanoTime();
-                            long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen);
+                            // Side tables bypass the indexing engine entirely. An engine re-assembles
+                            // segments per format — it looks up its own format in each segment it is
+                            // handed — and a side table's segment carries none of the engine's formats,
+                            // only auxiliary ones. Handing it over would at best be re-keyed into
+                            // nonsense and at worst make it a merge participant, which is precisely
+                            // what must not happen yet: a merge renumbers parent rows, and the child's
+                            // foreign keys are only rewritten once P5-6 lands. So they are withheld
+                            // here and re-attached to the committed snapshot verbatim.
+                            List<Segment> documentExisting = new ArrayList<>(existingSegments.size());
+                            List<Segment> auxiliaryPassThrough = new ArrayList<>();
+                            partitionAuxiliary(existingSegments, documentExisting, auxiliaryPassThrough);
+                            List<Segment> documentNew = new ArrayList<>(newSegments.size());
+                            partitionAuxiliary(newSegments, documentNew, auxiliaryPassThrough);
+
+                            // Counted over document segments only: one writer that also produced a
+                            // child table is still one segment to the merge decision, and asking for a
+                            // spare generation it cannot use would burn generations on every refresh.
+                            long nextGen = documentNew.size() > 1
+                                ? writerGenerationCounter.incrementAndGet()
+                                : RefreshInput.NO_GENERATION;
+                            RefreshInput refreshInput = new RefreshInput(documentExisting, documentNew, nextGen);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
                             logger.debug(
@@ -1076,15 +1117,25 @@ public class DataFormatAwareEngine implements Indexer {
                                 newSegments.size(),
                                 result.refreshedSegments().size()
                             );
-                            // Refresh result must contain at least as many segments as existed before (existing + new)
-                            assert result.refreshedSegments().size() >= existingSegments.size()
+                            // Refresh result must contain at least as many segments as existed before (existing + new).
+                            // Compared against the document segments actually handed over — the engine
+                            // never saw the auxiliary ones, so it cannot be expected to return them.
+                            assert result.refreshedSegments().size() >= documentExisting.size()
                                 : "refresh must not lose existing segments; had "
-                                    + existingSegments.size()
+                                    + documentExisting.size()
                                     + " but got "
                                     + result.refreshedSegments().size();
 
                             final long commitStartNanos = System.nanoTime();
-                            catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                            List<Segment> segmentsToCommit;
+                            if (auxiliaryPassThrough.isEmpty()) {
+                                segmentsToCommit = result.refreshedSegments();
+                            } else {
+                                segmentsToCommit = new ArrayList<>(result.refreshedSegments().size() + auxiliaryPassThrough.size());
+                                segmentsToCommit.addAll(result.refreshedSegments());
+                                segmentsToCommit.addAll(auxiliaryPassThrough);
+                            }
+                            catalogSnapshotManager.commitNewSnapshot(segmentsToCommit);
                             assert rowsToRelease > 0L : "Rows to release from active writes should be greater than 0 but was: "
                                 + rowsToRelease
                                 + " for shard: "
@@ -1122,6 +1173,28 @@ public class DataFormatAwareEngine implements Indexer {
         }
         final long totalRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - refreshStartNanos);
         logger.debug("refresh[{}]: total time to make documents searchable [{}ms] refreshed={}", source, totalRefreshElapsedMs, refreshed);
+    }
+
+    /**
+     * Splits {@code segments} by {@link Segment#isAuxiliaryOnly()}, appending document segments to
+     * {@code documents} and side-table segments to {@code auxiliary}.
+     *
+     * <p>{@code auxiliary} is accumulated across calls on purpose: a refresh has to withhold the
+     * side tables it already committed <em>and</em> the ones just flushed from the indexing engine,
+     * then re-attach both to the new snapshot, and the engine draws no distinction between them.
+     *
+     * @param segments  the segments to split
+     * @param documents sink for segments holding the shard's documents
+     * @param auxiliary sink for side-table segments, appended to rather than cleared
+     */
+    private static void partitionAuxiliary(List<Segment> segments, List<Segment> documents, List<Segment> auxiliary) {
+        for (Segment segment : segments) {
+            if (segment.isAuxiliaryOnly()) {
+                auxiliary.add(segment);
+            } else {
+                documents.add(segment);
+            }
+        }
     }
 
     private void notifyRefreshListenersBefore() throws IOException {

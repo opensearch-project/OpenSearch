@@ -137,6 +137,97 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         assertEquals(1, registry.getRegisteredFormats().size());
     }
 
+    public void testAuxiliaryFormatIsNamedButHasNoIndexingEngine() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        AuxiliaryDataFormat child = new AuxiliaryDataFormat(format, AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format, child);
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        // Resolvable by name — this is what lets a catalog segment carry the side table's files.
+        assertEquals(child, registry.format(child.name()));
+
+        // But it is not a document format: it owns no indexing engine and no plugin, so nothing that
+        // reasons about the shard's documents can reach it.
+        assertEquals(Set.of(format), registry.getRegisteredFormats());
+        assertNull(registry.getPlugin(child.name()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, indexSettings, null, null, Map.of()), child)
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains(child.name()));
+    }
+
+    public void testAuxiliaryFormatGetsAReaderManagerWhenABackEndDeclaresIt() throws IOException {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        AuxiliaryDataFormat child = new AuxiliaryDataFormat(format, AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format, child);
+        // The same backend reads both tables; it resolves files from ReaderManagerConfig#format().
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name(), child.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManager(
+            new ReaderManagerConfig(Optional.empty(), child, registry, shardPath, Map.of(), null)
+        );
+        assertEquals(1, managers.size());
+        assertNotNull(managers.get(child));
+    }
+
+    public void testAuxiliaryFormatWithoutReaderManagerIsRejectedOnUse() {
+        // A side table declared but never claimed by a backend is registered, yet unreadable.
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        AuxiliaryDataFormat child = new AuxiliaryDataFormat(format, AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+        MockSearchBackEndPlugin backEnd = new MockSearchBackEndPlugin(List.of(format.name()));
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format, child)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backEnd));
+
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.getReaderManager(new ReaderManagerConfig(Optional.empty(), child, registry, shardPath, Map.of(), null))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("Unsupported format"));
+    }
+
+    public void testAuxiliaryFormatWithoutPrefixThrows() {
+        MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
+        // Declared as auxiliary but named like a document format — its rows would be counted as docs.
+        MockDataFormat notPrefixed = new MockDataFormat("child", 100L, Set.of());
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(MockDataFormatPlugin.of(format, notPrefixed)));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DataFormatRegistry(pluginsService));
+        assertTrue(e.getMessage(), e.getMessage().contains("child"));
+        assertTrue(e.getMessage(), e.getMessage().contains(DataFormat.AUXILIARY_NAME_PREFIX));
+    }
+
+    public void testDuplicateAuxiliaryFormatThrows() {
+        MockDataFormat format1 = new MockDataFormat("columnar", 100L, Set.of());
+        MockDataFormat format2 = new MockDataFormat("lucene", 50L, Set.of());
+        // Both plugins claim the same side-table name.
+        AuxiliaryDataFormat child = new AuxiliaryDataFormat(format1, AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(
+            List.of(MockDataFormatPlugin.of(format1, child), MockDataFormatPlugin.of(format2, child))
+        );
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DataFormatRegistry(pluginsService));
+        assertTrue(e.getMessage(), e.getMessage().contains(child.name()));
+        assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
+    }
+
     public void testGetIndexingEngine() {
         MockDataFormat format = new MockDataFormat("columnar", 100L, Set.of());
         MockDataFormatPlugin plugin = MockDataFormatPlugin.of(format);

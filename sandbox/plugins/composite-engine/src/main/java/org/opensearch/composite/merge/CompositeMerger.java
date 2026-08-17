@@ -17,6 +17,7 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.plugin.stats.StatsRecorder;
@@ -29,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * A {@link Merger} that orchestrates composite merges across primary and secondary
@@ -55,10 +57,90 @@ public class CompositeMerger implements Merger {
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         // recordOutcome: time always, merge_total on success, merge_failures on throw.
         return StatsRecorder.recordOutcome(() -> {
-            Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(mergeInput.segments());
+            // A merge input can hold two kinds of segment: the documents the merge policy selected,
+            // and the side tables that were selected with them. They are merged separately — the
+            // document formats jointly (a shared row space, so the primary's row-ID mapping applies
+            // to the secondaries), each side table on its own (its own row space). Splitting here
+            // rather than merging blind is what stops a side table's files from being dropped: the
+            // document path only ever asks for the formats it knows, so an unrecognised catalog key
+            // would silently take its rows with it.
+            List<Segment> documentSegments = new ArrayList<>();
+            List<Segment> auxiliarySegments = new ArrayList<>();
+            for (Segment segment : mergeInput.segments()) {
+                (segment.isAuxiliaryOnly() ? auxiliarySegments : documentSegments).add(segment);
+            }
+            if (documentSegments.isEmpty()) {
+                throw new IllegalStateException(
+                    "Merge input at generation ["
+                        + mergeInput.newWriterGeneration()
+                        + "] holds only side tables. A side table merges alongside the documents it "
+                        + "describes, never on its own — its generation and its foreign keys both derive from theirs."
+                );
+            }
+
+            Map<DataFormat, List<WriterFileSet>> filesByFormat = extractFilesByFormat(documentSegments);
             MergePlan plan = new MergePlan(mergeInput.newWriterGeneration(), primaryFormat, secondaryFormats, filesByFormat);
-            return executor.execute(plan);
+            MergeResult documentResult = executor.execute(plan);
+
+            if (auxiliarySegments.isEmpty()) {
+                return documentResult;
+            }
+            RowIdMapping documentMapping = documentResult.rowIdMapping().orElse(null);
+            List<Segment> mergedAuxiliaries = executor.executeAuxiliary(
+                auxiliaryGroups(auxiliarySegments),
+                mergeInput.newWriterGeneration(),
+                documentMapping
+            );
+            return new MergeResult(documentResult.getMergedWriterFileSet(), documentMapping, mergedAuxiliaries);
         }, statsTracker::addMergeTimeMillis, statsTracker::incMergeTotal, statsTracker::incMergeFailures);
+    }
+
+    /**
+     * Groups the side table files of every auxiliary segment by catalog format name, pairing each
+     * with the format that will merge it.
+     *
+     * <p>Order is preserved as given, which is catalog order — the same order
+     * {@link #extractFilesByFormat} collects the document files in. The two orders have to agree for
+     * a positional foreign key to be rewritable at all.
+     */
+    private List<AuxiliaryMergeGroup> auxiliaryGroups(List<Segment> auxiliarySegments) {
+        Map<String, List<WriterFileSet>> filesByAuxiliaryName = new LinkedHashMap<>();
+        for (Segment segment : auxiliarySegments) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                filesByAuxiliaryName.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(entry.getValue());
+            }
+        }
+        List<AuxiliaryMergeGroup> groups = new ArrayList<>(filesByAuxiliaryName.size());
+        filesByAuxiliaryName.forEach(
+            (auxiliaryName, files) -> groups.add(new AuxiliaryMergeGroup(auxiliaryName, resolveStorageFormat(auxiliaryName), files))
+        );
+        return List.copyOf(groups);
+    }
+
+    /**
+     * Resolves the format that owns a side table's files, i.e. the one whose merger and file layout
+     * it reuses. Matched by name against this composite's own formats, because the catalog holds only
+     * names — the {@link org.opensearch.index.engine.dataformat.AuxiliaryDataFormat} instance itself
+     * is not reachable from a deserialised segment.
+     */
+    private DataFormat resolveStorageFormat(String auxiliaryFormatName) {
+        String storageName = DataFormat.storageNameOf(auxiliaryFormatName);
+        if (primaryFormat.name().equals(storageName)) {
+            return primaryFormat;
+        }
+        for (DataFormat secondary : secondaryFormats) {
+            if (secondary.name().equals(storageName)) {
+                return secondary;
+            }
+        }
+        throw new IllegalStateException(
+            "Side table ["
+                + auxiliaryFormatName
+                + "] sits in the storage of format ["
+                + storageName
+                + "], which this composite does not hold. Known formats: "
+                + Stream.concat(Stream.of(primaryFormat), secondaryFormats.stream()).map(DataFormat::name).toList()
+        );
     }
 
     private Map<DataFormat, List<WriterFileSet>> extractFilesByFormat(List<Segment> segments) {

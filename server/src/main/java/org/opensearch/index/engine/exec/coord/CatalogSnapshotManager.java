@@ -31,6 +31,8 @@ import org.opensearch.index.shard.ShardPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -157,6 +159,12 @@ public class CatalogSnapshotManager implements Closeable {
         Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
         Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
 
+        // Side tables were selected alongside their documents, so they are replaced alongside them:
+        // the merged document segment plus one merged segment per side table.
+        List<Segment> segmentsToAdd = new ArrayList<>();
+        segmentsToAdd.add(segmentToAdd);
+        segmentsToAdd.addAll(mergeResult.auxiliarySegments());
+
         // All source segments must exist in the current snapshot
         if (!segmentList.containsAll(segmentsToRemove)) {
             throw new IllegalStateException(
@@ -168,60 +176,49 @@ public class CatalogSnapshotManager implements Closeable {
             );
         }
 
-        // Merged segment generation must not collide with any segment that will be retained
-        if (segmentList.stream().filter(s -> !segmentsToRemove.contains(s)).anyMatch(s -> s.generation() == segmentToAdd.generation())) {
-            throw new IllegalStateException(
-                "Merged segment generation [" + segmentToAdd.generation() + "] collides with a retained segment generation"
-            );
-        }
-
-        // Row count conservation: merged output must have the same total rows as the inputs
-        if (!assertRowCountConservation(segmentsToRemove, segmentToAdd)) {
-            long inputRows = segmentsToRemove.stream()
-                .flatMap(s -> s.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::numRows)
-                .sum();
-            long outputRows = segmentToAdd.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
-            throw new IllegalStateException(
-                "Merged segment row count mismatch: input segments have "
-                    + inputRows
-                    + " total rows but merged output has "
-                    + outputRows
-                    + " rows"
-            );
-        }
-
-        boolean inserted = false;
-        int newSegIdx = 0;
-        for (int segIdx = 0, cnt = segmentList.size(); segIdx < cnt; segIdx++) {
-            assert segIdx >= newSegIdx;
-            Segment currSegment = segmentList.get(segIdx);
-            if (segmentsToRemove.contains(currSegment)) {
-                if (!inserted) {
-                    segmentList.set(segIdx, segmentToAdd);
-                    inserted = true;
-                    newSegIdx++;
-                }
-            } else {
-                segmentList.set(newSegIdx, currSegment);
-                newSegIdx++;
+        // Merged segment generations must not collide with any segment that will be retained
+        Set<Long> retainedGenerations = segmentList.stream()
+            .filter(s -> !segmentsToRemove.contains(s))
+            .map(Segment::generation)
+            .collect(java.util.stream.Collectors.toSet());
+        for (Segment candidate : segmentsToAdd) {
+            if (retainedGenerations.contains(candidate.generation())) {
+                throw new IllegalStateException(
+                    "Merged segment generation [" + candidate.generation() + "] collides with a retained segment generation"
+                );
             }
         }
 
-        // the rest of the segments in list are duplicates, so don't remove from map, only list!
-        segmentList.subList(newSegIdx, segmentList.size()).clear();
+        // Row count conservation: merged output must have the same rows as the inputs, checked
+        // separately per row space — see assertRowCountConservation.
+        assertRowCountConservation(segmentsToRemove, segmentsToAdd);
 
-        // Either we found place to insert segment, or, we did
+        List<Segment> retainedSegments = new ArrayList<>(segmentList.size());
+        boolean inserted = false;
+        for (Segment currSegment : segmentList) {
+            if (segmentsToRemove.contains(currSegment)) {
+                // Insert the merged segments where the first merged segment sat, so the merged
+                // documents keep their predecessors' position in the list.
+                if (!inserted) {
+                    retainedSegments.addAll(segmentsToAdd);
+                    inserted = true;
+                }
+            } else {
+                retainedSegments.add(currSegment);
+            }
+        }
+
+        // Either we found place to insert the segments, or, we did
         // not, but only because all segments we merged became
         // deleted while we are merging, in which case it should
         // be the case that the new segment is also all deleted,
         // we insert it at the beginning if it should not be dropped:
         if (!inserted) {
-            segmentList.add(0, segmentToAdd);
+            retainedSegments.addAll(0, segmentsToAdd);
         }
 
         // Commit new catalog snapshot
-        commitNewSnapshot(segmentList);
+        commitNewSnapshot(retainedSegments);
         return segmentToAdd;
     }
 
@@ -659,27 +656,84 @@ public class CatalogSnapshotManager implements Closeable {
         return true;
     }
 
+    /** Row-space key for the document formats, which are counted together. */
+    private static final String DOCUMENT_ROW_SPACE = "<documents>";
+
     /**
-     * Asserts that the total row count across all formats in the merged segment equals
-     * the total row count across all formats in the source segments. This catches bugs
+     * Asserts that the merge conserved rows, counted <em>per row space</em>. This catches bugs
      * where rows are silently dropped or duplicated during merge.
+     *
+     * <p>A merge input can span more than one row space. The document formats share one — a segment's
+     * parquet file and Lucene leaf describe the same rows, so they are summed together and the same
+     * sum must come out. Each side table is its own: a nested child table holds one row per element,
+     * a count with no arithmetic relationship to the document count. Summing the two together, as
+     * this check once did, means a merge that drops every child row still balances as long as it
+     * gains the same number of document rows — and conversely a correct merge looks broken. So each
+     * row space is checked against itself, and the key sets must match: a side table that went into
+     * the merge and did not come out is a dropped table, not a zero-row one.
+     *
+     * @throws IllegalStateException if any row space is missing on either side or does not balance
      */
-    private boolean assertRowCountConservation(Set<Segment> sourceSegments, Segment mergedSegment) {
-        long sourceRows = 0;
-        for (Segment seg : sourceSegments) {
-            for (WriterFileSet wfs : seg.dfGroupedSearchableFiles().values()) {
-                sourceRows += wfs.numRows();
+    private void assertRowCountConservation(Set<Segment> sourceSegments, List<Segment> mergedSegments) {
+        Map<String, Long> sourceRows = rowsByRowSpace(sourceSegments);
+        Map<String, Long> mergedRows = rowsByRowSpace(mergedSegments);
+
+        Set<String> allRowSpaces = new java.util.TreeSet<>(sourceRows.keySet());
+        allRowSpaces.addAll(mergedRows.keySet());
+        for (String rowSpace : allRowSpaces) {
+            Long source = sourceRows.get(rowSpace);
+            Long merged = mergedRows.get(rowSpace);
+            if (source == null || merged == null) {
+                logger.error(
+                    "Row space [{}] present on only one side of the merge: source={} merged={}. Source row spaces {}, merged {}",
+                    rowSpace,
+                    source,
+                    merged,
+                    sourceRows,
+                    mergedRows
+                );
+                throw new IllegalStateException(
+                    "Merge dropped or invented row space ["
+                        + rowSpace
+                        + "]: input row counts "
+                        + sourceRows
+                        + " but merged output "
+                        + mergedRows
+                );
+            }
+            if (source.longValue() != merged.longValue()) {
+                logger.error(
+                    "Row count mismatch in row space [{}]: source segments have {} rows but merged output has {} rows",
+                    rowSpace,
+                    source,
+                    merged
+                );
+                throw new IllegalStateException(
+                    "Merged segment row count mismatch in row space ["
+                        + rowSpace
+                        + "]: input segments have "
+                        + source
+                        + " total rows but merged output has "
+                        + merged
+                        + " rows"
+                );
             }
         }
-        long mergedRows = 0;
-        for (WriterFileSet wfs : mergedSegment.dfGroupedSearchableFiles().values()) {
-            mergedRows += wfs.numRows();
+    }
+
+    /**
+     * Sums rows per row space: all document formats under {@link #DOCUMENT_ROW_SPACE}, and each
+     * auxiliary format under its own name.
+     */
+    private static Map<String, Long> rowsByRowSpace(Collection<Segment> segments) {
+        Map<String, Long> rows = new HashMap<>();
+        for (Segment seg : segments) {
+            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
+                String rowSpace = DataFormat.isAuxiliaryFormatName(entry.getKey()) ? entry.getKey() : DOCUMENT_ROW_SPACE;
+                rows.merge(rowSpace, entry.getValue().numRows(), Long::sum);
+            }
         }
-        if (sourceRows != mergedRows) {
-            logger.error("Row count mismatch: source segments have {} rows but merged segment has {} rows", sourceRows, mergedRows);
-            return false;
-        }
-        return true;
+        return rows;
     }
 
     /**

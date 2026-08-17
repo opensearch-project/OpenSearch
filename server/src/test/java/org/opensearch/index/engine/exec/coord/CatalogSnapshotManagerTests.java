@@ -13,6 +13,7 @@ import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
@@ -424,6 +425,143 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         } finally {
             manager.close();
         }
+    }
+
+    // --- Merges that carry side tables ---
+
+    /** The catalog format name of a nested child table sitting beside {@code format}. */
+    private static String childFormatName(DataFormat format) {
+        return AuxiliaryDataFormat.nameFor(format.name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+    }
+
+    private static Segment childSegment(String childFormat, long parentGeneration, long elementRows) {
+        long generation = AuxiliaryDataFormat.generationFor(parentGeneration);
+        return new Segment(
+            generation,
+            Map.of(childFormat, new WriterFileSet("/tmp/dir", generation, Set.of("child_" + generation + ".parquet"), elementRows, 0L))
+        );
+    }
+
+    private CatalogSnapshotManager managerOver(List<Segment> segments) throws IOException {
+        DataformatAwareCatalogSnapshot cs1 = new DataformatAwareCatalogSnapshot(0, 0, 1, segments, 0, Map.of());
+        cs1.setLastCommitInfo("segments_1", 1L, 0L);
+        return new CatalogSnapshotManager(
+            List.of(cs1),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            mock(CommitFileManager.class)
+        );
+    }
+
+    public void testApplyMergeResultsSwapsPairedChildSegments() throws Exception {
+        DataFormat format = new MockDataFormat();
+        String childFormat = childFormatName(format);
+
+        Segment parent1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.parquet"), 2, 0L)));
+        Segment parent2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.parquet"), 2, 0L)));
+        Segment child1 = childSegment(childFormat, 1L, 3);
+        Segment child2 = childSegment(childFormat, 2L, 3);
+
+        WriterFileSet mergedParent = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.parquet"), 4, 0L);
+        long mergedChildGeneration = AuxiliaryDataFormat.generationFor(3L);
+        Segment mergedChild = new Segment(
+            mergedChildGeneration,
+            Map.of(childFormat, new WriterFileSet("/tmp/dir", mergedChildGeneration, Set.of("merged_child.parquet"), 6, 0L))
+        );
+
+        CatalogSnapshotManager manager = managerOver(List.of(parent1, child1, parent2, child2));
+        try {
+            manager.applyMergeResults(
+                new MergeResult(Map.of(format, mergedParent), null, List.of(mergedChild)),
+                new OneMerge(List.of(parent1, child1, parent2, child2))
+            );
+
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                assertEquals("both parents and both side tables replaced by one of each", 2, segments.size());
+                assertEquals(3L, segments.get(0).generation());
+                assertEquals(mergedChildGeneration, segments.get(1).generation());
+                assertTrue("the merged side table must stay auxiliary-only", segments.get(1).isAuxiliaryOnly());
+                // The pairing survives the merge: the next merge can still find the child from its parent.
+                assertEquals(3L, AuxiliaryDataFormat.writerGenerationOf(segments.get(1).generation()));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsThrowsWhenChildRowsAreSilentlyDropped() throws Exception {
+        // The live P5-6 failure: the document rows balance perfectly, and the child table's rows
+        // simply are not in the output. A single summed total cannot tell this from a correct merge
+        // once the numbers happen to line up, so the check is per row space.
+        DataFormat format = new MockDataFormat();
+        String childFormat = childFormatName(format);
+
+        Segment parent1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.parquet"), 2, 0L)));
+        Segment parent2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.parquet"), 2, 0L)));
+        Segment child1 = childSegment(childFormat, 1L, 3);
+        Segment child2 = childSegment(childFormat, 2L, 3);
+
+        WriterFileSet mergedParent = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.parquet"), 4, 0L);
+
+        CatalogSnapshotManager manager = managerOver(List.of(parent1, child1, parent2, child2));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> manager.applyMergeResults(
+                    new MergeResult(Map.of(format, mergedParent)),
+                    new OneMerge(List.of(parent1, child1, parent2, child2))
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("dropped or invented row space"));
+            assertTrue("the message must name the table that went missing", e.getMessage().contains(childFormat));
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testApplyMergeResultsThrowsWhenChildRowCountChanges() throws Exception {
+        DataFormat format = new MockDataFormat();
+        String childFormat = childFormatName(format);
+
+        Segment parent1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.parquet"), 2, 0L)));
+        Segment child1 = childSegment(childFormat, 1L, 3);
+
+        WriterFileSet mergedParent = new WriterFileSet("/tmp/dir", 2L, Set.of("merged.parquet"), 2, 0L);
+        long mergedChildGeneration = AuxiliaryDataFormat.generationFor(2L);
+        Segment mergedChild = new Segment(
+            mergedChildGeneration,
+            // One element row lost.
+            Map.of(childFormat, new WriterFileSet("/tmp/dir", mergedChildGeneration, Set.of("merged_child.parquet"), 2, 0L))
+        );
+
+        CatalogSnapshotManager manager = managerOver(List.of(parent1, child1));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> manager.applyMergeResults(
+                    new MergeResult(Map.of(format, mergedParent), null, List.of(mergedChild)),
+                    new OneMerge(List.of(parent1, child1))
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("row count mismatch in row space [" + childFormat + "]"));
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testMergeResultRejectsANonAuxiliarySegmentOnTheAuxiliaryChannel() {
+        DataFormat format = new MockDataFormat();
+        Segment documentSegment = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.parquet"), 2, 0L)));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MergeResult(Map.of(), null, List.of(documentSegment))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("must contain only auxiliary formats"));
     }
 
     // --- File deletion and commit lifecycle tests ---

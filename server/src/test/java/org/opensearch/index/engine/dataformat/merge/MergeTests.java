@@ -15,6 +15,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
@@ -728,5 +729,155 @@ public class MergeTests extends OpenSearchTestCase {
 
         assertNull("forceMerge should complete without error", forceMergeError.get());
         assertNull("triggerMerges should complete without error", triggerError.get());
+    }
+
+    // ---- Auxiliary (side table) pairing ----
+
+    /** A policy that records what it was offered and merges everything it is offered. */
+    private static final class RecordingMergePolicy implements MergeHandler.MergePolicy {
+        private final AtomicReference<List<Segment>> offered = new AtomicReference<>();
+
+        @Override
+        public List<List<Segment>> findMergeCandidates(List<Segment> segments) {
+            offered.set(segments);
+            return segments.isEmpty() ? List.of() : List.of(List.copyOf(segments));
+        }
+
+        @Override
+        public List<List<Segment>> findForceMergeCandidates(List<Segment> segments, int maxSegmentCount) {
+            return findMergeCandidates(segments);
+        }
+    }
+
+    private static Segment documentSegment(Path dir, long generation, long rows) {
+        return Segment.builder(generation)
+            .addSearchableFiles(new MockDataFormat(), new WriterFileSet(dir.toString(), generation, Set.of(), rows, 0L))
+            .build();
+    }
+
+    private static Segment childSegment(Path dir, long parentGeneration, long elementRows) {
+        long generation = AuxiliaryDataFormat.generationFor(parentGeneration);
+        return Segment.builder(generation)
+            .addSearchableFiles(
+                AuxiliaryDataFormat.nameFor(new MockDataFormat().name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE),
+                new WriterFileSet(dir.toString(), generation, Set.of(), elementRows, 0L)
+            )
+            .build();
+    }
+
+    public void testMergePolicyIsOfferedDocumentSegmentsOnly() {
+        Path dir = createTempDir();
+        Segment parent1 = documentSegment(dir, 1L, 2);
+        Segment parent2 = documentSegment(dir, 2L, 2);
+        List<Segment> catalog = List.of(parent1, childSegment(dir, 1L, 3), parent2, childSegment(dir, 2L, 3));
+
+        RecordingMergePolicy policy = new RecordingMergePolicy();
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(catalog),
+            mergeInput -> new MergeResult(Map.of()),
+            SHARD_ID,
+            policy,
+            NOOP_MERGE_LISTENER,
+            () -> 3L
+        );
+
+        handler.findMerges();
+
+        assertEquals(
+            "policy must not see side tables — their element rows are not documents",
+            List.of(parent1, parent2),
+            policy.offered.get()
+        );
+    }
+
+    public void testSelectedMergeCarriesPairedChildSegments() {
+        Path dir = createTempDir();
+        Segment parent1 = documentSegment(dir, 1L, 2);
+        Segment parent2 = documentSegment(dir, 2L, 2);
+        Segment child1 = childSegment(dir, 1L, 3);
+        Segment child2 = childSegment(dir, 2L, 3);
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(parent1, child1, parent2, child2)),
+            mergeInput -> new MergeResult(Map.of()),
+            SHARD_ID,
+            new RecordingMergePolicy(),
+            NOOP_MERGE_LISTENER,
+            () -> 3L
+        );
+
+        Collection<OneMerge> merges = handler.findMerges();
+        assertEquals(1, merges.size());
+        List<Segment> selected = merges.iterator().next().getSegmentsToMerge();
+        assertEquals(4, selected.size());
+        assertTrue("both parents must be selected", selected.containsAll(List.of(parent1, parent2)));
+        assertTrue("each parent's side table must be selected with it", selected.containsAll(List.of(child1, child2)));
+    }
+
+    public void testUnpairedChildSegmentIsNotSelected() {
+        Path dir = createTempDir();
+        Segment parent1 = documentSegment(dir, 1L, 2);
+        // Generation 2's documents are not in the catalog, so its side table has nothing to pair with.
+        Segment orphanChild = childSegment(dir, 2L, 3);
+
+        RecordingMergePolicy policy = new RecordingMergePolicy();
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(parent1, childSegment(dir, 1L, 3), orphanChild)),
+            mergeInput -> new MergeResult(Map.of()),
+            SHARD_ID,
+            policy,
+            NOOP_MERGE_LISTENER,
+            () -> 3L
+        );
+
+        List<Segment> selected = handler.findMerges().iterator().next().getSegmentsToMerge();
+        assertEquals(2, selected.size());
+        assertFalse("a side table whose documents are not merging must be left alone", selected.contains(orphanChild));
+    }
+
+    public void testAuxiliarySegmentAtDocumentGenerationIsSkipped() {
+        Path dir = createTempDir();
+        Segment parent1 = documentSegment(dir, 1L, 2);
+        // An auxiliary segment that never got the generation offset: unpairable, so excluded
+        // rather than merged blind.
+        Segment unoffset = Segment.builder(1L)
+            .addSearchableFiles(
+                AuxiliaryDataFormat.nameFor(new MockDataFormat().name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE),
+                new WriterFileSet(dir.toString(), 1L, Set.of(), 3, 0L)
+            )
+            .build();
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(parent1, unoffset)),
+            mergeInput -> new MergeResult(Map.of()),
+            SHARD_ID,
+            new RecordingMergePolicy(),
+            NOOP_MERGE_LISTENER,
+            () -> 3L
+        );
+
+        List<Segment> selected = handler.findMerges().iterator().next().getSegmentsToMerge();
+        assertEquals(List.of(parent1), selected);
+    }
+
+    public void testForceMergeAlsoPairsChildSegments() throws Exception {
+        Path dir = createTempDir();
+        Segment parent1 = documentSegment(dir, 1L, 2);
+        Segment child1 = childSegment(dir, 1L, 3);
+
+        RecordingMergePolicy policy = new RecordingMergePolicy();
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(parent1, child1)),
+            mergeInput -> new MergeResult(Map.of()),
+            SHARD_ID,
+            policy,
+            NOOP_MERGE_LISTENER,
+            () -> 3L
+        );
+
+        Collection<OneMerge> merges = handler.findForceMerges(1);
+        assertEquals(List.of(parent1), policy.offered.get());
+        assertEquals(1, merges.size());
+        assertEquals(List.of(parent1, child1), merges.iterator().next().getSegmentsToMerge());
     }
 }

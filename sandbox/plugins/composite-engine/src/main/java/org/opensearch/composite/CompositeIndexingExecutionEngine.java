@@ -18,6 +18,7 @@ import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.composite.stats.CompositeStatsProvider;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -85,6 +86,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final CompositeMerger merger;
     private final CompositeShardStatsTracker statsTracker = new CompositeShardStatsTracker();
     private final ShardId shardId;
+    private final MapperService mapperService;
     private volatile Map<String, Collection<String>> pendingDeletes = new ConcurrentHashMap<>();
 
     /**
@@ -158,6 +160,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.indexSettings = indexSettings;
         this.merger = new CompositeMerger(this, compositeDataFormat);
         this.shardId = store != null ? store.shardId() : null;
+        this.mapperService = mapperService;
 
         // Register the per-shard tracker so REST endpoints can read live counters; unregistered
         // in close(). Rolls back the registration if anything below throws, to avoid leaking it.
@@ -532,6 +535,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         return statsTracker;
     }
 
+    /** Returns the mapper service backing this shard, used to resolve child-table field types. */
+    MapperService mapperService() {
+        return mapperService;
+    }
+
     /**
      * Returns the primary delegate engine.
      *
@@ -581,6 +589,17 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         );
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, engine.getDataFormat())));
+        }
+        // POC (child-table nested design): a reader over the nested child table's value store, so
+        // element rows are reachable without ever entering the parent's table. Gated on the same
+        // mapping opt-in the write path uses, because every manager here is asked for a reader on
+        // every snapshot: on an index with no child table that would be a reader over zero files on
+        // every refresh, for no purpose. Only the primary format is wired — the child's Lucene index
+        // is not published to the catalog yet (see NestedChildStack#flush and 10 P5-5).
+        if (NestedChildStack.isEnabledFor(mapperService())) {
+            DataFormat childFormat = config.registry()
+                .format(AuxiliaryDataFormat.nameFor(primaryEngine.getDataFormat().name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE));
+            readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, childFormat)));
         }
         return Map.copyOf(readerManagers);
     }

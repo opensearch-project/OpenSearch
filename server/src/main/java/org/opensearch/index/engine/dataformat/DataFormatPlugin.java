@@ -14,9 +14,11 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -48,6 +50,23 @@ public interface DataFormatPlugin {
      * @return the data format descriptor
      */
     DataFormat getDataFormat();
+
+    /**
+     * Returns the {@linkplain AuxiliaryDataFormat auxiliary} formats this plugin owns — side tables
+     * written in this plugin's format whose rows are not the shard's documents. The nested child
+     * table (one row per element of a {@code nested} field) is the first such use.
+     *
+     * <p>The registry makes these resolvable by name and lets a
+     * {@link org.opensearch.plugins.SearchBackEndPlugin} attach a reader manager to them, but does
+     * not create indexing engines for them: a side table is written by the delegate format's
+     * engine, not one of its own. A plugin that owns no side table returns an empty collection
+     * (default).
+     *
+     * @return the auxiliary formats, each of which must be {@link DataFormat#isAuxiliary()}
+     */
+    default Collection<DataFormat> getAuxiliaryDataFormats() {
+        return List.of();
+    }
 
     /**
      * Creates the indexing engine for the data format. This should be

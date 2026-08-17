@@ -11,6 +11,8 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.MappedFieldType;
 
+import java.util.List;
+
 /**
  * Represents a document input for adding fields and metadata to a writer.
  *
@@ -53,4 +55,23 @@ public interface DocumentInput<T> extends AutoCloseable {
      * @return count of field values
      */
     long getFieldCount(String fieldName);
+
+    /**
+     * Offers one element of a {@code nested} field's array to the format. Called once per element,
+     * in source order, while the enclosing document is being parsed. The two lists are parallel:
+     * {@code values.get(i)} is the raw source value for {@code fieldTypes.get(i)}.
+     * <p>
+     * Formats that store nested elements as rows of a separate child table (see the child-table
+     * design) override this to stage the element; the enclosing document's row id becomes the
+     * element's foreign key once the row id is known. The default is a no-op, so a format that
+     * does not model nested elements simply ignores them.
+     *
+     * @param nestedPath the full path of the nested object mapper (e.g. {@code user})
+     * @param ordinal    the element's 0-based position in the source array
+     * @param fieldTypes the mapped field types of the element's leaf fields
+     * @param values     the raw source values, parallel to {@code fieldTypes}
+     */
+    default void addNestedElement(String nestedPath, int ordinal, List<MappedFieldType> fieldTypes, List<Object> values) {
+        // no-op by default: formats that do not model nested elements ignore them
+    }
 }

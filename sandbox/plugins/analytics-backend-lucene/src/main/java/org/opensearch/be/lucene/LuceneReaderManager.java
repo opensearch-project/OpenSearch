@@ -130,7 +130,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         readers.put(catalogSnapshot.getId(), new LuceneReader(readerForSnapshot, generationToSegmentName));
     }
 
-    private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
+    private Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
         // Index leaves by their file set → segment name
         Map<Set<String>, String> filesToSegName = new HashMap<>(leaves.size());
         for (int i = 0; i < leaves.size(); i++) {
@@ -142,10 +142,13 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             }
         }
 
-        // Match catalog segments to leaves via file sets
+        // Match catalog segments to leaves via file sets. Keyed on *this manager's* format rather
+        // than the Lucene format name, for the same reason readersAreSame is: a catalog holds a
+        // segment per table, and a segment belonging to another table has no leaf in this reader —
+        // which the null check below would read as an unmatched segment and throw on.
         Map<Long, String> out = new HashMap<>();
         for (Segment seg : catalogSnapshot.getSegments()) {
-            WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+            WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(dataFormat.name());
             if (wfs == null) {
                 continue;
             }
@@ -177,7 +180,17 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
      * @return {@code true} iff both lists contain the same generations in the same (sorted) order
      */
     private boolean readersAreSame(CatalogSnapshot catalogSnapshot, DirectoryReader reader) {
-        Collection<Long> generationsReferenced = catalogSnapshot.getSegments().stream().map(Segment::generation).sorted().toList();
+        // Restricted to segments carrying *this manager's* format. A catalog holds a segment per
+        // table, not per format: a side table (the nested child table) is its own segment and has no
+        // leaf in this reader, so comparing against every segment would assert that a reader over
+        // one table accounts for the segments of another. Once each table's Lucene index has its own
+        // manager, this filter is also what keeps each one asserting over only its own segments.
+        Collection<Long> generationsReferenced = catalogSnapshot.getSegments()
+            .stream()
+            .filter(segment -> segment.dfGroupedSearchableFiles().containsKey(dataFormat.name()))
+            .map(Segment::generation)
+            .sorted()
+            .toList();
         return generationsReferenced.equals(collectReferencedGenerations(reader));
     }
 

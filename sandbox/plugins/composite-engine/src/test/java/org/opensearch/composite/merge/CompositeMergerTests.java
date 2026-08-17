@@ -18,6 +18,7 @@ import org.opensearch.composite.stats.CompositeShardStatsTracker;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -44,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -718,5 +721,170 @@ public class CompositeMergerTests extends OpenSearchTestCase {
                 return Set.of();
             }
         };
+    }
+
+    // ── Side tables (nested child table) ──
+
+    /** The child table sits beside the *secondary* (parquet) format in this fixture. */
+    private String childFormatName() {
+        return AuxiliaryDataFormat.nameFor(secondaryFormat.name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+    }
+
+    private Segment childSegment(Path dir, long parentGeneration, long elementRows) {
+        long generation = AuxiliaryDataFormat.generationFor(parentGeneration);
+        return Segment.builder(generation)
+            .addSearchableFiles(childFormatName(), wfs(dir, generation, Set.of("child_" + generation + ".dat"), elementRows))
+            .build();
+    }
+
+    public void testChildTableIsMergedThroughItsStorageFormatsMerger() throws IOException {
+        Path tempDir = createTempDir();
+        Segment documentSegment = buildSegment(
+            1L,
+            primaryFormat,
+            wfs(tempDir, 1L, Set.of("p1.dat"), 2),
+            secondaryFormat,
+            wfs(tempDir, 1L, Set.of("s1.dat"), 2)
+        );
+        Segment child = childSegment(tempDir, 1L, 3);
+
+        WriterFileSet mergedPrimary = wfs(tempDir, 99L, Set.of("mp.dat"), 2);
+        WriterFileSet mergedSecondary = wfs(tempDir, 99L, Set.of("ms.dat"), 2);
+        long expectedChildGeneration = AuxiliaryDataFormat.generationFor(99L);
+        WriterFileSet mergedChild = wfs(tempDir, expectedChildGeneration, Set.of("mc.dat"), 3);
+
+        when(primaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(primaryFormat, mergedPrimary), STUB_ROW_ID_MAPPING));
+        // The document parquet merge first, then the child table's — both are parquet, so both go to
+        // the same merger.
+        when(secondaryMerger.merge(any())).thenReturn(
+            new MergeResult(Map.of(secondaryFormat, mergedSecondary)),
+            new MergeResult(Map.of(secondaryFormat, mergedChild))
+        );
+
+        CompositeMerger merger = new CompositeMerger(compositeEngine, compositeDataFormat);
+        MergeResult result = merger.merge(new MergeInput(List.of(documentSegment, child), null, 99L));
+
+        // The documents merged as before.
+        assertSame(mergedPrimary, result.getMergedWriterFileSetForDataformat(primaryFormat));
+        assertSame(mergedSecondary, result.getMergedWriterFileSetForDataformat(secondaryFormat));
+
+        // The child came back as its own segment, keyed by its catalog name at its derived generation.
+        assertEquals(1, result.auxiliarySegments().size());
+        Segment mergedChildSegment = result.auxiliarySegments().get(0);
+        assertEquals(expectedChildGeneration, mergedChildSegment.generation());
+        assertTrue(mergedChildSegment.isAuxiliaryOnly());
+        assertSame(mergedChild, mergedChildSegment.dfGroupedSearchableFiles().get(childFormatName()));
+
+        // The MergeInput handed to the parquet merger must be keyed by parquet — the merger looks its
+        // inputs up by its own name, so a catalog-keyed input would find nothing to merge.
+        ArgumentCaptor<MergeInput> inputs = ArgumentCaptor.forClass(MergeInput.class);
+        verify(secondaryMerger, times(2)).merge(inputs.capture());
+        MergeInput childInput = inputs.getAllValues().get(1);
+        assertEquals(expectedChildGeneration, childInput.newWriterGeneration());
+        assertEquals("child files must be reachable under the storage name", 1, childInput.getFilesForFormat(secondaryFormat.name()).size());
+        assertTrue("child files must not be keyed by the catalog name", childInput.getFilesForFormat(childFormatName()).isEmpty());
+    }
+
+    public void testChildMergeReceivesTheParentRowIdMappingAsAHook() throws IOException {
+        Path tempDir = createTempDir();
+        Segment documentSegment = buildSegment(
+            1L,
+            primaryFormat,
+            wfs(tempDir, 1L, Set.of("p1.dat"), 2),
+            secondaryFormat,
+            wfs(tempDir, 1L, Set.of("s1.dat"), 2)
+        );
+
+        when(primaryMerger.merge(any())).thenReturn(
+            new MergeResult(Map.of(primaryFormat, wfs(tempDir, 99L, Set.of("mp.dat"), 2)), STUB_ROW_ID_MAPPING)
+        );
+        when(secondaryMerger.merge(any())).thenReturn(
+            new MergeResult(Map.of(secondaryFormat, wfs(tempDir, 99L, Set.of("ms.dat"), 2))),
+            new MergeResult(Map.of(secondaryFormat, wfs(tempDir, AuxiliaryDataFormat.generationFor(99L), Set.of("mc.dat"), 3)))
+        );
+
+        CompositeMerger merger = new CompositeMerger(compositeEngine, compositeDataFormat);
+        merger.merge(new MergeInput(List.of(documentSegment, childSegment(tempDir, 1L, 3)), null, 99L));
+
+        // Nothing applies it to a column yet (Phase 4b), but the mapping the documents' merge produced
+        // is what a foreign-key rewrite would need, so it reaches the child merge.
+        ArgumentCaptor<MergeInput> inputs = ArgumentCaptor.forClass(MergeInput.class);
+        verify(secondaryMerger, times(2)).merge(inputs.capture());
+        assertSame(STUB_ROW_ID_MAPPING, inputs.getAllValues().get(1).rowIdMapping());
+    }
+
+    public void testMergeOfOnlySideTablesThrows() {
+        Path tempDir = createTempDir();
+        CompositeMerger merger = new CompositeMerger(compositeEngine, compositeDataFormat);
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> merger.merge(new MergeInput(List.of(childSegment(tempDir, 1L, 3)), null, 99L))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("holds only side tables"));
+    }
+
+    public void testSideTableOfAnUnknownStorageFormatThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Segment documentSegment = buildSegment(
+            1L,
+            primaryFormat,
+            wfs(tempDir, 1L, Set.of("p1.dat"), 2),
+            secondaryFormat,
+            wfs(tempDir, 1L, Set.of("s1.dat"), 2)
+        );
+        long childGeneration = AuxiliaryDataFormat.generationFor(1L);
+        Segment strayChild = Segment.builder(childGeneration)
+            .addSearchableFiles(
+                AuxiliaryDataFormat.nameFor("some-other-format", AuxiliaryDataFormat.NESTED_CHILD_ROLE),
+                wfs(tempDir, childGeneration, Set.of("x.dat"), 3)
+            )
+            .build();
+
+        when(primaryMerger.merge(any())).thenReturn(
+            new MergeResult(Map.of(primaryFormat, wfs(tempDir, 99L, Set.of("mp.dat"), 2)), STUB_ROW_ID_MAPPING)
+        );
+        when(secondaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(secondaryFormat, wfs(tempDir, 99L, Set.of("ms.dat"), 2))));
+
+        CompositeMerger merger = new CompositeMerger(compositeEngine, compositeDataFormat);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> merger.merge(new MergeInput(List.of(documentSegment, strayChild), null, 99L))
+        );
+        // Named by storage, not by catalog key — the point of the message is which merger is missing.
+        assertTrue(e.getMessage(), e.getMessage().contains("some-other-format"));
+        assertTrue(e.getMessage(), e.getMessage().contains("this composite does not hold"));
+    }
+
+    public void testSideTablesOfTwoDifferentRolesCannotShareAMerge() throws IOException {
+        Path tempDir = createTempDir();
+        Segment documentSegment = buildSegment(
+            1L,
+            primaryFormat,
+            wfs(tempDir, 1L, Set.of("p1.dat"), 2),
+            secondaryFormat,
+            wfs(tempDir, 1L, Set.of("s1.dat"), 2)
+        );
+        long childGeneration = AuxiliaryDataFormat.generationFor(1L);
+        Segment twoRoles = Segment.builder(childGeneration)
+            .addSearchableFiles(childFormatName(), wfs(tempDir, childGeneration, Set.of("c1.dat"), 3))
+            .addSearchableFiles(
+                AuxiliaryDataFormat.nameFor(secondaryFormat.name(), "othertable"),
+                wfs(tempDir, childGeneration, Set.of("c2.dat"), 4)
+            )
+            .build();
+
+        when(primaryMerger.merge(any())).thenReturn(
+            new MergeResult(Map.of(primaryFormat, wfs(tempDir, 99L, Set.of("mp.dat"), 2)), STUB_ROW_ID_MAPPING)
+        );
+        when(secondaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(secondaryFormat, wfs(tempDir, 99L, Set.of("ms.dat"), 2))));
+
+        CompositeMerger merger = new CompositeMerger(compositeEngine, compositeDataFormat);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> merger.merge(new MergeInput(List.of(documentSegment, twoRoles), null, 99L))
+        );
+        // One offset yields one auxiliary generation, so two roles would collide in the catalog.
+        assertTrue(e.getMessage(), e.getMessage().contains("different roles"));
     }
 }

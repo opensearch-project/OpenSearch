@@ -194,18 +194,13 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertIndexCreationFails("test-completion", "field", "type=completion");
     }
 
-    public void testNestedFieldUnsupported() {
+    // POC (child-table nested design): `nested` now BUILDS under the pluggable data format
+    // (previously rejected). Ingest does not block-join it — Phase 1 ignores it end-to-end;
+    // later phases shred it into a child composite. See MustangDevConfig
+    // design/nested-field-support/09 & 10.
+    public void testNestedFieldBuildsUnderPluggableFormat() {
         startCluster();
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
-            () -> client().admin()
-                .indices()
-                .prepareCreate("test-nested")
-                .setSettings(dfaSettings())
-                .setMapping("field", "type=nested")
-                .get()
-        );
-        assertTrue(ex.getMessage().contains("nested type is not supported with pluggable data format"));
+        assertIndexCreationSucceeds("test-nested", "field", "type=nested");
     }
 
     public void testFlatObjectFieldUnsupported() {
