@@ -47,7 +47,7 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
         ExchangeSinkContext context = new ExchangeSinkContext(
             config.queryId(),
             stage.getStageId(),
-            config.parentTask() != null ? config.parentTask().getId() : 0L,
+            config.parentTask() != null ? config.parentTask().getNativeTaskId() : 0L,
             chosenBytes(stage),
             config.bufferAllocator(),
             buildChildInputs(stage),

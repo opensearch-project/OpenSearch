@@ -455,8 +455,8 @@ public class QueryExecutionTests extends OpenSearchTestCase {
 
     private QueryExecution newQueryExecution(Stage rootStage, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         QueryContext ctx = queryCtx(rootStage);
-        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
-        return new QueryExecution(ctx, graph, StageExecution::start, listener);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, s -> s.start(ActionListener.wrap(v -> {}, e -> {})));
+        return new QueryExecution(ctx, graph, s -> s.start(ActionListener.wrap(v -> {}, e -> {})), listener);
     }
 
     private QueryExecution newQueryExecution(
@@ -466,8 +466,8 @@ public class QueryExecutionTests extends OpenSearchTestCase {
     ) {
         QueryDAG dag = new QueryDAG("q-test", rootStage);
         QueryContext ctx = QueryContext.forTest(dag, task);
-        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
-        return new QueryExecution(ctx, graph, StageExecution::start, listener);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, s -> s.start(ActionListener.wrap(v -> {}, e -> {})));
+        return new QueryExecution(ctx, graph, s -> s.start(ActionListener.wrap(v -> {}, e -> {})), listener);
     }
 
     private static AnalyticsQueryTask newTask() {
@@ -530,7 +530,9 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start(ActionListener<Void> onStarted) {
+            onStarted.onResponse(null);
+        }
 
         @Override
         public java.util.List<org.opensearch.analytics.exec.stage.StageTask> tasks() {
