@@ -201,6 +201,43 @@ public class IntegerRoundingCastAdapterTests extends OpenSearchTestCase {
         assertSame("Already-DOUBLE first operand returns unchanged", original, adapted);
     }
 
+    // ─── ROUND coverage ──────────────────────────────────────────────────────────────────
+
+    public void testRoundOnIntegerWithIntegerScaleWidensOnlyFirstOperand() {
+        // round(int_col, scale) — 2-arg form. Adapter must widen only the first operand;
+        // the scale passes through unchanged. Outer cast restores INTEGER.
+        RexNode value = rexBuilder.makeLiteral(5, type(SqlTypeName.INTEGER, false), false);
+        RexNode scale = rexBuilder.makeLiteral(0, type(SqlTypeName.INTEGER, false), false);
+        RexCall original = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.ROUND, List.of(value, scale));
+        assertEquals("Precondition: ROUND return type INTEGER", SqlTypeName.INTEGER, original.getType().getSqlTypeName());
+
+        IntegerRoundingCastAdapter adapter = new IntegerRoundingCastAdapter(SqlStdOperatorTable.ROUND);
+        RexCall outerCast = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertEquals("Outer return type INTEGER", SqlTypeName.INTEGER, outerCast.getType().getSqlTypeName());
+        RexCall innerRound = (RexCall) outerCast.getOperands().get(0);
+        assertSame("Inner operator is ROUND", SqlStdOperatorTable.ROUND, innerRound.getOperator());
+        assertEquals("Inner ROUND has 2 operands", 2, innerRound.getOperands().size());
+        assertEquals("First operand widened to DOUBLE", SqlTypeName.DOUBLE, innerRound.getOperands().get(0).getType().getSqlTypeName());
+        assertEquals(
+            "Scale operand unchanged (still INTEGER)",
+            SqlTypeName.INTEGER,
+            innerRound.getOperands().get(1).getType().getSqlTypeName()
+        );
+        assertSame("Scale operand is the same RexNode reference", scale, innerRound.getOperands().get(1));
+    }
+
+    public void testRoundOnDoubleFirstOperandIsUnchanged() {
+        // round(double_col) — already-widened first operand, no rewrite needed.
+        RexNode value = rexBuilder.makeLiteral(BigDecimal.valueOf(5.5), type(SqlTypeName.DOUBLE, false), false);
+        RexCall original = (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.ROUND, List.of(value));
+
+        IntegerRoundingCastAdapter adapter = new IntegerRoundingCastAdapter(SqlStdOperatorTable.ROUND);
+        RexNode adapted = adapter.adapt(original, List.of(), cluster);
+
+        assertSame("Already-DOUBLE first operand returns unchanged", original, adapted);
+    }
+
     public void testZeroOperandCallIsUnchanged() {
         // Defensive: if somehow a no-arg call surfaces, adapter must not blow up.
         // Using PI() as a synthetic stand-in (no operands).
