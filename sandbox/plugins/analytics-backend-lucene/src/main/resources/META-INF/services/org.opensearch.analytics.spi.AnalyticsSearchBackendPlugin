@@ -1,1 +1,2 @@
 org.opensearch.be.lucene.LuceneAnalyticsBackendPlugin
+org.opensearch.be.lucene.LuceneNestedElementBackendPlugin

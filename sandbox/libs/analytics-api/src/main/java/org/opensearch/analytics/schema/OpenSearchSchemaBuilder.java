@@ -323,8 +323,17 @@ public class OpenSearchSchemaBuilder {
                 }
                 continue;
             }
-            // Nested type (array-of-sub-docs) is a different beast — deferred.
+            // Engine-4 nested field: expose its STRING sub-leaves as flat dotted columns (e.g.
+            // attributes.key) so a nested predicate can plan. Only the string family is emitted — those
+            // are what the co-located element index answers via delegation (FieldStorageResolver routes
+            // them to aux__lucene__nested). Numeric/date sub-leaves are not indexed at element grain, so
+            // emitting them would leave no viable filter backend (that is the deferred positional-numeric
+            // path); they are skipped here.
             if ("nested".equals(fieldType)) {
+                Map<String, Object> nestedProps = (Map<String, Object>) fieldProps.get("properties");
+                if (nestedProps != null) {
+                    addNestedStringLeafFields(builder, typeFactory, nestedProps, fieldName);
+                }
                 continue;
             }
             String format = (String) fieldProps.get("format");
@@ -336,6 +345,39 @@ public class OpenSearchSchemaBuilder {
                 continue;
             }
             builder.add(fieldName, columnType);
+        }
+    }
+
+    /**
+     * Emits the string-family sub-leaves of a {@code nested} object as flat dotted VARCHAR columns
+     * (recursing through nested {@code object} sub-paths). Non-string leaves (numeric/date/boolean) and
+     * deeper {@code nested} objects are skipped — v1 answers nested filters on string leaves via the
+     * element index, and multi-level nesting is out of scope.
+     */
+    @SuppressWarnings("unchecked")
+    private static void addNestedStringLeafFields(
+        RelDataTypeFactory.Builder builder,
+        RelDataTypeFactory typeFactory,
+        Map<String, Object> properties,
+        String pathPrefix
+    ) {
+        for (Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
+            String fieldName = pathPrefix + "." + fieldEntry.getKey();
+            Map<String, Object> fieldProps = (Map<String, Object>) fieldEntry.getValue();
+            String fieldType = (String) fieldProps.get("type");
+            if (fieldType == null || "object".equals(fieldType)) {
+                Map<String, Object> sub = (Map<String, Object>) fieldProps.get("properties");
+                if (sub != null) {
+                    addNestedStringLeafFields(builder, typeFactory, sub, fieldName);
+                }
+                continue;
+            }
+            if ("keyword".equals(fieldType) || "text".equals(fieldType) || "match_only_text".equals(fieldType)) {
+                RelDataType columnType = buildLeafType(fieldType, (String) fieldProps.get("format"), typeFactory);
+                if (columnType != null) {
+                    builder.add(fieldName, columnType);
+                }
+            }
         }
     }
 }

@@ -23,6 +23,7 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.index.engine.dataformat.DataFormat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -121,6 +122,22 @@ public class OpenSearchTableScanRule extends RelOptRule {
                     "TableScan encountered derived field [" + field.getFieldName() + "] — derived fields cannot appear in a scan"
                 );
             }
+            // Auxiliary-index-delegated fields (Engine-4 nested string leaves: docValueFormats=[],
+            // indexFormats=[aux__…]) are answered purely by FILTER delegation to their auxiliary
+            // backend (the element index) and are never scanned or projected from the primary. They
+            // impose no value-producing requirement, so they must NOT drop the primary scan driver
+            // (datafusion) from viability — otherwise a single nested field in the schema collapses
+            // every query on the index to the metadata-only driver. A query that actually projects
+            // such a field fails later, cleanly, at the project rule (no backend produces its value).
+            if (isAuxiliaryDelegatedOnly(field)) {
+                LOGGER.debug(
+                    "[table-scan] field={} type={} indexFormats={} is auxiliary-delegated; scan-exempt",
+                    field.getFieldName(),
+                    field.getFieldType(),
+                    field.getIndexFormats()
+                );
+                continue;
+            }
             List<String> dvBackends = registry.scanBackendsForField(field);
             // Index-scan viability must respect the backend's declared supported field types, not
             // just the field's indexFormats. A keyword field with indexFormats=[lucene] satisfies
@@ -174,6 +191,30 @@ public class OpenSearchTableScanRule extends RelOptRule {
                 context.getDistributionTraitDef()
             )
         );
+    }
+
+    /**
+     * True for a field whose only home is an auxiliary index (e.g. Engine-4's element index,
+     * {@code aux__lucene__nested}): it has no doc-value (value-producing) format and every index
+     * format it carries is auxiliary (name prefixed with
+     * {@link DataFormat#AUXILIARY_NAME_PREFIX}). Such a field is answered purely by FILTER
+     * delegation to its auxiliary backend and is never scanned or projected from the primary, so it
+     * imposes no scan-coverage requirement and must not disqualify a value-producing scan driver.
+     */
+    private static boolean isAuxiliaryDelegatedOnly(FieldStorageInfo field) {
+        if (field.getDocValueFormats().isEmpty() == false) {
+            return false;
+        }
+        List<String> indexFormats = field.getIndexFormats();
+        if (indexFormats.isEmpty()) {
+            return false;
+        }
+        for (String format : indexFormats) {
+            if (format.startsWith(DataFormat.AUXILIARY_NAME_PREFIX) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

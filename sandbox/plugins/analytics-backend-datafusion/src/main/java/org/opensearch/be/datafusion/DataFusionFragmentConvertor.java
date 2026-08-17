@@ -547,7 +547,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * conversion mostly a shape-to-Substrait translation.
      */
     private static RelNode preprocessForSubstrait(RelNode rel) {
-        RelNode preprocessed = UntypedNullPreprocessor.rewrite(rel);
+        // Widen Engine-4 nested string-leaf columns (scalar VARCHAR shims) to ARRAY so the emitted
+        // Substrait base_schema matches their physical parquet LIST<Utf8> layout. Runs first: it
+        // only touches the scan's row type (the leaf is field-free after correctness-delegation), and
+        // subsequent rewriters see the corrected shape.
+        RelNode preprocessed = NestedLeafListTypeRewriter.rewrite(rel);
+        preprocessed = UntypedNullPreprocessor.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);

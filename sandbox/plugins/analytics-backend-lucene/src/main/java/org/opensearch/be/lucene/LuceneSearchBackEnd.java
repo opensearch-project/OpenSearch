@@ -18,6 +18,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -67,6 +68,12 @@ final class LuceneSearchBackEnd {
         // fallback branch dereferencing it. Refusing outright is the only honest option until the
         // child table has a Lucene directory and commit stack of its own; see NestedChildStack#flush.
         if (settings.format().isAuxiliary()) {
+            // Engine-4 element index (aux__lucene__nested): it has its own per-generation Lucene directory
+            // committed on disk, so it gets a directory-backed reader manager that opens straight on the
+            // aux segment's WriterFileSet.directory() from each catalog snapshot — no shared writer/store.
+            if (AuxiliaryDataFormat.NESTED_CHILD_ROLE.equals(AuxiliaryDataFormat.roleOf(settings.format().name()))) {
+                return new LuceneAuxReaderManager(settings.format());
+            }
             throw new IllegalStateException(
                 "Cannot create a LuceneReaderManager for auxiliary format ["
                     + settings.format().name()

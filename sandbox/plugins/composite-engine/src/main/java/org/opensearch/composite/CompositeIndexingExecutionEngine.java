@@ -590,16 +590,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, engine.getDataFormat())));
         }
-        // POC (child-table nested design): a reader over the nested child table's value store, so
-        // element rows are reachable without ever entering the parent's table. Gated on the same
-        // mapping opt-in the write path uses, because every manager here is asked for a reader on
-        // every snapshot: on an index with no child table that would be a reader over zero files on
-        // every refresh, for no purpose. Only the primary format is wired — the child's Lucene index
-        // is not published to the catalog yet (see NestedChildStack#flush and 10 P5-5).
-        if (NestedChildStack.isEnabledFor(mapperService())) {
-            DataFormat childFormat = config.registry()
-                .format(AuxiliaryDataFormat.nameFor(primaryEngine.getDataFormat().name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE));
-            readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, childFormat)));
+        // Engine-4: a reader over the co-located element index (aux__lucene__nested), so a nested filter
+        // can be answered at element grain without touching the parent's main index. Gated on the same
+        // mapping opt-in the write path uses (ElementIndexStack.isEnabledFor). The element index is a
+        // Lucene side table, so the aux format is resolved off the Lucene secondary's format name.
+        if (ElementIndexStack.isEnabledFor(mapperService())) {
+            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+                if (engine.getDataFormat().name().equals("lucene")) {
+                    DataFormat elementFormat = config.registry()
+                        .format(AuxiliaryDataFormat.nameFor(engine.getDataFormat().name(), AuxiliaryDataFormat.NESTED_CHILD_ROLE));
+                    readerManagers.putAll(config.registry().getReaderManager(readerManagerConfig(config, elementFormat)));
+                }
+            }
         }
         return Map.copyOf(readerManagers);
     }

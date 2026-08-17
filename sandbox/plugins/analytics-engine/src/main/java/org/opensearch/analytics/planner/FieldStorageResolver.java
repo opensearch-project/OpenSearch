@@ -12,6 +12,7 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,6 +40,8 @@ public class FieldStorageResolver {
     static final String SECONDARY_DATA_FORMATS_SETTING = "index.composite.secondary_data_formats";
 
     private static final String LUCENE_FORMAT = "lucene";
+    /** The Engine-4 element index format that answers nested-leaf filters (aux__lucene__nested). */
+    private static final String ELEMENT_INDEX_FORMAT = AuxiliaryDataFormat.nameFor(LUCENE_FORMAT, AuxiliaryDataFormat.NESTED_CHILD_ROLE);
 
     private final Map<String, FieldStorageInfo> fieldStorage;
 
@@ -93,7 +96,58 @@ public class FieldStorageResolver {
                 }
                 throw new IllegalStateException("Field [" + fieldName + "] has no type in mapping");
             }
+            // Engine-4 nested field: its string sub-leaves are answered by the co-located element index,
+            // not the parquet primary. Route them to ELEMENT_INDEX_FORMAT with NO doc-value format, so
+            // only the element backend is a viable filter backend (correctness delegation) and DataFusion
+            // never tries to evaluate the predicate on the parquet LIST column. Must stay in lockstep
+            // with OpenSearchSchemaBuilder, which emits the same string leaves as columns.
+            if ("nested".equals(fieldType)) {
+                Map<String, Object> nestedProps = (Map<String, Object>) fieldProps.get("properties");
+                if (nestedProps != null && luceneAvailable) {
+                    populateNestedStringLeaves(nestedProps, fieldName);
+                }
+                continue;
+            }
             this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, primaryFormat, luceneAvailable));
+        }
+    }
+
+    /**
+     * Emits string-family sub-leaves of a {@code nested} object as fields whose only filter backend is
+     * the element index ({@link #ELEMENT_INDEX_FORMAT}): {@code indexFormats=[aux__lucene__nested]},
+     * {@code docValueFormats=[]}. The empty doc-value list is what makes DataFusion non-viable so the
+     * predicate is correctness-delegated to the element index rather than pushed onto the parquet LIST
+     * column. Recurses object sub-paths; skips numeric/date leaves (deferred positional-numeric path)
+     * and deeper nested objects (multi-level out of scope).
+     */
+    @SuppressWarnings("unchecked")
+    private void populateNestedStringLeaves(Map<String, Object> properties, String pathPrefix) {
+        for (Map.Entry<String, Object> entry : properties.entrySet()) {
+            String fieldName = pathPrefix + "." + entry.getKey();
+            Map<String, Object> fieldProps = (Map<String, Object>) entry.getValue();
+            String fieldType = (String) fieldProps.get("type");
+            if (fieldType == null || "object".equals(fieldType)) {
+                Map<String, Object> sub = (Map<String, Object>) fieldProps.get("properties");
+                if (sub != null) {
+                    populateNestedStringLeaves(sub, fieldName);
+                }
+                continue;
+            }
+            if ("keyword".equals(fieldType) || "text".equals(fieldType) || "match_only_text".equals(fieldType)) {
+                this.fieldStorage.put(
+                    fieldName,
+                    new FieldStorageInfo(
+                        fieldName,
+                        fieldType,
+                        FieldType.fromMappingType(fieldType),
+                        List.of(),                        // no doc-value format -> DataFusion not a filter backend
+                        List.of(ELEMENT_INDEX_FORMAT),    // only the element index answers it
+                        List.of(),
+                        false,
+                        (String) null
+                    )
+                );
+            }
         }
     }
 
