@@ -133,47 +133,88 @@ public class FlatObjectEngineParityIT extends AbstractCompositeEngineIT {
     }
 
     /**
-     * On the composite engine none of those Lucene fields exist: the parquet primary claimed both of
-     * flat_object's capabilities, so the lucene secondary indexes nothing for it. Scalars are
-     * unaffected — keyword and text still reach Lucene, because their parquet implementations leave
-     * {@code FULL_TEXT_SEARCH} to it.
+     * The composite engine indexes the same three Lucene fields, so basic searches keep working: the
+     * parquet primary claims only {@code COLUMNAR_STORAGE} for a flat_object, leaving
+     * {@code FULL_TEXT_SEARCH} to the lucene secondary — the same split that keeps keyword and text
+     * searchable. The Parquet MAP column is the columnar copy alongside it, not a replacement.
      */
-    public void testCompositeEngineIndexesNoLuceneFieldsForFlatObject() throws Exception {
+    public void testCompositeEngineAlsoIndexesFlatObjectSubFieldsInLucene() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(1);
         createAndIndex(COMPOSITE_INDEX, compositeSettings());
 
         Set<String> fields = luceneFields(COMPOSITE_INDEX);
-        assertFalse("flat_object parent must NOT be in lucene: " + fields, fields.contains("LogAttributes"));
-        assertFalse("_value must NOT be in lucene: " + fields, fields.contains("LogAttributes._value"));
-        assertFalse("_valueAndPath must NOT be in lucene: " + fields, fields.contains("LogAttributes._valueAndPath"));
+        assertTrue("flat_object parent must be indexed: " + fields, fields.contains("LogAttributes"));
+        assertTrue("_value sub-field must be indexed: " + fields, fields.contains("LogAttributes._value"));
+        assertTrue("_valueAndPath sub-field must be indexed: " + fields, fields.contains("LogAttributes._valueAndPath"));
 
-        // The capability split is per field, not per index: keyword/text still go to Lucene, which is
-        // what keeps them searchable on a composite index.
+        // The capability split is per field, not per index: keyword/text also still reach Lucene.
         assertTrue("keyword must still be indexed in lucene: " + fields, fields.contains("ServiceName"));
         assertTrue("text must still be indexed in lucene: " + fields, fields.contains("Body"));
     }
 
     /**
-     * The behavioural consequence of the row above. A term query against a flat_object leaf matches on
-     * the internal engine and returns nothing on the composite engine — the values are in the Parquet
-     * MAP column, which no query path reads yet.
-     *
-     * <p>Asserted so the divergence is a known, visible state. When the columnar read path lands, the
-     * composite expectation here must be changed to match the internal engine.
+     * On the internal engine the leaves are searchable through the sub-fields the mapper writes: a
+     * dotted-path term query rewrites to a {@code <field>.<path>=<value>} term on
+     * {@code _valueAndPath}, and a query on the field itself to the bare value on {@code _value}. The
+     * composite engine now writes those same terms, which is what the previous test asserts.
      */
-    public void testTermQueryOnFlatObjectLeafDivergesBetweenEngines() throws Exception {
+    public void testInternalEngineServesBasicSearchesOnFlatObject() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(1);
         createAndIndex(LUCENE_INDEX, luceneSettings());
 
-        // Internal engine: the leaf is searchable through the _valueAndPath sub-field.
-        long luceneHits = client().prepareSearch(LUCENE_INDEX)
-            .setQuery(QueryBuilders.termQuery("LogAttributes.http.status", "500"))
-            .get()
-            .getHits()
-            .getTotalHits()
-            .value();
-        assertEquals("internal engine must match the flat_object leaf", 1L, luceneHits);
+        assertEquals(
+            "dotted-path term query must match the flat_object leaf",
+            1L,
+            hits(LUCENE_INDEX, QueryBuilders.termQuery("LogAttributes.http.status", "500"))
+        );
+        assertEquals(
+            "query on the field itself must match a bare leaf value",
+            1L,
+            hits(LUCENE_INDEX, QueryBuilders.termQuery("LogAttributes", "GET"))
+        );
+        assertEquals(
+            "a value that was never indexed must not match",
+            0L,
+            hits(LUCENE_INDEX, QueryBuilders.termQuery("LogAttributes.http.status", "404"))
+        );
+        assertEquals("exists query must see the flat_object field", 1L, hits(LUCENE_INDEX, QueryBuilders.existsQuery("LogAttributes")));
+    }
+
+    /**
+     * flat_object is now searchable on a composite index to exactly the same degree as {@code keyword}
+     * — which is the meaningful parity bar, because the transport {@code _search} action is not
+     * supported on a composite index for <em>any</em> field type: {@code IndexShard} refuses to apply
+     * it to a {@code DataFormatAwareEngine}, and queries are instead served through the analytics
+     * engine (PPL / the DSL query executor), which the {@code analytics-engine-rest} QA suite covers.
+     *
+     * <p>Asserting the two field types fail identically keeps this engine-wide limitation from being
+     * mistaken for a flat_object gap: before the capability split was corrected, flat_object had no
+     * Lucene terms at all, so it could never become searchable even once that limitation is lifted.
+     */
+    public void testFlatObjectAndKeywordAreEquallySearchableOnCompositeEngine() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createAndIndex(COMPOSITE_INDEX, compositeSettings());
+
+        Exception flatObjectFailure = expectThrows(
+            Exception.class,
+            () -> hits(COMPOSITE_INDEX, QueryBuilders.termQuery("LogAttributes.http.status", "500"))
+        );
+        Exception keywordFailure = expectThrows(
+            Exception.class,
+            () -> hits(COMPOSITE_INDEX, QueryBuilders.termQuery("ServiceName", "checkout"))
+        );
+        for (Exception failure : List.of(flatObjectFailure, keywordFailure)) {
+            assertTrue(
+                "transport _search must be refused for the engine, not for the field: " + failure,
+                failure.toString().contains("DataFormatAwareEngine")
+            );
+        }
+    }
+
+    private long hits(String index, org.opensearch.index.query.QueryBuilder query) {
+        return client().prepareSearch(index).setQuery(query).get().getHits().getTotalHits().value();
     }
 }
