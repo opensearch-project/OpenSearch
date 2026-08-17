@@ -19,8 +19,17 @@ import java.lang.foreign.ValueLayout;
  * no on-heap copy; they are valid only until the next batch call on the owning cursor, which always
  * replaces this batch first. {@link #valueKind} selects the width and sign of the per-row read in
  * {@link #valueAt}.
+ *
+ * @param firstRow          inclusive global index of the first row in the batch
+ * @param lastRow           inclusive global index of the last row in the batch
+ * @param values            off-heap view of the decoded values, interpreted according to {@link #valueKind}
+ * @param valueKind         element interpretation of {@code values}; one of the {@code KIND_*} constants
+ * @param presenceBits      off-heap view of the packed presence bitset (bit {@code presenceBitOffset + i}
+ *                          is set when row {@code firstRow + i} is non-null); {@code null} means every row is present
+ * @param presenceBitOffset first presence bit of this batch within {@code presenceBits} (borrowed bitmaps are bit-sliced)
  */
-public final class DecodedBatch {
+public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, int valueKind, MemorySegment presenceBits,
+    int presenceBitOffset) {
 
     /** {@link #values} holds one {@code long} of raw bits per row (i64/u64/f64 bits). */
     public static final int KIND_LONG = 1;
@@ -36,26 +45,6 @@ public final class DecodedBatch {
     public static final int KIND_BYTE = 6;
     /** {@link #values} holds one zero-extending {@code byte} per row. */
     public static final int KIND_UBYTE = 7;
-
-    /** Inclusive global index of the first row in the batch. */
-    public long firstRow;
-    /** Inclusive global index of the last row in the batch. */
-    public long lastRow;
-
-    /** Off-heap view of the decoded values, interpreted according to {@link #valueKind}. */
-    public MemorySegment values;
-
-    /** Element interpretation of {@link #values}; one of the {@code KIND_*} constants. */
-    public int valueKind = KIND_LONG;
-
-    /**
-     * Off-heap view of the packed presence bitset: bit {@code presenceBitOffset + i} is set when
-     * row {@code firstRow + i} is non-null. {@code null} means every row is present.
-     */
-    public MemorySegment presenceBits;
-
-    /** First presence bit of this batch within {@link #presenceBits} (borrowed bitmaps are bit-sliced). */
-    public int presenceBitOffset;
 
     /** Constant-time presence test for a global row within {@code [firstRow, lastRow]}. */
     public boolean isPresent(long row) {
