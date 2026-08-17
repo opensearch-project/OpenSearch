@@ -52,11 +52,10 @@ public final class ArrowSchemaBuilder {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
         List<Field> fields = new ArrayList<>();
         DocumentMapper documentMapper = mapperService.documentMapperWithAutoCreate().getDocumentMapper();
-        // Engine-4: nested leaves become LIST<primitive> columns on the parent row. Collect the nested
-        // paths first, then decide per leaf whether to emit a flat column or a list column. Paths that
-        // actually own at least one leaf also get a pair of bridge columns (see NestedColumns).
+        // Engine-4: a nested leaf becomes a LIST<primitive> column on the parent row (tagged with its
+        // nested path in field metadata); a non-nested leaf stays a flat column. The element→row mapping
+        // is the element index's __parent_row__ doc-value, so no per-row bridge columns are emitted.
         final Set<String> nestedPaths = nestedPaths(documentMapper);
-        final Set<String> nestedPathsWithLeaves = new LinkedHashSet<>();
         if (documentMapper != null) {
             for (Mapper mapper : documentMapper.mappers()) {
                 if (isUnsupportedMetadataField(mapper)) {
@@ -72,7 +71,6 @@ public final class ArrowSchemaBuilder {
                 String nestedPath = enclosingNestedPath(mapper.name(), nestedPaths);
                 if (nestedPath != null) {
                     fields.add(nestedLeafListField(mapper.name(), nestedPath, parquetField));
-                    nestedPathsWithLeaves.add(nestedPath);
                     // A nested keyword's raw-value sibling is skipped in v1: the analytics path filters
                     // nested keyword leaves via the element index, not a parent raw-value column.
                 } else {
@@ -80,11 +78,6 @@ public final class ArrowSchemaBuilder {
                     handleNormalizedField(mapper, documentMapper, fields, parquetField);
                 }
             }
-        }
-        // Bridge columns (plain longs) for every nested path that produced leaf columns.
-        for (String nestedPath : nestedPathsWithLeaves) {
-            fields.add(new Field(NestedColumns.offsetColumn(nestedPath), bridgeFieldType(NestedColumns.BRIDGE_OFFSET, nestedPath), null));
-            fields.add(new Field(NestedColumns.countColumn(nestedPath), bridgeFieldType(NestedColumns.BRIDGE_COUNT, nestedPath), null));
         }
         // Add row ID field (long)
         LongParquetField longField = new LongParquetField(false);
@@ -127,16 +120,6 @@ public final class ArrowSchemaBuilder {
         Field element = new Field("element", parquetField.getFieldType(), null);
         FieldType listType = new FieldType(true, ArrowType.List.INSTANCE, null, Map.of(NestedColumns.NESTED_PATH_META_KEY, nestedPath));
         return new Field(leafName, listType, List.of(element));
-    }
-
-    /** A non-null {@code long} bridge column tagged with the path it describes and its role. */
-    private static FieldType bridgeFieldType(String bridgeRole, String nestedPath) {
-        return new FieldType(
-            false,
-            new ArrowType.Int(64, true),
-            null,
-            Map.of(NestedColumns.NESTED_BRIDGE_META_KEY, bridgeRole, NestedColumns.NESTED_PATH_META_KEY, nestedPath)
-        );
     }
 
     private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {

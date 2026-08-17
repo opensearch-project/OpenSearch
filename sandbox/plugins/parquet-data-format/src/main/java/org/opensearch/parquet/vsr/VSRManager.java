@@ -92,20 +92,12 @@ public class VSRManager implements AutoCloseable {
     private long acceptedRows = 0L;
 
     /**
-     * Engine-4 nested layout, keyed by nested path, derived from the Arrow schema's field metadata
-     * (see {@link NestedColumns}). Empty for an index with no {@code nested} field.
+     * Engine-4 nested layout: the parallel {@code LIST} leaf columns per nested path, derived from the
+     * Arrow schema's {@link NestedColumns#NESTED_PATH_META_KEY} field metadata. Empty for an index with
+     * no {@code nested} field. The element→row mapping lives in the element index's {@code __parent_row__}
+     * doc-value, so no per-row bridge columns are written on the parquet side.
      */
-    private Map<String, PathLayout> nestedLayout;
-    /**
-     * Per-path running count of elements written so far in this file — the <em>global</em> element
-     * offset stamped into each row's bridge offset column. Spans VSR rotations (the whole file), so it
-     * stays in step with the co-located element index's global element doc ids.
-     */
-    private final Map<String, Long> nestedGlobalOffset = new LinkedHashMap<>();
-
-    /** The parallel {@code LIST} leaf columns and the bridge offset/count columns of one nested path. */
-    private record PathLayout(List<String> listColumns, String offsetColumn, String countColumn) {
-    }
+    private Map<String, List<String>> nestedLayout;
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
@@ -212,11 +204,11 @@ public class VSRManager implements AutoCloseable {
     }
 
     /**
-     * Groups the schema's Engine-4 nested columns by path: each {@code LIST} leaf tagged with
-     * {@link NestedColumns#NESTED_PATH_META_KEY}, plus that path's bridge offset/count columns. Returns
-     * an empty map when the schema declares no nested field.
+     * Groups the schema's Engine-4 nested {@code LIST} leaf columns by path (each tagged with
+     * {@link NestedColumns#NESTED_PATH_META_KEY}). Returns an empty map when the schema declares no
+     * nested field.
      */
-    private static Map<String, PathLayout> buildNestedLayout(Schema schema) {
+    private static Map<String, List<String>> buildNestedLayout(Schema schema) {
         Map<String, List<String>> listColumnsByPath = new LinkedHashMap<>();
         for (Field field : schema.getFields()) {
             Map<String, String> meta = field.getMetadata();
@@ -224,38 +216,26 @@ public class VSRManager implements AutoCloseable {
                 continue;
             }
             String path = meta.get(NestedColumns.NESTED_PATH_META_KEY);
-            // A bridge column also carries the path key; skip it here — it is addressed by name below.
-            if (path != null && meta.get(NestedColumns.NESTED_BRIDGE_META_KEY) == null) {
+            if (path != null) {
                 listColumnsByPath.computeIfAbsent(path, p -> new ArrayList<>()).add(field.getName());
             }
         }
-        Map<String, PathLayout> layout = new LinkedHashMap<>();
-        for (Map.Entry<String, List<String>> entry : listColumnsByPath.entrySet()) {
-            String path = entry.getKey();
-            layout.put(path, new PathLayout(entry.getValue(), NestedColumns.offsetColumn(path), NestedColumns.countColumn(path)));
-        }
-        return layout;
+        return listColumnsByPath;
     }
 
     /**
      * Lays this document's {@code nested} elements out into the parent row {@code rowIndex}: for each
      * path, every sibling {@code LIST} leaf gets the same per-element positions (a null where an element
-     * lacks that leaf, so sibling offsets stay identical), and the bridge offset/count columns record
-     * where those elements live in the path's global value stream. No-op for a document with no nested
-     * element or an index with no nested field.
+     * lacks that leaf, so sibling offsets stay identical). No-op for a document with no nested element or
+     * an index with no nested field.
      */
     private void writeNestedColumns(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
         if (nestedLayout.isEmpty()) {
             return;
         }
         List<ParquetDocumentInput.NestedElement> allElements = doc.getNestedElements();
-        // Advance the per-path global offsets only after every path's write for this row has succeeded,
-        // so a mid-row failure (scrubbed by addDocument's catch) cannot leave a counter ahead of the
-        // rows actually written. Kept as a staging map for that reason.
-        Map<String, Long> advanced = new LinkedHashMap<>();
-        for (Map.Entry<String, PathLayout> entry : nestedLayout.entrySet()) {
+        for (Map.Entry<String, List<String>> entry : nestedLayout.entrySet()) {
             String path = entry.getKey();
-            PathLayout layout = entry.getValue();
             // This document's elements for this path, in source (ordinal) order.
             List<ParquetDocumentInput.NestedElement> pathElements = new ArrayList<>();
             for (ParquetDocumentInput.NestedElement element : allElements) {
@@ -265,9 +245,8 @@ public class VSRManager implements AutoCloseable {
             }
             pathElements.sort((a, b) -> Integer.compare(a.ordinal(), b.ordinal()));
             int count = pathElements.size();
-            long offset = nestedGlobalOffset.getOrDefault(path, 0L);
 
-            for (String leafColumn : layout.listColumns()) {
+            for (String leafColumn : entry.getValue()) {
                 ListVector listVector = (ListVector) activeVSR.getVector(leafColumn);
                 int start = listVector.startNewValue(rowIndex);
                 FieldVector dataVector = listVector.getDataVector();
@@ -276,11 +255,7 @@ public class VSRManager implements AutoCloseable {
                 }
                 listVector.endValue(rowIndex, count);
             }
-            ((BigIntVector) activeVSR.getVector(layout.offsetColumn())).setSafe(rowIndex, offset);
-            ((BigIntVector) activeVSR.getVector(layout.countColumn())).setSafe(rowIndex, count);
-            advanced.put(path, offset + count);
         }
-        nestedGlobalOffset.putAll(advanced);
     }
 
     /** The value an element carries for {@code leafColumn}, or null if the element lacks that leaf. */
@@ -689,33 +664,11 @@ public class VSRManager implements AutoCloseable {
         if (diff > activeVSR.getRowCount()) {
             throw new IllegalStateException("Cannot rollback " + diff + " rows: active VSR only has " + activeVSR.getRowCount() + " rows");
         }
-        int localCount = activeVSR.getRowCount();
-        // Engine-4: the trimmed rows are the last `diff` rows of the active VSR. Roll the per-path global
-        // element offset back by the elements those rows contributed (their bridge count column), so the
-        // counter stays in step with the rows that survive and with the element index.
-        rollbackNestedOffsets(activeVSR, localCount - (int) diff, localCount);
-        activeVSR.setRowCount(localCount - (int) diff);
+        // Engine-4: the nested LIST columns are parent-row columns, so trimming the row count drops their
+        // trailing entries with the row — nothing extra to roll back (the element→row mapping lives in the
+        // element index, not in per-row bridge columns).
+        activeVSR.setRowCount(activeVSR.getRowCount() - (int) diff);
         acceptedRows = rowCount;
-    }
-
-    /** Subtracts the element counts of local rows {@code [fromRow, toRow)} from each path's global offset. */
-    private void rollbackNestedOffsets(ManagedVSR activeVSR, int fromRow, int toRow) {
-        if (nestedLayout.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, PathLayout> entry : nestedLayout.entrySet()) {
-            BigIntVector countVector = (BigIntVector) activeVSR.getVector(entry.getValue().countColumn());
-            if (countVector == null) {
-                continue;
-            }
-            long removed = 0L;
-            for (int row = fromRow; row < toRow; row++) {
-                if (countVector.isNull(row) == false) {
-                    removed += countVector.get(row);
-                }
-            }
-            nestedGlobalOffset.merge(entry.getKey(), -removed, Long::sum);
-        }
     }
 
     /**
