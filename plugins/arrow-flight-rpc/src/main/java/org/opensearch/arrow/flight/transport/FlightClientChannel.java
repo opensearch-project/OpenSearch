@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -450,11 +451,11 @@ class FlightClientChannel implements TcpChannel {
 
     /**
      * Logs a per-stream failure as a one-line summary at ERROR, with the full stack trace available
-     * only at DEBUG.
+     * only at TRACE.
      *
-     * <p><b>Do not pass a throwable to an enabled-by-default logger from these paths.</b> They run on the
-     * per-stream prefetch virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync},
-     * and rendering a stack trace there can wedge the whole node:
+     * <p><b>Never hand a throwable to log4j from these paths.</b> They run on the per-stream prefetch
+     * virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync}, and letting log4j
+     * render a stack trace there can wedge the whole node:
      *
      * <ol>
      *   <li>OpenSearch's JSON layout always appends {@code %exceptionAsJson}, so a logged throwable reaches
@@ -471,13 +472,14 @@ class FlightClientChannel implements TcpChannel {
      *       while making no progress.</li>
      * </ol>
      *
-     * <p>DEBUG is safe because it is off by default. Enabling it is a deliberate single-node debugging step,
-     * not something a production storm can trigger.
+     * <p>The TRACE line is safe for the same reason: it passes a pre-rendered string, so log4j never sees a
+     * throwable and the extended renderer never runs. {@link ExceptionsHelper#stackTrace} only formats frames
+     * that were captured when the throwable was constructed, resolving no classes and taking no lock.
      */
     private void logFailure(String message, Throwable cause) {
         logger.error("{}: {}", message, FlightUtils.causeSummary(cause));
-        if (logger.isDebugEnabled()) {
-            logger.debug(message, cause);
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}: {}", message, ExceptionsHelper.stackTrace(cause));
         }
     }
 

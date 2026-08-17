@@ -18,6 +18,7 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
@@ -312,17 +313,18 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     }
 
     /**
-     * Logs a one-line summary at WARN, with the full stack trace only at DEBUG.
+     * Logs a one-line summary at WARN, with the full stack trace only at TRACE.
      *
      * <p>Every path in this class can run on the per-stream prefetch virtual thread started by
-     * {@link #openAndPrefetchAsync}. Passing a throwable to an enabled-by-default logger there risks pinning
-     * the carrier inside log4j's extended stack-trace renderer, which can stall the virtual-thread scheduler
-     * under a mass stream failure. See {@code FlightClientChannel#logFailure} for the full mechanism.
+     * {@link #openAndPrefetchAsync}. Handing a throwable to log4j there risks pinning the carrier inside its
+     * extended stack-trace renderer, which can stall the virtual-thread scheduler under a mass stream failure.
+     * Both lines below pass strings only, so the renderer never runs at any level. See
+     * {@code FlightClientChannel#logFailure} for the full mechanism.
      */
     private void logFailure(String message, Throwable cause) {
         logger.warn("{} for correlationId [{}]: {}", message, correlationId, FlightUtils.causeSummary(cause));
-        if (logger.isDebugEnabled()) {
-            logger.debug(message, cause);
+        if (logger.isTraceEnabled()) {
+            logger.trace("{} for correlationId [{}]: {}", message, correlationId, ExceptionsHelper.stackTrace(cause));
         }
     }
 

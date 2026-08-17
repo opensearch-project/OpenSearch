@@ -27,6 +27,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.StreamTransportResponseHandler;
@@ -416,8 +417,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
     }
 
     /**
-     * A stream failure must be reported without handing the throwable to log4j at an
-     * enabled-by-default level.
+     * A stream failure must be reported without ever handing the throwable to log4j, at any level.
      *
      * <p>These paths run on the per-stream prefetch virtual thread. OpenSearch's JSON layout always applies
      * log4j's extended stack-trace renderer, which resolves every frame's class via {@code Class.forName};
@@ -425,7 +425,12 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
      * instead of yielding it. With one such failure per stream, a mass reconnect can pin every carrier while
      * the lock holder sits unmounted and unschedulable, and the node stops making progress while still
      * reporting healthy. The cause must therefore reach the log as text.
+     *
+     * <p>TRACE is enabled here on purpose. The verbose branch is the one an operator reaches for while
+     * debugging this very failure, so it is the branch that most needs to be safe: turning it on must not be
+     * what arms the deadlock.
      */
+    @TestLogging(value = "org.opensearch.arrow.flight.transport.FlightClientChannel:TRACE", reason = "verbose branch must be safe")
     public void testStreamFailureIsLoggedWithoutAThrowable() throws Exception {
         when(mockFlightClient.getStream(any(Ticket.class), any())).thenThrow(
             CallStatus.UNAVAILABLE.withDescription("connection reset").toRuntimeException()
@@ -444,7 +449,16 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
                     "*Exception while handling stream response*connection reset*"
                 )
             );
-            appender.addExpectation(new NoThrowableAttachedExpectation(FlightClientChannel.class.getCanonicalName(), Level.ERROR));
+            // The stack trace is still available, just pre-rendered as text instead of as a throwable.
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "stack trace rendered as text at TRACE",
+                    FlightClientChannel.class.getCanonicalName(),
+                    Level.TRACE,
+                    "*Exception while handling stream response*\n\tat *"
+                )
+            );
+            appender.addExpectation(new NoThrowableAttachedExpectation(FlightClientChannel.class.getCanonicalName()));
 
             sendStreamRequest(streamingHandler(ThreadPool.Names.SAME, streamResponse -> {
                 throw new AssertionError("consumer must not be invoked after an open failure");
@@ -456,22 +470,20 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
     }
 
     /**
-     * Fails if any event at {@code level} carries a throwable. The framework's expectations all assert
-     * that something was seen; this asserts a property of everything that was.
+     * Fails if any event from {@code logger} carries a throwable, whatever its level. The framework's
+     * expectations all assert that something was seen; this asserts a property of everything that was.
      */
     private static final class NoThrowableAttachedExpectation implements MockLogAppender.LoggingExpectation {
         private final String logger;
-        private final Level level;
         private final AtomicReference<LogEvent> offender = new AtomicReference<>();
 
-        NoThrowableAttachedExpectation(String logger, Level level) {
+        NoThrowableAttachedExpectation(String logger) {
             this.logger = logger;
-            this.level = level;
         }
 
         @Override
         public void match(LogEvent event) {
-            if (event.getLevel() == level && event.getLoggerName().equals(logger) && event.getThrown() != null) {
+            if (event.getLoggerName().equals(logger) && event.getThrown() != null) {
                 offender.compareAndSet(null, event.toImmutable());
             }
         }
@@ -481,11 +493,11 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             LogEvent event = offender.get();
             if (event != null) {
                 throw new AssertionError(
-                    "no throwable may be attached at "
-                        + level
-                        + ", but ["
+                    "no throwable may be attached at any level, but ["
                         + event.getMessage().getFormattedMessage()
-                        + "] carried "
+                        + "] logged at "
+                        + event.getLevel()
+                        + " carried "
                         + event.getThrown(),
                     event.getThrown()
                 );
