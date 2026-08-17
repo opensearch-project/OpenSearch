@@ -397,7 +397,12 @@ class FlightClientChannel implements TcpChannel {
                 try (var dispatchMark = streamResponse.markDispatchThread()) {
                     try (var ignored = threadContext.stashContext()) {
                         if (header == null) {
+                            // Must return: handleStreamException does not throw, so falling through here
+                            // would NPE on getHeaders() below and mask the real failure. A null header is
+                            // reachable whenever the middleware never stored one (HeaderContext.getHeader
+                            // is a plain map remove), e.g. a call closed before its headers arrived.
                             handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
+                            return;
                         }
                         threadContext.setHeaders(header.getHeaders());
                         handler.handleStreamResponse(streamResponse);
@@ -420,12 +425,12 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.close();
         } catch (IOException e) {
-            logger.error("Failed to close stream response", e);
+            logFailure("Failed to close stream response", e);
         }
     }
 
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception) {
-        logger.error("Exception while handling stream response", exception);
+        logFailure("Exception while handling stream response for correlationId [" + streamResponse.getCorrelationId() + "]", exception);
         try {
             cancelStream(streamResponse, exception);
             TransportResponseHandler<?> handler = streamResponse.getHandler();
@@ -439,7 +444,40 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.cancel("Client-side exception: " + cause.getMessage(), cause);
         } catch (Exception cancelEx) {
-            logger.warn("Failed to cancel stream after exception", cancelEx);
+            logFailure("Failed to cancel stream after exception", cancelEx);
+        }
+    }
+
+    /**
+     * Logs a per-stream failure as a one-line summary at ERROR, with the full stack trace available
+     * only at DEBUG.
+     *
+     * <p><b>Do not pass a throwable to an enabled-by-default logger from these paths.</b> They run on the
+     * per-stream prefetch virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync},
+     * and rendering a stack trace there can wedge the whole node:
+     *
+     * <ol>
+     *   <li>OpenSearch's JSON layout always appends {@code %exceptionAsJson}, so a logged throwable reaches
+     *       log4j's <em>extended</em> stack-trace renderer, which annotates every frame with its source JAR.</li>
+     *   <li>To do that it resolves each frame's declaring class via {@code Class.forName}. The resulting
+     *       {@code forName0} <em>native</em> frame sits on the stack while the classloader monitor is
+     *       contended, and a continuation carrying a native frame cannot be unmounted. So the virtual thread
+     *       pins its carrier instead of yielding it, even on JDK 25 where JEP 491 lets {@code synchronized}
+     *       blocking unmount.</li>
+     *   <li>The scheduler's carrier count defaults to {@code availableProcessors}. A mass stream failure
+     *       (for example every stream reconnecting at once after a network partition heals) can therefore pin
+     *       every carrier, while the thread holding the classloader lock is itself unmounted and can never be
+     *       rescheduled to release it. That circular wait does not resolve: the node keeps reporting healthy
+     *       while making no progress.</li>
+     * </ol>
+     *
+     * <p>DEBUG is safe because it is off by default. Enabling it is a deliberate single-node debugging step,
+     * not something a production storm can trigger.
+     */
+    private void logFailure(String message, Throwable cause) {
+        logger.error("{}: {}", message, FlightUtils.causeSummary(cause));
+        if (logger.isDebugEnabled()) {
+            logger.debug(message, cause);
         }
     }
 
@@ -464,7 +502,8 @@ class FlightClientChannel implements TcpChannel {
         try {
             handler.handleException(exception);
         } catch (Exception handlerEx) {
-            logger.error("Handler failed to process exception", handlerEx);
+            // Runs on the prefetch virtual thread when the handler declares the SAME executor.
+            logFailure("Handler failed to process exception", handlerEx);
         }
     }
 

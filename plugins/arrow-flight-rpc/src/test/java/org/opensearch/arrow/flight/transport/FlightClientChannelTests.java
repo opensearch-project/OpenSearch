@@ -8,9 +8,13 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Ticket;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -22,6 +26,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.StreamTransportResponseHandler;
@@ -367,6 +372,124 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             assertThat("close must give up at the timeout", elapsedMillis, lessThan(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC)));
         } finally {
             releaseGetStream.countDown();
+        }
+    }
+
+    // ── stream failure reporting ───────────────────────────────────────────────
+
+    /**
+     * A null header must fail the stream and stop, not fall through. {@code handleStreamException} does not
+     * throw, so continuing would dereference the null header and replace the real failure with an NPE
+     * raised inside the dispatch task — where nothing reports it to the handler.
+     *
+     * <p>A null header is reachable in production: {@code HeaderContext.getHeader} is a plain map removal,
+     * so it returns null whenever the middleware never stored one (for example a call that closed before
+     * its headers arrived).
+     */
+    public void testNullHeaderFailsStreamWithoutDereferencingIt() throws Exception {
+        FlightStream stream = mock(FlightStream.class);
+        when(stream.next()).thenReturn(true);
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenReturn(stream);
+
+        // The production path for a header that was never stored.
+        HeaderContext noHeader = new HeaderContext() {
+            @Override
+            Header getHeader(long correlationId) {
+                return null;
+            }
+        };
+        channel = createChannel(mockFlightClient, noHeader, new FlightTransportConfig());
+
+        AtomicReference<TransportException> handlerException = new AtomicReference<>();
+        // A real executor, not SAME: that is where the bug is observable. The dispatch task runs on a
+        // pool thread, so without the return the NPE escapes as an uncaught exception and fails the
+        // test. Under SAME the task runs inside the CompletableFuture callback, which swallows it.
+        sendStreamRequest(streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> {
+            throw new AssertionError("consumer must not be invoked without a header");
+        }, handlerException));
+
+        assertBusy(() -> assertNotNull("handler must be notified of the failure", handlerException.get()));
+        TransportException exception = handlerException.get();
+        assertTrue("expected a StreamException but got " + exception, exception instanceof StreamException);
+        assertEquals(StreamErrorCode.INTERNAL, ((StreamException) exception).getErrorCode());
+        assertEquals("Header is null", exception.getMessage());
+    }
+
+    /**
+     * A stream failure must be reported without handing the throwable to log4j at an
+     * enabled-by-default level.
+     *
+     * <p>These paths run on the per-stream prefetch virtual thread. OpenSearch's JSON layout always applies
+     * log4j's extended stack-trace renderer, which resolves every frame's class via {@code Class.forName};
+     * the resulting native frame cannot be unmounted, so a contended classloader lock pins the carrier
+     * instead of yielding it. With one such failure per stream, a mass reconnect can pin every carrier while
+     * the lock holder sits unmounted and unschedulable, and the node stops making progress while still
+     * reporting healthy. The cause must therefore reach the log as text.
+     */
+    public void testStreamFailureIsLoggedWithoutAThrowable() throws Exception {
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenThrow(
+            CallStatus.UNAVAILABLE.withDescription("connection reset").toRuntimeException()
+        );
+
+        channel = createChannel(mockFlightClient, stubHeaderContext(), new FlightTransportConfig());
+
+        AtomicReference<TransportException> handlerException = new AtomicReference<>();
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(FlightClientChannel.class))) {
+            // The cause must still be identifiable from the message alone, since the throwable is gone.
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "stream failure reported with its cause",
+                    FlightClientChannel.class.getCanonicalName(),
+                    Level.ERROR,
+                    "*Exception while handling stream response*connection reset*"
+                )
+            );
+            appender.addExpectation(new NoThrowableAttachedExpectation(FlightClientChannel.class.getCanonicalName(), Level.ERROR));
+
+            sendStreamRequest(streamingHandler(ThreadPool.Names.SAME, streamResponse -> {
+                throw new AssertionError("consumer must not be invoked after an open failure");
+            }, handlerException));
+
+            assertBusy(() -> assertNotNull("handler must be notified of the failure", handlerException.get()));
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * Fails if any event at {@code level} carries a throwable. The framework's expectations all assert
+     * that something was seen; this asserts a property of everything that was.
+     */
+    private static final class NoThrowableAttachedExpectation implements MockLogAppender.LoggingExpectation {
+        private final String logger;
+        private final Level level;
+        private final AtomicReference<LogEvent> offender = new AtomicReference<>();
+
+        NoThrowableAttachedExpectation(String logger, Level level) {
+            this.logger = logger;
+            this.level = level;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel() == level && event.getLoggerName().equals(logger) && event.getThrown() != null) {
+                offender.compareAndSet(null, event.toImmutable());
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            LogEvent event = offender.get();
+            if (event != null) {
+                throw new AssertionError(
+                    "no throwable may be attached at "
+                        + level
+                        + ", but ["
+                        + event.getMessage().getFormattedMessage()
+                        + "] carried "
+                        + event.getThrown(),
+                    event.getThrown()
+                );
+            }
         }
     }
 

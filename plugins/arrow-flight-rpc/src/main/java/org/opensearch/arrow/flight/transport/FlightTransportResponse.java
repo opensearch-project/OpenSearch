@@ -139,7 +139,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                                 notifyClosed();
                             }
                         } catch (StreamException e) {
-                            logger.warn("Error closing flight stream after close() raced the prefetch", e);
+                            logFailure("Error closing flight stream after close() raced the prefetch", e);
                         }
                         future.completeExceptionally(new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed"));
                         return;
@@ -176,6 +176,11 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
     TransportResponseHandler<T> getHandler() {
         return handler;
+    }
+
+    /** Correlates this response with its request in logs and in {@link HeaderContext}. */
+    long getCorrelationId() {
+        return correlationId;
     }
 
     /**
@@ -250,7 +255,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         try {
             if (flightStream != null) flightStream.cancel(reason, cause);
         } catch (Exception e) {
-            logger.warn("Error cancelling flight stream", e);
+            logFailure("Error cancelling flight stream", e);
         } finally {
             close();
         }
@@ -302,7 +307,22 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         try {
             stream.cancel(reason, null);
         } catch (Exception e) {
-            logger.warn("Error requesting flight stream cancellation", e);
+            logFailure("Error requesting flight stream cancellation", e);
+        }
+    }
+
+    /**
+     * Logs a one-line summary at WARN, with the full stack trace only at DEBUG.
+     *
+     * <p>Every path in this class can run on the per-stream prefetch virtual thread started by
+     * {@link #openAndPrefetchAsync}. Passing a throwable to an enabled-by-default logger there risks pinning
+     * the carrier inside log4j's extended stack-trace renderer, which can stall the virtual-thread scheduler
+     * under a mass stream failure. See {@code FlightClientChannel#logFailure} for the full mechanism.
+     */
+    private void logFailure(String message, Throwable cause) {
+        logger.warn("{} for correlationId [{}]: {}", message, correlationId, FlightUtils.causeSummary(cause));
+        if (logger.isDebugEnabled()) {
+            logger.debug(message, cause);
         }
     }
 
