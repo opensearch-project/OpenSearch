@@ -95,13 +95,29 @@ public final class IndexResolution {
      * resolved members.
      */
     public static IndexResolution resolve(String name, ClusterState clusterState, IndexNameExpressionResolver resolver) {
+        return resolve(name, clusterState, resolver, null);
+    }
+
+    /**
+     * As {@link #resolve(String, ClusterState, IndexNameExpressionResolver)}, but scopes the
+     * cross-index type-compatibility check to {@code referencedFields} — the base-table columns the
+     * query actually reads. A conflicting field the query never references does not fail the query.
+     * {@code referencedFields == null} validates every field (the pre-existing behavior), used for
+     * plan shapes the caller could not analyze.
+     */
+    public static IndexResolution resolve(
+        String name,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        java.util.Set<String> referencedFields
+    ) {
         SortedMap<String, IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
         IndexAbstraction abstraction = lookup == null ? null : lookup.get(name);
         if (abstraction != null) {
             return switch (abstraction.getType()) {
                 case CONCRETE_INDEX -> resolveConcrete(name, abstraction.getIndices());
-                case ALIAS -> resolveAlias(name, abstraction.getIndices());
-                case DATA_STREAM -> resolveDataStream(name, abstraction.getIndices());
+                case ALIAS -> resolveAlias(name, abstraction.getIndices(), referencedFields);
+                case DATA_STREAM -> resolveDataStream(name, abstraction.getIndices(), referencedFields);
             };
         }
         // Not a literal name: treat as an index expression and resolve through the canonical
@@ -131,7 +147,7 @@ public final class IndexResolution {
                 }
             }
             if (!indices.isEmpty()) {
-                validateSchemaCompatibility(name, indices);
+                validateSchemaCompatibility(name, indices, referencedFields);
                 return new IndexResolution(name, indices);
             }
         }
@@ -160,7 +176,11 @@ public final class IndexResolution {
         return new IndexResolution(name, backing);
     }
 
-    private static IndexResolution resolveDataStream(String dataStreamName, List<IndexMetadata> backing) {
+    private static IndexResolution resolveDataStream(
+        String dataStreamName,
+        List<IndexMetadata> backing,
+        java.util.Set<String> referencedFields
+    ) {
         // Same closed-filter and schema-compat semantics as aliases. Data stream backings are
         // managed by the rollover lifecycle and should have identical mappings, but manual
         // mapping amendments can drift — so validate. Skip the filter-aliases check (irrelevant
@@ -174,11 +194,15 @@ public final class IndexResolution {
         if (open.isEmpty()) {
             throw new IllegalArgumentException("Data stream [" + dataStreamName + "] resolves only to closed indices");
         }
-        validateSchemaCompatibility(dataStreamName, open);
+        validateSchemaCompatibility(dataStreamName, open, referencedFields);
         return new IndexResolution(dataStreamName, open);
     }
 
-    private static IndexResolution resolveAlias(String aliasName, List<IndexMetadata> backing) {
+    private static IndexResolution resolveAlias(
+        String aliasName,
+        List<IndexMetadata> backing,
+        java.util.Set<String> referencedFields
+    ) {
         // Skip closed members — they cannot serve a search, and the wildcard/expression path
         // (lenientExpandOpen) already excludes them, so the alias path must match.
         List<IndexMetadata> open = new ArrayList<>(backing.size());
@@ -209,14 +233,24 @@ public final class IndexResolution {
         // declared type across all that mention it. Differs from OpenSearch core's per-shard
         // tolerance — analytics queries plan once against a single row type, so divergence has
         // to be caught before planning.
-        validateSchemaCompatibility(aliasName, open);
+        validateSchemaCompatibility(aliasName, open, referencedFields);
         return new IndexResolution(aliasName, open);
     }
 
     @SuppressWarnings("unchecked")
-    private static void validateSchemaCompatibility(String aliasName, List<IndexMetadata> backing) {
+    private static void validateSchemaCompatibility(
+        String aliasName,
+        List<IndexMetadata> backing,
+        java.util.Set<String> referencedFields
+    ) {
         // Walks only top-level "properties" — a conflict on a nested object's leaf (e.g. a.b long
         // vs keyword) is not caught here and is left to the data node's by-name binding check.
+        //
+        // When {@code referencedFields} is non-null, only those fields are checked: a query that
+        // never reads a conflicting field is not rejected because of it (matches how vanilla search
+        // ignores unreferenced fields). Null → check every field (pre-existing behavior), used for
+        // unanalyzable plan shapes. Scoping is safe because only referenced columns reach the scan's
+        // emitted Arrow/base_schema; unreferenced ones are projected away before execution.
         // field name → (declared type, first index that declared it)
         record Decl(String type, String sourceIndex) {
         }
@@ -233,6 +267,11 @@ public final class IndexResolution {
             }
             for (Map.Entry<?, ?> entry : propsMap.entrySet()) {
                 String fieldName = String.valueOf(entry.getKey());
+                // Scope to referenced fields when known; a field the query never reads cannot cause
+                // a conflict in the emitted schema, so skip it.
+                if (referencedFields != null && referencedFields.contains(fieldName) == false) {
+                    continue;
+                }
                 Object fieldDef = entry.getValue();
                 if (!(fieldDef instanceof Map<?, ?> fieldMap)) {
                     continue;
