@@ -28,16 +28,20 @@ class NestedParentRowRemappingCodecReader extends FilterCodecReader {
 
     private final RowIdMapping documentMapping;
     private final long parentGeneration;
+    private final int rowIdOffset;
 
     /**
      * @param in               the source element segment's codec reader
      * @param documentMapping  the parent-row mapping the document merge produced
      * @param parentGeneration the parent document generation this element segment belongs to
+     * @param rowIdOffset      merged-id offset of this segment's first doc, for the sequential
+     *                         {@code __row_id__} rewrite
      */
-    NestedParentRowRemappingCodecReader(CodecReader in, RowIdMapping documentMapping, long parentGeneration) {
+    NestedParentRowRemappingCodecReader(CodecReader in, RowIdMapping documentMapping, long parentGeneration, int rowIdOffset) {
         super(in);
         this.documentMapping = documentMapping;
         this.parentGeneration = parentGeneration;
+        this.rowIdOffset = rowIdOffset;
     }
 
     @Override
@@ -46,7 +50,7 @@ class NestedParentRowRemappingCodecReader extends FilterCodecReader {
         if (delegate == null) {
             return null;
         }
-        return new NestedParentRowRemappingDocValuesProducer(delegate, documentMapping, parentGeneration);
+        return new NestedParentRowRemappingDocValuesProducer(delegate, documentMapping, parentGeneration, rowIdOffset);
     }
 
     @Override

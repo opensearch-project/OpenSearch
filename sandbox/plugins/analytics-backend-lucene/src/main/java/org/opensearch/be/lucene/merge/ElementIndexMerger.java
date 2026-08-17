@@ -101,6 +101,9 @@ public class ElementIndexMerger implements Merger {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             try (IndexWriter writer = new IndexWriter(mergedDir, iwc)) {
                 List<CodecReader> wrapped = new ArrayList<>();
+                // addIndexes concatenates readers in order, so each reader's docs land at
+                // [rowIdOffset, rowIdOffset + maxDoc); the offset lets the __row_id__ rewrite stay sequential.
+                int rowIdOffset = 0;
                 for (Segment input : inputs) {
                     long parentGeneration = AuxiliaryDataFormat.writerGenerationOf(input.generation());
                     Path sourcePath = elementDirectory(input);
@@ -110,7 +113,8 @@ public class ElementIndexMerger implements Merger {
                     sourceReaders.add(reader);
                     for (LeafReaderContext ctx : reader.leaves()) {
                         CodecReader codecReader = asCodecReader(ctx.reader());
-                        wrapped.add(new NestedParentRowRemappingCodecReader(codecReader, documentMapping, parentGeneration));
+                        wrapped.add(new NestedParentRowRemappingCodecReader(codecReader, documentMapping, parentGeneration, rowIdOffset));
+                        rowIdOffset += codecReader.maxDoc();
                     }
                 }
                 writer.addIndexes(wrapped.toArray(new CodecReader[0]));
