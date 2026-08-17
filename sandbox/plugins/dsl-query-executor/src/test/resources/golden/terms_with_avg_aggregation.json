@@ -26,23 +26,28 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC], fetch=[10])",
     "  LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])",
-    "    LogicalTableScan(table=[[test-index]])"
+    "    LogicalFilter(condition=[IS NOT NULL($2)])",
+    "      LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["brand", "avg_price", "_count"],
   "mockResultRows": [
     ["BrandA", 850.0, 3],
     ["BrandB", 1100.0, 2]
   ],
+  "mockCountRow": {
+    "_total": 5,
+    "_eligible$by_brand": 5
+  },
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 5,
         "relation": "eq"
       },
-      "max_score": 0.0,
+      "max_score": null,
       "hits": []
     },
     "aggregations": {

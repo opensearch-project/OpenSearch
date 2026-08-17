@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.result;
 
+import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -168,12 +169,13 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         for (QueryPlans.QueryPlan plan : aggPlans) {
             List<String> fields = plan.relNode().getRowType().getFieldNames();
             if (fields.contains("avg_price")) {
-                // Group columns arrive in schema order (category first) despite brand-first nesting.
-                assertEquals(List.of("category", "brand", "avg_price", "_count"), fields);
+                // Group columns arrive in schema order (category first) despite brand-first
+                // nesting; the per-parent eligible total rides the bounded child plan's rows.
+                assertEquals(List.of("category", "brand", "avg_price", "_count", "_parent_eligible"), fields);
                 results.add(
                     new ExecutionResult(
                         plan,
-                        List.of(new Object[] { "Cat1", "BrandA", 850.0, 2L }, new Object[] { "Cat2", "BrandA", 700.0, 1L })
+                        List.of(new Object[] { "Cat1", "BrandA", 850.0, 2L, 5L }, new Object[] { "Cat2", "BrandA", 700.0, 1L, 5L })
                     )
                 );
             } else {
@@ -181,6 +183,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                 results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { "BrandA", 3L })));
             }
         }
+        addCountResult(plans, results, Map.of(QueryPlans.COUNT_TOTAL_COLUMN, 3, QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_brand", 3));
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
@@ -201,6 +204,8 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         assertEquals(850.0, avg1.getValue(), 0.0);
         InternalAvg avg2 = byCategory.getBuckets().get(1).getAggregations().get("avg_price");
         assertEquals(700.0, avg2.getValue(), 0.0);
+        // per-parent eligible total 5 vs 3 rendered docs → 2 in truncated child groups
+        assertEquals(2L, byCategory.getSumOfOtherDocCounts());
     }
 
     /**
@@ -249,20 +254,21 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
             List<String> fields = plan.relNode().getRowType().getFieldNames();
             if (fields.contains("avg_price")) {
                 // Both deep plans group by {brand, category} and emit columns in schema order —
-                // identical layouts, distinguished ONLY by the metadata's nesting order.
-                assertEquals(List.of("brand", "category", "avg_price", "_count"), fields);
+                // identical layouts, distinguished ONLY by the metadata's aggregation-name path.
+                assertEquals(List.of("brand", "category", "avg_price", "_count", "_parent_eligible"), fields);
                 results.add(
                     new ExecutionResult(
                         plan,
-                        List.of(new Object[] { "BrandA", "Cat1", 850.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                        List.of(new Object[] { "BrandA", "Cat1", 850.0, 2L, 3L }, new Object[] { "BrandA", "Cat2", 700.0, 1L, 3L })
                     )
                 );
             } else if (fields.contains("sum_price")) {
-                assertEquals(List.of("brand", "category", "sum_price", "_count"), fields);
+                // cat_first tree: the parent is category, so each row carries its category's total
+                assertEquals(List.of("brand", "category", "sum_price", "_count", "_parent_eligible"), fields);
                 results.add(
                     new ExecutionResult(
                         plan,
-                        List.of(new Object[] { "BrandA", "Cat1", 1700.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                        List.of(new Object[] { "BrandA", "Cat1", 1700.0, 2L, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L, 1L })
                     )
                 );
             } else if (fields.equals(List.of("brand", "_count"))) {
@@ -272,6 +278,18 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                 results.add(new ExecutionResult(plan, List.of(new Object[] { "Cat1", 2L }, new Object[] { "Cat2", 1L })));
             }
         }
+        addCountResult(
+            plans,
+            results,
+            Map.of(
+                QueryPlans.COUNT_TOTAL_COLUMN,
+                3,
+                QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "brand_first",
+                3,
+                QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "cat_first",
+                3
+            )
+        );
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
@@ -300,7 +318,11 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         assertEquals(700.0, sumCat2.getValue(), 0.0);
     }
 
-    /** Terms {@code size} truncates to the top-N buckets and reports the rest as sum_other_doc_count. */
+    /**
+     * Terms {@code size} is enforced by the plan's LIMIT — the engine returns only the top
+     * bucket — and {@code sum_other_doc_count} comes from the count plan's eligible count
+     * ({@code eligible − Σ rendered}), since the tail never leaves the engine.
+     */
     public void testTermsSizeTruncation() throws Exception {
         Map<String, String> mapping = new java.util.LinkedHashMap<>();
         mapping.put("brand", "VARCHAR");
@@ -315,8 +337,11 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         List<ExecutionResult> results = new ArrayList<>();
         for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
             assertEquals(List.of("brand", "_count"), plan.relNode().getRowType().getFieldNames());
-            results.add(new ExecutionResult(plan, List.of(new Object[] { "BrandA", 3L }, new Object[] { "BrandB", 2L })));
+            assertTrue("plan must be bounded to size", plan.relNode().explain().contains("fetch=[1]"));
+            // the engine honors the LIMIT: only the top bucket comes back
+            results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { "BrandA", 3L })));
         }
+        addCountResult(plans, results, Map.of(QueryPlans.COUNT_TOTAL_COLUMN, 5, QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_brand", 5));
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
@@ -399,6 +424,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
             }
             results.add(new ExecutionResult(plan, List.<Object[]>of(row)));
         }
+        addCountResult(plans, results, Map.of(QueryPlans.COUNT_TOTAL_COLUMN, 3, QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_brand", 3));
 
         SearchRequest request = new SearchRequest("products");
         request.source(source);
@@ -412,6 +438,63 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         assertNotNull(avg);
         assertEquals(avgMeta, avg.getMetadata());
         assertEquals(850.0, avg.getValue(), 0.0);
+    }
+
+    // ---- hits.total: classic track_total_hits semantics from the COUNT plan ----
+
+    public void testHitsTotalExactUnderDefaultThreshold() throws Exception {
+        SearchResponse response = countOnlyResponse(new SearchSourceBuilder().size(0), 42L);
+
+        assertEquals(42L, response.getHits().getTotalHits().value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation());
+    }
+
+    public void testHitsTotalLowerBoundOverDefaultThreshold() throws Exception {
+        SearchResponse response = countOnlyResponse(new SearchSourceBuilder().size(0), 25_000L);
+
+        assertEquals(10_000L, response.getHits().getTotalHits().value());
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, response.getHits().getTotalHits().relation());
+    }
+
+    public void testHitsTotalExactWhenTrackTotalHitsTrue() throws Exception {
+        SearchResponse response = countOnlyResponse(new SearchSourceBuilder().size(0).trackTotalHits(true), 25_000L);
+
+        assertEquals(25_000L, response.getHits().getTotalHits().value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation());
+    }
+
+    public void testHitsTotalOmittedWhenTrackTotalHitsFalse() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0).trackTotalHits(false);
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+        assertTrue("nothing to count, nothing to run", plans.getAll().isEmpty());
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, converter.getAggregationRegistry(), 1L);
+
+        assertNull(response.getHits().getTotalHits());
+    }
+
+    /** Runs a count-only request (size 0, no aggs) with a fabricated engine count. */
+    private SearchResponse countOnlyResponse(SearchSourceBuilder source, long total) throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        addCountResult(plans, results, Map.of(QueryPlans.COUNT_TOTAL_COLUMN, total));
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        return SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
     }
 
     // ---- Golden file driven SearchResponse generation tests ----
@@ -454,17 +537,16 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                 for (List<Object> row : tc.getMockResultRows()) {
                     rows.add(row.toArray());
                 }
-                ExecutionResult result = new ExecutionResult(matchingPlans.get(0), rows);
+                List<ExecutionResult> allResults = new ArrayList<>();
+                allResults.add(new ExecutionResult(matchingPlans.get(0), rows));
+                if (tc.getMockCountRow() != null) {
+                    addCountResult(plans, allResults, tc.getMockCountRow());
+                }
 
                 // Build and serialize SearchResponse
                 SearchRequest searchRequest = new SearchRequest(tc.getIndexName());
                 searchRequest.source(searchSource);
-                SearchResponse response = SearchResponseBuilder.build(
-                    List.of(result),
-                    searchRequest,
-                    converter.getAggregationRegistry(),
-                    0L
-                );
+                SearchResponse response = SearchResponseBuilder.build(allResults, searchRequest, converter.getAggregationRegistry(), 0L);
                 String responseJson = Strings.toString(MediaTypeRegistry.JSON, response);
 
                 Map<String, Object> actualOutput = XContentHelper.convertToMap(JsonXContent.jsonXContent, responseJson, false);
@@ -508,6 +590,24 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Fabricates the COUNT plan's single-row result from a columnName→value map, mirroring
+     * what the engine would return for it. Fails the test if the plan carries a column the
+     * map does not provide.
+     */
+    private static void addCountResult(QueryPlans plans, List<ExecutionResult> results, Map<String, Object> countsByColumn) {
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.COUNT)) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            Object[] row = new Object[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                Object value = countsByColumn.get(fields.get(i));
+                assertNotNull("count fabrication missing column: " + fields.get(i), value);
+                row[i] = value instanceof Number n ? n.longValue() : value;
+            }
+            results.add(new ExecutionResult(plan, List.<Object[]>of(row)));
+        }
+    }
 
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
         String json;

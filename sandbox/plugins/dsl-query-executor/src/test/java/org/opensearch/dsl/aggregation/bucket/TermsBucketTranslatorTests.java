@@ -9,7 +9,6 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.opensearch.dsl.result.BucketEntry;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -19,10 +18,8 @@ import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -119,7 +116,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
             new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY)
         );
 
-        InternalAggregation agg = translator.toBucketAggregation(brandAgg, entries);
+        InternalAggregation agg = translator.toBucketAggregation(brandAgg, entries, 5L);
 
         assertTrue(agg instanceof StringTerms);
         StringTerms terms = (StringTerms) agg;
@@ -131,17 +128,8 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals(2, terms.getBuckets().get(1).getDocCount());
     }
 
-    /** Legacy parity: docs with a missing field form no bucket — a SQL NULL group is dropped. */
-    public void testNullKeyBucketExcluded() {
-        List<BucketEntry> entries = new ArrayList<>();
-        entries.add(new BucketEntry(java.util.Collections.singletonList(null), 4L, InternalAggregations.EMPTY));
-        entries.add(new BucketEntry(List.of("BrandA"), 3L, InternalAggregations.EMPTY));
-
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries);
-
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
-    }
+    // Null-key exclusion is a plan contract (pre-aggregate IS NOT NULL filter, see
+    // SearchSourceConverterTests) — the translator no longer re-implements it.
 
     public void testToBucketAggregationEmptyBuckets() {
         InternalAggregation agg = translator.toBucketAggregation(brandAgg, List.of());
@@ -149,86 +137,21 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertTrue(((StringTerms) agg).getBuckets().isEmpty());
     }
 
-    public void testBucketsSortedByRequestedOrder() {
-        TermsAggregationBuilder aggKeyDesc = new TermsAggregationBuilder("by_brand").field("brand").order(BucketOrder.key(false));
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandA"), 1, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandC"), 2, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandB"), 3, InternalAggregations.EMPTY)
-        );
+    // Ordering, min_doc_count, and truncation are plan contracts (SORT, HAVING, and LIMIT baked
+    // into every plan) — the translator renders entries in received order and never re-filters,
+    // re-sorts, or truncates.
 
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(aggKeyDesc, entries);
+    /**
+     * Every terms plan is bounded, so a non-empty render without plan totals means the sized
+     * dispatch was bypassed — an internal wiring bug. Truncating and tail-summing client-side
+     * would mask it with a silently wrong sum_other_doc_count; fail loudly instead.
+     */
+    public void testNonEmptyRenderWithoutTotalsFailsLoudly() {
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA"), 5, InternalAggregations.EMPTY));
 
-        assertEquals("BrandC", terms.getBuckets().get(0).getKeyAsString());
-        assertEquals("BrandB", terms.getBuckets().get(1).getKeyAsString());
-        assertEquals("BrandA", terms.getBuckets().get(2).getKeyAsString());
-    }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> translator.toBucketAggregation(brandAgg, entries));
 
-    public void testDefaultOrderSortsByCountDescThenKeyAsc() {
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandC"), 2, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandB"), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandA"), 2, InternalAggregations.EMPTY)
-        );
-
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries);
-
-        assertEquals("BrandB", terms.getBuckets().get(0).getKeyAsString());
-        // tie on doc_count 2 broken by key asc
-        assertEquals("BrandA", terms.getBuckets().get(1).getKeyAsString());
-        assertEquals("BrandC", terms.getBuckets().get(2).getKeyAsString());
-    }
-
-    public void testSizeTruncationReportsOtherDocCount() {
-        TermsAggregationBuilder aggSized = new TermsAggregationBuilder("by_brand").field("brand").size(2);
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandD"), 1, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandA"), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandC"), 2, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandB"), 3, InternalAggregations.EMPTY)
-        );
-
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(aggSized, entries);
-
-        assertEquals(2, terms.getBuckets().size());
-        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
-        assertEquals("BrandB", terms.getBuckets().get(1).getKeyAsString());
-        assertEquals(3L, terms.getSumOfOtherDocCounts());
-    }
-
-    public void testMinDocCountExcludesBuckets() {
-        TermsAggregationBuilder aggMinCount = new TermsAggregationBuilder("by_brand").field("brand").minDocCount(3);
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandA"), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY)
-        );
-
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(aggMinCount, entries);
-
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals("BrandA", terms.getBuckets().get(0).getKeyAsString());
-        // min_doc_count drops are excluded entirely, not counted as "other"
-        assertEquals(0L, terms.getSumOfOtherDocCounts());
-    }
-
-    public void testMetricOrderSortsBySubAggregation() {
-        TermsAggregationBuilder aggMetricOrder = new TermsAggregationBuilder("by_brand").field("brand")
-            .order(BucketOrder.aggregation("avg_price", true));
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandA"), 1, avgSubAgg(30.0)),
-            new BucketEntry(List.of("BrandB"), 1, avgSubAgg(10.0)),
-            new BucketEntry(List.of("BrandC"), 1, avgSubAgg(20.0))
-        );
-
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(aggMetricOrder, entries);
-
-        assertEquals("BrandB", terms.getBuckets().get(0).getKeyAsString());
-        assertEquals("BrandC", terms.getBuckets().get(1).getKeyAsString());
-        assertEquals("BrandA", terms.getBuckets().get(2).getKeyAsString());
-    }
-
-    private static InternalAggregations avgSubAgg(double value) {
-        return InternalAggregations.from(List.of(new InternalAvg("avg_price", value, 1, DocValueFormat.RAW, null)));
+        assertTrue(e.getMessage().contains("sized path"));
     }
 
     /** User-supplied meta must be echoed back on the response aggregation, like classic search. */
@@ -245,7 +168,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         TermsAggregationBuilder numWithMeta = new TermsAggregationBuilder("by_price").field("price");
         numWithMeta.setMetadata(meta);
         List<BucketEntry> numeric = List.of(new BucketEntry(List.of(1L), 1, InternalAggregations.EMPTY));
-        assertEquals(meta, translator.toBucketAggregation(numWithMeta, numeric).getMetadata());
+        assertEquals(meta, translator.toBucketAggregation(numWithMeta, numeric, 1L).getMetadata());
     }
 
     public void testIntegralKeysProduceLongTermsWithNumericKeys() {
@@ -255,7 +178,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
             new BucketEntry(List.of(7), 2, InternalAggregations.EMPTY)
         );
 
-        InternalAggregation agg = translator.toBucketAggregation(priceAgg, entries);
+        InternalAggregation agg = translator.toBucketAggregation(priceAgg, entries, 5L);
 
         assertTrue(agg instanceof LongTerms);
         LongTerms terms = (LongTerms) agg;
@@ -268,7 +191,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         TermsAggregationBuilder ratingAgg = new TermsAggregationBuilder("by_rating").field("rating");
         List<BucketEntry> entries = List.of(new BucketEntry(List.of(1.5), 3, InternalAggregations.EMPTY));
 
-        InternalAggregation agg = translator.toBucketAggregation(ratingAgg, entries);
+        InternalAggregation agg = translator.toBucketAggregation(ratingAgg, entries, 3L);
 
         assertTrue(agg instanceof DoubleTerms);
         assertEquals(1.5, ((DoubleTerms) agg).getBuckets().get(0).getKey());
@@ -281,7 +204,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
             new BucketEntry(List.of(false), 2, InternalAggregations.EMPTY)
         );
 
-        LongTerms terms = (LongTerms) translator.toBucketAggregation(boolAgg, entries);
+        LongTerms terms = (LongTerms) translator.toBucketAggregation(boolAgg, entries, 5L);
 
         assertEquals(1L, terms.getBuckets().get(0).getKey());
         assertEquals("true", terms.getBuckets().get(0).getKeyAsString());
@@ -300,7 +223,7 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
             )
         );
 
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries, 5L);
 
         assertEquals("10.0.0.1", terms.getBuckets().get(0).getKeyAsString());
         assertEquals("10.0.0.2", terms.getBuckets().get(1).getKeyAsString());
@@ -310,27 +233,61 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
         List<BucketEntry> entries = List.of(new BucketEntry(List.of(new byte[] { 1, 2, 3 }), 1, InternalAggregations.EMPTY));
 
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries);
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries, 1L);
 
         assertEquals("AQID", terms.getBuckets().get(0).getKeyAsString());
     }
 
-    /** Order, size truncation, and sum_other_doc_count apply to typed key paths too. */
-    public void testNumericKeysRespectOrderSizeAndOtherDocCount() {
-        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price").size(2);
+    // ---- Pushdown mode: totals-derived sum_other_doc_count ----
+
+    /** Under fetch pushdown the tail never leaves the engine — sum_other = eligible − Σ(rendered). */
+    public void testPushdownSumOtherDerivedFromTotals() {
         List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of(100L), 1, InternalAggregations.EMPTY),
-            new BucketEntry(List.of(200L), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of(300L), 2, InternalAggregations.EMPTY),
-            new BucketEntry(List.of(400L), 3, InternalAggregations.EMPTY)
+            new BucketEntry(List.of("BrandA"), 3, InternalAggregations.EMPTY),
+            new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY)
         );
 
-        LongTerms terms = (LongTerms) translator.toBucketAggregation(priceAgg, entries);
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries, 100L);
 
-        // Default order: count desc; size=2 keeps 200(5) and 400(3); 300(2)+100(1) become "other"
         assertEquals(2, terms.getBuckets().size());
-        assertEquals(200L, terms.getBuckets().get(0).getKey());
-        assertEquals(400L, terms.getBuckets().get(1).getKey());
+        assertEquals(95L, terms.getSumOfOtherDocCounts());
+    }
+
+    /**
+     * The count plan and the main plan are separate engine queries — a refresh between them can
+     * make the eligible count smaller than the rendered sum. Clamp instead of going negative.
+     */
+    public void testPushdownSumOtherClampedAtZero() {
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA"), 5, InternalAggregations.EMPTY));
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries, 2L);
+
+        assertEquals(0L, terms.getSumOfOtherDocCounts());
+    }
+
+    /** The sized path renders entries as received — plan order and truncation are authoritative. */
+    public void testSizedPathRendersEntriesAsReceived() {
+        // Deliberately not in the default count-desc order: the translator must not re-sort.
+        List<BucketEntry> entries = List.of(
+            new BucketEntry(List.of("BrandB"), 2, InternalAggregations.EMPTY),
+            new BucketEntry(List.of("BrandA"), 5, InternalAggregations.EMPTY)
+        );
+
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries, 10L);
+
+        assertEquals("BrandB", terms.getBuckets().get(0).getKeyAsString());
+        assertEquals("BrandA", terms.getBuckets().get(1).getKeyAsString());
         assertEquals(3L, terms.getSumOfOtherDocCounts());
     }
+
+    /** Totals arithmetic applies to typed key paths too. */
+    public void testPushdownNumericKeysUseTotals() {
+        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of(200L), 5, InternalAggregations.EMPTY));
+
+        LongTerms terms = (LongTerms) translator.toBucketAggregation(priceAgg, entries, 12L);
+
+        assertEquals(7L, terms.getSumOfOtherDocCounts());
+    }
+
 }

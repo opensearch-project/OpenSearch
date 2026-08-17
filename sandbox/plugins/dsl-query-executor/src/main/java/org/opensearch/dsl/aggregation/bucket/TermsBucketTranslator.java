@@ -13,6 +13,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -31,12 +32,13 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Translates a {@link TermsAggregationBuilder} — single-field GROUP BY.
  * {@code {"aggs": {"by_brand": {"terms": {"field": "brand"}}}}} becomes {@code GROUP BY brand}.
  */
-public class TermsBucketTranslator implements BucketTranslator<TermsAggregationBuilder> {
+public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggregationBuilder> {
 
     /** Creates a terms bucket translator. */
     public TermsBucketTranslator() {}
@@ -48,7 +50,9 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
 
     @Override
     public GroupingInfo getGrouping(TermsAggregationBuilder agg) {
-        return new FieldGrouping(List.of(agg.field()));
+        return agg.missing() == null
+            ? new FieldGrouping(List.of(agg.field()))
+            : new FieldGrouping(List.of(agg.field()), Map.of(agg.field(), agg.missing()));
     }
 
     @Override
@@ -62,59 +66,117 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
     }
 
     /**
-     * Builds the terms response with classic-path key typing, sampled from the first bucket key:
-     * integral keys → {@link LongTerms}, floating → {@link DoubleTerms}, booleans → {@link LongTerms}
-     * with the BOOLEAN format, binary (ip) keys render as address strings, else {@link StringTerms}.
-     * Buckets are filtered by {@code min_doc_count}, sorted by the requested order, and truncated to
-     * {@code size}; truncated bucket counts are reported as {@code sum_other_doc_count}.
+     * Rejects {@code include}/{@code exclude}, {@code script}, and {@code min_doc_count: 0}:
+     * the translation implements none of them, and each would change the bucket set relative
+     * to classic search if ignored.
+     */
+    @Override
+    public void validate(TermsAggregationBuilder agg) throws ConversionException {
+        if (agg.includeExclude() != null) {
+            throw new ConversionException(
+                "[include]/[exclude] on terms aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
+        }
+        if (agg.script() != null) {
+            throw new ConversionException(
+                "[script] on terms aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
+        }
+        if (agg.minDocCount() == 0) {
+            throw new ConversionException(
+                "[min_doc_count: 0] on terms aggregation ["
+                    + agg.getName()
+                    + "] is not supported by the DSL execution path — zero-count buckets require enumerating the index term "
+                    + "dictionary, which a GROUP BY over matching documents cannot produce"
+            );
+        }
+    }
+
+    @Override
+    public int size(TermsAggregationBuilder agg) {
+        return agg.size();
+    }
+
+    @Override
+    public long minDocCount(TermsAggregationBuilder agg) {
+        return agg.minDocCount();
+    }
+
+    /**
+     * Renders the empty aggregation for levels with no result rows — the only case that
+     * reaches this method: every terms plan is bounded (root levels by a flat LIMIT, nested
+     * levels by the per-parent ROW_NUMBER window), so non-empty levels render through
+     * {@link #toBucketAggregation(TermsAggregationBuilder, Iterable, long)}. A non-empty
+     * bucket set here means the sized dispatch was bypassed, and the method throws.
      */
     @Override
     public InternalAggregation toBucketAggregation(TermsAggregationBuilder agg, Iterable<BucketEntry> buckets) {
-        List<BucketEntry> kept = new ArrayList<>();
-        for (BucketEntry entry : buckets) {
-            if (entry.keys().get(0) == null) {
-                // SQL GROUP BY emits a NULL group; legacy terms excludes docs with a
-                // missing field entirely (no bucket) unless "missing" is configured.
-                continue;
-            }
-            if (entry.docCount() < agg.minDocCount()) {
-                continue;
-            }
-            kept.add(entry);
+        List<BucketEntry> entries = toList(buckets);
+        if (entries.isEmpty() == false) {
+            throw new IllegalStateException(
+                "terms aggregation ["
+                    + agg.getName()
+                    + "] received buckets on the unsized render path: every terms plan is bounded, so rendering must go through the sized path"
+            );
         }
+        return render(agg, entries, 0L);
+    }
 
+    /**
+     * Renders the plan's bucket set as received: the plan already excluded null keys, applied
+     * {@code min_doc_count}, ordered, and truncated to the top {@code size}.
+     * {@code sum_other_doc_count} is {@code eligibleDocCount − Σ(received doc counts)}.
+     */
+    @Override
+    public InternalAggregation toBucketAggregation(TermsAggregationBuilder agg, Iterable<BucketEntry> buckets, long eligibleDocCount) {
+        return render(agg, toList(buckets), eligibleDocCount);
+    }
+
+    private static List<BucketEntry> toList(Iterable<BucketEntry> buckets) {
+        List<BucketEntry> entries = new ArrayList<>();
+        buckets.forEach(entries::add);
+        return entries;
+    }
+
+    /**
+     * Builds the terms response with classic-path key typing, sampled from the first bucket key:
+     * integral keys → {@link LongTerms}, floating → {@link DoubleTerms}, booleans → {@link LongTerms}
+     * with the BOOLEAN format, binary (ip) keys render as address strings, else {@link StringTerms}.
+     * {@code eligibleDocCount} supplies the total {@code sum_other_doc_count} is subtracted from (see
+     * {@link #sumOtherDocCount}).
+     */
+    private static InternalAggregation render(TermsAggregationBuilder agg, List<BucketEntry> kept, long eligibleDocCount) {
         Object sample = kept.isEmpty() ? null : kept.get(0).keys().get(0);
         if (sample instanceof Boolean) {
-            return longTerms(agg, kept, DocValueFormat.BOOLEAN);
+            return longTerms(agg, kept, DocValueFormat.BOOLEAN, eligibleDocCount);
         }
         if (sample instanceof Double || sample instanceof Float) {
-            return doubleTerms(agg, kept);
+            return doubleTerms(agg, kept, eligibleDocCount);
         }
         if (sample instanceof Number) {
-            return longTerms(agg, kept, DocValueFormat.RAW);
+            return longTerms(agg, kept, DocValueFormat.RAW, eligibleDocCount);
         }
-        return stringTerms(agg, kept);
+        return stringTerms(agg, kept, eligibleDocCount);
     }
 
     /** Builds a {@link StringTerms}; string and binary (ip) keys land here. */
-    private static InternalAggregation stringTerms(TermsAggregationBuilder agg, List<BucketEntry> entries) {
+    private static InternalAggregation stringTerms(TermsAggregationBuilder agg, List<BucketEntry> entries, long eligibleDocCount) {
         List<StringTerms.Bucket> termBuckets = new ArrayList<>(entries.size());
         for (BucketEntry entry : entries) {
             BytesRef term = new BytesRef(keyString(entry.keys().get(0)));
             termBuckets.add(new StringTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
-        Truncated<StringTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
         BucketOrder order = agg.order();
         return new StringTerms(
             agg.getName(),
-            order, // reduceOrder: the bucket list is already sorted by it (see sortAndTruncate)
+            order, // reduceOrder: the plan sorted the bucket list by it
             order, // the user-requested display order
             AggregationTranslator.userMetadata(agg),
             DocValueFormat.RAW, // keyword parity: the mapping-resolved format for string keys is RAW
             agg.shardSize(), // request echo — no shard fan-out on this path
             false, // no per-bucket doc count error rendering
-            visible.otherDocCount(),
-            visible.buckets(),
+            sumOtherDocCount(termBuckets, eligibleDocCount),
+            termBuckets,
             0, // exact single-plan path: doc_count_error_upper_bound is truly 0
             thresholds(agg)
         );
@@ -124,14 +186,18 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
      * Builds a {@link LongTerms} for integral keys; booleans ride along as 0/1 with the BOOLEAN
      * format. Constructor argument semantics match {@link #stringTerms}.
      */
-    private static InternalAggregation longTerms(TermsAggregationBuilder agg, List<BucketEntry> entries, DocValueFormat format) {
+    private static InternalAggregation longTerms(
+        TermsAggregationBuilder agg,
+        List<BucketEntry> entries,
+        DocValueFormat format,
+        long eligibleDocCount
+    ) {
         List<LongTerms.Bucket> termBuckets = new ArrayList<>(entries.size());
         for (BucketEntry entry : entries) {
             Object key = entry.keys().get(0);
             long term = key instanceof Boolean bool ? (bool ? 1L : 0L) : ((Number) key).longValue();
             termBuckets.add(new LongTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, format));
         }
-        Truncated<LongTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
         BucketOrder order = agg.order();
         return new LongTerms(
             agg.getName(),
@@ -141,8 +207,8 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             format,
             agg.shardSize(),
             false,
-            visible.otherDocCount(),
-            visible.buckets(),
+            sumOtherDocCount(termBuckets, eligibleDocCount),
+            termBuckets,
             0,
             thresholds(agg)
         );
@@ -152,13 +218,12 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
      * Builds a {@link DoubleTerms} for floating-point keys. Constructor argument semantics match
      * {@link #stringTerms}.
      */
-    private static InternalAggregation doubleTerms(TermsAggregationBuilder agg, List<BucketEntry> entries) {
+    private static InternalAggregation doubleTerms(TermsAggregationBuilder agg, List<BucketEntry> entries, long eligibleDocCount) {
         List<DoubleTerms.Bucket> termBuckets = new ArrayList<>(entries.size());
         for (BucketEntry entry : entries) {
             double term = ((Number) entry.keys().get(0)).doubleValue();
             termBuckets.add(new DoubleTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
-        Truncated<DoubleTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
         BucketOrder order = agg.order();
         return new DoubleTerms(
             agg.getName(),
@@ -168,37 +233,26 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             DocValueFormat.RAW,
             agg.shardSize(),
             false,
-            visible.otherDocCount(),
-            visible.buckets(),
+            sumOtherDocCount(termBuckets, eligibleDocCount),
+            termBuckets,
             0,
             thresholds(agg)
         );
     }
 
-    /** Result of {@link #sortAndTruncate}: the visible buckets and the truncated tail's doc count. */
-    private record Truncated<B extends MultiBucketsAggregation.Bucket>(List<B> buckets, long otherDocCount) {
-    }
-
     /**
-     * Sorts buckets per this aggregation's own order and truncates to {@code size}. The re-sort is
-     * required because sibling aggregations sharing a granularity share one plan-level sort, which
-     * cannot satisfy two different requested orders.
+     * Computes {@code sum_other_doc_count} — docs belonging to groups not in the bucket
+     * list — as {@code eligibleDocCount − Σ(received doc counts)}, clamped at zero: root
+     * eligible counts come from a separately executed COUNT plan, and a refresh landing between
+     * the two queries can leave the eligible count smaller than the received sum. (Nested
+     * eligible counts ride the plan's own rows and cannot skew.)
      */
-    private static <B extends MultiBucketsAggregation.Bucket> Truncated<B> sortAndTruncate(
-        List<B> termBuckets,
-        TermsAggregationBuilder agg
-    ) {
-        termBuckets.sort(agg.order().comparator());
-        long otherDocCount = 0;
-        List<B> visible = termBuckets;
-        if (termBuckets.size() > agg.size()) {
-            for (int i = agg.size(); i < termBuckets.size(); i++) {
-                otherDocCount += termBuckets.get(i).getDocCount();
-            }
-            // Copy rather than clear the tail in place: releases the full-size backing array.
-            visible = new ArrayList<>(termBuckets.subList(0, agg.size()));
+    private static long sumOtherDocCount(List<? extends MultiBucketsAggregation.Bucket> termBuckets, long eligibleDocCount) {
+        long receivedDocCount = 0;
+        for (MultiBucketsAggregation.Bucket bucket : termBuckets) {
+            receivedDocCount += bucket.getDocCount();
         }
-        return new Truncated<>(visible, otherDocCount);
+        return Math.max(0, eligibleDocCount - receivedDocCount);
     }
 
     /** Binary keys are ip columns: render the address string like classic ip terms. */

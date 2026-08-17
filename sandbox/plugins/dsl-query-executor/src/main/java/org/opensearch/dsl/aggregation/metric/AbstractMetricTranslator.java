@@ -15,6 +15,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
 
@@ -27,6 +28,28 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
 
     /** Creates a metric translator. */
     protected AbstractMetricTranslator() {}
+
+    /**
+     * Rejects {@code missing} (substitutes a value for docs lacking the field) and
+     * {@code script} (computes the metric input from a script): the translation implements
+     * neither — it emits plain {@code fn(field)}, whose result differs from classic search
+     * when either parameter is present.
+     */
+    @Override
+    public void validate(T agg) throws ConversionException {
+        if (agg instanceof ValuesSourceAggregationBuilder<?> vs) {
+            if (vs.missing() != null) {
+                throw new ConversionException(
+                    "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+                );
+            }
+            if (vs.script() != null) {
+                throw new ConversionException(
+                    "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+                );
+            }
+        }
+    }
 
     /** Returns the SQL aggregate function (e.g., AVG, SUM, MIN, MAX). */
     protected abstract SqlAggFunction getAggFunction();
