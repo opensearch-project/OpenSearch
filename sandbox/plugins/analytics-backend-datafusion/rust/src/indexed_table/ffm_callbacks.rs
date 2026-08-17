@@ -8,7 +8,7 @@
 
 //! FFM upcall surface for index-filter providers and collectors.
 //!
-//! Five callback slots, populated once at startup by
+//! Six callback slots, populated once at startup by
 //! `df_register_filter_tree_callbacks` (see `ffm.rs`):
 //!
 //! - `createProvider(contextId, annotationId) -> providerKey|-1`
@@ -16,6 +16,8 @@
 //! - `collectDocs(contextId, collectorKey, minDoc, maxDoc, outBuf, outWordCap) -> wordsWritten|-1`
 //! - `releaseCollector(contextId, collectorKey)`
 //! - `releaseProvider(contextId, providerKey)`
+//! - `createCollectorWithProbe(contextId, providerKey, writerGeneration, minDoc, maxDoc,
+//!    numRanges, rgMinsPtr, rgMaxsPtr, outMatchPtr) -> packed|-1|-2`
 //!
 //! `ProviderHandle` and `FfmSegmentCollector` are the lifetime wrappers —
 //! they call the release callbacks on drop.
@@ -39,12 +41,27 @@ type ReleaseProviderFn = unsafe extern "C" fn(i64, i32);
 type CreateCollectorFn = unsafe extern "C" fn(i64, i32, i64, i32, i32) -> i32;
 type CollectDocsFn = unsafe extern "C" fn(i64, i32, i32, i32, *mut u64, i64) -> i64;
 type ReleaseCollectorFn = unsafe extern "C" fn(i64, i32);
+/// `(context_id, provider_key, writer_generation, doc_min, doc_max,
+///   num_ranges, rg_mins_ptr, rg_maxs_ptr, out_match_ptr) -> packed_i64`.
+///
+/// Return value: -1 = error, -2 = empty segment,
+/// else lower 32 bits = collector_key, upper 32 bits = firstDoc.
+type CreateCollectorWithProbeFn =
+    unsafe extern "C" fn(i64, i32, i64, i32, i32, i32, *const i32, *const i32, *mut u8) -> i64;
+/// Phase 1: `(context_id, provider_key, writer_generation, doc_min, doc_max) -> packed(cost|key)|-1|-2`
+type CreateCollectorWithCostFn = unsafe extern "C" fn(i64, i32, i64, i32, i32) -> i64;
+/// Phase 2: `(context_id, provider_key, writer_generation, num_ranges, rg_mins_ptr, rg_maxs_ptr, out_match_ptr) -> skipped|-1`
+type ProbeCollectorFn =
+    unsafe extern "C" fn(i64, i32, i64, i32, *const i32, *const i32, *mut u8) -> i64;
 
 static CREATE_PROVIDER: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static RELEASE_PROVIDER: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static CREATE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static COLLECT_DOCS: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 static RELEASE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
+static CREATE_COLLECTOR_WITH_PROBE: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
+static CREATE_COLLECTOR_WITH_COST: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
+static PROBE_COLLECTOR: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 
 /// Registered by Java at startup. Stores function pointers into atomic
 /// slots. Each call to this entry replaces the slots wholesale.
@@ -59,6 +76,9 @@ pub unsafe extern "C" fn df_register_filter_tree_callbacks(
     create_collector: CreateCollectorFn,
     collect_docs: CollectDocsFn,
     release_collector: ReleaseCollectorFn,
+    create_collector_with_probe: CreateCollectorWithProbeFn,
+    create_collector_with_cost: CreateCollectorWithCostFn,
+    probe_collector: ProbeCollectorFn,
 ) {
     // catch_unwind is defense-in-depth: atomic stores shouldn't panic,
     // but if they ever did (e.g. allocator OOM if we grew the atomics),
@@ -71,6 +91,10 @@ pub unsafe extern "C" fn df_register_filter_tree_callbacks(
         CREATE_COLLECTOR.store(create_collector as *mut (), Ordering::Release);
         COLLECT_DOCS.store(collect_docs as *mut (), Ordering::Release);
         RELEASE_COLLECTOR.store(release_collector as *mut (), Ordering::Release);
+        CREATE_COLLECTOR_WITH_PROBE
+            .store(create_collector_with_probe as *mut (), Ordering::Release);
+        CREATE_COLLECTOR_WITH_COST.store(create_collector_with_cost as *mut (), Ordering::Release);
+        PROBE_COLLECTOR.store(probe_collector as *mut (), Ordering::Release);
     }));
 }
 
@@ -110,6 +134,27 @@ fn load_release_collector() -> Option<ReleaseCollectorFn> {
     } else {
         Some(unsafe { std::mem::transmute::<*mut (), ReleaseCollectorFn>(p) })
     }
+}
+fn load_create_collector_with_probe() -> Result<CreateCollectorWithProbeFn, String> {
+    let p = CREATE_COLLECTOR_WITH_PROBE.load(Ordering::Acquire);
+    if p.is_null() {
+        return Err("createCollectorWithProbe callback not registered".into());
+    }
+    Ok(unsafe { std::mem::transmute::<*mut (), CreateCollectorWithProbeFn>(p) })
+}
+fn load_create_collector_with_cost() -> Result<CreateCollectorWithCostFn, String> {
+    let p = CREATE_COLLECTOR_WITH_COST.load(Ordering::Acquire);
+    if p.is_null() {
+        return Err("createCollectorWithCost callback not registered".into());
+    }
+    Ok(unsafe { std::mem::transmute::<*mut (), CreateCollectorWithCostFn>(p) })
+}
+fn load_probe_collector() -> Result<ProbeCollectorFn, String> {
+    let p = PROBE_COLLECTOR.load(Ordering::Acquire);
+    if p.is_null() {
+        return Err("probeCollector callback not registered".into());
+    }
+    Ok(unsafe { std::mem::transmute::<*mut (), ProbeCollectorFn>(p) })
 }
 
 // ── ProviderHandle — owns `releaseProvider` on drop ───────────────────
@@ -171,8 +216,8 @@ pub fn create_provider(context_id: i64, annotation_id: i32) -> Result<ProviderHa
 
 #[derive(Debug)]
 pub struct FfmSegmentCollector {
-    context_id: i64,
-    key: i32,
+    pub(crate) context_id: i64,
+    pub(crate) key: i32,
 }
 
 impl FfmSegmentCollector {
@@ -253,8 +298,186 @@ impl RowGroupDocsCollector for FfmSegmentCollector {
 
 impl Drop for FfmSegmentCollector {
     fn drop(&mut self) {
-        if let Some(release) = load_release_collector() {
-            unsafe { release(self.context_id, self.key) };
+        if self.key >= 0 {
+            if let Some(release) = load_release_collector() {
+                unsafe { release(self.context_id, self.key) };
+            }
         }
     }
+}
+
+// ── createCollectorWithProbe — probe scorer RG-level skip ────────────
+
+/// Result of the `createCollectorWithProbe` FFM upcall.
+#[derive(Debug)]
+pub enum CreateCollectorOutcome {
+    /// Segment has matches. Contains the collector and per-RG match flags.
+    Active {
+        collector: FfmSegmentCollector,
+        first_doc: i32,
+        rg_can_match: Vec<bool>,
+    },
+    /// Segment has zero matches for this query. All RGs can be skipped.
+    SegmentEmpty,
+}
+
+/// Two-phase probe: creates a collector (Phase 1) and conditionally probes
+/// RG boundaries (Phase 2) only if the scorer's cost is selective enough.
+///
+/// Phase 1: `createCollectorWithCost` — same cost as old `createCollector`,
+///   returns collectorKey + cost. No array allocation, no probe scorer.
+/// Phase 2: `probeCollector` — only called when cost indicates probing will
+///   help. Creates probe scorer and scans RG boundaries.
+///
+/// Falls back to legacy `createCollector` if new callbacks aren't registered.
+pub fn create_collector_with_probe(
+    context_id: i64,
+    provider_key: i32,
+    writer_generation: i64,
+    doc_min: i32,
+    doc_max: i32,
+    rg_boundaries: &[(i32, i32)],
+) -> Result<CreateCollectorOutcome, String> {
+    let cost_fn = match load_create_collector_with_cost() {
+        Ok(f) => f,
+        Err(e) => {
+            // Fallback: use legacy createCollector, no probe info.
+            native_bridge_common::log_debug!(
+                "[probe-skip] FALLBACK: createCollectorWithCost not registered ({}), using legacy path",
+                e
+            );
+            let collector = FfmSegmentCollector::create(
+                context_id,
+                provider_key,
+                writer_generation,
+                doc_min,
+                doc_max,
+            )?;
+            let rg_can_match = vec![true; rg_boundaries.len()];
+            return Ok(CreateCollectorOutcome::Active {
+                collector,
+                first_doc: -1,
+                rg_can_match,
+            });
+        }
+    };
+
+    // Phase 1: create collector and get cost (same weight as old createCollector)
+    let phase1_result = unsafe {
+        cost_fn(
+            context_id,
+            provider_key,
+            writer_generation,
+            doc_min,
+            doc_max,
+        )
+    };
+
+    match phase1_result {
+        -1 => {
+            return Err(format!(
+                "createCollectorWithCost(context_id={}, provider={}, writer_generation={}) failed",
+                context_id, provider_key, writer_generation
+            ));
+        }
+        -2 => return Ok(CreateCollectorOutcome::SegmentEmpty),
+        packed if packed < 0 => {
+            return Err(format!(
+                "createCollectorWithCost: unexpected negative return code {}",
+                packed
+            ));
+        }
+        _ => {}
+    }
+
+    let collector_key = (phase1_result & 0xFFFF_FFFF) as i32;
+    let cost = (phase1_result >> 32) as i64;
+    let num_ranges = rg_boundaries.len();
+
+    // Gate: skip Phase 2 if cost exceeds 1% of the segment.
+    // At that density docs are spread across nearly all RGs — probing
+    // would return all-1s, wasting the probe scorer + array overhead.
+    let seg_max_doc = (doc_max - doc_min) as i64;
+    let threshold_pct = 1i64; // 1% — matches Java-side default
+    let gate_fires = threshold_pct > 0 && cost * 100 > seg_max_doc * threshold_pct;
+
+    if gate_fires {
+        native_bridge_common::log_debug!(
+            "[probe-skip] GATE: cost={} seg_max_doc={} threshold={}% — skipping probe",
+            cost,
+            seg_max_doc,
+            threshold_pct
+        );
+        let rg_can_match = vec![true; num_ranges];
+        return Ok(CreateCollectorOutcome::Active {
+            collector: FfmSegmentCollector {
+                context_id,
+                key: collector_key,
+            },
+            first_doc: -1,
+            rg_can_match,
+        });
+    }
+
+    // Phase 2: probe RG boundaries (only for selective queries)
+    native_bridge_common::log_debug!(
+        "[probe-skip] PROBE_PHASE2: cost={} seg_max_doc={} num_ranges={} — calling probeCollector",
+        cost,
+        seg_max_doc,
+        num_ranges
+    );
+    let probe_fn = match load_probe_collector() {
+        Ok(f) => f,
+        Err(_) => {
+            // probeCollector not registered — treat all RGs as matching
+            let rg_can_match = vec![true; num_ranges];
+            return Ok(CreateCollectorOutcome::Active {
+                collector: FfmSegmentCollector {
+                    context_id,
+                    key: collector_key,
+                },
+                first_doc: -1,
+                rg_can_match,
+            });
+        }
+    };
+
+    let rg_mins: Vec<i32> = rg_boundaries.iter().map(|(m, _)| *m).collect();
+    let rg_maxs: Vec<i32> = rg_boundaries.iter().map(|(_, m)| *m).collect();
+    let mut out_match = vec![0u8; num_ranges];
+
+    let probe_result = unsafe {
+        probe_fn(
+            context_id,
+            provider_key,
+            writer_generation,
+            num_ranges as i32,
+            rg_mins.as_ptr(),
+            rg_maxs.as_ptr(),
+            out_match.as_mut_ptr(),
+        )
+    };
+
+    if probe_result < 0 {
+        // Probe failed — fall back to all-match (safe, just no optimization)
+        let rg_can_match = vec![true; num_ranges];
+        return Ok(CreateCollectorOutcome::Active {
+            collector: FfmSegmentCollector {
+                context_id,
+                key: collector_key,
+            },
+            first_doc: -1,
+            rg_can_match,
+        });
+    }
+
+    let rg_can_match: Vec<bool> = out_match.iter().map(|&b| b != 0).collect();
+    Ok(CreateCollectorOutcome::Active {
+        collector: FfmSegmentCollector {
+            context_id,
+            key: collector_key,
+        },
+        first_doc: -1,
+        rg_can_match,
+    })
 }

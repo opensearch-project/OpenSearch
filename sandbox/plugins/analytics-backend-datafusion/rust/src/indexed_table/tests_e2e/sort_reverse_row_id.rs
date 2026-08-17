@@ -204,6 +204,8 @@ async fn collect_row_ids(
                 leaves: Arc::new(
                     crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
                         ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
+                        probe_rg_can_match: std::collections::HashMap::new(),
+                        rg_index_to_pos: std::collections::HashMap::new(),
                     },
                 ),
                 page_pruner: pruner,
@@ -219,7 +221,7 @@ async fn collect_row_ids(
                 collector_strategy:
                     crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
                 stats_prune_tree: None,
-                rg_index_to_pos: HashMap::new(),
+                rg_index_to_pos: std::collections::HashMap::new(),
             });
             Ok(eval)
         })
