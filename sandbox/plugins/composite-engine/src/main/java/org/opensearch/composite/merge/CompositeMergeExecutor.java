@@ -36,9 +36,21 @@ import java.util.Map;
 public class CompositeMergeExecutor {
 
     private final Map<DataFormat, Merger> mergers;
+    /**
+     * Per-storage-format mergers for auxiliary (side-table) roles, used in preference to {@link #mergers}
+     * when merging a side table. Engine-4's element index registers one here (keyed by the Lucene
+     * format) because it must be merged differently from the documents — see
+     * {@link org.opensearch.index.engine.dataformat.IndexingExecutionEngine#getAuxiliaryMerger}.
+     */
+    private final Map<DataFormat, Merger> auxiliaryMergers;
 
     public CompositeMergeExecutor(Map<DataFormat, Merger> mergers) {
+        this(mergers, Map.of());
+    }
+
+    public CompositeMergeExecutor(Map<DataFormat, Merger> mergers, Map<DataFormat, Merger> auxiliaryMergers) {
         this.mergers = Map.copyOf(mergers);
+        this.auxiliaryMergers = Map.copyOf(auxiliaryMergers);
     }
 
     /**
@@ -138,7 +150,11 @@ public class CompositeMergeExecutor {
         try {
             Segment.Builder mergedSegment = Segment.builder(auxiliaryGeneration);
             for (AuxiliaryMergeGroup group : nonEmpty) {
-                Merger merger = mergers.get(group.storageFormat());
+                // A side table may need a merger distinct from the one that merges the documents of the
+                // same storage format — Engine-4's element index (Lucene) is merged from its own
+                // directories with a __parent_row__ rewrite, not through the shard's shared writer. Use
+                // the auxiliary merger when the storage format provides one; else fall back.
+                Merger merger = auxiliaryMergers.getOrDefault(group.storageFormat(), mergers.get(group.storageFormat()));
                 if (merger == null) {
                     throw new IllegalStateException(
                         "Side table ["

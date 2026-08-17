@@ -27,12 +27,14 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
+import org.opensearch.be.lucene.merge.ElementIndexMerger;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.be.lucene.stats.LuceneStatsProvider;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -418,6 +420,20 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     @Override
     public Merger getMerger() {
         return this.luceneMerger;
+    }
+
+    /**
+     * The Engine-4 element index ({@code nested} role) is Lucene-stored but lives in its own
+     * per-generation directories, not this engine's shared writer, and its {@code __parent_row__}
+     * must be remapped on merge — so it is merged by {@link ElementIndexMerger}, not
+     * {@link #getMerger()}. All other roles fall back to the standard merger.
+     */
+    @Override
+    public Merger getAuxiliaryMerger(String role) {
+        if (AuxiliaryDataFormat.NESTED_CHILD_ROLE.equals(role)) {
+            return new ElementIndexMerger(dataFormat);
+        }
+        return null;
     }
 
     /**

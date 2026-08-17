@@ -45,6 +45,24 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     Merger getMerger();
 
     /**
+     * Returns a merger for an <em>auxiliary</em> (side-table) role stored in this format, or
+     * {@code null} if this format has no special auxiliary merger (in which case the side table is
+     * merged by {@link #getMerger()} exactly like the documents).
+     *
+     * <p>Engine-4's element index needs this: it is stored as Lucene but lives in its own
+     * per-generation directories rather than the shard's shared writer, and its {@code __parent_row__}
+     * doc-values must be remapped through the document merge's row-id mapping — neither of which the
+     * standard {@link #getMerger()} does. The Lucene format returns an element-index merger for the
+     * {@code nested} role; every other format returns {@code null}.
+     *
+     * @param role the auxiliary role, e.g. {@link org.opensearch.index.engine.dataformat.AuxiliaryDataFormat#NESTED_CHILD_ROLE}
+     * @return a role-specific auxiliary merger, or {@code null} to fall back to {@link #getMerger()}
+     */
+    default Merger getAuxiliaryMerger(String role) {
+        return null;
+    }
+
+    /**
      * Performs a refresh operation to make recently written data searchable.
      *
      * @param refreshInput the input containing segments and writer files to refresh

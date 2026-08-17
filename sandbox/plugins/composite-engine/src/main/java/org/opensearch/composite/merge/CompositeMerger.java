@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.composite.stats.CompositeShardStatsTracker;
+import org.opensearch.index.engine.dataformat.AuxiliaryDataFormat;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -49,7 +50,7 @@ public class CompositeMerger implements Merger {
     public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat) {
         this.primaryFormat = compositeDataFormat.getPrimaryDataFormat();
         this.secondaryFormats = resolveSecondaryFormats(compositeDataFormat, primaryFormat);
-        this.executor = new CompositeMergeExecutor(buildMergerMap(engine));
+        this.executor = new CompositeMergeExecutor(buildMergerMap(engine), buildAuxiliaryMergerMap(engine));
         this.statsTracker = engine.statsTracker();
     }
 
@@ -170,6 +171,26 @@ public class CompositeMerger implements Merger {
             }
         }
         return List.copyOf(secondaries);
+    }
+
+    /**
+     * Collects per-storage-format auxiliary (side-table) mergers from the delegates. Only formats that
+     * provide a role-specific merger appear here; today that is the Lucene delegate, which returns an
+     * element-index merger for the {@code nested} role. Keyed by the delegate's own data format, which
+     * is the storage format side tables of that format resolve to.
+     */
+    private static Map<DataFormat, Merger> buildAuxiliaryMergerMap(CompositeIndexingExecutionEngine engine) {
+        Map<DataFormat, Merger> map = new HashMap<>();
+        List<IndexingExecutionEngine<?, ?>> delegates = new ArrayList<>();
+        delegates.add(engine.getPrimaryDelegate());
+        delegates.addAll(engine.getSecondaryDelegates());
+        for (IndexingExecutionEngine<?, ?> delegate : delegates) {
+            Merger auxMerger = delegate.getAuxiliaryMerger(AuxiliaryDataFormat.NESTED_CHILD_ROLE);
+            if (auxMerger != null) {
+                map.put(delegate.getDataFormat(), auxMerger);
+            }
+        }
+        return Map.copyOf(map);
     }
 
     private static Map<DataFormat, Merger> buildMergerMap(CompositeIndexingExecutionEngine engine) {
