@@ -1,0 +1,40 @@
+{
+  "testName": "regexp_query_rewrite_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "regexp": {
+        "name": {
+          "value": "brand.*",
+          "rewrite": "constant_score"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[REGEXP_QUERY(MAP('field', $0), MAP('query', 'brand.*'), MAP('rewrite', 'constant_score'))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["brandNew", 999, "BrandA", 4.5]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

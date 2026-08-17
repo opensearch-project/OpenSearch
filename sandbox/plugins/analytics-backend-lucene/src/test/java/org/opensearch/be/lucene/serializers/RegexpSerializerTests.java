@@ -76,4 +76,15 @@ public class RegexpSerializerTests extends OpenSearchTestCase {
         assertEquals("msg.keyword", rq.fieldName());
         assertEquals(".*error[0-9]+.*", rq.value());
     }
+
+    /**
+     * Pins that RegexpSerializer wraps the user pattern with {@code .*} on both sides,
+     * giving PPL MySQL-style substring-find semantics. This ensures the DSL path
+     * (REGEXP_QUERY) cannot silently reroute ScalarFunction.REGEXP and break PPL.
+     */
+    public void testRegexpSerializerPinsPplSubstringWrapSemantics() {
+        QueryBuilder qb = serializer.buildQueryBuilder((org.apache.calcite.rex.RexCall) regexpCall("abc"), FIELD_STORAGE);
+        RegexpQueryBuilder rq = (RegexpQueryBuilder) qb;
+        assertEquals(".*abc.*", rq.value());
+    }
 }
