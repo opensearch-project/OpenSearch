@@ -92,6 +92,21 @@ public class GoldenFileLoader {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Golden file " + filePath + " has invalid planType: " + testCase.getPlanType());
         }
+        if (testCase.getAdditionalPlans() != null) {
+            for (GoldenTestCase.AdditionalPlan additional : testCase.getAdditionalPlans()) {
+                requireNonNull(additional.getPlanType(), "additionalPlans.planType", filePath);
+                requireNonNull(additional.getExpectedRelNodePlan(), "additionalPlans.expectedRelNodePlan", filePath);
+                requireNonNull(additional.getMockResultFieldNames(), "additionalPlans.mockResultFieldNames", filePath);
+                requireNonNull(additional.getMockResultRows(), "additionalPlans.mockResultRows", filePath);
+                try {
+                    QueryPlans.Type.valueOf(additional.getPlanType());
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                        "Golden file " + filePath + " has invalid additionalPlans.planType: " + additional.getPlanType()
+                    );
+                }
+            }
+        }
     }
 
     private static void requireNonNull(Object value, String fieldName, Path filePath) {

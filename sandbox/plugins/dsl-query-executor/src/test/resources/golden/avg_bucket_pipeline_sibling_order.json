@@ -1,0 +1,139 @@
+{
+  "testName": "avg_bucket_pipeline_sibling_order",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "top_brands": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "s1": {
+            "sum": {
+              "field": "price"
+            }
+          }
+        }
+      },
+      "brands_alpha": {
+        "terms": {
+          "field": "brand",
+          "size": 2,
+          "order": {
+            "_key": "asc"
+          }
+        },
+        "aggregations": {
+          "s2": {
+            "sum": {
+              "field": "price"
+            }
+          }
+        }
+      },
+      "avg_alpha": {
+        "avg_bucket": {
+          "buckets_path": "brands_alpha>s2"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$3], sort1=[$0], dir0=[DESC], dir1=[ASC])",
+    "  LogicalAggregate(group=[{2}], s1=[SUM($1)], s2=[SUM($1)], _count=[COUNT()])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "s1", "s2", "_count"],
+  "mockResultRows": [
+    ["nike", 300, 300, 5],
+    ["zara", 200, 200, 3],
+    ["apple", 100, 100, 2]
+  ],
+  "additionalPlans": [
+    {
+      "planType": "PIPELINE",
+      "expectedRelNodePlan": [
+        "LogicalAggregate(group=[{}], avg_alpha=[AVG($2)])",
+        "  LogicalProject(brand=[$0], s1=[$1], s2=[CAST($2):DOUBLE], _count=[$3])",
+        "    LogicalSort(sort0=[$0], dir0=[ASC], fetch=[2])",
+        "      LogicalAggregate(group=[{2}], s1=[SUM($1)], s2=[SUM($1)], _count=[COUNT()])",
+        "        LogicalTableScan(table=[[test-index]])"
+      ],
+      "mockResultFieldNames": ["avg_alpha"],
+      "mockResultRows": [
+        [200.0]
+      ]
+    }
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    },
+    "aggregations": {
+      "top_brands": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "nike",
+            "doc_count": 5,
+            "s1": {
+              "value": 300.0
+            }
+          },
+          {
+            "key": "zara",
+            "doc_count": 3,
+            "s1": {
+              "value": 200.0
+            }
+          },
+          {
+            "key": "apple",
+            "doc_count": 2,
+            "s1": {
+              "value": 100.0
+            }
+          }
+        ]
+      },
+      "brands_alpha": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 3,
+        "buckets": [
+          {
+            "key": "apple",
+            "doc_count": 2,
+            "s2": {
+              "value": 100.0
+            }
+          },
+          {
+            "key": "nike",
+            "doc_count": 5,
+            "s2": {
+              "value": 300.0
+            }
+          }
+        ]
+      },
+      "avg_alpha": {
+        "value": 200.0
+      }
+    }
+  }
+}

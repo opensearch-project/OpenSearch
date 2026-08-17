@@ -15,7 +15,6 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
-import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.util.Collections;
 
@@ -67,9 +66,18 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
         return agg.getName();
     }
 
-    // TODO: implement response conversion per metric type (InternalAvg, InternalSum, etc.)
-    @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
-        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for " + getClass().getSimpleName());
+    /**
+     * Coerces an engine result cell to double. Calcite keeps the input column type (AVG over
+     * an INTEGER column returns an integral value), so the int→double widening happens here.
+     *
+     * @param value the raw cell value (must be a {@link Number})
+     */
+    protected static double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        throw new IllegalStateException(
+            "Expected numeric aggregation result but got " + (value == null ? "null" : value.getClass().getSimpleName())
+        );
     }
 }

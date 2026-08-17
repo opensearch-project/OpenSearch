@@ -9,6 +9,7 @@
 package org.opensearch.dsl.executor;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.dsl.aggregation.AggregationMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,9 @@ public final class QueryPlans {
         /** Document hits. */
         HITS,
         /** Aggregation results. */
-        AGGREGATION
+        AGGREGATION,
+        /** Pipeline aggregation results. */
+        PIPELINE
     }
 
     /**
@@ -32,19 +35,35 @@ public final class QueryPlans {
      *
      * @param type what part of the response this plan produces
      * @param relNode the Calcite logical plan to execute
+     * @param aggregationMetadata the walker-produced metadata this plan was built from, or
+     *        {@code null} for {@link Type#HITS} and {@link Type#PIPELINE} plans. Carried
+     *        through to the response builder
+     *        so granularity matching uses the walker's exact nesting-order group fields instead
+     *        of re-deriving them from the plan (which loses nesting order).
      */
     // TODO: Nested aggregations may require multiple RelNodes per aggregation.
     // Support linking child query plans for recursive nesting (e.g. nested sub-aggregations).
-    public record QueryPlan(Type type, RelNode relNode) {
+    public record QueryPlan(Type type, RelNode relNode, AggregationMetadata aggregationMetadata) {
         /**
          * Creates a query plan.
          *
          * @param type what part of the response this plan produces
          * @param relNode the Calcite logical plan to execute
+         * @param aggregationMetadata the source metadata for AGGREGATION plans, or null
          */
         public QueryPlan {
             Objects.requireNonNull(type, "type must not be null");
             Objects.requireNonNull(relNode, "relNode must not be null");
+        }
+
+        /**
+         * Creates a query plan without aggregation metadata (HITS plans).
+         *
+         * @param type what part of the response this plan produces
+         * @param relNode the Calcite logical plan to execute
+         */
+        public QueryPlan(Type type, RelNode relNode) {
+            this(type, relNode, null);
         }
 
         /** Returns what part of the response this plan produces. */

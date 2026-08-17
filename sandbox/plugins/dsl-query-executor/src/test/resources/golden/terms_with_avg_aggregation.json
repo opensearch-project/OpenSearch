@@ -44,6 +44,28 @@
       },
       "max_score": 0.0,
       "hits": []
+    },
+    "aggregations": {
+      "by_brand": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "BrandA",
+            "doc_count": 3,
+            "avg_price": {
+              "value": 850.0
+            }
+          },
+          {
+            "key": "BrandB",
+            "doc_count": 2,
+            "avg_price": {
+              "value": 1100.0
+            }
+          }
+        ]
+      }
     }
   }
 }
