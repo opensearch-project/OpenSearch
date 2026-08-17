@@ -108,9 +108,13 @@ public class FlatObjectParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        // Matches what FlatObjectFieldType requests: it is searchable and has doc values, and the MAP
-        // column serves both from the same storage. No BLOOM_FILTER — a bloom filter would have to be
-        // configured against the nested key/value leaves, which field-level settings cannot address.
-        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH);
+        // Columnar storage only — deliberately NOT FULL_TEXT_SEARCH, so the Lucene secondary claims it
+        // and indexes the object's leaves as terms, keeping basic searches working exactly as they do
+        // for keyword and text (whose parquet fields leave that capability to Lucene for the same
+        // reason). Claiming it here would starve Lucene of the field and make it unsearchable, since
+        // the columnar read path cannot project a MAP column yet.
+        // No BLOOM_FILTER either — that would have to be configured against the nested key/value
+        // leaves, which field-level settings cannot address.
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
     }
 }

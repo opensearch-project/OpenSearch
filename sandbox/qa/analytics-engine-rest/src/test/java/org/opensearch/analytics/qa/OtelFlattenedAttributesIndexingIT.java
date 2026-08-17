@@ -171,6 +171,38 @@ public class OtelFlattenedAttributesIndexingIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * Pins where basic search on a flat_object leaf currently stops on a composite index.
+     *
+     * <p>The storage side is in place: the lucene secondary indexes each leaf as a term
+     * ({@code _value} for a bare value, {@code _valueAndPath} for {@code <field>.<path>=<value>}), the
+     * same terms a plain Lucene index holds — {@code FlatObjectEngineParityIT} asserts that directly
+     * against the Lucene {@code FieldInfos}. What is missing is query routing: on a composite index
+     * {@code _search} is handled by the DSL query executor, whose {@code ConversionContext} resolves a
+     * field name against the <em>columnar</em> row type. A dotted sub-path of a flat_object is not a
+     * column of its own — the column is the parent {@code MAP} — so conversion fails before any
+     * backend is chosen, and the Lucene terms are never consulted.
+     *
+     * <p>Fixing it means teaching that layer to route a flat_object predicate to the Lucene backend
+     * (or to rewrite it into a key lookup on the MAP column), the same class of routing gap this suite
+     * already documents for multi-field text in {@code OtelLogsPplIT}'s skip list. Asserted rather
+     * than skipped so the behaviour is visible and this test flips when the routing lands.
+     */
+    public void testBasicSearchOnFlattenedLeafIsNotRoutedYet() throws IOException {
+        createFlattenedIndex();
+        bulkIndexOtelCorpus();
+        flush();
+
+        Request search = new Request("POST", "/" + INDEX + "/_search");
+        search.setJsonEntity("{\"size\":0,\"query\":{\"term\":{\"resource.service.name\":\"cart\"}}}");
+        ResponseException failure = expectThrows(ResponseException.class, () -> client().performRequest(search));
+        String body = org.opensearch.common.io.Streams.readFully(failure.getResponse().getEntity().getContent()).utf8ToString();
+        assertTrue(
+            "expected the columnar schema lookup to be what fails, got: " + body,
+            body.contains("not found in schema") && body.contains("resource.service.name")
+        );
+    }
+
+    /**
      * A benchmark corpus is not uniform, so the shapes a real OTel pipeline emits must all be
      * admitted into the same MAP column: an empty bag, an omitted bag, an array leaf (duplicate keys),
      * an explicit null, and a bag whose keys no earlier document used.
