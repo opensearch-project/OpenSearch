@@ -34,31 +34,26 @@ import java.util.Set;
  * (parquet primary + lucene secondary) versus the internal engine (Lucene only), for the same mapping
  * and the same documents.
  *
- * <p>The two engines store a flat_object field in fundamentally different places, and this test pins
- * that divergence rather than leaving it to be discovered:
+ * <p>Both engines keep the same Lucene representation, and the composite engine adds a columnar copy:
  *
  * <table>
  *   <caption>Where a flat_object field's data lands</caption>
  *   <tr><th></th><th>internal engine (Lucene)</th><th>composite engine (parquet + lucene)</th></tr>
- *   <tr><td>Lucene inverted index / doc values</td>
+ *   <tr><td>Lucene inverted index</td>
  *       <td>{@code field}, {@code field._value}, {@code field._valueAndPath}</td>
- *       <td><em>nothing</em></td></tr>
+ *       <td>the same three fields</td></tr>
+ *   <tr><td>Lucene doc values</td><td>SORTED_SET on all three</td>
+ *       <td>none — the primary format owns columnar storage</td></tr>
  *   <tr><td>Parquet</td><td>n/a</td><td>one {@code MAP<utf8, utf8>} column</td></tr>
- *   <tr><td>Term query on a leaf</td><td>matches</td><td>not served</td></tr>
  * </table>
  *
- * <p>The cause is capability assignment. A flat_object field requests {@code FULL_TEXT_SEARCH} (it is
- * searchable) and {@code COLUMNAR_STORAGE} (it has doc values). On the composite engine the parquet
- * primary is offered capabilities first and its {@code FlatObjectParquetField} claims both, so the
- * lucene secondary is left with an empty capability set and {@code LuceneDocumentInput#addField}
- * returns without indexing anything. Contrast a {@code keyword} or {@code text} field, whose parquet
- * implementation deliberately does <em>not</em> claim {@code FULL_TEXT_SEARCH}: Lucene claims it and
- * indexes the terms, which is why those fields stay searchable on a composite index.
- *
- * <p>The practical consequence, asserted below: on a composite index a flat_object field is durable in
- * the Parquet MAP column but is <strong>not searchable by either format</strong> — parquet claims the
- * capability without a read path yet, and Lucene holds no terms. Closing that means either giving
- * Lucene the capability plus a flat_object field factory, or implementing the columnar read path.
+ * <p>That split comes from capability assignment. A flat_object field requests
+ * {@code FULL_TEXT_SEARCH} (it is searchable) and {@code COLUMNAR_STORAGE} (it has doc values); the
+ * parquet primary claims only {@code COLUMNAR_STORAGE}, leaving the inverted index to the lucene
+ * secondary — exactly how {@code keyword} and {@code text} are split, which is what keeps them
+ * searchable on a composite index. An earlier revision had the parquet field claim both, which starved
+ * Lucene of the field entirely and left it searchable by neither format; these tests exist to keep
+ * that from regressing.
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
