@@ -42,6 +42,7 @@ import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -270,6 +271,15 @@ public class AnalyticsSearchService implements AutoCloseable {
                         .getInstructions()
                         .stream()
                         .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE);
+                    // Extract DataFusion metrics (physical plan + execution stats) for slow fragments.
+                    // The trace threshold is the most permissive — if we don't exceed it, no slow log
+                    // level will fire, so we can skip the metrics extraction entirely.
+                    byte[] slowLogMetrics = null;
+                    long traceThreshold = shard.indexSettings()
+                        .getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
+                    if (traceThreshold >= 0 && fragmentTookNanos > traceThreshold) {
+                        slowLogMetrics = exec.resources().getExecutionMetrics();
+                    }
                     FragmentExecutionStats stats = new FragmentExecutionStats(
                         rowsProduced,
                         usedSecondaryIndex,
@@ -277,7 +287,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                         filterTreeShape,
                         hasPartialAggregate,
                         task.getId(),
-                        task.getHeader(Task.X_OPAQUE_ID)
+                        task.getHeader(Task.X_OPAQUE_ID),
+                        slowLogMetrics
                     );
                     listener.onFragmentSuccess(
                         request.getQueryId(),

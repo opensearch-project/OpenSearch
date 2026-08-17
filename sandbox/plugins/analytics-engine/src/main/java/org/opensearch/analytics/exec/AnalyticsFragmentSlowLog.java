@@ -78,6 +78,9 @@ public class AnalyticsFragmentSlowLog implements AnalyticsOperationListener {
             sb.append("], filter_tree_shape[").append(stats.filterTreeShape());
         }
         sb.append("], partial_aggregate[").append(stats.hasPartialAggregate());
+        if (stats.metricsJson() != null) {
+            sb.append("], metrics[").append(new String(stats.metricsJson(), java.nio.charset.StandardCharsets.UTF_8));
+        }
         sb.append("], task_id[").append(stats.taskId());
         sb.append("], id[").append(stats.opaqueId() != null ? stats.opaqueId() : "");
         sb.append("]");

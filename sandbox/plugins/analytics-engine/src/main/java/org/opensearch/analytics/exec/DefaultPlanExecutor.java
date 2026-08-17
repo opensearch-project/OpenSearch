@@ -262,6 +262,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         );
         plannerContext.setPlannerSettings(plannerSettings);
         RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
+        // Only stringify the plan eagerly for the profile path (returned in the API response).
+        // The slow log receives the RelNode reference and stringifies lazily — only if a slow log
+        // threshold is crossed — so fast queries pay neither the CPU cost nor leak plan text to logs.
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
         PlanForker.forkAll(dag, capabilityRegistry);
@@ -275,6 +278,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
+        // Pass a lazy supplier — RelOptUtil.toString only runs if a slow log threshold is crossed.
+        final RelNode planForLog = plan;
+        queryListener.setPlanSupplier(() -> RelOptUtil.toString(planForLog));
 
         // The task is the framework-provided task from doExecute (registered by
         // HandledTransportAction before doExecute, unregistered when the listener completes).
