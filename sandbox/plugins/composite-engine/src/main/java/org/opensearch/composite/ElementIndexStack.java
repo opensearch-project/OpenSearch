@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
@@ -29,6 +30,8 @@ import org.opensearch.index.mapper.ObjectMapper;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -60,10 +63,14 @@ import java.util.List;
  *   <li>{@link DocumentInput#NESTED_PARENT_ROW_FIELD} = the parent row id, as a doc-value.</li>
  * </ul>
  *
- * <h2>v1 scope</h2>
- * Eager write in insertion order. An index sort would renumber parent rows at flush, invalidating the
- * eagerly-stamped {@code __parent_row__}; that case is rejected at construction (staged remap is
- * deferred, see {@code 12} Phase W5).
+ * <h2>Sorted flush</h2>
+ * Without an index sort, elements are written eagerly in insertion order (insertion order is the final
+ * row order). With an index sort, the parquet primary renumbers parent rows on flush and emits a
+ * {@link RowIdMapping} (oldRow→newRow); elements are then <b>staged</b> and, at {@link #flush}, written
+ * in <em>new</em>-row order with {@code __parent_row__ = mapping.getNewRowId(oldRow)} — so element doc
+ * ids follow the sorted row order and each element points at its post-sort parent. This is the
+ * Phase-4a remap pattern ({@code 12} Phase W5): the mapping must cover every parent row and resolve
+ * every staged row, else the flush throws rather than stamp a stale row.
  *
  * @opensearch.experimental
  */
@@ -76,9 +83,21 @@ class ElementIndexStack implements Closeable {
     private final DataFormat luceneFormat;
     private final Writer<DocumentInput<?>> elementWriter;
     private final IndexingExecutionEngine<?, ?> luceneDelegate;
+    /**
+     * True when the parent may renumber its rows at flush — exactly when the index has an index sort.
+     * Elements are then staged until {@link #flush} knows the parent's permutation.
+     */
+    private final boolean stageUntilFlush;
+    /** Staged elements awaiting the parent's {@link RowIdMapping}; always empty unless {@link #stageUntilFlush}. */
+    private final List<StagedParent> staged = new ArrayList<>();
+    private int stagedElementCount = 0;
     /** Next element doc id — equals the number of element docs written so far (global, row order). */
     private long elementDocId = 0L;
     private boolean closed;
+
+    /** One parent document's elements held until its post-sort row id is known. */
+    private record StagedParent(long parentRowId, List<CompositeDocumentInput.NestedElement> elements) {
+    }
 
     /**
      * Opens the element index for one parent writer generation on the Lucene secondary delegate.
@@ -89,17 +108,17 @@ class ElementIndexStack implements Closeable {
      */
     @SuppressWarnings("unchecked")
     ElementIndexStack(CompositeIndexingExecutionEngine engine, long parentGeneration) {
-        if (engine.mapperService().getIndexSettings().getIndexSortConfig().hasIndexSort()) {
-            throw new IllegalStateException(
-                "Engine-4 nested fields do not yet support index sort: the element index stamps parent row ids eagerly, "
-                    + "which a sorted flush would renumber. Remove index.sort.* or drop the nested field (see 12 Phase W5)."
-            );
-        }
+        this.stageUntilFlush = engine.mapperService().getIndexSettings().getIndexSortConfig().hasIndexSort();
         this.auxGeneration = AuxiliaryDataFormat.generationFor(parentGeneration);
         this.luceneDelegate = luceneDelegate(engine);
         this.luceneFormat = luceneDelegate.getDataFormat();
         this.elementWriter = (Writer<DocumentInput<?>>) luceneDelegate.createWriter(new WriterConfig(auxGeneration));
-        logger.info("Opened element index at generation [{}] (parent generation [{}])", auxGeneration, parentGeneration);
+        logger.info(
+            "Opened element index at generation [{}] (parent generation [{}]), mode [{}]",
+            auxGeneration,
+            parentGeneration,
+            stageUntilFlush ? "staged (index sort configured; parent rows renumber at flush)" : "eager (no index sort)"
+        );
     }
 
     /** The composite's Lucene secondary delegate; the element index is a Lucene-only side index. */
@@ -130,14 +149,28 @@ class ElementIndexStack implements Closeable {
     }
 
     /**
-     * Writes one element doc per element of a parent document, in source order. Called by
-     * {@link CompositeWriter} after the parent row is accepted, so {@code parentRowId} is final. Element
-     * doc ids advance in row order, keeping them in step with the parent row's bridge offset.
+     * Accepts one parent document's nested elements, keyed to the row id the parent just committed to.
+     * Called by {@link CompositeWriter} after the parent row is accepted, so {@code parentRowId} is
+     * final for the eager path. With an index sort the rows may still renumber at flush, so elements are
+     * staged and written by {@link #flush} once the permutation is known.
      *
-     * @param parentRowId this parent document's {@code __row_id__}
+     * @param parentRowId this parent document's insertion-order {@code __row_id__}
      * @param elements    the parent's nested elements, in source order
      */
     void addElements(long parentRowId, List<CompositeDocumentInput.NestedElement> elements) throws IOException {
+        if (stageUntilFlush) {
+            staged.add(new StagedParent(parentRowId, List.copyOf(elements)));
+            stagedElementCount += elements.size();
+            return;
+        }
+        writeElements(parentRowId, elements);
+    }
+
+    /**
+     * Writes one element doc per element, stamping {@code parentRow} as {@code __parent_row__}. Element
+     * doc ids advance in call order, so they follow the row order the caller writes in.
+     */
+    private void writeElements(long parentRow, List<CompositeDocumentInput.NestedElement> elements) throws IOException {
         for (CompositeDocumentInput.NestedElement element : elements) {
             DocumentInput<?> elementDoc = luceneDelegate.newDocumentInput();
             elementDoc.setRowId(DocumentInput.ROW_ID_FIELD, elementDocId);
@@ -150,12 +183,12 @@ class ElementIndexStack implements Closeable {
                     elementDoc.addField(fieldTypes.get(i), value);
                 }
             }
-            elementDoc.addNumericDocValue(DocumentInput.NESTED_PARENT_ROW_FIELD, parentRowId);
+            elementDoc.addNumericDocValue(DocumentInput.NESTED_PARENT_ROW_FIELD, parentRow);
 
             WriteResult result = elementWriter.addDoc(elementDoc);
             if (result instanceof WriteResult.Failure failure) {
                 throw new IOException(
-                    "Failed to index element doc [" + elementDocId + "] for parent row [" + parentRowId + "]",
+                    "Failed to index element doc [" + elementDocId + "] for parent row [" + parentRow + "]",
                     failure.cause()
                 );
             }
@@ -164,11 +197,88 @@ class ElementIndexStack implements Closeable {
     }
 
     /**
+     * Materialises staged elements against the parent's flush permutation: writes each document's
+     * elements in <em>new</em>-row order, stamping {@code __parent_row__ = mapping.getNewRowId(oldRow)}.
+     * A no-op on the eager path (nothing staged). Every disagreement between what was staged and what
+     * the parent actually did is raised rather than absorbed — a plausible-but-stale parent row is
+     * indistinguishable from a correct one downstream (mirrors {@code NestedChildStack} Phase 4a).
+     */
+    private void materialiseStaged(RowIdMapping mapping, long parentRowCount) throws IOException {
+        if (stageUntilFlush == false) {
+            if (mapping != null) {
+                throw new IllegalStateException(
+                    "Parent reordered its rows at flush (RowIdMapping size ["
+                        + mapping.size()
+                        + "]) but element docs for generation ["
+                        + auxGeneration
+                        + "] were already written with insertion-order parent rows. Every __parent_row__ would be stale."
+                );
+            }
+            return;
+        }
+        if (staged.isEmpty()) {
+            return;
+        }
+        if (mapping == null) {
+            throw new IllegalStateException(
+                "Index sort is configured, so elements for generation ["
+                    + auxGeneration
+                    + "] were staged awaiting the parent's row permutation, but the primary produced no RowIdMapping. "
+                    + "Cannot tell whether the parent reordered; refusing to stamp __parent_row__."
+            );
+        }
+        if (mapping.size() != parentRowCount) {
+            throw new IllegalStateException(
+                "Parent RowIdMapping covers ["
+                    + mapping.size()
+                    + "] rows but the parent accepted ["
+                    + parentRowCount
+                    + "]; the permutation does not describe the rows the element parent pointers refer to"
+            );
+        }
+        // Resolve every staged parent's new row up front (fail loud before writing anything), then write
+        // in new-row order so element doc ids line up with the sorted parent rows.
+        record Ordered(long newRow, StagedParent parent) {
+        }
+        List<Ordered> ordered = new ArrayList<>(staged.size());
+        for (StagedParent parent : staged) {
+            long newRow = mapping.getNewRowId(parent.parentRowId(), RowIdMapping.SINGLE_GEN);
+            if (newRow < 0L) {
+                throw new IllegalStateException(
+                    "Parent RowIdMapping has no entry for insertion-order row id ["
+                        + parent.parentRowId()
+                        + "] in generation ["
+                        + auxGeneration
+                        + "]"
+                );
+            }
+            ordered.add(new Ordered(newRow, parent));
+        }
+        ordered.sort(Comparator.comparingLong(Ordered::newRow));
+        for (Ordered entry : ordered) {
+            writeElements(entry.newRow(), entry.parent().elements());
+        }
+        logger.info(
+            "Remapped [{}] element docs across [{}] parent documents through the flush permutation for generation [{}]",
+            stagedElementCount,
+            staged.size(),
+            auxGeneration
+        );
+        staged.clear();
+        stagedElementCount = 0;
+    }
+
+    /**
      * Flushes the element index and returns it as its own {@link Segment} for the parent's
      * {@link FileInfos#auxiliarySegments()}, keyed by the {@code aux__lucene__nested} format so the
      * catalog holds its files apart from the parent's main index. Empty when no element was written.
+     *
+     * @param parentRowIdMapping the permutation the parent applied to its rows during this flush, or
+     *                           null when it kept insertion order
+     * @param parentRowCount     rows the parent accepted, used to check the mapping covers them all
      */
-    List<Segment> flush() throws IOException {
+    List<Segment> flush(RowIdMapping parentRowIdMapping, long parentRowCount) throws IOException {
+        materialiseStaged(parentRowIdMapping, parentRowCount);
         if (elementDocId == 0L) {
             logger.debug("Element index at generation [{}] has no elements; skipping flush", auxGeneration);
             return List.of();
@@ -197,9 +307,9 @@ class ElementIndexStack implements Closeable {
         return List.of(Segment.builder(auxGeneration).addSearchableFiles(elementFormatName, elementFiles).build());
     }
 
-    /** Number of element docs this stack has written. */
+    /** Number of element docs this stack accounts for — written plus still-staged. */
     long elementCount() {
-        return elementDocId;
+        return elementDocId + stagedElementCount;
     }
 
     @Override

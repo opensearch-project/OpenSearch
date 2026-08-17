@@ -230,11 +230,12 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
         }
         // Engine-4: flush the co-located element index too, folded in as its own auxiliary segment. It
         // has its own generation and its own row count — elements, not documents — which is why it is a
-        // separate segment rather than extra entries in `builder`'s format map. v1 does not support
-        // index sort with a nested field (rejected when the element stack opens), so no row permutation
-        // needs to reach it here.
+        // separate segment rather than extra entries in `builder`'s format map. The parent's row
+        // permutation goes with it: under an index sort the parent renumbers rows at flush, so the
+        // element stack remaps each element's __parent_row__ through this mapping (or refuses to write);
+        // `acceptedRows` lets it verify the mapping covers exactly the rows those pointers refer to.
         if (elementIndexStack != null) {
-            for (Segment elementSegment : elementIndexStack.flush()) {
+            for (Segment elementSegment : elementIndexStack.flush(rowIdMapping, acceptedRows)) {
                 builder.addAuxiliarySegment(elementSegment);
             }
         }
