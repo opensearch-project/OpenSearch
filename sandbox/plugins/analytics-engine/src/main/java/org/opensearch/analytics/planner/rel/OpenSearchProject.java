@@ -26,6 +26,8 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.util.Pair;
+import org.apache.calcite.util.mapping.Mappings;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -189,6 +191,80 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         );
         org.apache.calcite.rel.RelDistribution remapped = childDist.apply(mapping);
         return remapped instanceof OpenSearchDistribution osDist ? osDist : null;
+    }
+
+    /**
+     * Top-down counterpart of {@link #requiredInputDistribution}: a row-transparent project RIDES the
+     * requested distribution, so it demands the same distribution of its child and delivers it upward.
+     * The demand is expressed in INPUT column space — a hash key on output column {@code k} refers to
+     * whichever input column the projection reads there — so it is remapped through the inverse of the
+     * mapping {@link #deriveOutputDistribution} applies.
+     *
+     * <p>Declines (returns {@code null}) for a window/pinned project: those impose their own SINGLETON
+     * requirement and must not pretend to satisfy an arbitrary partitioning. Also declines when the
+     * requested key cannot be traced back through the projection, rather than silently dropping the key
+     * and claiming a partitioning the child does not have.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        if (containsOver() || pinAboveExchange) {
+            return null;
+        }
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        if (requiredDistribution.getKeys().isEmpty()) {
+            // Locality-only demand (SINGLETON / RANDOM / ANY): no key to remap, ride it as-is.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        // A keyed demand is only expressible on the child if EVERY key traces back to an input column.
+        // Only HASH carries keys here, and its child demand needs a concrete partition count to be
+        // enforceable (buildShuffleExchange throws on a null count), so decline without one.
+        if (requiredDistribution.getType() != RelDistribution.Type.HASH_DISTRIBUTED || requiredDistribution.getPartitionCount() == null) {
+            return null;
+        }
+        Mappings.TargetMapping outputToInput;
+        try {
+            outputToInput = Project.getPartialMapping(getInput().getRowType().getFieldCount(), getProjects()).inverse();
+        } catch (RuntimeException e) {
+            // A non-invertible projection (duplicated/computed columns) cannot carry a key demand down.
+            return null;
+        }
+        List<Integer> inputKeys = new ArrayList<>(requiredDistribution.getKeys().size());
+        for (Integer key : requiredDistribution.getKeys()) {
+            int source = outputToInput.getTargetOpt(key);
+            if (source < 0) {
+                return null;
+            }
+            inputKeys.add(source);
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+        OpenSearchDistribution childDemand = traitDef.hash(inputKeys, requiredDistribution.getPartitionCount());
+        return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(childDemand)));
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #deriveOutputDistribution}: reuse that algebra so the two
+     * propagation directions cannot drift apart.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        OpenSearchDistribution out = deriveOutputDistribution(
+            List.of(childDistribution),
+            (OpenSearchDistributionTraitDef) childDistribution.getTraitDef()
+        );
+        if (out == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(out), List.of(childTraits));
     }
 
     @Override
