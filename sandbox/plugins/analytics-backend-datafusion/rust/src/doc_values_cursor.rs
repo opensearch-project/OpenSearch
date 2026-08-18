@@ -312,13 +312,15 @@ unsafe fn write_out(ptr: *mut i64, value: i64) {
 
 /// Java-side interpretation of a borrowed values buffer. Mirrors the
 /// `KIND_*` constants in `DecodedBatch.java`; keep in sync.
-const BORROW_KIND_LONG: i64 = 1; // i64 / u64 / f64 raw bits, 8 bytes per row
+const BORROW_KIND_LONG: i64 = 1; // i64 / u64 raw bits, 8 bytes per row
 const BORROW_KIND_INT: i64 = 2; // i32 / date32, sign-extended, 4 bytes per row
-const BORROW_KIND_UINT_BITS: i64 = 3; // u32 / f32 raw bits, zero-extended, 4 bytes per row
+const BORROW_KIND_UINT_BITS: i64 = 3; // u32 raw bits, zero-extended, 4 bytes per row
 const BORROW_KIND_SHORT: i64 = 4; // i16, sign-extended, 2 bytes per row
 const BORROW_KIND_USHORT: i64 = 5; // u16, zero-extended, 2 bytes per row
 const BORROW_KIND_BYTE: i64 = 6; // i8, sign-extended, 1 byte per row
 const BORROW_KIND_UBYTE: i64 = 7; // u8, zero-extended, 1 byte per row
+const BORROW_KIND_DOUBLE: i64 = 8; // f64 raw bits; Java re-encodes to a Lucene sortable long, 8 bytes per row
+const BORROW_KIND_FLOAT: i64 = 9; // f32 raw bits; Java re-encodes to a sign-extended sortable int, 4 bytes per row
 
 struct BorrowedBuffers {
     values_addr: usize,
@@ -338,14 +340,18 @@ struct BorrowedBuffers {
 /// TODO: extend to boolean (bit-packed values buffer + a value bit offset,
 /// mirroring the validity bitmap), then binary/variable-width columns. Until
 /// then non-numeric arrays return `None` and the caller rejects them.
+///
+/// TODO: `Float16` (OpenSearch `half_float`) has no arm, so it is rejected both
+/// here and by the physical-type guard in `open`. Adding it needs a new borrow
+/// kind whose Java side re-encodes to a sortable short, not a sortable int.
 fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     use arrow::datatypes::DataType as DT;
     let (kind, width) = match array.data_type() {
-        DT::Int64 | DT::UInt64 | DT::Float64 | DT::Date64 | DT::Timestamp(_, _) => {
-            (BORROW_KIND_LONG, 8usize)
-        }
+        DT::Int64 | DT::UInt64 | DT::Date64 | DT::Timestamp(_, _) => (BORROW_KIND_LONG, 8usize),
+        DT::Float64 => (BORROW_KIND_DOUBLE, 8),
         DT::Int32 | DT::Date32 | DT::Time32(_) => (BORROW_KIND_INT, 4),
-        DT::UInt32 | DT::Float32 => (BORROW_KIND_UINT_BITS, 4),
+        DT::UInt32 => (BORROW_KIND_UINT_BITS, 4),
+        DT::Float32 => (BORROW_KIND_FLOAT, 4),
         DT::Int16 => (BORROW_KIND_SHORT, 2),
         DT::UInt16 => (BORROW_KIND_USHORT, 2),
         DT::Int8 => (BORROW_KIND_BYTE, 1),

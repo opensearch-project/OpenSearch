@@ -31,11 +31,11 @@ import java.lang.foreign.ValueLayout;
 public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, int valueKind, MemorySegment presenceBits,
     int presenceBitOffset) {
 
-    /** {@link #values} holds one {@code long} of raw bits per row (i64/u64/f64 bits). */
+    /** {@link #values} holds one {@code long} of raw bits per row (i64/u64 bits). */
     public static final int KIND_LONG = 1;
     /** {@link #values} holds one sign-extending {@code int} per row. */
     public static final int KIND_INT = 2;
-    /** {@link #values} holds one zero-extending {@code int} per row (u32/f32 bits). */
+    /** {@link #values} holds one zero-extending {@code int} per row (u32 bits). */
     public static final int KIND_UINT_BITS = 3;
     /** {@link #values} holds one sign-extending {@code short} per row. */
     public static final int KIND_SHORT = 4;
@@ -45,6 +45,10 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
     public static final int KIND_BYTE = 6;
     /** {@link #values} holds one zero-extending {@code byte} per row. */
     public static final int KIND_UBYTE = 7;
+    /** {@link #values} holds one {@code long} of raw f64 bits per row; re-encoded to a Lucene sortable long. */
+    public static final int KIND_DOUBLE = 8;
+    /** {@link #values} holds one {@code int} of raw f32 bits per row; re-encoded to a sign-extended sortable int. */
+    public static final int KIND_FLOAT = 9;
 
     /** Constant-time presence test for a global row within {@code [firstRow, lastRow]}. */
     public boolean isPresent(long row) {
@@ -56,7 +60,13 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
         return (word & (1L << (idx & 63))) != 0L;
     }
 
-    /** Returns the raw {@code long} bits for the value at the given global row. */
+    /**
+     * Returns the value at the given global row as a Lucene numeric doc-values {@code long}. Integral
+     * kinds sign- or zero-extend the stored width. The float/double kinds re-encode the raw IEEE-754
+     * bits into Lucene's order-preserving "sortable" form ({@code doubleToSortableLong} /
+     * {@code floatToSortableInt}, the latter sign-extended) - the encoding OpenSearch's float/double
+     * fielddata reverses with {@code sortableLongToDouble} / {@code sortableIntToFloat}.
+     */
     public long valueAt(long row) {
         long idx = row - firstRow;
         return switch (valueKind) {
@@ -67,6 +77,14 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
             case KIND_USHORT -> Short.toUnsignedLong(values.getAtIndex(ValueLayout.JAVA_SHORT, idx));
             case KIND_BYTE -> values.get(ValueLayout.JAVA_BYTE, idx);
             case KIND_UBYTE -> Byte.toUnsignedLong(values.get(ValueLayout.JAVA_BYTE, idx));
+            case KIND_DOUBLE -> {
+                long bits = values.getAtIndex(ValueLayout.JAVA_LONG, idx);
+                yield bits ^ ((bits >> 63) & 0x7fffffffffffffffL);
+            }
+            case KIND_FLOAT -> {
+                int bits = values.getAtIndex(ValueLayout.JAVA_INT, idx);
+                yield (long) (bits ^ ((bits >> 31) & 0x7fffffff));
+            }
             default -> throw new IllegalStateException("unknown value kind " + valueKind);
         };
     }

@@ -33,6 +33,12 @@ import java.nio.file.Path;
  *       validity bitmap);</li>
  *   <li>repeated / multi-valued numerics (more than one value per document);</li>
  *   <li>binary / keyword columns;</li>
+ *   <li>{@code half_float}: written as Arrow Float16, which the native cursor rejects up front, so the
+ *       field is unreadable here rather than wrong. TODO: add a half-float value kind that re-encodes
+ *       to {@code HalfFloatPoint.halfFloatToSortableShort}, the form OpenSearch's fielddata expects.</li>
+ *   <li>{@code scaled_float}: mapped to a plain long column on the write side, while OpenSearch stores
+ *       {@code round(value * scaling_factor)} in doc values. TODO: confirm the write path stores the
+ *       pre-scaled long before treating this type as supported.</li>
  *   <li>a copy fallback and its overflow-retry, which are only needed if a non-borrowable path is
  *       ever served here.</li>
  *   <li>the Parquet page index (per-page min/max/null-count) and a {@code pageIndex()} accessor: the
@@ -178,8 +184,8 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
     /** Byte width of a value KIND, rejecting any kind this reader does not understand. */
     private int widthForKind(int kind, long row) throws IOException {
         return switch (kind) {
-            case DecodedBatch.KIND_LONG -> Long.BYTES;
-            case DecodedBatch.KIND_INT, DecodedBatch.KIND_UINT_BITS -> Integer.BYTES;
+            case DecodedBatch.KIND_LONG, DecodedBatch.KIND_DOUBLE -> Long.BYTES;
+            case DecodedBatch.KIND_INT, DecodedBatch.KIND_UINT_BITS, DecodedBatch.KIND_FLOAT -> Integer.BYTES;
             case DecodedBatch.KIND_SHORT, DecodedBatch.KIND_USHORT -> Short.BYTES;
             case DecodedBatch.KIND_BYTE, DecodedBatch.KIND_UBYTE -> Byte.BYTES;
             default -> throw contractViolation(row, "unknown value kind " + kind);

@@ -14,11 +14,15 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
@@ -166,5 +170,101 @@ public class ParquetColumnReaderTests extends OpenSearchTestCase {
             Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
             return new ArrowExport(array, arrowSchema);
         }
+    }
+
+    public void testNegativeDoublesUseSortableEncoding() throws Exception {
+        double[] values = { -100.5, -0.5, 0.0, 3.25, -2.75, 42.0, -1.0e300, 1.0e300 };
+        Path file = createTempDir().resolve("doubles.parquet");
+        writeDoubleColumn(file, values);
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_DOUBLE, batch.valueKind());
+                // valueAt returns the sortable long; sortableLongToDouble must recover the original value.
+                assertEquals("value at row " + row, values[row], NumericUtils.sortableLongToDouble(batch.valueAt(row)), 0.0);
+            }
+            // Negatives must sort below positives in the encoded long space (range/skipper consumers).
+            DecodedBatch batch = loadRow(reader, 0);
+            assertTrue("negative double must sort below positive", batch.valueAt(0) < batch.valueAt(5));
+        }
+    }
+
+    public void testNegativeFloatsUseSignExtendedSortableEncoding() throws Exception {
+        float[] values = { -100.5f, -0.5f, 0.0f, 3.25f, -2.75f, 42.0f, -3.4e38f, 3.4e38f };
+        Path file = createTempDir().resolve("floats.parquet");
+        writeFloatColumn(file, values);
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals(DecodedBatch.KIND_FLOAT, batch.valueKind());
+                assertEquals("value at row " + row, values[row], NumericUtils.sortableIntToFloat((int) batch.valueAt(row)), 0.0f);
+            }
+            // Sign-extended, so a negative float's long compares below a positive float's long.
+            DecodedBatch batch = loadRow(reader, 0);
+            assertTrue("negative float must sort below positive (sign-extended)", batch.valueAt(0) < batch.valueAt(5));
+        }
+    }
+
+    private static DecodedBatch loadRow(ParquetColumnReader reader, long row) throws java.io.IOException {
+        DecodedBatch batch = reader.decodedBatch();
+        if (batch == null || batch.contains(row) == false) {
+            reader.loadBatchContaining(row);
+            batch = reader.decodedBatch();
+        }
+        return batch;
+    }
+
+    private void writeDoubleColumn(Path file, double[] values) throws Exception {
+        Schema schema = new Schema(
+            List.of(new Field(COLUMN, FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null))
+        );
+        NativeParquetWriter writer = new NativeParquetWriter(file.toString());
+        try (ArrowExport schemaExport = exportSchema(schema)) {
+            writer.initialize("test-index", schemaExport.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+        }
+        try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            Float8Vector vector = (Float8Vector) root.getVector(COLUMN);
+            vector.allocateNew(values.length);
+            for (int i = 0; i < values.length; i++) {
+                vector.setSafe(i, values[i]);
+            }
+            vector.setValueCount(values.length);
+            root.setRowCount(values.length);
+
+            ArrowArray array = ArrowArray.allocateNew(allocator);
+            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
+            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
+            try (ArrowExport dataExport = new ArrowExport(array, arrowSchema)) {
+                writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());
+            }
+        }
+        writer.flush();
+    }
+
+    private void writeFloatColumn(Path file, float[] values) throws Exception {
+        Schema schema = new Schema(
+            List.of(new Field(COLUMN, FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)), null))
+        );
+        NativeParquetWriter writer = new NativeParquetWriter(file.toString());
+        try (ArrowExport schemaExport = exportSchema(schema)) {
+            writer.initialize("test-index", schemaExport.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+        }
+        try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            Float4Vector vector = (Float4Vector) root.getVector(COLUMN);
+            vector.allocateNew(values.length);
+            for (int i = 0; i < values.length; i++) {
+                vector.setSafe(i, values[i]);
+            }
+            vector.setValueCount(values.length);
+            root.setRowCount(values.length);
+
+            ArrowArray array = ArrowArray.allocateNew(allocator);
+            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
+            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
+            try (ArrowExport dataExport = new ArrowExport(array, arrowSchema)) {
+                writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());
+            }
+        }
+        writer.flush();
     }
 }
