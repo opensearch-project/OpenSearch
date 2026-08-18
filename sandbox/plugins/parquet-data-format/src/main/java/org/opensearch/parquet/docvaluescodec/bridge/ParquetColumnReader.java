@@ -16,7 +16,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.file.Path;
 
 /**
- * Numeric column reader backed by a forward-only native DataFusion/Arrow cursor.
+ * Numeric column reader backed by a forward-only native Arrow column cursor.
  *
  * <p>The native cursor only advances forward. This wrapper still serves a request that falls behind
  * the current batch by reopening the cursor (cheap, since file metadata is cached) and scanning
@@ -35,15 +35,19 @@ import java.nio.file.Path;
  *   <li>binary / keyword columns;</li>
  *   <li>a copy fallback and its overflow-retry, which are only needed if a non-borrowable path is
  *       ever served here.</li>
+ *   <li>the Parquet page index (per-page min/max/null-count) and a {@code pageIndex()} accessor: the
+ *       page-index FFM path was left out of this numeric bridge. A future DocValues skipper needs it
+ *       to skip whole pages without decoding. TODO: add the page-index read (Rust cursor + bridge)
+ *       when the skipper lands.</li>
  * </ul>
  */
-public final class DataFusionColumnReader implements Closeable, NumericValueReader {
+public final class ParquetColumnReader implements Closeable, NumericValueReader {
 
     private static final long CLOSED_HANDLE = -1L;
 
     private static final int DEFAULT_INITIAL_BATCH_SIZE = 32;
 
-    /** Number of scalar out-parameters {@code dfNextBatch} writes back. */
+    /** Number of scalar out-parameters {@code nextBatch} writes back. */
     private static final int OUT_PARAM_COUNT = 6;
 
     /** Java-side cap on a returned batch; mirrors {@code MAX_BATCH_SIZE} in doc_values_cursor.rs. */
@@ -55,21 +59,21 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
     private long handle;
     private DecodedBatch decodedBatch;
 
-    private DataFusionColumnReader(long handle, Path file, String column) {
+    private ParquetColumnReader(long handle, Path file, String column) {
         this.handle = handle;
         this.file = file;
         this.column = column;
     }
 
     /** Opens a numeric cursor with the default starting window. */
-    public static DataFusionColumnReader open(Path file, String column) throws IOException {
+    public static ParquetColumnReader open(Path file, String column) throws IOException {
         return open(file, column, DEFAULT_INITIAL_BATCH_SIZE);
     }
 
     /** Opens a numeric cursor with an explicit starting window. */
-    public static DataFusionColumnReader open(Path file, String column, int initialBatchSize) throws IOException {
-        long handle = ParquetDocValuesBridge.dfOpenIter(file.toString(), column, initialBatchSize);
-        return new DataFusionColumnReader(handle, file, column);
+    public static ParquetColumnReader open(Path file, String column, int initialBatchSize) throws IOException {
+        long handle = ParquetDocValuesBridge.openColumnCursor(file.toString(), column, initialBatchSize);
+        return new ParquetColumnReader(handle, file, column);
     }
 
     @Override
@@ -94,7 +98,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
     /** Replaces the forward-only cursor with a fresh one at row zero. Only reached on a backward request. */
     private void reopen() throws IOException {
         decodedBatch = null;
-        ParquetDocValuesBridge.dfResetIter(handle);
+        ParquetDocValuesBridge.resetColumnCursor(handle);
     }
 
     private void loadNumericBatch(long row) throws IOException {
@@ -117,7 +121,7 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
             MemorySegment validityBitOffsetOut = out.asSlice(4L * Long.BYTES, Long.BYTES);
             MemorySegment valueKindOut = out.asSlice(5L * Long.BYTES, Long.BYTES);
 
-            long rc = ParquetDocValuesBridge.dfNextBatch(
+            long rc = ParquetDocValuesBridge.nextBatch(
                 handle,
                 row,
                 firstRowOut,
@@ -184,24 +188,22 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
 
     private IOException contractViolation(long row, String detail) {
         return new IOException(
-            "DataFusion numeric cursor returned an invalid batch at row " + row + " (" + detail + ") for " + file + "/" + column
+            "native numeric cursor returned an invalid batch at row " + row + " (" + detail + ") for " + file + "/" + column
         );
     }
 
     private void checkStatus(long rc, long row) throws IOException {
         if (rc == ParquetDocValuesBridge.RC_EOF) {
-            throw new IOException("DataFusion numeric cursor exhausted before row " + row + " (" + file + "/" + column + ")");
+            throw new IOException("native numeric cursor exhausted before row " + row + " (" + file + "/" + column + ")");
         }
         if (rc != ParquetDocValuesBridge.RC_OK) {
-            throw new IOException(
-                "Unexpected DataFusion numeric cursor status " + rc + " at row " + row + " (" + file + "/" + column + ")"
-            );
+            throw new IOException("Unexpected native numeric cursor status " + rc + " at row " + row + " (" + file + "/" + column + ")");
         }
     }
 
     private void ensureOpen() {
         if (handle == CLOSED_HANDLE) {
-            throw new IllegalStateException("DataFusionColumnReader is closed");
+            throw new IllegalStateException("ParquetColumnReader is closed");
         }
     }
 
@@ -213,6 +215,6 @@ public final class DataFusionColumnReader implements Closeable, NumericValueRead
         long current = handle;
         handle = CLOSED_HANDLE;
         decodedBatch = null;
-        ParquetDocValuesBridge.dfCloseIter(current);
+        ParquetDocValuesBridge.closeColumnCursor(current);
     }
 }
