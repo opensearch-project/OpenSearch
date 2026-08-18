@@ -125,6 +125,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("ExtractLiteralAggRule", 0L),
                 Map.entry("ReduceExpressionsRule(Project)", 0L),
                 Map.entry("OpenSearchTableScanRule", 1L),
+                // 2, not 1: RelFieldTrimmer column pruning introduces a narrowing Project above the
+                // scan, so the marking rule fires once per Project.
                 Map.entry("OpenSearchProjectRule", 2L),
                 Map.entry("OpenSearchJoinRule", 1L),
                 Map.entry("OpenSearchAggregateRule", 1L),
@@ -132,6 +134,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
                 Map.entry("OpenSearchDistributionDeriveRule", 1L),
+                // 3, not 2: OpenSearchDistributionDeriveRule adds a SINGLETON spine variant, so Volcano
+                // runs one more trait conversion.
                 Map.entry("ExpandConversionRule", 3L),
                 // Calcite built-in: attempted on the decomposed aggregate but produces nothing
                 // here (no constant group keys), so productions == 0.
@@ -203,6 +207,17 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     }
 
     private PlannerContext context(ClusterState state, boolean profilingEnabled) {
-        return new PlannerContext(new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new), state, profilingEnabled);
+        // Default test settings: MPP off — pins COORDINATOR_CENTRIC plan shape (the existing
+        // test fixture's expected rule firings assume this). MPP-on cases live in the rule-
+        // specific test files (OpenSearchBroadcastJoinSplitRuleTests etc.).
+        org.opensearch.common.settings.Settings settings = org.opensearch.common.settings.Settings.builder()
+            .put("analytics.mpp.enabled", false)
+            .build();
+        return new PlannerContext(
+            new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new),
+            state,
+            settings,
+            profilingEnabled
+        );
     }
 }
