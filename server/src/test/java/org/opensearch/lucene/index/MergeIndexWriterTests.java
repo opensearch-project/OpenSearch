@@ -12,14 +12,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
@@ -29,7 +27,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -272,6 +269,28 @@ public class MergeIndexWriterTests extends OpenSearchTestCase {
         }
     }
 
+    // ========== liveSegmentCommitInfos ==========
+
+    /** The snapshot exposes the live SegmentCommitInfo references (identity) as a stable point-in-time copy. */
+    public void testLiveSegmentCommitInfosReturnsIdentityStableSnapshot() throws IOException {
+        addSegment("a", 2);
+        addSegment("b", 2);
+        writer.commit();
+
+        List<SegmentCommitInfo> first = writer.liveSegmentCommitInfos();
+        List<SegmentCommitInfo> second = writer.liveSegmentCommitInfos();
+        assertEquals(2, first.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertSame("snapshot must expose live references, not clones", first.get(i), second.get(i));
+        }
+
+        // Point-in-time copy: later segment-list changes must not retrofit into an old snapshot.
+        addSegment("c", 1);
+        writer.commit();
+        assertEquals(2, first.size());
+        assertEquals(3, writer.liveSegmentCommitInfos().size());
+    }
+
     // ========== PreparableOneMerge ==========
 
     /** initMergeReaders is idempotent once prepared — the factory must not be invoked again. */
@@ -351,19 +370,9 @@ public class MergeIndexWriterTests extends OpenSearchTestCase {
         writer.flush();
     }
 
-    /** Returns the writer's live segments. */
-    @SuppressForbidden(reason = "Reflection needed to read IndexWriter's private live SegmentInfos for test assertions")
+    /** Returns the writer's live segments via the production accessor. */
     private List<SegmentCommitInfo> liveSegments() throws IOException {
-        try {
-            java.lang.reflect.Field segInfosField = IndexWriter.class.getDeclaredField("segmentInfos");
-            segInfosField.setAccessible(true);
-            SegmentInfos segmentInfos = (SegmentInfos) segInfosField.get(writer);
-            synchronized (writer) {
-                return new ArrayList<>(segmentInfos.asList());
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new IOException("Failed to access segmentInfos via reflection", e);
-        }
+        return writer.liveSegmentCommitInfos();
     }
 
     /** Keys segments by their ordinal in {@code segments}, mirroring a generation lookup. */
