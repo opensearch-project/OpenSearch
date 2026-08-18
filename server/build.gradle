@@ -498,9 +498,6 @@ tasks.named("licenseHeaders").configure {
     dependsOn("generateProto")
     // Ignore our vendored version of Google Guice
     excludes << 'org/opensearch/common/inject/**/*'
-    // Ignore temporary copies of impending 8.7 Lucene classes
-    excludes << 'org/apache/lucene/search/RegExp87*'
-    excludes << 'org/apache/lucene/search/RegexpQuery87*'
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
 }
