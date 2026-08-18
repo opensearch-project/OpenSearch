@@ -15,7 +15,6 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
@@ -975,14 +974,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BackendExecutionContext backendContext
     ) {
         FilterTreeCallbacks.register(contextId, handle, tracker);
-        return () -> {
-            FilterTreeCallbacks.unregister(contextId);
-            try {
-                handle.close();
-            } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
-            }
-        };
+        // requestClose owns handle.close(): late release upcalls from partially-consumed
+        // native streams must still find the binding, so closing here would race them.
+        return () -> FilterTreeCallbacks.requestClose(contextId);
     }
 
     @Override
