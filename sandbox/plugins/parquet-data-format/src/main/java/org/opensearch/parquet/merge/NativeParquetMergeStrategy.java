@@ -108,7 +108,15 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 
-            assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
+            // A fully-deleted merge legitimately produces a zero-row (footer-only) output file.
+            assert anyLiveDocs || mergeMetadata.numRows() > 0 : "Merged file must contain rows when no live-docs filtering is applied";
+            if (mergeMetadata.numRows() == 0) {
+                logger.info(
+                    "Merge at generation [{}] produced empty file [{}] — every input row was deleted",
+                    writerGeneration,
+                    mergedFileName
+                );
+            }
 
             long expectedRows = files.stream().mapToLong(MonoFileWriterSet::numRows).sum();
             // With live-docs, output is bounded by input sum. Without, strict equality.

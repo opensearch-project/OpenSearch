@@ -154,6 +154,16 @@ pub fn merge_unsorted_with_pool(
         for batch_result in reader {
             let batch = batch_result?;
             let batch_rows = batch.num_rows();
+            // A reader yielding more rows than its footer declared would overflow this
+            // file's span and corrupt the next file's mapping slots — reject the batch.
+            if mapping_offset + batch_rows > file_start_offset + file_num_rows {
+                return Err(super::MergeError::Logic(format!(
+                    "row-id mapping overflow: file {} yielded at least {} rows but its footer declares only {} rows",
+                    file_idx,
+                    (mapping_offset - file_start_offset) + batch_rows,
+                    file_num_rows
+                )));
+            }
             let batch_bytes = batch.get_array_memory_size();
             // Track reader batch memory: grow on first batch, delta-adjust on subsequent
             if batch_tracked == 0 {

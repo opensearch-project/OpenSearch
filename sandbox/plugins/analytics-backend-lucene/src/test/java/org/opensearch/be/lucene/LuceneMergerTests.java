@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergeIndexWriter;
@@ -31,7 +30,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -143,8 +141,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         RowIdMapping rowIdMapping = new PackedRowIdMapping(mappingArray, genOffsets, genSizes);
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        SegmentInfos infos = getSegmentInfos(writer);
-        List<Segment> segments = buildSegments(infos);
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(rowIdMapping).newWriterGeneration(10L).build();
 
@@ -199,8 +196,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit();
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        SegmentInfos infos = getSegmentInfos(writer);
-        List<Segment> segments = buildSegments(infos);
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         // Identity mapping — writeSegmentWithRichFields already writes globally-unique row IDs
         // (0,1,2 in gen=1 and 3,4 in gen=2), so returning the original row ID is well-formed.
@@ -261,8 +257,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit();
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        SegmentInfos infos = getSegmentInfos(writer);
-        List<Segment> segments = buildSegments(infos);
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         RowIdMapping identity = new RowIdMapping() {
             @Override
@@ -290,7 +285,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         merger.merge(input);
 
         // Assertion 1: attribute is set on the live (in-memory) merged SegmentCommitInfo
-        SegmentCommitInfo mergedInMemory = findSegmentWithGeneration(getSegmentInfos(writer), newGeneration);
+        SegmentCommitInfo mergedInMemory = findSegmentWithGeneration(writer.liveSegmentCommitInfos(), newGeneration);
         assertNotNull("Merged segment must carry writer_generation=" + newGeneration + " in the live SegmentInfos", mergedInMemory);
 
         // Persist to disk, close the writer, and reopen against the same directory to verify
@@ -299,7 +294,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.close();
 
         SegmentInfos onDisk = SegmentInfos.readLatestCommit(directory);
-        SegmentCommitInfo mergedAfterReopen = findSegmentWithGeneration(onDisk, newGeneration);
+        SegmentCommitInfo mergedAfterReopen = findSegmentWithGeneration(onDisk.asList(), newGeneration);
         assertNotNull(
             "Merged segment must carry writer_generation="
                 + newGeneration
@@ -321,9 +316,9 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer = new MergeIndexWriter(directory, iwc);
     }
 
-    private SegmentCommitInfo findSegmentWithGeneration(SegmentInfos infos, long generation) {
+    private SegmentCommitInfo findSegmentWithGeneration(List<SegmentCommitInfo> infos, long generation) {
         String target = String.valueOf(generation);
-        for (SegmentCommitInfo sci : infos.asList()) {
+        for (SegmentCommitInfo sci : infos) {
             if (target.equals(sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE))) {
                 return sci;
             }
@@ -350,7 +345,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit();
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        List<Segment> segments = buildSegments(getSegmentInfos(writer));
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
@@ -370,7 +365,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit();
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        List<Segment> segments = buildSegments(getSegmentInfos(writer));
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
@@ -391,7 +386,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit(); // applies the delete: doc 1 of gen=1 is dead
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        List<Segment> segments = buildSegments(getSegmentInfos(writer));
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         long gen = 99L;
         MergeInput input = MergeInput.builder().segments(segments).newWriterGeneration(gen).build();
@@ -419,7 +414,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writer.commit();
 
         LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStatsTracker());
-        List<Segment> segments = buildSegments(getSegmentInfos(writer));
+        List<Segment> segments = buildSegments(writer.liveSegmentCommitInfos());
 
         long gen = 99L;
         merger.prepareMerge(MergeInput.builder().segments(segments).newWriterGeneration(gen).build());
@@ -454,7 +449,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
 
     // ========== Helper Methods ==========
 
-    private void writeSegment(IndexWriter w, long generation, int startRowId, int numDocs) throws IOException {
+    private void writeSegment(MergeIndexWriter w, long generation, int startRowId, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             doc.add(new StringField("id", "doc_" + (startRowId + i), Field.Store.YES));
@@ -467,7 +462,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         setWriterGenerationOnLatestSegment(w, generation);
     }
 
-    private void writeSegmentWithRichFields(IndexWriter w, long generation, int startRowId, int numDocs) throws IOException {
+    private void writeSegmentWithRichFields(MergeIndexWriter w, long generation, int startRowId, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             int docIdx = startRowId + i;
             Document doc = new Document();
@@ -482,37 +477,20 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         setWriterGenerationOnLatestSegment(w, generation);
     }
 
-    @SuppressForbidden(reason = "Need reflection to stamp writer_generation on segments for testing")
-    private void setWriterGenerationOnLatestSegment(IndexWriter w, long generation) throws IOException {
-        try {
-            java.lang.reflect.Field segInfosField = IndexWriter.class.getDeclaredField("segmentInfos");
-            segInfosField.setAccessible(true);
-            SegmentInfos segInfos = (SegmentInfos) segInfosField.get(w);
-            if (segInfos.size() > 0) {
-                SegmentCommitInfo lastSegment = segInfos.asList().get(segInfos.size() - 1);
-                if (lastSegment.info.getAttribute(WRITER_GENERATION_ATTRIBUTE) == null) {
-                    lastSegment.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(generation));
-                }
+    /** Stamps the writer_generation attribute on the newest live segment. */
+    private void setWriterGenerationOnLatestSegment(MergeIndexWriter w, long generation) throws IOException {
+        List<SegmentCommitInfo> live = w.liveSegmentCommitInfos();
+        if (live.isEmpty() == false) {
+            SegmentCommitInfo lastSegment = live.get(live.size() - 1);
+            if (lastSegment.info.getAttribute(WRITER_GENERATION_ATTRIBUTE) == null) {
+                lastSegment.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(generation));
             }
-        } catch (ReflectiveOperationException e) {
-            throw new IOException("Failed to set writer_generation attribute via reflection", e);
         }
     }
 
-    @SuppressForbidden(reason = "Need reflection to access live SegmentInfos for test assertions")
-    private SegmentInfos getSegmentInfos(IndexWriter w) throws IOException {
-        try {
-            java.lang.reflect.Field segInfosField = IndexWriter.class.getDeclaredField("segmentInfos");
-            segInfosField.setAccessible(true);
-            return (SegmentInfos) segInfosField.get(w);
-        } catch (ReflectiveOperationException e) {
-            throw new IOException("Failed to access segmentInfos via reflection", e);
-        }
-    }
-
-    private List<Segment> buildSegments(SegmentInfos infos) {
+    private List<Segment> buildSegments(List<SegmentCommitInfo> infos) {
         List<Segment> segments = new ArrayList<>();
-        for (SegmentCommitInfo sci : infos.asList()) {
+        for (SegmentCommitInfo sci : infos) {
             String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
             if (genAttr != null) {
                 long generation = Long.parseLong(genAttr);

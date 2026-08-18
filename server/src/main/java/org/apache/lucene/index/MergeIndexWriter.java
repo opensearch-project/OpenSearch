@@ -10,8 +10,11 @@ package org.apache.lucene.index;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -62,10 +65,44 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MergeIndexWriter extends IndexWriter {
 
+    /**
+     * Reflective handle to {@link IndexWriter}'s private live {@code segmentInfos}. The live
+     * {@link SegmentCommitInfo} references are required because merge registration matches
+     * segments by identity; {@code cloneSegmentInfos()} deep-clones and cannot be used.
+     */
+    private static final Field SEGMENT_INFOS_FIELD = initSegmentInfosField();
+
+    @SuppressForbidden(reason = "Need the live SegmentInfos reference for identity-based merge registration; cloneSegmentInfos() deep-clones")
+    private static Field initSegmentInfosField() {
+        try {
+            Field field = IndexWriter.class.getDeclaredField("segmentInfos");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final Map<Long, PreparableOneMerge> preparedMerges = new ConcurrentHashMap<>();
 
     public MergeIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
         super(d, conf);
+    }
+
+    /**
+     * Returns a point-in-time copy of the writer's current segment list holding the live
+     * {@link SegmentCommitInfo} references (not clones). Synchronized because Lucene mutates the
+     * underlying list only under the writer monitor; the returned copy is safe to iterate without
+     * a lock but may grow stale — merge registration re-validates against the live list.
+     */
+    public synchronized List<SegmentCommitInfo> liveSegmentCommitInfos() throws IOException {
+        ensureOpen(false);
+        try {
+            SegmentInfos segmentInfos = (SegmentInfos) SEGMENT_INFOS_FIELD.get(this);
+            return List.copyOf(segmentInfos.asList());
+        } catch (IllegalAccessException e) {
+            throw new IOException("Failed to access IndexWriter segmentInfos via reflection", e);
+        }
     }
 
     /**
@@ -82,8 +119,13 @@ public class MergeIndexWriter extends IndexWriter {
      * a file set without {@code .liv}; later when a flush triggers the {@code .liv}
      * write, the leaf has one extra file and the catalog/leaf mismatch surfaces as
      * {@code "Catalog segment ... has no matching Lucene leaf"} on the next refresh.
+     *
+     * <p>Deliberately not synchronized on the writer monitor so the {@code .liv} disk write
+     * cannot stall a concurrent refresh or flush; {@code ReadersAndUpdates#writeLiveDocs}
+     * already serializes racing writers on the per-segment lock (same pattern as
+     * {@link IndexWriter#numDeletedDocs(SegmentCommitInfo)}).
      */
-    public synchronized void flushLiveDocsForMergedSegment(SegmentCommitInfo mergedInfo) throws IOException {
+    public void flushLiveDocsForMergedSegment(SegmentCommitInfo mergedInfo) throws IOException {
         ReadersAndUpdates rld = getPooledInstance(mergedInfo, false);
         if (rld == null) {
             return;

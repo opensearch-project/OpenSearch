@@ -183,6 +183,34 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         RustBridge.removeSettings(INDEX_NAME);
     }
 
+    /** A merge where every input row is dead produces a valid, readable, zero-row output file. */
+    public void testMergeWithAllRowsDeadProducesValidEmptyFile() throws Exception {
+        NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();
+        RustBridge.onSettingsUpdate(settings);
+
+        Path tempDir = createTempDir();
+        String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 100, 200, 300 }, new String[] { "a", "b", "c" });
+        String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 400, 500, 600 }, new String[] { "d", "e", "f" });
+
+        // Every row in every input is dead.
+        long[][] liveBits = new long[][] { { 0L }, { 0L } };
+
+        String mergedFile = tempDir.resolve("merged.parquet").toString();
+        MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(
+            List.of(Path.of(file1), Path.of(file2)),
+            liveBits,
+            mergedFile,
+            INDEX_NAME,
+            0L
+        );
+
+        assertEquals("all rows dead — merged output must contain zero rows", 0, merged.metadata().numRows());
+        // The empty output is still a structurally valid parquet file: the footer must be readable.
+        assertEquals(0, RustBridge.getFileMetadata(mergedFile).numRows());
+
+        RustBridge.removeSettings(INDEX_NAME);
+    }
+
     /** A live-docs array whose length doesn't match the input file count is rejected up front. */
     public void testMergeWithMismatchedLiveDocsLengthThrows() throws Exception {
         NativeSettings settings = NativeSettings.builder().indexName(INDEX_NAME).compressionType("LZ4_RAW").build();

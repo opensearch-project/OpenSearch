@@ -24,6 +24,32 @@ use super::schema::ColumnMapping;
 use crate::memory::merge_pool;
 use native_bridge_common::memory_pool::{MemoryReservation, PoolBehavior};
 
+/// Checked write of a surviving row's new id into the flat mapping. A row id at or beyond
+/// the file's footer-declared span would silently corrupt the next file's slots, so it is
+/// rejected with a descriptive error (diagnosable across the FFM boundary, unlike a panic).
+#[inline]
+fn record_survivor(
+    mapping: &mut [i64],
+    file_offset: usize,
+    file_rows: usize,
+    file_id: usize,
+    abs: u64,
+    new_row_id: i64,
+) -> super::MergeResult<()> {
+    let rel = abs as usize;
+    if rel >= file_rows || file_offset + rel >= mapping.len() {
+        return Err(super::MergeError::Logic(format!(
+            "row-id mapping overflow: file {} produced absolute row id {} but its footer declares only {} rows (mapping len {})",
+            file_id,
+            abs,
+            file_rows,
+            mapping.len()
+        )));
+    }
+    mapping[file_offset + rel] = new_row_id;
+    Ok(())
+}
+
 /// Performs a streaming k-way merge with an explicit sort direction per column.
 /// `live_docs_per_input` is parallel to `input_files`; a `None` (or absent) entry
 /// disables filtering for that file (zero-copy fast path).
@@ -217,6 +243,7 @@ pub fn merge_sorted_with_pool(
             let cursor = &mut cursors[file_id];
             let col_mapping = &col_mappings[file_id];
             let file_offset = gen_offsets[file_id] as usize;
+            let file_rows = file_row_counts[file_id];
             loop {
                 let start_idx = cursor.row_idx;
                 let base_row_id = cursor.base_row_id;
@@ -227,7 +254,14 @@ pub fn merge_sorted_with_pool(
                     for i in 0..remaining {
                         let abs = base_row_id + (start_idx + i) as u64;
                         if cursor.is_row_id_alive(abs) {
-                            mapping[file_offset + abs as usize] = new_row_id;
+                            record_survivor(
+                                &mut mapping,
+                                file_offset,
+                                file_rows,
+                                file_id,
+                                abs,
+                                new_row_id,
+                            )?;
                             new_row_id += 1;
                         }
                     }
@@ -246,6 +280,7 @@ pub fn merge_sorted_with_pool(
         let cursor = &mut cursors[file_id];
         let col_mapping = &col_mappings[file_id];
         let file_offset = gen_offsets[file_id] as usize;
+        let file_rows = file_row_counts[file_id];
 
         loop {
             let heap_top = &heap.peek().unwrap().sort_values;
@@ -260,7 +295,14 @@ pub fn merge_sorted_with_pool(
                 for i in 0..remaining {
                     let abs = base_row_id + (start_idx + i) as u64;
                     if cursor.is_row_id_alive(abs) {
-                        mapping[file_offset + abs as usize] = new_row_id;
+                        record_survivor(
+                            &mut mapping,
+                            file_offset,
+                            file_rows,
+                            file_id,
+                            abs,
+                            new_row_id,
+                        )?;
                         new_row_id += 1;
                     }
                 }
@@ -317,7 +359,14 @@ pub fn merge_sorted_with_pool(
                 for i in 0..run_len {
                     let abs = base_row_id + (run_start + i) as u64;
                     if cursor.is_row_id_alive(abs) {
-                        mapping[file_offset + abs as usize] = new_row_id;
+                        record_survivor(
+                            &mut mapping,
+                            file_offset,
+                            file_rows,
+                            file_id,
+                            abs,
+                            new_row_id,
+                        )?;
                         new_row_id += 1;
                     }
                 }

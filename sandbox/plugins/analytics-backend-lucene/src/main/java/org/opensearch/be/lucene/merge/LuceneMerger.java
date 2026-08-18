@@ -10,13 +10,10 @@ package org.opensearch.be.lucene.merge;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.LiveDocs;
@@ -28,7 +25,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -68,19 +64,6 @@ public class LuceneMerger implements Merger {
 
     private static final Logger logger = LogManager.getLogger(LuceneMerger.class);
 
-    private static final Field SEGMENT_INFOS_FIELD = initSegmentInfosField();
-
-    @SuppressForbidden(reason = "Need live SegmentInfos reference for post-merge segment removal; cloneSegmentInfos() returns a copy")
-    private static Field initSegmentInfosField() {
-        try {
-            Field field = IndexWriter.class.getDeclaredField("segmentInfos");
-            field.setAccessible(true);
-            return field;
-        } catch (NoSuchFieldException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
     private final MergeIndexWriter indexWriter;
     private final DataFormat dataFormat;
     private final Path storeDirectory;
@@ -110,16 +93,11 @@ public class LuceneMerger implements Merger {
             generationsToMerge.add(segment.generation());
         }
 
-        SegmentInfos segmentInfos;
-        try {
-            segmentInfos = (SegmentInfos) SEGMENT_INFOS_FIELD.get(indexWriter);
-        } catch (IllegalAccessException e) {
-            throw new IOException("Failed to access IndexWriter segmentInfos via reflection", e);
-        }
-        if (segmentInfos.size() == 0) {
+        List<SegmentCommitInfo> liveSegments = indexWriter.liveSegmentCommitInfos();
+        if (liveSegments.isEmpty()) {
             return LiveDocs.ALL_ALIVE;
         }
-        List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
+        List<SegmentCommitInfo> matchingSegments = findMatchingSegments(liveSegments, generationsToMerge);
         if (matchingSegments.isEmpty()) {
             return LiveDocs.ALL_ALIVE;
         }
@@ -152,14 +130,9 @@ public class LuceneMerger implements Merger {
                 generationsToMerge.add(segment.generation());
             }
 
-            SegmentInfos segmentInfos;
-            try {
-                segmentInfos = (SegmentInfos) SEGMENT_INFOS_FIELD.get(indexWriter);
-            } catch (IllegalAccessException e) {
-                throw new IOException("Failed to access IndexWriter segmentInfos via reflection", e);
-            }
+            List<SegmentCommitInfo> liveSegments = indexWriter.liveSegmentCommitInfos();
 
-            if (segmentInfos.size() == 0) {
+            if (liveSegments.isEmpty()) {
                 throw new IOException(
                     "IndexWriter has no segments — cannot proceed with Lucene merge for generations "
                         + generationsToMerge
@@ -167,7 +140,7 @@ public class LuceneMerger implements Merger {
                 );
             }
 
-            List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
+            List<SegmentCommitInfo> matchingSegments = findMatchingSegments(liveSegments, generationsToMerge);
 
             if (matchingSegments.isEmpty()) {
                 throw new IOException(
@@ -265,11 +238,11 @@ public class LuceneMerger implements Merger {
     }
 
     /**
-     * Finds segments in the IndexWriter whose writer generation matches the requested generations.
+     * Finds segments in the given snapshot whose writer generation matches the requested generations.
      */
-    private List<SegmentCommitInfo> findMatchingSegments(SegmentInfos segmentInfos, Set<Long> generations) {
+    private List<SegmentCommitInfo> findMatchingSegments(List<SegmentCommitInfo> liveSegments, Set<Long> generations) {
         List<SegmentCommitInfo> matching = new ArrayList<>();
-        for (SegmentCommitInfo sci : segmentInfos) {
+        for (SegmentCommitInfo sci : liveSegments) {
             String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
             if (genAttr != null && generations.contains(Long.parseLong(genAttr))) {
                 matching.add(sci);
