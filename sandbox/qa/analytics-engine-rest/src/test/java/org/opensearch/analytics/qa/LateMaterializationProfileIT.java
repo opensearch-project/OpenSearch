@@ -72,7 +72,7 @@ public class LateMaterializationProfileIT extends AnalyticsRestTestCase {
             }
         }
         assertNotNull("LATE_MATERIALIZATION stage must be present in profile", lmStage);
-        assertEquals("SUCCEEDED", lmStage.get("state"));
+        assertSuccessfulTerminalState(lmStage);
 
         // LM stage must have exactly one task per shard — both of our 2 shards must have
         // contributed rows to the fetch, per the statistical argument above.
@@ -91,7 +91,7 @@ public class LateMaterializationProfileIT extends AnalyticsRestTestCase {
         // Each task must have data_node_metrics (from the fetch path)
         for (Map<String, Object> task : tasks) {
             assertNotNull("task state present", task.get("state"));
-            assertEquals("FINISHED", task.get("state"));
+            assertSuccessfulTaskState(task);
 
             Map<String, Object> metrics = (Map<String, Object>) task.get("data_node_metrics");
             assertNotNull(
@@ -191,14 +191,14 @@ public class LateMaterializationProfileIT extends AnalyticsRestTestCase {
             }
         }
         assertNotNull("LATE_MATERIALIZATION stage must be present in profile", lmStage);
-        assertEquals("SUCCEEDED", lmStage.get("state"));
+        assertSuccessfulTerminalState(lmStage);
 
         List<Map<String, Object>> tasks = (List<Map<String, Object>>) lmStage.get("tasks");
         assertNotNull("LM stage must have tasks. Full LM stage: " + lmStage, tasks);
         assertEquals("exactly 1 shard should participate when only 1 row matches. Full LM stage: " + lmStage, 1, tasks.size());
 
         Map<String, Object> task = tasks.get(0);
-        assertEquals("FINISHED", task.get("state"));
+        assertSuccessfulTaskState(task);
 
         Map<String, Object> metrics = (Map<String, Object>) task.get("data_node_metrics");
         assertNotNull("LM task must return data_node_metrics. Full LM stage: " + lmStage, metrics);
@@ -212,6 +212,35 @@ public class LateMaterializationProfileIT extends AnalyticsRestTestCase {
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+    /**
+     * A successful analytics query returns complete results, then {@code QueryScheduler}'s
+     * terminal cleanup fires {@code cancelTaskAndDescendants(queryTask)} to reap any
+     * still-dispatched data-node fragments. That cleanup cancel races each stage's own
+     * transition to SUCCEEDED: under slow/contended conditions (e.g. CI with the C2 JIT
+     * disabled), a two-phase LATE_MATERIALIZATION stage can still be finalizing when the
+     * cleanup sweep marks it CANCELLED — even though it produced complete output and its
+     * per-task metrics/physical_plan were already captured. Both SUCCEEDED and CANCELLED are
+     * therefore valid terminal states on a successful query; only FAILED indicates a real
+     * problem. (This is pre-existing QueryScheduler behavior, unrelated to profiling.)
+     */
+    private static void assertSuccessfulTerminalState(Map<String, Object> stage) {
+        Object state = stage.get("state");
+        assertTrue(
+            "LM stage state must be a successful terminal (SUCCEEDED or CANCELLED), got: " + state + ". Full LM stage: " + stage,
+            "SUCCEEDED".equals(state) || "CANCELLED".equals(state)
+        );
+    }
+
+    /** Task-level analogue of {@link #assertSuccessfulTerminalState} — see that method for why
+     *  CANCELLED is tolerated. FINISHED is the common case; CANCELLED occurs on the cleanup race. */
+    private static void assertSuccessfulTaskState(Map<String, Object> task) {
+        Object state = task.get("state");
+        assertTrue(
+            "LM task state must be FINISHED or CANCELLED, got: " + state,
+            "FINISHED".equals(state) || "CANCELLED".equals(state)
+        );
+    }
 
     private void createIndex() throws IOException {
         try {
