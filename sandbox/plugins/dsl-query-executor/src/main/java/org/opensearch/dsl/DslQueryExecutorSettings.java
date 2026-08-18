@@ -17,14 +17,10 @@ import org.opensearch.common.settings.Setting;
 public final class DslQueryExecutorSettings {
 
     /**
-     * Master switch for Calcite-path routing. Defaults to {@code true} — the plugin routes
-     * {@code _search} through the grammar, with codec fallback on grammar rejection or
-     * conversion failure. Set to {@code false} to force every request through the codec
-     * path unchanged (operational escape hatch: mitigations, benchmarking, incident
-     * response).
+     * Master switch for Calcite-path routing (default {@code true}). When {@code false}, every
+     * {@code _search} is sent through the codec path unchanged.
      *
-     * <p>Node-scoped + dynamic → cluster-wide, updatable via {@code PUT _cluster/settings}
-     * (use {@code persistent} to survive a full cluster restart).
+     * <p>Dynamic and node-scoped, so it can be updated cluster-wide via {@code PUT _cluster/settings}.
      */
     public static final Setting<Boolean> CALCITE_ENABLED = Setting.boolSetting(
         "dsl.query_executor.calcite.enabled",

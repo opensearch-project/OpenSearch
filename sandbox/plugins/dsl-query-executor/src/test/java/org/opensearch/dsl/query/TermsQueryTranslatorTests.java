@@ -105,7 +105,7 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         ValidationResult result = translator.validate(QueryBuilders.termsQuery("name", "laptop").queryName("my_query"));
 
         assertFalse(result.isAccepted());
-        assertEquals("terms.name", result.reasonCode());
+        assertEquals("terms._name", result.reasonCode());
         assertEquals("Terms query does not support _name", result.message());
     }
 

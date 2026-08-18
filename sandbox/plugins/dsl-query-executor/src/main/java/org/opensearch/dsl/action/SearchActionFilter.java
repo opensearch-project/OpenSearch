@@ -36,8 +36,7 @@ import java.util.Set;
  * the Calcite path and the codec path.
  *
  * <p>Layer 1: {@link DslQueryExecutorSettings#CALCITE_ENABLED} — defaults to {@code true};
- * setting it to {@code false} forces every request through the codec path unchanged
- * (operational escape hatch).
+ * setting it to {@code false} forces every request through the codec path unchanged.
  *
  * <p>Layer 2 (only when the setting is on):
  * <ul>
@@ -109,17 +108,25 @@ public class SearchActionFilter implements ActionFilter {
             return;
         }
 
-        ActionListener<SearchResponse> calciteListener = ActionListener.wrap(
-            (SearchResponse resp) -> ((ActionListener<SearchResponse>) listener).onResponse(resp),
-            error -> {
-                if (isFallbackable(error)) {
-                    logger.debug("Calcite path threw ConversionException, falling back to codec", error);
-                    chain.proceed(task, action, request, listener);
-                } else {
-                    listener.onFailure(error);
-                }
+        // Explicit listener, not ActionListener.wrap: wrap routes an exception thrown while
+        // delivering the success response into onFailure, double-completing the caller's listener.
+        // Forwarding onResponse directly means only a genuine Calcite failure reaches onFailure.
+        ActionListener<SearchResponse> calciteListener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                ((ActionListener<SearchResponse>) listener).onResponse(response);
             }
-        );
+
+            @Override
+            public void onFailure(Exception error) {
+                if (isFallbackable(error) == false) {
+                    listener.onFailure(error);
+                    return;
+                }
+                logger.debug("Calcite path threw ConversionException, falling back to codec", error);
+                chain.proceed(task, action, request, listener);
+            }
+        };
         client.execute(DslExecuteAction.INSTANCE, searchRequest, calciteListener);
     }
 

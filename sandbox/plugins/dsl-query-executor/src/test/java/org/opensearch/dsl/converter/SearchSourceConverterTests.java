@@ -78,6 +78,17 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertTrue(plan.relNode() instanceof LogicalTableScan);
     }
 
+    public void testNullSourceProducesHitsPlan() throws ConversionException {
+        // A bodyless _search (null source) is normalized to an empty match_all and plans
+        // exactly like new SearchSourceBuilder() — a HITS scan plus the COUNT plan for hits.total.
+        QueryPlans plans = converter.convert(null, "test-index");
+
+        assertEquals(2, plans.getAll().size());
+        assertTrue(plans.has(QueryPlans.Type.HITS));
+        assertTrue(plans.has(QueryPlans.Type.COUNT));
+        assertTrue(plans.get(QueryPlans.Type.HITS).get(0).relNode() instanceof LogicalTableScan);
+    }
+
     public void testConvertResolvesFieldNames() throws ConversionException {
         QueryPlans plans = converter.convert(new SearchSourceBuilder(), "test-index");
 
