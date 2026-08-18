@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.SearchableDirectoryReaderProvider;
 
 import java.util.Map;
 import java.util.Objects;
@@ -23,9 +24,13 @@ import java.util.Objects;
  * searcher rather than building their own: distinct {@code IndexSearcher}s over the same reader,
  * both wired to the shared query cache, trip Lucene's "top-reader used to create Weight is not the
  * same as the current reader's top-reader" assertion — fatal across the FFM boundary.
+ *
+ * <p>Implements {@link SearchableDirectoryReaderProvider} so the server module's
+ * {@code DataFormatAwareEngine} can obtain the {@link DirectoryReader} for the standard search path
+ * without depending on this plugin at compile time.
  */
 @ExperimentalApi
-public final class LuceneReader {
+public final class LuceneReader implements SearchableDirectoryReaderProvider {
 
     private final DirectoryReader directoryReader;
     private final Map<Long, String> generationToSegmentName;
@@ -38,6 +43,7 @@ public final class LuceneReader {
         this.generationToSegmentName = Map.copyOf(generationToSegmentName);
     }
 
+    @Override
     public DirectoryReader directoryReader() {
         return directoryReader;
     }

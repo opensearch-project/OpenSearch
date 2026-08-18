@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexCreationValidator;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -41,6 +42,7 @@ import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.codec.ParquetDocValuesDirectoryReader;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -337,5 +339,21 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new ParquetStatsRestAction(), new ParquetNodeStatsRestAction());
+    }
+
+    /**
+     * Installs the Parquet DocValues reader wrapper during Index open so numeric doc values that live only in Parquet are
+     * served through the standard Lucene search and aggregation path. Gated on
+     * {@code index.pluggable.dataformat.enabled}: other indices get no wrapper. The wrapper is a no-op
+     * per leaf when a segment has no Parquet-resident fields, so the per-request overhead is negligible.
+     */
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.setReaderWrapper(indexService -> {
+            if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
+                return null;
+            }
+            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, indexService.mapperService());
+        });
     }
 }
