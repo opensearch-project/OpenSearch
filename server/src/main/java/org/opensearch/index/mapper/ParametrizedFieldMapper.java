@@ -189,6 +189,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     @PublicApi(since = "1.0.0")
     public static final class Parameter<T> implements Supplier<T> {
 
+        /** Name of the shared {@code multi_value} arity parameter; see {@link #multiValueParam()}. */
+        public static final String MULTI_VALUE_PARAM_NAME = "multi_value";
+
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
         private final Supplier<T> defaultValue;
@@ -394,6 +397,23 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
                 initializer
             ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+        }
+
+        /**
+         * Defines the shared {@code multi_value} mapping parameter, declaring whether a field holds a
+         * single value or an array. This captures field <em>arity</em> — distinct from the number of
+         * distinct values a field has, and unrelated to the {@code cardinality} aggregation.
+         *
+         * <p>Field types that can hold arrays should register this in {@code getParameters()} and
+         * stamp its value onto the built field type via {@link MappedFieldType#setMultiValued(boolean)}.
+         * Consumers that project a fixed schema (columnar data formats, SQL/PPL, join) read it back via
+         * {@link MappedFieldType#isMultiValued()}. It defaults to {@code false} and is not updateable —
+         * a field's arity is fixed once data is written.
+         *
+         * @return a {@code Parameter<Boolean>} named {@value #MULTI_VALUE_PARAM_NAME}
+         */
+        public static Parameter<Boolean> multiValueParam() {
+            return Parameter.boolParam(MULTI_VALUE_PARAM_NAME, false, m -> m.fieldType().isMultiValued(), false);
         }
 
         /**
