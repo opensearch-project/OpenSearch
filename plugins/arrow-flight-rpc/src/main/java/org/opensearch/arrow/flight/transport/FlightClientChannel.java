@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -397,7 +398,12 @@ class FlightClientChannel implements TcpChannel {
                 try (var dispatchMark = streamResponse.markDispatchThread()) {
                     try (var ignored = threadContext.stashContext()) {
                         if (header == null) {
+                            // Must return: handleStreamException does not throw, so falling through here
+                            // would NPE on getHeaders() below and mask the real failure. A null header is
+                            // reachable whenever the middleware never stored one (HeaderContext.getHeader
+                            // is a plain map remove), e.g. a call closed before its headers arrived.
                             handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
+                            return;
                         }
                         threadContext.setHeaders(header.getHeaders());
                         handler.handleStreamResponse(streamResponse);
@@ -420,12 +426,12 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.close();
         } catch (IOException e) {
-            logger.error("Failed to close stream response", e);
+            logFailure("Failed to close stream response", e);
         }
     }
 
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception) {
-        logger.error("Exception while handling stream response", exception);
+        logFailure("Exception while handling stream response for correlationId [" + streamResponse.getCorrelationId() + "]", exception);
         try {
             cancelStream(streamResponse, exception);
             TransportResponseHandler<?> handler = streamResponse.getHandler();
@@ -439,7 +445,41 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.cancel("Client-side exception: " + cause.getMessage(), cause);
         } catch (Exception cancelEx) {
-            logger.warn("Failed to cancel stream after exception", cancelEx);
+            logFailure("Failed to cancel stream after exception", cancelEx);
+        }
+    }
+
+    /**
+     * Logs a per-stream failure as a one-line summary at ERROR, with the full stack trace available
+     * only at TRACE.
+     *
+     * <p><b>Never hand a throwable to log4j from these paths.</b> They run on the per-stream prefetch
+     * virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync}, and letting log4j
+     * render a stack trace there can wedge the whole node:
+     *
+     * <ol>
+     *   <li>OpenSearch's JSON layout always appends {@code %exceptionAsJson}, so a logged throwable reaches
+     *       log4j's <em>extended</em> stack-trace renderer, which annotates every frame with its source JAR.</li>
+     *   <li>To do that it resolves each frame's declaring class via {@code Class.forName}. The resulting
+     *       {@code forName0} <em>native</em> frame sits on the stack while the classloader monitor is
+     *       contended, and a continuation carrying a native frame cannot be unmounted. So the virtual thread
+     *       pins its carrier instead of yielding it, even on JDK 25 where JEP 491 lets {@code synchronized}
+     *       blocking unmount.</li>
+     *   <li>The scheduler's carrier count defaults to {@code availableProcessors}. A mass stream failure
+     *       (for example every stream reconnecting at once after a network partition heals) can therefore pin
+     *       every carrier, while the thread holding the classloader lock is itself unmounted and can never be
+     *       rescheduled to release it. That circular wait does not resolve: the node keeps reporting healthy
+     *       while making no progress.</li>
+     * </ol>
+     *
+     * <p>The TRACE line is safe for the same reason: it passes a pre-rendered string, so log4j never sees a
+     * throwable and the extended renderer never runs. {@link ExceptionsHelper#stackTrace} only formats frames
+     * that were captured when the throwable was constructed, resolving no classes and taking no lock.
+     */
+    private void logFailure(String message, Throwable cause) {
+        logger.error("{}: {}", message, FlightUtils.causeSummary(cause));
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}: {}", message, ExceptionsHelper.stackTrace(cause));
         }
     }
 
@@ -464,7 +504,8 @@ class FlightClientChannel implements TcpChannel {
         try {
             handler.handleException(exception);
         } catch (Exception handlerEx) {
-            logger.error("Handler failed to process exception", handlerEx);
+            // Runs on the prefetch virtual thread when the handler declares the SAME executor.
+            logFailure("Handler failed to process exception", handlerEx);
         }
     }
 
