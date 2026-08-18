@@ -56,7 +56,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.getKeywordFieldType;
@@ -87,11 +86,23 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
 
+        /**
+         * Used when the field is mapped {@code index: false}: the object's leaves still get doc
+         * values, but no postings are written. {@link Defaults#FIELD_TYPE} is frozen and shared, so
+         * the not-indexed variant has to be its own instance.
+         */
+        public static final FieldType FIELD_TYPE_NOT_INDEXED = new FieldType();
+
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
+
+            FIELD_TYPE_NOT_INDEXED.setTokenized(false);
+            FIELD_TYPE_NOT_INDEXED.setOmitNorms(true);
+            FIELD_TYPE_NOT_INDEXED.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE_NOT_INDEXED.freeze();
         }
     }
 
@@ -106,19 +117,67 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     /**
-     * The builder for the flat_object field mapper using default parameters
+     * The builder for the flat_object field mapper.
+     * <p>
+     * Declares its mapping parameters through {@link ParametrizedFieldMapper}, so parsing,
+     * serialization and update-conflict detection come from the framework rather than being
+     * hand-written — the same path {@code keyword} and every other field type takes. Before this,
+     * flat_object used a {@code TypeParser} that ignored the mapping node entirely, which made
+     * <em>every</em> parameter a mapping error.
+     *
      * @opensearch.internal
      */
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        /**
+         * Whether the object's leaves are added to the inverted index. Not updateable: flipping it
+         * would leave existing documents' postings inconsistent with the mapping.
+         * <p>
+         * {@code false} keeps doc values and drops postings, so on a plain index the field stays
+         * queryable through the doc-values path. Under a pluggable data format it also drops the
+         * field from the secondary format entirely (no {@code FULL_TEXT_SEARCH} is requested), which
+         * is the point: the columnar primary keeps the values and nothing is indexed twice.
+         */
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).fieldType().isSearchable(), true);
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.singletonList(indexed);
         }
 
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
-            boolean isSearchable = true;
+            // A pluggable data format stores the whole object as one column and reconstructs _source
+            // from it, so derived source is satisfied by the format rather than by the Lucene
+            // field-value generator. Capture the flag so the mapper can accept derived source in that
+            // mode while still rejecting it for a plain Lucene index, where nested source cannot be
+            // rebuilt from the flattened doc-value sub-fields.
+            boolean pluggableDataFormatEnabled = context.indexSettings()
+                .getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+
+            boolean isSearchable = indexed.getValue();
+            // Deliberately scoped: `index: false` is only accepted where it has a well-defined
+            // meaning today — a columnar primary format that keeps the values and serves them.
+            // On a plain Lucene index it would silently leave the field reachable only through the
+            // doc-values path, a behaviour change for existing mappings with no benefit, so it is
+            // rejected up front rather than supported half-way.
+            if (isSearchable == false && pluggableDataFormatEnabled == false) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + buildFullName(context)
+                        + "] of type ["
+                        + CONTENT_TYPE
+                        + "] does not support [index: false] unless the index uses a pluggable data format "
+                        + "(["
+                        + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                        + "] is not enabled)"
+                );
+            }
+
             boolean hasDocValue = true;
             KeywordFieldType valueFieldType = getKeywordFieldType(buildFullName(context), VALUE_SUFFIX, isSearchable, hasDocValue);
             KeywordFieldType valueAndPathFieldType = getKeywordFieldType(
@@ -129,34 +188,20 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             FlatObjectFieldType fft = new FlatObjectFieldType(buildFullName(context), null, valueFieldType, valueAndPathFieldType);
 
-            // A pluggable data format stores the whole object as one column and reconstructs _source
-            // from it, so derived source is satisfied by the format rather than by the Lucene
-            // field-value generator. Capture the flag so the mapper can accept derived source in that
-            // mode while still rejecting it for a plain Lucene index, where nested source cannot be
-            // rebuilt from the flattened doc-value sub-fields.
-            boolean pluggableDataFormatEnabled = context.indexSettings()
-                .getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
-            return new FlatObjectFieldMapper(name, Defaults.FIELD_TYPE, fft, pluggableDataFormatEnabled);
+            return new FlatObjectFieldMapper(
+                name,
+                isSearchable ? Defaults.FIELD_TYPE : Defaults.FIELD_TYPE_NOT_INDEXED,
+                fft,
+                pluggableDataFormatEnabled
+            );
         }
+    }
+
+    private static FlatObjectFieldMapper toType(FieldMapper in) {
+        return (FlatObjectFieldMapper) in;
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
-
-    /**
-     * Creates a new TypeParser for flatObjectFieldMapper that does not use ParameterizedFieldMapper
-     */
-    public static class TypeParser implements Mapper.TypeParser {
-        private final BiFunction<String, ParserContext, Builder> builderFunction;
-
-        public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
-            this.builderFunction = builderFunction;
-        }
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return builderFunction.apply(name, parserContext);
-        }
-    }
 
     /**
      * flat_object fields type contains its own fieldType, one valueFieldType and one valueAndPathFieldType
@@ -563,12 +608,26 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     private final KeywordFieldType valueAndPathFieldType;
     private final boolean pluggableDataFormatEnabled;
 
+    /**
+     * The Lucene field type used when writing this field's terms. Held here, shadowing
+     * {@link FieldMapper#fieldType}, because {@link ParametrizedFieldMapper}'s constructor always
+     * hands {@link FieldMapper} a fresh default {@code FieldType} — the same arrangement
+     * {@link KeywordFieldMapper} uses.
+     */
+    private final FieldType fieldType;
+
     FlatObjectFieldMapper(String simpleName, FieldType fieldType, FlatObjectFieldType mappedFieldType, boolean pluggableDataFormatEnabled) {
-        super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
+        super(simpleName, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        this.fieldType = fieldType;
         valueFieldType = mappedFieldType.valueFieldType;
         valueAndPathFieldType = mappedFieldType.valueAndPathFieldType;
         this.pluggableDataFormatEnabled = pluggableDataFormatEnabled;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     /**
@@ -604,10 +663,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         return (FlatObjectFieldMapper) super.clone();
     }
 
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
+    // No mergeOptions override: ParametrizedFieldMapper makes it final and drives merge from the
+    // declared parameters instead, so `index` now gets a real conflict check on mapping update
+    // (previously this method was empty and every update silently succeeded).
 
     @Override
     public FlatObjectFieldType fieldType() {
