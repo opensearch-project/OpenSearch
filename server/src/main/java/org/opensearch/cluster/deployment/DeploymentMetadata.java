@@ -127,7 +127,7 @@ public class DeploymentMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_3_7_0;
+        return Version.V_3_9_0;
     }
 
     @Override
