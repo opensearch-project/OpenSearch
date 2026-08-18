@@ -32,6 +32,9 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -65,6 +68,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
@@ -75,6 +79,8 @@ import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
  * @opensearch.internal
  */
 final class DocumentParser {
+
+    private static final Logger logger = LogManager.getLogger(DocumentParser.class);
 
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
@@ -647,6 +653,17 @@ final class DocumentParser {
                         parser.skipChildren();
                     }
                 } else {
+                    // Before branching by token type, offer the field to plugin inferencers.
+                    // This is the single convergence point where we know the field name, the
+                    // incoming token type, and paths — before the code fans out to parseObject /
+                    // parseArray / parseValue. Placing the hook here means one method covers arrays,
+                    // objects, and scalars rather than requiring three separate hooks. The hook only
+                    // fires for unmapped fields; if the field has a mapper we skip directly to the
+                    // switch below via the early-return inside tryPluginInference.
+                    if (tryPluginInference(context, mapper, currentFieldName, paths)) {
+                        token = parser.nextToken();
+                        continue;
+                    }
                     // Process different token types during object parsing
                     switch (token) {
                         case START_OBJECT:
@@ -1122,6 +1139,7 @@ final class DocumentParser {
                         case TRUE:
                         case STRICT_ALLOW_TEMPLATES:
                         case FALSE_ALLOW_TEMPLATES:
+                            // Try template matching with OBJECT type (existing behavior).
                             Mapper.Builder builder = findTemplateBuilder(
                                 context,
                                 arrayFieldName,
@@ -1168,6 +1186,313 @@ final class DocumentParser {
 
     private static boolean parsesArrayValue(Mapper mapper) {
         return mapper instanceof FieldMapper fieldMapper && fieldMapper.parsesArrayValue();
+    }
+
+    /**
+     * Offers an unmapped field to all registered plugin inferencers and plugin-registered dynamic template types
+     * before the normal token-type branching takes place in {@link #innerParseObject}.
+     *
+     * <p>This is called at the single convergence point in {@code innerParseObject} where the field name,
+     * the incoming token type, and the parser position are all known simultaneously — before the code fans
+     * out into {@code parseObject} / {@code parseArray} / {@code parseValue}. Placing the hook here means
+     * one method handles arrays, objects, and scalars without requiring separate hooks per token type,
+     * making the SPI genuinely generic rather than array-specific.
+     *
+     * <p>Fast-path exits (no buffering, no deserialization):
+     * <ul>
+     *   <li>No inferencers registered ({@code inferencers.isEmpty()}) — zero overhead.</li>
+     *   <li>Field is already mapped ({@code getMapper()} returns non-null) — delegate to normal path.</li>
+     *   <li>Dynamic mapping is {@code STRICT} or {@code FALSE} on the parent object — existing behavior applies.</li>
+     * </ul>
+     *
+     * <p>When buffering does occur, the content is kept for replay: if no plugin claims the field, the
+     * same bytes are replayed through the normal unmapped-field logic so existing behavior is preserved.
+     *
+     * @return {@code true} if this method consumed the parser (either a plugin claimed the field or the
+     *         content was replayed through the existing path); {@code false} to fall through to the normal
+     *         token-type switch in {@code innerParseObject}.
+     */
+    private static boolean tryPluginInference(ParseContext context, ObjectMapper parentMapper, String fieldName, String[] paths)
+        throws IOException {
+        // Fast path: no plugins registered — zero overhead. Each inferencer is bound to the set of
+        // type strings its own plugin registered, so it may only produce a type it owns.
+        Map<DynamicFieldTypeInferencer, Set<String>> inferencers = context.mapperService().getDynamicFieldTypeInferencers();
+        Map<String, DynamicTemplateTypeHandler> templateTypes = context.mapperService().getDynamicTemplateTypes();
+        if (inferencers.isEmpty() && templateTypes.isEmpty()) {
+            return false;
+        }
+
+        // Fast path: field is already mapped — let the normal path handle it
+        Mapper existingMapper = getMapper(context, parentMapper, fieldName, paths);
+        if (existingMapper != null) {
+            return false;
+        }
+
+        // Only fire for dynamic=TRUE / STRICT_ALLOW_TEMPLATES / FALSE_ALLOW_TEMPLATES
+        final String[] resolvedPaths = paths != null ? paths : splitAndValidatePath(fieldName);
+        Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, resolvedPaths, parentMapper);
+        ObjectMapper resolvedParent = parentMapperTuple.v2();
+        final int parentPathSlots = parentMapperTuple.v1();
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(resolvedParent, context);
+        if (dynamic == ObjectMapper.Dynamic.STRICT || dynamic == ObjectMapper.Dynamic.FALSE) {
+            // Release path-slots added by getDynamicParentMapper before returning
+            for (int i = 0; i < parentPathSlots; i++) {
+                context.path().remove();
+            }
+            return false;
+        }
+
+        // getDynamicParentMapper added parentPathSlots to context.path(); release them on every exit
+        // (including an exception, e.g. buffering failure or an ambiguous-claim MapperParsingException)
+        // so ContentPath is not left corrupt for subsequent fields in the same document.
+        try {
+            return attemptPluginInference(context, dynamic, resolvedParent, resolvedPaths, inferencers, templateTypes);
+        } finally {
+            for (int i = 0; i < parentPathSlots; i++) {
+                context.path().remove();
+            }
+        }
+    }
+
+    /**
+     * Body of the plugin-inference attempt. Path slots added by {@code getDynamicParentMapper} are
+     * released by the caller's {@code finally}, so this method only manages the field-name slot it adds
+     * for replay. Returns {@code true} if a plugin claimed the field (template or inferencer) or it was
+     * replayed through the existing path.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static boolean attemptPluginInference(
+        ParseContext context,
+        ObjectMapper.Dynamic dynamic,
+        ObjectMapper resolvedParent,
+        String[] resolvedPaths,
+        Map<DynamicFieldTypeInferencer, Set<String>> inferencers,
+        Map<String, DynamicTemplateTypeHandler> templateTypes
+    ) throws IOException {
+        XContentParser parser = context.parser();
+        MediaType contentType = parser.contentType();
+
+        // Buffer the complete field value — needed for replay regardless of whether
+        // a plugin claims the field or not (streaming parser can only be read once)
+        byte[] rawContent;
+        try (XContentBuilder bufferBuilder = XContentBuilder.builder(contentType.xContent())) {
+            bufferBuilder.copyCurrentStructure(parser);
+            rawContent = BytesReference.toBytes(BytesReference.bytes(bufferBuilder));
+        }
+
+        // Hand plugins a factory that produces a fresh parser over the buffered bytes rather than a
+        // pre-deserialized object. Core stays free of any representation contract: each plugin streams
+        // the tokens it needs. Plugins whose config is already complete never call get(), so no parsing
+        // happens for them.
+        final FieldValueParserSupplier fieldValueParser = new FieldValueParserSupplier(
+            contentType,
+            parser.getDeprecationHandler(),
+            rawContent
+        );
+
+        final String resolvedFieldName = resolvedPaths[resolvedPaths.length - 1];
+
+        // Step 1: Check plugin-registered dynamic templates first — explicit user intent beats
+        // auto-inference. A user who writes a plugin-typed match_mapping_type with explicit params
+        // has declared their intent; we must not reject it because it falls below an inferencer
+        // threshold. Template matching is already scoped by the user's match/path_match patterns
+        // on the DynamicTemplate, so it only fires for fields the user intended.
+        //
+        // We evaluate ALL registered template types rather than stopping at the first match: if two
+        // plugin types both match the same field, that is an ambiguous configuration and we fail
+        // loudly (per OpenSearch triage) rather than silently letting registration order decide.
+        Mapper.Builder templateBuilder = null;
+        String templateMatchedType = null;
+        for (Map.Entry<String, DynamicTemplateTypeHandler> entry : templateTypes.entrySet()) {
+            Mapper.Builder candidate = findPluginTemplateBuilder(
+                context,
+                resolvedFieldName,
+                entry,
+                dynamic,
+                resolvedParent.fullPath(),
+                fieldValueParser
+            );
+            if (candidate != null) {
+                if (templateBuilder != null) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + resolvedFieldName
+                            + "] matched more than one dynamic template plugin type: ["
+                            + templateMatchedType
+                            + "] and ["
+                            + entry.getKey()
+                            + "]; the mapping is ambiguous"
+                    );
+                }
+                templateBuilder = candidate;
+                templateMatchedType = entry.getKey();
+            }
+        }
+        if (templateBuilder != null) {
+            Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+            Mapper templateMapper = templateBuilder.build(templateBuilderContext);
+            context.addDynamicMapper(templateMapper);
+            try (
+                XContentParser replayParser = contentType.xContent()
+                    .createParser(context.parser().getXContentRegistry(), context.parser().getDeprecationHandler(), rawContent)
+            ) {
+                replayParser.nextToken();
+                ParseContext replayContext = context.switchParser(replayParser);
+                context.path().add(resolvedFieldName);
+                try {
+                    parseObjectOrField(replayContext, templateMapper);
+                } finally {
+                    // Release the field-name slot even if replay throws, so ContentPath is not left
+                    // corrupt for subsequent fields in the same document.
+                    context.path().remove();
+                }
+            }
+            return true;
+        }
+
+        // Step 2: No template matched — run the inferencers as the auto-detection fallback.
+        // This is the path for fields with no user-defined template: each inferencer checks whether
+        // the field looks like a plugin-managed type (e.g. numeric array >= 128 elements).
+        //
+        // We consult ALL registered inferencers rather than stopping at the first claim: if two
+        // inferencers both claim the same field, that is ambiguous and we fail loudly (per OpenSearch
+        // triage) rather than letting plugin load order silently pick a winner.
+        Map<String, Object> inferredFieldMapping = null;
+        DynamicFieldTypeInferencer claimingInferencer = null;
+        Set<String> claimingInferencerSupportedTypes = null;
+        for (Map.Entry<DynamicFieldTypeInferencer, Set<String>> entry : inferencers.entrySet()) {
+            DynamicFieldTypeInferencer inferencer = entry.getKey();
+            Map<String, Object> claim;
+            try {
+                claim = inferencer.inferFieldType(fieldValueParser);
+            } catch (Exception e) {
+                // A buggy inferencer must not break document parsing, but the failure must be visible:
+                // log it rather than swallowing silently, then move on to the next inferencer.
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Skipping dynamic field type inferencer [{}]: it threw while inspecting field [{}]",
+                        inferencer.getClass().getName(),
+                        resolvedFieldName
+                    ),
+                    e
+                );
+                continue;
+            }
+            if (claim != null) {
+                if (inferredFieldMapping != null) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + resolvedFieldName
+                            + "] was claimed by more than one dynamic field type inferencer: ["
+                            + claimingInferencer.getClass().getName()
+                            + "] and ["
+                            + inferencer.getClass().getName()
+                            + "]; the inferred type is ambiguous"
+                    );
+                }
+                inferredFieldMapping = claim;
+                claimingInferencer = inferencer;
+                claimingInferencerSupportedTypes = entry.getValue();
+            }
+        }
+
+        if (inferredFieldMapping == null) {
+            // No template and no inferencer claimed this field — fall through to existing path
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
+            return true;
+        }
+
+        String inferredType = (String) inferredFieldMapping.get("type");
+        if (inferredType == null) {
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
+            return true;
+        }
+
+        // An inferencer may only produce a type it declared via supportedTypes() (validated at startup
+        // to be registered by its own plugin's getMappers()). The returned type must be in that set.
+        // This stops an inferencer from emitting a core built-in type (e.g. keyword, date, long), a type
+        // owned by a different plugin, or a type a sibling inferencer in the same plugin owns. Otherwise,
+        // ignore the claim and fall through to the existing dynamic-mapping path.
+        if (claimingInferencerSupportedTypes.contains(inferredType) == false) {
+            final String claimingInferencerName = claimingInferencer.getClass().getName();
+            final String rejectedType = inferredType;
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Dynamic field type inferencer [{}] returned type [{}] for field [{}] outside its declared supportedTypes(); ignoring the claim",
+                    claimingInferencerName,
+                    rejectedType,
+                    resolvedFieldName
+                )
+            );
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
+            return true;
+        }
+
+        // Step 3: No template — use inferencer result directly.
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        Mapper.TypeParser typeParser = parserContext.typeParser(inferredType);
+        if (typeParser == null) {
+            // Unknown type — fall through to existing path rather than failing
+            replayThroughExistingPath(context, resolvedParent, resolvedFieldName, rawContent);
+            return true;
+        }
+
+        Mapper.Builder<?> builder = typeParser.parse(resolvedFieldName, inferredFieldMapping, parserContext);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+        Mapper inferredMapper = builder.build(builderContext);
+        context.addDynamicMapper(inferredMapper);
+
+        // Replay buffered content through the new mapper
+        try (
+            XContentParser replayParser = contentType.xContent()
+                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), rawContent)
+        ) {
+            replayParser.nextToken(); // position at the start of the value
+            ParseContext replayContext = context.switchParser(replayParser);
+            context.path().add(resolvedFieldName);
+            try {
+                parseObjectOrField(replayContext, inferredMapper);
+            } finally {
+                // Release the field-name slot even if replay throws, so ContentPath is not left
+                // corrupt for subsequent fields in the same document.
+                context.path().remove();
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Replays raw-buffered field content through the normal unmapped-field logic — dynamic
+     * templates, parseDynamicValue, parseNonDynamicArray — as if the buffer had never been created.
+     */
+    private static void replayThroughExistingPath(ParseContext context, ObjectMapper parentMapper, String fieldName, byte[] rawContent)
+        throws IOException {
+        XContentParser originalParser = context.parser();
+        try (
+            XContentParser replayParser = originalParser.contentType()
+                .xContent()
+                .createParser(originalParser.getXContentRegistry(), originalParser.getDeprecationHandler(), rawContent)
+        ) {
+            replayParser.nextToken(); // position at value start
+            ParseContext replayContext = context.switchParser(replayParser);
+            XContentParser.Token replayToken = replayParser.currentToken();
+            String[] replayPaths = splitAndValidatePath(fieldName);
+            switch (replayToken) {
+                case START_OBJECT:
+                    parseObject(replayContext, parentMapper, fieldName, replayPaths);
+                    break;
+                case START_ARRAY:
+                    parseArray(replayContext, parentMapper, fieldName, replayPaths);
+                    break;
+                case VALUE_NULL:
+                    parseNullValue(replayContext, parentMapper, fieldName, replayPaths);
+                    break;
+                default:
+                    if (replayToken != null && replayToken.isValue()) {
+                        parseValue(replayContext, parentMapper, fieldName, replayToken, replayPaths);
+                    }
+            }
+        }
     }
 
     private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper, final String lastFieldName, String arrayFieldName)
@@ -1823,5 +2148,60 @@ final class DocumentParser {
             throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), fieldFullPath, name);
         }
         return builder;
+    }
+
+    /**
+     * Attempts to find a plugin-registered dynamic template whose {@code match_mapping_type} equals
+     * {@code pluginType} and whose path/name patterns match the field being parsed.
+     *
+     * <p>If a matching template is found, calls {@link DynamicTemplateTypeHandler#adjustMappingConfig}
+     * with a factory that produces a fresh parser over the buffered field bytes, so the handler can
+     * inject any required parameters before the {@link Mapper.TypeParser} builds the
+     * mapper. This runs before TypeParser so that parameters that can only be inferred from the data
+     * are present when the mapper is constructed. Handlers whose config is already complete never call
+     * {@code get()}, so no parsing happens for fully-specified templates.
+     *
+     * @param name          the simple field name being parsed (last path component)
+     * @param entry         the plugin type string and its handler
+     * @param fieldValueParser produces a fresh parser over the buffered field bytes
+     * @return a {@link Mapper.Builder} ready to build the mapper, or {@code null} if no template matched
+     */
+    @SuppressWarnings("rawtypes")
+    private static Mapper.Builder findPluginTemplateBuilder(
+        ParseContext context,
+        String name,
+        Map.Entry<String, DynamicTemplateTypeHandler> entry,
+        ObjectMapper.Dynamic dynamic,
+        String fieldFullPath,
+        FieldValueParserSupplier fieldValueParser
+    ) throws IOException {
+        String pluginType = entry.getKey();
+        DynamicTemplateTypeHandler handler = entry.getValue();
+        DynamicTemplate dynamicTemplate = findPluginTemplate(context.root(), context.path(), name, pluginType);
+        if (dynamicTemplate == null) {
+            return null;
+        }
+        String mappingType = dynamicTemplate.mappingType(pluginType);
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+        if (typeParser == null) {
+            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
+        }
+        Map<String, Object> mappingConfig = dynamicTemplate.mappingForName(name, pluginType);
+        // The handler completes the config (injects its own type when omitted, and any data-derived
+        // params) before the TypeParser builds the mapper.
+        handler.adjustMappingConfig(mappingConfig, fieldValueParser);
+        return typeParser.parse(name, mappingConfig, parserContext);
+    }
+
+    /** Scans dynamic templates on the root mapper for one whose {@code match_mapping_type} equals {@code pluginType} and whose path/name patterns match. */
+    private static DynamicTemplate findPluginTemplate(RootObjectMapper root, ContentPath path, String name, String pluginType) {
+        final String pathAsString = path.pathAsText(name);
+        for (DynamicTemplate dynamicTemplate : root.dynamicTemplates()) {
+            if (dynamicTemplate.matchesPluginType(pathAsString, name, pluginType)) {
+                return dynamicTemplate;
+            }
+        }
+        return null;
     }
 }
