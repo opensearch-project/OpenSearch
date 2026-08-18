@@ -924,6 +924,21 @@ public class DataFormatAwareEngine implements Indexer {
         throw new UnsupportedOperationException("delete operation not supported.");
     }
 
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        throw new UnsupportedOperationException("delete operation not supported.");
+    }
+
     /**
      * Refreshes the engine to make recently indexed documents searchable.
      * <p>

@@ -9,7 +9,7 @@ plans:
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
         OpenSearchProject($f0=[$0], $f1=[CAST($1):BIGINT NOT NULL], viableBackends=[[datafusion]])
           OpenSearchAggregate(group=[{}], $f0=[SUM($0)], $f1=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchAggregate(group=[{}], agg#0=[SUM($0)], agg#1=[COUNT($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
                 OpenSearchProject(UserID=[$97], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
@@ -22,7 +22,7 @@ plans:
       OpenSearchProject(avg(UserID)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=2, backends=[datafusion], CAST($0):DOUBLE), $1))], viableBackends=[[datafusion]])
         OpenSearchProject($f0=[$0], $f1=[CAST($1):BIGINT NOT NULL], viableBackends=[[datafusion]])
           OpenSearchAggregate(group=[{}], $f0=[SUM($0)], $f1=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical: |
       AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.UserID) as $f0, count(<scrubbed>.UserID) as $f1]
