@@ -172,6 +172,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             false
         );
 
+        private final Parameter<String> derivedSourceKeepParam = Parameter.restrictedStringParam(
+            "derived_source_keep",
+            false,
+            m -> toType(m).derivedSourceKeep.getValue(),
+            "none",
+            "arrays"
+        );
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Float> boost = Parameter.boostParam();
 
@@ -223,6 +231,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 useSimilarity,
                 normalizer,
                 splitQueriesOnWhitespace,
+                derivedSourceKeepParam,
                 boost,
                 meta
             );
@@ -254,7 +263,21 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
-            fieldtype.setStored(this.stored.getValue());
+
+            // Auto-enable store=true when derived_source_keep="arrays"
+            DerivedSourceKeep derivedSourceKeep = DerivedSourceKeep.fromString(this.derivedSourceKeepParam.getValue());
+            boolean storeValue = this.stored.getValue();
+
+            if (derivedSourceKeep.requiresStoredFields()) {
+                // Check if store was explicitly set to false
+                if (this.stored.isSet() && !storeValue) {
+                    throw new MapperParsingException("Cannot set derived_source_keep='arrays' with store=false for field [" + name + "]");
+                }
+                storeValue = true;
+                this.stored.setValue(storeValue);
+            }
+
+            fieldtype.setStored(storeValue);
             return new KeywordFieldMapper(
                 name,
                 fieldtype,
@@ -289,7 +312,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        checkStoredAndDocValuesForDerivedSource();
+
+        if (derivedSourceKeep.requiresStoredFields()) {
+            // Arrays mode requires stored fields
+            checkStoredForDerivedSource();
+        } else {
+            // Default mode requires either stored fields or doc values
+            checkStoredAndDocValuesForDerivedSource();
+        }
     }
 
     private boolean isIneligibleForGeneratingSource() {
@@ -307,15 +337,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      *       normalizer it is hard to regenerate original source
      * <p>
      * Considerations:
-     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
-     *    2. When using stored field, order and duplicate values would be preserved
+     *    1. When using doc values (derived_source_keep="none"), for multi value field, result would be
+     *       deduplicated and in sorted order
+     *    2. When using stored field (derived_source_keep="arrays"), order and duplicate values would be preserved
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedSourceKeep mode = derivedSourceKeep != null ? derivedSourceKeep : DerivedSourceKeep.NONE;
+
         return new DerivedFieldGenerator(
             mappedFieldType,
             new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
-            new StoredFieldFetcher(mappedFieldType, simpleName())
+            new StoredFieldFetcher(mappedFieldType, simpleName()),
+            mode
         );
     }
 
@@ -830,6 +864,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
+    private final DerivedSourceKeep derivedSourceKeep;
     private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
@@ -856,10 +891,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
+        this.derivedSourceKeep = DerivedSourceKeep.fromString(builder.derivedSourceKeepParam.getValue());
         this.indexAnalyzers = builder.indexAnalyzers;
         this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
         this.rawKeywordValueFieldType = buildRawKeywordValueFieldType();
-
+        setDerivedFieldGenerator(derivedFieldGenerator());
     }
 
     /**
