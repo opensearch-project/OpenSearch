@@ -25,8 +25,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
@@ -249,6 +252,48 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
             numRemovals.inc();
         }
+    }
+
+    /**
+     * keys() must be a point-in-time view that is safe to iterate under concurrent mutation: a cache hit
+     * mid-iteration relinks the accessed entry to the head of the underlying LRU list, and the live
+     * Cache#keys() iterator silently skips an entry promoted from behind the not-yet-visited portion of the
+     * list. This test fails if keys() exposes the live LRU iteration and passes with a point-in-time copy.
+     */
+    public void testKeysIsSafeToIterateUnderConcurrentPromotion() throws Exception {
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        OpenSearchOnHeapCache<String, String> cache = getCache(100, listener, true);
+        List<ICacheKey<String>> insertedKeys = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ICacheKey<String> key = getICacheKey("key" + i);
+            cache.computeIfAbsent(key, getLoadAwareCacheLoader());
+            insertedKeys.add(key);
+        }
+
+        Iterator<ICacheKey<String>> iterator = cache.keys().iterator();
+        Set<ICacheKey<String>> observedKeys = new HashSet<>();
+        observedKeys.add(iterator.next());
+        // A hit on the least-recently-used key relinks it at the head of the LRU list, behind a live
+        // iterator's cursor
+        assertNotNull(cache.get(insertedKeys.get(0)));
+        while (iterator.hasNext()) {
+            observedKeys.add(iterator.next());
+        }
+        assertEquals(new HashSet<>(insertedKeys), observedKeys);
+    }
+
+    public void testKeysIteratorDoesNotSupportRemoval() throws Exception {
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        OpenSearchOnHeapCache<String, String> cache = getCache(100, listener, true);
+        ICacheKey<String> key = getICacheKey("key");
+        cache.computeIfAbsent(key, getLoadAwareCacheLoader());
+
+        Iterator<ICacheKey<String>> iterator = cache.keys().iterator();
+        iterator.next();
+        // Removing through the keys() iterator would be a silent no-op on the point-in-time copy; it must
+        // fail fast so callers use invalidate(key) instead
+        expectThrows(UnsupportedOperationException.class, iterator::remove);
+        assertEquals(1, cache.count());
     }
 
     private ICacheKey<String> getICacheKey(String key) {
