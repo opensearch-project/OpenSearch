@@ -412,6 +412,62 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertEquals(9, DslTypeSystems.NANO_TIMESTAMP.getMaxPrecision(SqlTypeName.TIMESTAMP));
     }
 
+    // ---- Filter aggregation tests ----
+
+    public void testFilterAggUntranslatableQueryRejects() {
+        // A filter aggregation with an unregistered query type must reject at conversion time.
+        // wildcard has no registered translator, so it remains an UnresolvedQueryCall and rejects.
+        org.opensearch.index.query.WildcardQueryBuilder unsupportedQuery = new org.opensearch.index.query.WildcardQueryBuilder(
+            "name",
+            "lap*"
+        );
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("my_filter", unsupportedQuery));
+
+        ConversionException e = expectThrows(ConversionException.class, () -> converter.convert(source, "test-index"));
+        assertTrue(e.getMessage().contains("unsupported query type"));
+    }
+
+    public void testFilterAggPlanShapeSingleScan() throws ConversionException {
+        // A filter agg with a supported query produces a plan with LogicalFilter below LogicalAggregate
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "active_only",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                )
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        assertTrue(plans.has(QueryPlans.Type.AGGREGATION));
+
+        RelNode aggPlan = plans.get(QueryPlans.Type.AGGREGATION).get(0).relNode();
+        String plan = aggPlan.explain();
+        // Must have exactly one LogicalTableScan
+        assertEquals(1, plan.split("LogicalTableScan").length - 1);
+        // Must have a LogicalFilter with the term predicate below the aggregate
+        assertTrue("plan must contain LogicalFilter: " + plan, plan.contains("LogicalFilter"));
+        assertTrue("plan must contain LogicalAggregate: " + plan, plan.contains("LogicalAggregate"));
+    }
+
+    public void testFilterAggBoolQueryAccepted() throws ConversionException {
+        // A compound bool query (must + must_not) is translatable via the registered
+        // BoolQueryTranslator, so a filter aggregation using one converts successfully and
+        // produces a LogicalFilter below the LogicalAggregate.
+        org.opensearch.index.query.BoolQueryBuilder boolQuery = new org.opensearch.index.query.BoolQueryBuilder().must(
+            new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+        ).mustNot(new org.opensearch.index.query.TermQueryBuilder("name", "Widget"));
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("compound_filter", boolQuery));
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        assertTrue(plans.has(QueryPlans.Type.AGGREGATION));
+
+        String plan = plans.get(QueryPlans.Type.AGGREGATION).get(0).relNode().explain();
+        assertTrue("plan must contain LogicalFilter: " + plan, plan.contains("LogicalFilter"));
+        assertTrue("plan must contain LogicalAggregate: " + plan, plan.contains("LogicalAggregate"));
+    }
+
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
         String json;
         try (var builder = JsonXContent.contentBuilder()) {

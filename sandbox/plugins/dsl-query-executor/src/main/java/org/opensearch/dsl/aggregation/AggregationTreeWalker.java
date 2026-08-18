@@ -114,6 +114,7 @@ public class AggregationTreeWalker {
         // Every bucket aggregation defines its own plan; sibling names are unique by DSL
         // contract, so the path key cannot collide with another plan's.
         AggregationMetadataBuilder builder = getOrCreateBuilder(accumulatedPath, plans);
+        translator.getFilterQuery(aggBuilder).ifPresent(builder::setFilterQuery);
         if (translator instanceof SizedBucketTranslator<AggregationBuilder> sized) {
             builder.setBucketDefinition(translator.getBucketOrder(aggBuilder), sized.size(aggBuilder), sized.minDocCount(aggBuilder));
         } else {

@@ -17,6 +17,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalOrder;
 
@@ -48,6 +49,7 @@ public class AggregationMetadataBuilder {
     private Integer definingSize;
     private Long definingMinDocCount;
     private boolean implicitCountRequested = false;
+    private QueryBuilder filterQuery;
 
     /** Creates a builder for the global (no defining aggregation) metrics plan. */
     public AggregationMetadataBuilder() {
@@ -110,6 +112,13 @@ public class AggregationMetadataBuilder {
      */
     public void requestImplicitCount() {
         this.implicitCountRequested = true;
+    }
+
+    /**
+     * Sets the filter query for per-aggregation predicate injection.
+     */
+    public void setFilterQuery(QueryBuilder query) {
+        this.filterQuery = query;
     }
 
     /** Returns true if this builder has at least one aggregate call or implicit count. */
@@ -223,7 +232,8 @@ public class AggregationMetadataBuilder {
             fetch,
             perParentFetch,
             havingMinDocCount,
-            missingValues
+            missingValues,
+            filterQuery
         );
     }
 

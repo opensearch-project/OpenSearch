@@ -10,10 +10,12 @@ package org.opensearch.dsl.aggregation;
 
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Pre-computed metadata for one aggregation plan.
@@ -44,6 +46,7 @@ public class AggregationMetadata {
     private final Integer perParentFetch;
     private final Long havingMinDocCount;
     private final Map<String, Object> missingValues;
+    private final QueryBuilder filterQuery;
 
     /**
      * Creates aggregation metadata.
@@ -73,7 +76,8 @@ public class AggregationMetadata {
         Integer fetch,
         Integer perParentFetch,
         Long havingMinDocCount,
-        Map<String, Object> missingValues
+        Map<String, Object> missingValues,
+        QueryBuilder filterQuery
     ) {
         this.aggNamePath = List.copyOf(aggNamePath);
         this.groupByBitSet = groupByBitSet;
@@ -85,6 +89,7 @@ public class AggregationMetadata {
         this.perParentFetch = perParentFetch;
         this.havingMinDocCount = havingMinDocCount;
         this.missingValues = Map.copyOf(missingValues);
+        this.filterQuery = filterQuery;
     }
 
     /**
@@ -187,5 +192,10 @@ public class AggregationMetadata {
      */
     public boolean eligibleDocCountIsTotal() {
         return havingMinDocCount == null && !groupByFieldNames.isEmpty() && missingValues.containsKey(groupByFieldNames.get(0));
+    }
+
+    /** Returns the per-aggregation filter query, or empty when no predicate applies. */
+    public Optional<QueryBuilder> getFilterQuery() {
+        return Optional.ofNullable(filterQuery);
     }
 }

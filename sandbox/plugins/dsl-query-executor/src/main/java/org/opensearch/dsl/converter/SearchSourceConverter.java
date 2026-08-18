@@ -39,7 +39,9 @@ import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
+import org.opensearch.dsl.query.UnresolvedQueryCall;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
@@ -181,6 +183,19 @@ public class SearchSourceConverter {
                 aggCtx = aggCtx.withParentPlan(parentPlan);
             }
             RelNode aggInput = preAggConverter.convert(base, aggCtx);
+            if (metadata.getFilterQuery().isPresent()) {
+                QueryBuilder filterQuery = metadata.getFilterQuery().get();
+                RexNode predicate = QUERY_REGISTRY.convert(filterQuery, aggCtx);
+                if (predicate instanceof UnresolvedQueryCall unresolvedCall) {
+                    throw new ConversionException(
+                        "Filter aggregation ["
+                            + metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1)
+                            + "] contains an unsupported query type: "
+                            + unresolvedCall.getQueryBuilder().getWriteableName()
+                    );
+                }
+                aggInput = LogicalFilter.create(aggInput, predicate);
+            }
             RelNode aggs = aggConverter.convert(aggInput, metadata);
             aggs = postAggConverter.convert(aggs, aggCtx);
             builtPlansByPath.put(aggPathKey(metadata.getAggNamePath()), aggs);
