@@ -33,7 +33,7 @@ import java.util.List;
  * with {@link NativeParquetWriter}, then walks it through the FFM zero-copy borrow path
  * (Java -> native Rust cursor -> Arrow decode -> borrowed buffers read back in Java).
  */
-public class DataFusionColumnReaderTests extends OpenSearchTestCase {
+public class ParquetColumnReaderTests extends OpenSearchTestCase {
 
     private static final String COLUMN = "value";
 
@@ -61,7 +61,7 @@ public class DataFusionColumnReaderTests extends OpenSearchTestCase {
         Path file = createTempDir().resolve("ascending.parquet");
         writeLongColumn(file, rowCount, false, -1);
 
-        try (DataFusionColumnReader reader = DataFusionColumnReader.open(file, COLUMN)) {
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
             for (long row = 0; row < rowCount; row++) {
                 DecodedBatch batch = reader.decodedBatch();
                 if (batch == null || batch.contains(row) == false) {
@@ -81,7 +81,7 @@ public class DataFusionColumnReaderTests extends OpenSearchTestCase {
         Path file = createTempDir().resolve("jump.parquet");
         writeLongColumn(file, rowCount, false, -1);
 
-        try (DataFusionColumnReader reader = DataFusionColumnReader.open(file, COLUMN)) {
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
             reader.loadBatchContaining(400);
             for (long row = 400; row <= 410; row++) {
                 DecodedBatch batch = reader.decodedBatch();
@@ -107,7 +107,7 @@ public class DataFusionColumnReaderTests extends OpenSearchTestCase {
         Path file = createTempDir().resolve("nullable.parquet");
         writeLongColumn(file, rowCount, true, nullEvery);
 
-        try (DataFusionColumnReader reader = DataFusionColumnReader.open(file, COLUMN)) {
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
             for (long row = 0; row < rowCount; row++) {
                 DecodedBatch batch = reader.decodedBatch();
                 if (batch == null || batch.contains(row) == false) {

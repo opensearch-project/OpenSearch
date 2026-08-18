@@ -26,20 +26,20 @@ import java.lang.invoke.MethodHandle;
  */
 public final class ParquetDocValuesBridge {
 
-    private static final MethodHandle DF_OPEN_ITER;
-    private static final MethodHandle DF_CLOSE_ITER;
-    private static final MethodHandle DF_RESET_ITER;
-    private static final MethodHandle DF_NEXT_BATCH;
+    private static final MethodHandle OPEN_CURSOR;
+    private static final MethodHandle CLOSE_CURSOR;
+    private static final MethodHandle RESET_CURSOR;
+    private static final MethodHandle NEXT_BATCH;
 
-    /** Status returned by {@link #dfNextBatch} when a batch was produced. */
+    /** Status returned by {@link #nextBatch} when a batch was produced. */
     public static final long RC_OK = 0L;
-    /** Status returned by {@link #dfNextBatch} when the cursor is exhausted. A {@code < 0} return is an error pointer. */
+    /** Status returned by {@link #nextBatch} when the cursor is exhausted. A {@code < 0} return is an error pointer. */
     public static final long RC_EOF = 2L;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
-        DF_OPEN_ITER = linker.downcallHandle(
+        OPEN_CURSOR = linker.downcallHandle(
             lib.find("parquet_df_open_iter").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
@@ -50,15 +50,15 @@ public final class ParquetDocValuesBridge {
                 ValueLayout.JAVA_LONG   // initial_batch_size
             )
         );
-        DF_CLOSE_ITER = linker.downcallHandle(
+        CLOSE_CURSOR = linker.downcallHandle(
             lib.find("parquet_df_close_iter").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
-        DF_RESET_ITER = linker.downcallHandle(
+        RESET_CURSOR = linker.downcallHandle(
             lib.find("parquet_df_reset_iter").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
-        DF_NEXT_BATCH = linker.downcallHandle(
+        NEXT_BATCH = linker.downcallHandle(
             lib.find("parquet_df_next_batch").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
@@ -75,25 +75,25 @@ public final class ParquetDocValuesBridge {
     }
 
     /** Opens a forward-only cursor over one Parquet column and returns its native handle. */
-    public static long dfOpenIter(String file, String column, long initialBatchSize) throws IOException {
+    public static long openColumnCursor(String file, String column, long initialBatchSize) throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var c = call.str(column);
-            return call.invokeIO(DF_OPEN_ITER, f.segment(), f.len(), c.segment(), c.len(), initialBatchSize);
+            return call.invokeIO(OPEN_CURSOR, f.segment(), f.len(), c.segment(), c.len(), initialBatchSize);
         }
     }
 
     /** Releases a cursor handle. */
-    public static void dfCloseIter(long handle) throws IOException {
+    public static void closeColumnCursor(long handle) throws IOException {
         try (var call = new NativeCall()) {
-            call.invokeIO(DF_CLOSE_ITER, handle);
+            call.invokeIO(CLOSE_CURSOR, handle);
         }
     }
 
     /** Rewinds a cursor to row zero, retaining cached file metadata. */
-    public static void dfResetIter(long handle) throws IOException {
+    public static void resetColumnCursor(long handle) throws IOException {
         try (var call = new NativeCall()) {
-            call.invokeIO(DF_RESET_ITER, handle);
+            call.invokeIO(RESET_CURSOR, handle);
         }
     }
 
@@ -103,7 +103,7 @@ public final class ParquetDocValuesBridge {
      * value KIND into the caller-owned out-parameters. Returns {@link #RC_OK} or {@link #RC_EOF};
      * a {@code < 0} return is decoded into an {@link IOException}.
      */
-    public static long dfNextBatch(
+    public static long nextBatch(
         long handle,
         long targetRow,
         MemorySegment outFirstRow,
@@ -115,7 +115,7 @@ public final class ParquetDocValuesBridge {
     ) throws IOException {
         try (var call = new NativeCall()) {
             return call.invokeIO(
-                DF_NEXT_BATCH,
+                NEXT_BATCH,
                 handle,
                 targetRow,
                 outFirstRow,
