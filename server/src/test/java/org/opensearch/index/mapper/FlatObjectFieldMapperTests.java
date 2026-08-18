@@ -22,6 +22,8 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -417,7 +419,93 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        // In the future we will want to make sure parameter updates are covered.
+        // `index` is only accepted on a pluggable-data-format index, so the generic checker (which
+        // builds plain indices) cannot exercise it; testIndexParameter* below cover it directly.
+        // Other parameters are still unsupported for flat_object.
+    }
+
+    /**
+     * {@code index: false} is rejected on a plain Lucene index. It is scoped to pluggable data
+     * formats deliberately: there, a columnar primary holds the values, whereas here it would only
+     * leave the field reachable through the doc-values path — a behaviour change for existing
+     * mappings with no upside.
+     */
+    public void testIndexParameterRejectedWithoutPluggableDataFormat() {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(fieldMapping(b -> b.field("type", CONTENT_TYPE).field("index", false)))
+        );
+        assertTrue(
+            "expected the guard's message, got: " + e.getMessage(),
+            e.getMessage().contains("does not support [index: false] unless the index uses a pluggable data format")
+        );
+    }
+
+    /**
+     * With a pluggable data format configured, {@code index: false} is accepted, reaches the field
+     * type as {@code isSearchable() == false}, and round-trips through serialization. The round trip
+     * matters because flat_object derives its searchability from its {@code _value} sub-field, so the
+     * parameter's read-back has to recover the mapping value from that derived state.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIndexParameterWithPluggableDataFormat() throws IOException {
+        Settings pluggable = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        MapperService withIndexFalse = createMapperService(
+            pluggable,
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).field("index", false))
+        );
+        FieldMapper mapper = (FieldMapper) withIndexFalse.documentMapper().mappers().getMapper("field");
+        assertFalse("index:false must reach the field type", mapper.fieldType().isSearchable());
+        assertTrue(
+            "index:false must round-trip through serialization",
+            Strings.toString(MediaTypeRegistry.JSON, mapper).contains("\"index\":false")
+        );
+
+        // The default stays searchable and, being the default, is not serialized.
+        MapperService dflt = createMapperService(pluggable, fieldMapping(this::minimalMapping));
+        FieldMapper defaultMapper = (FieldMapper) dflt.documentMapper().mappers().getMapper("field");
+        assertTrue(defaultMapper.fieldType().isSearchable());
+        assertFalse(Strings.toString(MediaTypeRegistry.JSON, defaultMapper).contains("index"));
+    }
+
+    /**
+     * {@code index} cannot be flipped by a mapping update: existing documents' postings would no
+     * longer match the mapping. Before flat_object became a {@link ParametrizedFieldMapper} its
+     * {@code mergeOptions} was empty, so every update silently succeeded.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testIndexParameterIsNotUpdateable() throws IOException {
+        Settings pluggable = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        MapperService mapperService = createMapperService(
+            pluggable,
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).field("index", false))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", CONTENT_TYPE).field("index", true)))
+        );
+        assertTrue("expected an [index] conflict, got: " + e.getMessage(), e.getMessage().contains("index"));
+    }
+
+    /**
+     * On a plain index the default mapping still writes both the indexed terms and the doc values for
+     * the {@code _value} / {@code _valueAndPath} sub-fields — a guard that the
+     * {@link ParametrizedFieldMapper} refactor did not disturb the write path.
+     */
+    public void testDefaultStillIndexesSubFields() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("k", "v").endObject()));
+        List<IndexableField> valueFields = List.of(doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+        assertFalse("expected _value fields to be written", valueFields.isEmpty());
+        assertTrue(
+            "expected at least one indexed (non doc-values) _value field",
+            valueFields.stream().anyMatch(f -> f.fieldType().indexOptions() != IndexOptions.NONE)
+        );
+        assertTrue(
+            "expected doc values on _value",
+            valueFields.stream().anyMatch(f -> f.fieldType().docValuesType() != DocValuesType.NONE)
+        );
     }
 
     public void testDefaultsDoNotUseDocumentInput() throws Exception {
