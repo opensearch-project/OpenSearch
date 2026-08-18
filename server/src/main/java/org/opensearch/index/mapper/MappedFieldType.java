@@ -97,6 +97,7 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+    private boolean multiValued;
 
     /**
      * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
@@ -476,6 +477,30 @@ public abstract class MappedFieldType {
 
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /**
+     * Whether this field is declared to hold multiple values per document in columnar data
+     * formats ({@code multi_value} mapping parameter). Lucene is inherently multi-valued, so
+     * this flag only matters to pluggable formats whose column type is fixed per file (e.g.
+     * Parquet, where a declared field is stored as {@code LIST<element>}).
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public boolean isMultiValued() {
+        return multiValued;
+    }
+
+    /**
+     * Declares this field multi-valued for columnar data formats. Set during mapping build by
+     * mappers exposing the {@code multi_value} parameter.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public void setMultiValued(boolean multiValued) {
+        this.multiValued = multiValued;
     }
 
     @ExperimentalApi

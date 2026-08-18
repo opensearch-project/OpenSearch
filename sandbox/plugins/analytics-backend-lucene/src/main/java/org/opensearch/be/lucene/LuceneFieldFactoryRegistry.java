@@ -15,6 +15,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
@@ -22,6 +23,9 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,6 +70,64 @@ public final class LuceneFieldFactoryRegistry {
         doc.add(new Field(ft.name(), new BytesRef((byte[]) value), ID_FIELD_TYPE));
     };
 
+    /**
+     * Indexes a {@code flat_object} field's leaves as searchable terms.
+     *
+     * <p>The value is the ordered {@code (relative path, value)} entry list the mapper produces for a
+     * pluggable data format — the whole object arrives in one call rather than one call per leaf. This
+     * expands it into the same three Lucene fields the non-pluggable path writes, because those are
+     * exactly what {@code FlatObjectFieldType}'s queries resolve to:
+     * <ul>
+     *   <li>{@code <field>._value} ← the bare leaf value, for a query on the field itself.</li>
+     *   <li>{@code <field>._valueAndPath} ← {@code <field>.<path>=<value>}, for a dotted-path query
+     *       such as {@code LogAttributes.http.status: 500}, which rewrites to that term.</li>
+     *   <li>{@code <field>} ← {@code <field>.<pathPart>} per path segment, which is what makes the
+     *       field and its sub-paths report as existing.</li>
+     * </ul>
+     *
+     * <p>Only terms are written: doc values stay with the primary format, and {@code lft} already has
+     * {@code DocValuesType.NONE} whenever this format did not claim {@code COLUMNAR_STORAGE}. So the
+     * doc-values-prefixed form the non-pluggable path also writes is intentionally not produced here.
+     */
+    private static final LuceneFieldFactory FLAT_OBJECT_FACTORY = (doc, ft, value, lft) -> {
+        if (value instanceof List<?> == false) {
+            throw new IllegalArgumentException(
+                "flat_object field ["
+                    + ft.name()
+                    + "] expects the mapper's leaf entry list, but got ["
+                    + value.getClass().getSimpleName()
+                    + "]"
+            );
+        }
+        final String fieldName = ft.name();
+        final Set<String> pathParts = new HashSet<>();
+        for (Object element : (List<?>) value) {
+            if (element instanceof Map.Entry<?, ?> entry) {
+                // A null leaf value is dropped by the mapper before it reaches here; guard anyway so
+                // a future change cannot silently index the string "null".
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                final String relativePath = entry.getKey().toString();
+                final String leafValue = entry.getValue().toString();
+                final String leafPath = fieldName + "." + relativePath;
+
+                doc.add(new Field(fieldName + "._value", new BytesRef(leafValue), lft));
+                doc.add(new Field(fieldName + "._valueAndPath", new BytesRef(leafPath + "=" + leafValue), lft));
+                pathParts.addAll(Arrays.asList(relativePath.split("\\.")));
+            } else {
+                throw new IllegalArgumentException(
+                    "flat_object field [" + fieldName + "] expects Map.Entry leaves, but got [" + element + "]"
+                );
+            }
+        }
+        // Deduplicated, mirroring the non-pluggable path: the parent field carries the set of path
+        // parts, not one term per leaf occurrence.
+        for (String part : pathParts) {
+            doc.add(new Field(fieldName, new BytesRef(fieldName + "." + part), lft));
+        }
+    };
+
     private static final LuceneFieldFactory SEQ_NO_FIELD_FACTORY = (doc, ft, value, lft) -> {
         // do nothing for now since we don't want to index seq no indexing without soft deletes enabled.
     };
@@ -81,6 +143,7 @@ public final class LuceneFieldFactoryRegistry {
         register(TextFieldMapper.CONTENT_TYPE, TEXT_FACTORY);
         register(KeywordFieldMapper.CONTENT_TYPE, KEYWORD_FACTORY);
         register(MatchOnlyTextFieldMapper.CONTENT_TYPE, MATCH_ONLY_TEXT_FACTORY);
+        register(FlatObjectFieldMapper.CONTENT_TYPE, FLAT_OBJECT_FACTORY);
         registerMetaFields();
     }
 

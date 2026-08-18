@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
@@ -54,6 +55,11 @@ public class LuceneDataFormat extends DataFormat {
         new FieldTypeCapabilities(TextFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
         new FieldTypeCapabilities(KeywordFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS, COLUMNAR_STORAGE)),
         new FieldTypeCapabilities(MatchOnlyTextFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
+        // flat_object leaves are keyword-like terms, so Lucene serves search for it exactly as it does
+        // for keyword. This is what keeps basic searches on a flat_object working when a columnar
+        // primary owns the field's storage: the primary claims COLUMNAR_STORAGE, Lucene claims the
+        // inverted index. Written by LuceneFieldFactoryRegistry's flat_object factory.
+        new FieldTypeCapabilities(FlatObjectFieldMapper.CONTENT_TYPE, Set.of(FULL_TEXT_SEARCH, COLUMNAR_STORAGE)),
 
         // Metadata fields
         new FieldTypeCapabilities(SourceFieldMapper.CONTENT_TYPE, Set.of(STORED_FIELDS)),

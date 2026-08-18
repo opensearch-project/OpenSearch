@@ -29,6 +29,8 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -326,6 +328,90 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             assertEquals("alice", out.get("name"));
             assertEquals(30L, out.get("age"));
             assertFalse(out.containsKey("missing"));
+        }
+    }
+
+    // ---- MAP columns (flat_object) in _source ----
+
+    /** Builds a {@code MAP<utf8,utf8>} vector with one cell holding the given (key, value) pairs in order. */
+    private MapVector mapVectorWith(String name, List<String[]> pairs) {
+        Field key = new Field(MapVector.KEY_NAME, FieldType.notNullable(new ArrowType.Utf8()), null);
+        Field value = new Field(MapVector.VALUE_NAME, FieldType.nullable(new ArrowType.Utf8()), null);
+        Field entries = new Field(MapVector.DATA_VECTOR_NAME, FieldType.notNullable(ArrowType.Struct.INSTANCE), List.of(key, value));
+        Field mapField = new Field(name, FieldType.nullable(new ArrowType.Map(false)), List.of(entries));
+        MapVector v = (MapVector) mapField.createVector(allocator);
+        int start = v.startNewValue(0);
+        StructVector struct = (StructVector) v.getDataVector();
+        VarCharVector keys = (VarCharVector) struct.getChild(MapVector.KEY_NAME);
+        VarCharVector values = (VarCharVector) struct.getChild(MapVector.VALUE_NAME);
+        for (int i = 0; i < pairs.size(); i++) {
+            struct.setIndexDefined(start + i);
+            keys.setSafe(start + i, pairs.get(i)[0].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            if (pairs.get(i)[1] == null) {
+                values.setNull(start + i);
+            } else {
+                values.setSafe(start + i, pairs.get(i)[1].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        v.endValue(0, pairs.size());
+        v.setValueCount(1);
+        return v;
+    }
+
+    /**
+     * A MAP column must reach _source as a JSON object. Before this, toSourceValue had no MAP branch
+     * (only a guard excluding maps from the LIST branch), so a flat_object field fell through to the
+     * scalar switch, returned null, and toSourceMap dropped it — the attribute bag was silently
+     * missing from every get-by-id response.
+     */
+    public void testToSourceValueOnMapColumn() {
+        try (
+            MapVector v = mapVectorWith(
+                "attrs",
+                List.<String[]>of(new String[] { "k8s.pod", "web-1" }, new String[] { "http.status", "500" })
+            )
+        ) {
+            Object cell = ArrowValues.toSourceValue(v, 0);
+            assertEquals(Map.of("k8s.pod", "web-1", "http.status", "500"), cell);
+        }
+    }
+
+    /** Keys stay verbatim: flat_object already flattened nesting to dotted keys on the way in. */
+    public void testMapKeysAreNotUnflattened() {
+        try (MapVector v = mapVectorWith("attrs", List.<String[]>of(new String[] { "a.b.c", "deep" }))) {
+            Object cell = ArrowValues.toSourceValue(v, 0);
+            assertEquals(Map.of("a.b.c", "deep"), cell);
+        }
+    }
+
+    /** A repeated key comes from an array leaf, so it must group back into a list, not overwrite. */
+    public void testRepeatedMapKeysGroupIntoList() {
+        try (
+            MapVector v = mapVectorWith(
+                "attrs",
+                List.<String[]>of(new String[] { "tag", "a" }, new String[] { "tag", "b" }, new String[] { "other", "x" })
+            )
+        ) {
+            Object cell = ArrowValues.toSourceValue(v, 0);
+            assertEquals(Map.of("tag", List.of("a", "b"), "other", "x"), cell);
+        }
+    }
+
+    /** An empty object is a zero-entry non-null cell, and must read back as {} rather than vanish. */
+    public void testEmptyMapIsEmptyObjectNotNull() {
+        try (MapVector v = mapVectorWith("attrs", List.<String[]>of())) {
+            Object cell = ArrowValues.toSourceValue(v, 0);
+            assertEquals(Map.of(), cell);
+        }
+    }
+
+    /** A null value inside an entry keeps its key, with a null value. */
+    public void testMapEntryWithNullValue() {
+        try (MapVector v = mapVectorWith("attrs", List.<String[]>of(new String[] { "missing", null }))) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cell = (Map<String, Object>) ArrowValues.toSourceValue(v, 0);
+            assertTrue(cell.containsKey("missing"));
+            assertNull(cell.get("missing"));
         }
     }
 }

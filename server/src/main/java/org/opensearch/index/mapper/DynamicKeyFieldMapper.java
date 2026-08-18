@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-
 /**
  * A field mapper that supports lookup of dynamic sub-keys. If the field mapper is named 'my_field',
  * then a user is able to search on the field in both of the following ways:
@@ -48,13 +46,20 @@ import org.apache.lucene.document.FieldType;
  * implementing this interface should explicitly disallow multi-fields. The constructor makes
  * sure to passes an empty multi-fields list to help prevent conflicting sub-keys from being
  * registered.
+ * <p>
+ * Extends {@link ParametrizedFieldMapper} so that dynamic-key mappers declare their mapping
+ * parameters the same way every other field type does, getting parsing, serialization,
+ * {@code includeDefaults} handling and update-conflict detection from the framework instead of
+ * hand-rolling them. Subclasses needing a non-default Lucene {@link org.apache.lucene.document.FieldType}
+ * keep their own copy, as {@link KeywordFieldMapper} does — {@link ParametrizedFieldMapper}'s
+ * constructor always passes a fresh one to {@link FieldMapper}.
  *
  * @opensearch.internal
  */
-public abstract class DynamicKeyFieldMapper extends FieldMapper {
+public abstract class DynamicKeyFieldMapper extends ParametrizedFieldMapper {
 
-    public DynamicKeyFieldMapper(String simpleName, FieldType fieldType, MappedFieldType defaultFieldType, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, MultiFields.empty(), copyTo);
+    public DynamicKeyFieldMapper(String simpleName, MappedFieldType defaultFieldType, CopyTo copyTo) {
+        super(simpleName, defaultFieldType, MultiFields.empty(), copyTo);
     }
 
     public abstract MappedFieldType keyedFieldType(String key);

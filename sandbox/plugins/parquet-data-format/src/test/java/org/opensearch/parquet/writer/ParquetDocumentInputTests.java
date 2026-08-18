@@ -86,4 +86,148 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
         input.addField(valField, 10);
         expectThrows(MapperParsingException.class, () -> input.addField(valField, 20));
     }
+
+    public void testDeclaredMultiValueFieldAccumulatesValuesInOrder() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
+        assignTestCapabilities(tags, PARQUET_FORMAT);
+
+        // The document parser reports one addField call per array element.
+        input.addField(tags, "b");
+        input.addField(tags, "a");
+        input.addField(tags, "b");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        FieldValuePair pair = findPair(input, "tags");
+        assertTrue(pair.isMultiValued());
+        // Document order and duplicates are preserved: the values are the source of truth for
+        // derived _source, so they must not be sorted or deduplicated.
+        assertEquals(List.of("b", "a", "b"), pair.getValue());
+        assertEquals(3, pair.valueCount());
+        assertEquals(3L, input.getFieldCount("tags"));
+    }
+
+    public void testDeclaredMultiValueFieldWithSingleValueIsStillAList() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
+        assignTestCapabilities(tags, PARQUET_FORMAT);
+
+        input.addField(tags, "solo");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        // A scalar JSON value on a declared list column still writes a one-element list, so the
+        // column type stays consistent across documents.
+        FieldValuePair pair = findPair(input, "tags");
+        assertTrue(pair.isMultiValued());
+        assertEquals(List.of("solo"), pair.getValue());
+    }
+
+    public void testDeclaredMultiValueFieldWithEmptyArrayIsPresentEmptyList() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
+        assignTestCapabilities(tags, PARQUET_FORMAT);
+
+        // The parser signals an explicit empty array ("tags": []) with an empty List value. It must
+        // seed a present, zero-value list (written as an empty-but-non-null LIST cell) rather than
+        // being dropped, so an empty array stays distinct from an absent field in reconstructed
+        // _source.
+        input.addField(tags, List.of());
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        FieldValuePair pair = findPair(input, "tags");
+        assertTrue(pair.isMultiValued());
+        assertEquals(List.of(), pair.getValue());
+        assertEquals(0, pair.valueCount());
+        assertEquals(0L, input.getFieldCount("tags"));
+    }
+
+    public void testMultiValueAccumulationKeyedByNameNotInstanceIdentity() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        // Two DISTINCT field-type instances that share a name, as could arise if the parse path ever
+        // handed back a fresh wrapper per array element. Accumulation keys on the name, so both
+        // elements must land in the SAME list rather than the second creating a new pair (which
+        // would silently degrade multi_value to last-value-wins).
+        MappedFieldType first = new KeywordFieldMapper.KeywordFieldType("tags");
+        first.setMultiValued(true);
+        assignTestCapabilities(first, PARQUET_FORMAT);
+        MappedFieldType second = new KeywordFieldMapper.KeywordFieldType("tags");
+        second.setMultiValued(true);
+        assignTestCapabilities(second, PARQUET_FORMAT);
+        assertNotSame(first, second);
+
+        input.addField(first, "a");
+        input.addField(second, "b");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        assertEquals(
+            "both elements must accumulate into one pair",
+            1,
+            input.getFinalInput().stream().filter(p -> p.getFieldType().name().equals("tags")).count()
+        );
+        FieldValuePair pair = findPair(input, "tags");
+        assertEquals(List.of("a", "b"), pair.getValue());
+    }
+
+    public void testUndeclaredFieldStillRejectsMultipleValues() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType other = new KeywordFieldMapper.KeywordFieldType("other");
+        assignTestCapabilities(other, PARQUET_FORMAT);
+
+        input.addField(other, "one");
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> input.addField(other, "two"));
+        assertTrue(e.getMessage().contains("multi_value"));
+    }
+
+    public void testMultiValueFieldCountIsValueCountNotEntryCount() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+        tags.setMultiValued(true);
+        assignTestCapabilities(tags, PARQUET_FORMAT);
+        input.addField(tags, "x");
+        input.addField(tags, "y");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        // Metadata fields must still count as exactly one so getFinalInput's assertions hold.
+        assertEquals(1L, input.getFieldCount(org.opensearch.index.mapper.IdFieldMapper.NAME));
+        assertEquals(2L, input.getFieldCount("tags"));
+        // One collected entry holding two values.
+        assertEquals(5, input.getFinalInput().size());
+    }
+
+    public void testDerivedSourceCompanionFieldFollowsParentCardinality() {
+        // KeywordFieldMapper emits "_ignored_source.<field>" alongside the parent when a normalizer
+        // or ignore_above alters the value, and buildRawKeywordValueFieldType copies the parent's
+        // multi_value flag onto it, so the document input must accumulate its values too —
+        // otherwise it would reject the second value while its own column expects a list.
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType rawValue = new KeywordFieldMapper.KeywordFieldType("_ignored_source.tags");
+        rawValue.setMultiValued(true);
+        assignTestCapabilities(rawValue, PARQUET_FORMAT);
+
+        input.addField(rawValue, "RAW-ONE");
+        input.addField(rawValue, "RAW-TWO");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        FieldValuePair pair = findPair(input, "_ignored_source.tags");
+        assertTrue(pair.isMultiValued());
+        assertEquals(List.of("RAW-ONE", "RAW-TWO"), pair.getValue());
+    }
+
+    private static FieldValuePair findPair(ParquetDocumentInput input, String fieldName) {
+        return input.getFinalInput()
+            .stream()
+            .filter(p -> p.getFieldType().name().equals(fieldName))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no collected field named " + fieldName));
+    }
 }
