@@ -64,6 +64,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.search.SearchRequest.COORDINATOR_TIMEOUT_STRATEGY;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringValue;
@@ -281,6 +282,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
                             } else if ("phase_took".equals(entry.getKey())) {
                                 searchRequest.setPhaseTook(nodeBooleanValue(value));
+                            } else if (COORDINATOR_TIMEOUT_STRATEGY.equals(entry.getKey())) {
+                                searchRequest.setCoordinatorTimeoutStrategy(nodeStringValue(value));
                             } else {
                                 throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                             }
@@ -384,6 +387,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.isPhaseTook() != null) {
             xContentBuilder.field("phase_took", request.isPhaseTook());
+        }
+        if (request.coordinatorTimeoutStrategy() != null) {
+            xContentBuilder.field(COORDINATOR_TIMEOUT_STRATEGY, request.coordinatorTimeoutStrategy().getType());
         }
         xContentBuilder.endObject();
     }
