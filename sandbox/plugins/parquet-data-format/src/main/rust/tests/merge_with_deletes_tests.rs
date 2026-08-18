@@ -333,3 +333,71 @@ fn unsorted_merge_assigns_sequential_row_ids_after_deletes() {
     let row_ids = read_int64_col(&out, "__row_id__");
     assert_eq!(row_ids, vec![0, 1, 2]);
 }
+
+#[test]
+fn sorted_merge_with_all_rows_dead_writes_valid_empty_file() {
+    let tmp = tempdir().unwrap();
+    let f1 = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let f2 = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_int64_file(&f1, vec![1, 3, 5]);
+    write_int64_file(&f2, vec![2, 4, 6]);
+
+    let out = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
+    let result = merge_sorted(
+        &[f1, f2],
+        &out,
+        "test",
+        &["val".into()],
+        &[false],
+        &[false],
+        0,
+        &[Some(pack_bits(3, &[])), Some(pack_bits(3, &[]))],
+    )
+    .unwrap();
+
+    // The output must be a valid parquet file (readable footer) with zero rows.
+    assert_eq!(count_rows(&out), 0);
+    assert_eq!(result.metadata.file_metadata().num_rows(), 0);
+
+    // Every source row maps to the dead sentinel; per-file spans are still recorded.
+    assert_eq!(result.mapping.len(), 6);
+    assert!(result.mapping.iter().all(|&m| m == -1));
+    assert_eq!(result.gen_sizes, vec![3, 3]);
+    assert_eq!(result.row_id_mapping_max, 0);
+}
+
+#[test]
+fn unsorted_merge_with_all_rows_dead_writes_valid_empty_file() {
+    let tmp = tempdir().unwrap();
+    let f1 = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let f2 = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    write_int64_file(&f1, vec![10, 20, 30]);
+    write_int64_file(&f2, vec![40, 50]);
+
+    let out = tmp
+        .path()
+        .join("merged.parquet")
+        .to_string_lossy()
+        .to_string();
+    let result = merge_unsorted(
+        &[f1, f2],
+        &out,
+        "test",
+        0,
+        &[Some(pack_bits(3, &[])), Some(pack_bits(2, &[]))],
+    )
+    .unwrap();
+
+    // The output must be a valid parquet file (readable footer) with zero rows.
+    assert_eq!(count_rows(&out), 0);
+    assert_eq!(result.metadata.file_metadata().num_rows(), 0);
+
+    // Every source row maps to the dead sentinel; per-file spans are still recorded.
+    assert_eq!(result.mapping.len(), 5);
+    assert!(result.mapping.iter().all(|&m| m == -1));
+    assert_eq!(result.gen_sizes, vec![3, 2]);
+}
