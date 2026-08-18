@@ -372,8 +372,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.BROADCAST_MAX_BYTES.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES)
             )
-            // Column pruning is read live by PlannerImpl.trimUnusedFields via PlannerContext settings; overlay
-            // it so a dynamic PUT /_cluster/settings toggle is honored (else it pins the node-bootstrap default).
+            // TODO(prune-columns-setting): now INERT. Upstream #22301 replaced our gated
+            // PlannerImpl.trimUnusedFields with its own unconditional trimFields, so nothing reads this
+            // value any more. Kept in the overlay (and registered) so a cluster that already set it keeps
+            // starting; remove the setting once we confirm no deployment depends on it.
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS)

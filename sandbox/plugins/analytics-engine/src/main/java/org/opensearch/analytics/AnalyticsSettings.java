@@ -302,6 +302,11 @@ public final class AnalyticsSettings {
      * {@code transpose} lowers to — is left untouched). Default {@code true}; disable only to isolate a
      * suspected pruning issue.
      */
+    /**
+     * NOTE: currently INERT. Upstream #22301 (`RelFieldTrimmer` projection pushdown) superseded the gated
+     * pre-marking trim this used to control, and its trimmer runs unconditionally — so toggling this no
+     * longer changes planning. Retained so clusters that already set it still start.
+     */
     public static final Setting<Boolean> MPP_SHUFFLE_PRUNE_COLUMNS = Setting.boolSetting(
         "analytics.mpp.shuffle.prune_columns",
         true,
