@@ -109,17 +109,27 @@ public class SearchActionFilter implements ActionFilter {
             return;
         }
 
-        ActionListener<SearchResponse> calciteListener = ActionListener.wrap(
-            (SearchResponse resp) -> ((ActionListener<SearchResponse>) listener).onResponse(resp),
-            error -> {
-                if (isFallbackable(error)) {
-                    logger.debug("Calcite path threw ConversionException, falling back to codec", error);
-                    chain.proceed(task, action, request, listener);
-                } else {
-                    listener.onFailure(error);
-                }
+        // Explicit listener rather than ActionListener.wrap: wrap re-routes any exception thrown
+        // while delivering the success response into onFailure, which would complete the caller's
+        // listener twice (onResponse then onFailure) and could even trigger a codec re-run. Here
+        // onResponse forwards directly, so a response-delivery hiccup can never masquerade as a
+        // Calcite failure — only a genuine Calcite failure reaches onFailure.
+        ActionListener<SearchResponse> calciteListener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                ((ActionListener<SearchResponse>) listener).onResponse(response);
             }
-        );
+
+            @Override
+            public void onFailure(Exception error) {
+                if (isFallbackable(error) == false) {
+                    listener.onFailure(error);
+                    return;
+                }
+                logger.debug("Calcite path threw ConversionException, falling back to codec", error);
+                chain.proceed(task, action, request, listener);
+            }
+        };
         client.execute(DslExecuteAction.INSTANCE, searchRequest, calciteListener);
     }
 

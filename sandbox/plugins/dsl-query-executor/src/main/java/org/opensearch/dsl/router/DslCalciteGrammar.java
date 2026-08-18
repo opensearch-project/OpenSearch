@@ -23,6 +23,9 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -51,6 +54,25 @@ import java.util.stream.Stream;
  */
 public class DslCalciteGrammar {
 
+    /**
+     * Compound (container) queries are transparent: structurally supported, but only if every
+     * child query is supported. Each entry declares how to extract that type's child clauses,
+     * so recursion follows the query tree rather than a hardcoded switch — adding a container
+     * type is a single entry here, and validation of its children comes for free.
+     *
+     * <p>Consulted before the leaf/registry path in {@link #visitQuery}, so a compound query
+     * can never be mistaken for a leaf and have its children skipped.
+     */
+    private static final Map<Class<? extends QueryBuilder>, Function<QueryBuilder, Stream<QueryBuilder>>> COMPOUND_CHILDREN = Map.of(
+        BoolQueryBuilder.class,
+        q -> {
+            BoolQueryBuilder b = (BoolQueryBuilder) q;
+            return Stream.of(b.must(), b.filter(), b.should(), b.mustNot()).flatMap(List::stream);
+        },
+        ConstantScoreQueryBuilder.class,
+        q -> Stream.of(((ConstantScoreQueryBuilder) q).innerQuery())
+    );
+
     private final QueryRegistry queryRegistry;
     private final AggregationRegistry aggRegistry;
 
@@ -68,15 +90,17 @@ public class DslCalciteGrammar {
      * failing section: top-level issues skip the query walk, query issues skip the aggregation
      * walk.
      *
-     * @param source the request body; a {@code null} source is rejected up front
-     *        ({@link org.opensearch.dsl.converter.SearchSourceConverter} would NPE)
+     * @param source the request body; a {@code null} source (bodyless {@code _search}) is
+     *        accepted as an implicit match_all — {@link org.opensearch.dsl.converter.SearchSourceConverter}
+     *        normalizes it to an empty source
      */
     public RouteDecision validate(SearchSourceBuilder source) {
         if (source == null) {
-            // SearchSourceConverter dereferences source.size()/source.aggregations() with
-            // no null guard — a null source would NPE the Calcite path. Semantically the
-            // request is a match_all, but that has to be expressed with an actual body.
-            return RouteDecision.rejected(List.of("source:null"));
+            // A bodyless _search is an implicit match_all with the default page size.
+            // SearchSourceConverter normalizes null to an empty source, so the Calcite path
+            // handles it natively — there is nothing here that could be unsupported. This
+            // keeps null consistent with an empty "{}" body, which the walk below accepts.
+            return RouteDecision.accepted();
         }
 
         List<String> issues = new ArrayList<>();
@@ -92,19 +116,30 @@ public class DslCalciteGrammar {
         return RouteDecision.accepted();
     }
 
+    /**
+     * Visits a single query node. Compound queries (see {@link #COMPOUND_CHILDREN}) are
+     * transparent — recursed into and supported only if every child is supported. Every other
+     * query type is treated as a leaf and resolved against the translator registry. Driving the
+     * recursion off {@code COMPOUND_CHILDREN} rather than a hardcoded switch means a nested
+     * unsupported leaf inside any container type is always found, never silently accepted.
+     */
     private boolean visitQuery(QueryBuilder q, List<String> issues) {
-        // Compound queries are transparent to the registry — recurse into children.
-        switch (q) {
-            case BoolQueryBuilder b -> {
-                return visitBool(b, issues);
-            }
-            case ConstantScoreQueryBuilder csq -> {
-                return visitQuery(csq.innerQuery(), issues);
-            }
-            default -> {
-            }
+        Function<QueryBuilder, Stream<QueryBuilder>> childrenOf = COMPOUND_CHILDREN.get(q.getClass());
+        if (childrenOf != null) {
+            // allMatch short-circuits on the first failing child so the reject reason reflects
+            // the exact node that broke; null (absent/optional) clauses are skipped.
+            return childrenOf.apply(q).filter(Objects::nonNull).allMatch(child -> visitQuery(child, issues));
         }
+        return visitLeaf(q, issues);
+    }
 
+    /**
+     * Resolves a leaf (non-compound) query against the registry: rejects with a
+     * {@code query:<name>} reason when no translator is registered, otherwise delegates
+     * request-shape validation to that translator so routing and conversion share one source
+     * of truth.
+     */
+    private boolean visitLeaf(QueryBuilder q, List<String> issues) {
         QueryTranslator translator = queryRegistry.get(q.getClass());
         if (translator == null) {
             return reject("query:" + q.getName(), issues);
@@ -116,14 +151,6 @@ public class DslCalciteGrammar {
         }
 
         return true;
-    }
-
-    /**
-     * Recurses into every clause of a {@code bool} query. {@code allMatch} short-circuits on
-     * the first failing child so the reject reason reflects the exact node that broke.
-     */
-    private boolean visitBool(BoolQueryBuilder b, List<String> issues) {
-        return Stream.of(b.must(), b.filter(), b.should(), b.mustNot()).flatMap(List::stream).allMatch(inner -> visitQuery(inner, issues));
     }
 
     /**

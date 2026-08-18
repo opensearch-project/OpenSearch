@@ -37,6 +37,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -167,6 +168,30 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
 
         // No fallback for runtime errors — the caller sees the failure.
         verify(listener).onFailure(engineErr);
+        verify(chain, never()).proceed(any(), any(), any(), any());
+    }
+
+    public void testSuccessDeliveryFailureDoesNotDoubleComplete() {
+        SearchActionFilter filter = buildFilter(true);
+        SearchRequest request = new SearchRequest("test-index").source(new SearchSourceBuilder());
+        when(grammar.validate(any())).thenReturn(RouteDecision.accepted());
+
+        // Delivering the successful response to the caller throws (e.g. channel closed).
+        RuntimeException deliveryError = new RuntimeException("channel closed");
+        doThrow(deliveryError).when(listener).onResponse(any());
+
+        filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
+
+        ArgumentCaptor<ActionListener<SearchResponse>> captor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(client).execute(eq(DslExecuteAction.INSTANCE), eq(request), captor.capture());
+
+        // Calcite succeeded; the delivery hiccup must propagate as-is, NOT be turned into a second
+        // completion of the caller's listener (onFailure) or a codec fallback.
+        SearchResponse resp = mock(SearchResponse.class);
+        expectThrows(RuntimeException.class, () -> captor.getValue().onResponse(resp));
+
+        verify(listener).onResponse(resp);
+        verify(listener, never()).onFailure(any());
         verify(chain, never()).proceed(any(), any(), any(), any());
     }
 

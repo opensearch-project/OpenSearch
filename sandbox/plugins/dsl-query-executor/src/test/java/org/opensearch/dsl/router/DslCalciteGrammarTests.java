@@ -17,6 +17,7 @@ import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.dsl.query.QueryTranslator;
 import org.opensearch.dsl.query.ValidationResult;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -34,7 +35,9 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
     private final DslCalciteGrammar grammar = new DslCalciteGrammar(QueryRegistryFactory.create(), aggRegistry);
 
     private DslCalciteGrammar grammarWith(QueryTranslator... extraTranslators) {
-        QueryRegistry registry = QueryRegistryFactory.create();
+        // Fresh registry (not the shared create() singleton) so registering extra translators
+        // here never mutates process-wide state seen by other callers/tests.
+        QueryRegistry registry = QueryRegistryFactory.newInstance();
         for (QueryTranslator translator : extraTranslators) {
             registry.register(translator);
         }
@@ -76,11 +79,10 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
 
     // ---- source-level ----
 
-    public void testNullSourceRejected() {
-        RouteDecision decision = grammar.validate(null);
-        assertFalse(decision.supported());
-        assertEquals(1, decision.rejectionReasons().size());
-        assertEquals("source:null", decision.rejectionReasons().get(0));
+    public void testNullSourceSupported() {
+        // A bodyless _search is an implicit match_all — accepted and handled by Calcite,
+        // consistent with an empty "{}" body (see testEmptySourceSupported).
+        assertTrue(grammar.validate(null).supported());
     }
 
     public void testEmptySourceSupported() {
@@ -127,6 +129,28 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
             QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("desc", "fast"))
         );
         assertFalse(grammar.validate(bad).supported());
+    }
+
+    public void testDeeplyNestedUnsupportedLeafRejected() {
+        // constant_score -> bool -> match: the unregistered "match" leaf sits two containers
+        // deep and must still be found and rejected (structural recursion, not a hardcoded switch).
+        BoolQueryBuilder inner = QueryBuilders.boolQuery();
+        inner.must(QueryBuilders.termQuery("brand", "Acme"));
+        inner.should(QueryBuilders.matchQuery("desc", "fast"));
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.constantScoreQuery(inner));
+        RouteDecision decision = grammar.validate(source);
+        assertFalse(decision.supported());
+        assertEquals("query:match", decision.rejectionReasons().get(0));
+    }
+
+    public void testDeeplyNestedSupportedTreeAccepted() {
+        // constant_score -> bool with only registered leaves at depth is accepted.
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).filter(QueryBuilders.existsQuery("price"))
+            )
+        );
+        assertTrue(grammar.validate(source).supported());
     }
 
     // ---- translator-backed leaf validation ----

@@ -19,11 +19,17 @@ public class QueryRegistryFactory {
      * Built once at class init. The registry is populated in a private helper (not inline
      * so we can keep the {@code register(...)} calls readable) and cached forever.
      */
-    private static final QueryRegistry INSTANCE = build();
+    private static final QueryRegistry INSTANCE = newInstance();
 
     private QueryRegistryFactory() {}
 
-    private static QueryRegistry build() {
+    /**
+     * Returns a fresh registry populated with all supported translators. Production code should
+     * use {@link #create()} (the shared, effectively-immutable singleton); callers that need to
+     * register additional translators — e.g. tests — must use this so they never mutate the
+     * shared instance.
+     */
+    public static QueryRegistry newInstance() {
         QueryRegistry registry = new QueryRegistry();
         registry.register(new TermQueryTranslator());
         registry.register(new TermsQueryTranslator());
