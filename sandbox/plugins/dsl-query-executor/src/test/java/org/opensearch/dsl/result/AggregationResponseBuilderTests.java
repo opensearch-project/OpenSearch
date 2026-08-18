@@ -102,7 +102,8 @@ public class AggregationResponseBuilderTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends AggregationBuilder> BucketTranslator<T> createBucketTranslator(Class<T> aggClass, String fieldName) {
+    private <T extends AggregationBuilder> BucketTranslator<T> createBucketTranslator(Class<T> aggClass, String fieldName)
+        throws Exception {
         BucketTranslator<T> translator = mock(BucketTranslator.class);
         when(translator.getAggregationType()).thenReturn(aggClass);
 

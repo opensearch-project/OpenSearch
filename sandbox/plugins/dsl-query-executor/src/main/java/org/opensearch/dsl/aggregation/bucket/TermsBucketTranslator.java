@@ -9,7 +9,6 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
@@ -18,17 +17,13 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 
@@ -100,10 +95,10 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
     private static InternalAggregation stringTerms(TermsAggregationBuilder agg, List<BucketEntry> entries) {
         List<StringTerms.Bucket> termBuckets = new ArrayList<>(entries.size());
         for (BucketEntry entry : entries) {
-            BytesRef term = new BytesRef(keyString(entry.keys().get(0)));
+            BytesRef term = new BytesRef(TermsBucketSupport.keyString(entry.keys().get(0)));
             termBuckets.add(new StringTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
-        Truncated<StringTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
+        TermsBucketSupport.Truncated<StringTerms.Bucket> visible = TermsBucketSupport.sortAndTruncate(termBuckets, agg.order(), agg.size());
         BucketOrder order = agg.order();
         return new StringTerms(
             agg.getName(),
@@ -131,7 +126,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             long term = key instanceof Boolean bool ? (bool ? 1L : 0L) : ((Number) key).longValue();
             termBuckets.add(new LongTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, format));
         }
-        Truncated<LongTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
+        TermsBucketSupport.Truncated<LongTerms.Bucket> visible = TermsBucketSupport.sortAndTruncate(termBuckets, agg.order(), agg.size());
         BucketOrder order = agg.order();
         return new LongTerms(
             agg.getName(),
@@ -158,7 +153,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             double term = ((Number) entry.keys().get(0)).doubleValue();
             termBuckets.add(new DoubleTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, DocValueFormat.RAW));
         }
-        Truncated<DoubleTerms.Bucket> visible = sortAndTruncate(termBuckets, agg);
+        TermsBucketSupport.Truncated<DoubleTerms.Bucket> visible = TermsBucketSupport.sortAndTruncate(termBuckets, agg.order(), agg.size());
         BucketOrder order = agg.order();
         return new DoubleTerms(
             agg.getName(),
@@ -173,45 +168,6 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
             0,
             thresholds(agg)
         );
-    }
-
-    /** Result of {@link #sortAndTruncate}: the visible buckets and the truncated tail's doc count. */
-    private record Truncated<B extends MultiBucketsAggregation.Bucket>(List<B> buckets, long otherDocCount) {
-    }
-
-    /**
-     * Sorts buckets per this aggregation's own order and truncates to {@code size}. The re-sort is
-     * required because sibling aggregations sharing a granularity share one plan-level sort, which
-     * cannot satisfy two different requested orders.
-     */
-    private static <B extends MultiBucketsAggregation.Bucket> Truncated<B> sortAndTruncate(
-        List<B> termBuckets,
-        TermsAggregationBuilder agg
-    ) {
-        termBuckets.sort(agg.order().comparator());
-        long otherDocCount = 0;
-        List<B> visible = termBuckets;
-        if (termBuckets.size() > agg.size()) {
-            for (int i = agg.size(); i < termBuckets.size(); i++) {
-                otherDocCount += termBuckets.get(i).getDocCount();
-            }
-            // Copy rather than clear the tail in place: releases the full-size backing array.
-            visible = new ArrayList<>(termBuckets.subList(0, agg.size()));
-        }
-        return new Truncated<>(visible, otherDocCount);
-    }
-
-    /** Binary keys are ip columns: render the address string like classic ip terms. */
-    private static String keyString(Object key) {
-        if (key instanceof byte[] bytes) {
-            try {
-                return NetworkAddress.format(InetAddress.getByAddress(bytes));
-            } catch (UnknownHostException e) {
-                // Not a 4/16-byte address; fall back to a printable, deterministic form.
-                return Base64.getEncoder().encodeToString(bytes);
-            }
-        }
-        return key.toString();
     }
 
     /** Bundles the request's bucket-count knobs for the result constructors. */
