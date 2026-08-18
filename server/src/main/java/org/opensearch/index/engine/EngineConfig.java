@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -154,32 +155,34 @@ public final class EngineConfig {
      * allocated on both `kind` of nodes.
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
-        switch (s) {
-            case "default":
-            case "lz4":
-            case "best_compression":
-            case "zlib":
-            case "lucene_default":
-                return s;
-            default:
-                if (Codec.availableCodecs().contains(s)) {
-                    return s;
-                }
-
-                for (String codecName : Codec.availableCodecs()) {
-                    Codec codec = Codec.forName(codecName);
-                    if (codec instanceof CodecAliases codecWithAlias) {
-                        if (codecWithAlias.aliases().contains(s)) {
-                            return s;
-                        }
-                    }
-                }
-
-                throw new IllegalArgumentException(
-                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
-                );
+        Set<String> validNames = availableIndexCodecNames();
+        if (validNames.contains(s)) {
+            return s;
         }
+        throw new IllegalArgumentException("unknown value for [index.codec] must be one of " + validNames + " but was: " + s);
     }, Property.IndexScope, Property.NodeScope);
+
+    /**
+     * Returns the codec names accepted by {@link #INDEX_CODEC_SETTING}: the OpenSearch built-ins, every codec
+     * registered with Lucene and any alias exposed by a {@link CodecAliases} codec. Used both to validate the
+     * setting and to build the error message so the two can never drift apart.
+     */
+    private static Set<String> availableIndexCodecNames() {
+        TreeSet<String> names = new TreeSet<>();
+        names.add("default");
+        names.add("lz4");
+        names.add("best_compression");
+        names.add("zlib");
+        names.add("lucene_default");
+        names.addAll(Codec.availableCodecs());
+        for (String codecName : Codec.availableCodecs()) {
+            Codec codec = Codec.forName(codecName);
+            if (codec instanceof CodecAliases codecWithAlias) {
+                names.addAll(codecWithAlias.aliases());
+            }
+        }
+        return names;
+    }
 
     /**
      * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
