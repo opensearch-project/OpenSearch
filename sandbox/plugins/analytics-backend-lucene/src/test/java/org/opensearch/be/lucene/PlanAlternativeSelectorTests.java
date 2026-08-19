@@ -64,7 +64,6 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -72,7 +71,6 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -100,8 +98,6 @@ import static org.mockito.Mockito.when;
  * selection happens before conversion, mirroring {@code DefaultPlanExecutor.executeInternal}).
  */
 public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
-
-    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     private RelDataTypeFactory typeFactory;
     private RexBuilder rexBuilder;
@@ -289,7 +285,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
         PlannerContext context = buildContext(fieldMappings, List.of(dfBackend, luceneBackend), preferMetadataDriver);
         RelNode marked = PlannerImpl.runAllOptimizations(plan, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), preferMetadataDriver);

@@ -49,13 +49,11 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -96,7 +94,6 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
     private static final Logger LOGGER = LogManager.getLogger(QtfSubstraitDumpIT.class);
 
     private static final String INDEX = "hits";
-    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     public void testDumpQtfPipeline() throws Exception {
         String sql = "SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10";
@@ -136,7 +133,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
         LOGGER.info("[QTF-DUMP] post-CBO+QTF RelNode:\n{}", RelOptUtil.toString(cbo));
 
-        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService());
         LOGGER.info("[QTF-DUMP] QueryDAG (pre-conversion):\n{}", dag);
 
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
@@ -211,7 +208,7 @@ public class QtfSubstraitDumpIT extends OpenSearchTestCase {
 
         RelNode parsed = parseSql(sql, clusterState);
         RelNode cbo = PlannerImpl.runAllOptimizations(parsed, context);
-        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return dag;
