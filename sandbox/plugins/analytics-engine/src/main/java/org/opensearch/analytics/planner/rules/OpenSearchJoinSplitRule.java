@@ -292,6 +292,20 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         if (joinDist.getLocality() == OpenSearchDistribution.Locality.SHARD && joinDist.getType() == RelDistribution.Type.SINGLETON) {
             return true;
         }
+        // A WORKER+HASH join is the hash-shuffle rule's own output (or a broadcast probe's RANDOM+SHARD
+        // join). It is ALREADY a resolved distributed alternative, so the coordinator rule must not fire
+        // on it: its inputs are exchanges rather than shard scans, which makes shouldSuppressCoord's
+        // bothInputsCouldBeMppShardScans check fail, lifting the self-suppression and letting coord
+        // gather the worker join's inputs — collapsing the MPP plan straight back to coordinator-centric.
+        // Under bottom-up Volcano this was masked because the coord alternative was registered before the
+        // worker join existed; top-down explores the worker join first, so the re-fire became reachable.
+        if (joinDist.getLocality() == OpenSearchDistribution.Locality.WORKER && joinDist.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+            return true;
+        }
+        if (joinDist.getLocality() == OpenSearchDistribution.Locality.SHARD
+            && joinDist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED) {
+            return true;
+        }
         return false;
     }
 
