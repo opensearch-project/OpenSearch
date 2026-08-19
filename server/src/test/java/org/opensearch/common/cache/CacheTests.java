@@ -32,7 +32,10 @@
 
 package org.opensearch.common.cache;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -1092,6 +1095,113 @@ public class CacheTests extends OpenSearchTestCase {
         assertEquals(List.of(), lruKeys(cache));
         assertEquals(0, cache.count());
         assertEquals(0L, cache.weight());
+    }
+
+    /**
+     * A keyed removal notifies the removal listener without the LRU lock. That lock serializes every mutation of
+     * the cache, so to hold it across a listener would block every other thread for as long as the listener takes.
+     */
+    public void testKeyedRemovalNotifiesOutsideLruLock() throws Exception {
+        final AtomicReference<Cache<String, String>> cacheRef = new AtomicReference<>();
+        final AtomicBoolean lruLockWasFree = new AtomicBoolean();
+        final AtomicInteger notifications = new AtomicInteger();
+
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().removalListener(notification -> {
+            notifications.incrementAndGet();
+            lruLockWasFree.set(lruLockIsFree(cacheRef.get()));
+        }).build();
+        cacheRef.set(cache);
+
+        cache.put("key", "value");
+        cache.invalidate("key");
+
+        assertEquals("the removal listener should have been notified", 1, notifications.get());
+        assertTrue("the removal listener should not hold the LRU lock", lruLockWasFree.get());
+    }
+
+    /** As {@link #testKeyedRemovalNotifiesOutsideLruLock}, for a removal that races an in-flight load. */
+    public void testDeferredRemovalNotifiesOutsideLruLock() throws Exception {
+        final AtomicReference<Cache<String, String>> cacheRef = new AtomicReference<>();
+        final AtomicBoolean lruLockWasFree = new AtomicBoolean();
+        final AtomicInteger notifications = new AtomicInteger();
+        final CountDownLatch loadStarted = new CountDownLatch(1);
+        final CountDownLatch releaseLoad = new CountDownLatch(1);
+
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().removalListener(notification -> {
+            notifications.incrementAndGet();
+            lruLockWasFree.set(lruLockIsFree(cacheRef.get()));
+        }).build();
+        cacheRef.set(cache);
+
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad, new CountDownLatch(1)), "loader");
+        loader.start();
+        assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
+
+        cache.invalidate(IN_FLIGHT_KEY);
+        releaseLoad.countDown();
+        loader.join(10_000);
+        assertFalse(loader.isAlive());
+
+        assertEquals("the loading thread should have notified the removal", 1, notifications.get());
+        assertTrue("the removal listener should not hold the LRU lock", lruLockWasFree.get());
+    }
+
+    /**
+     * A removal listener that throws on the deferred path gets its failure logged. {@code whenComplete()} discards
+     * whatever its callback throws, so a failure that is not caught and logged there is lost. The deletion itself
+     * is done before the listener runs, so the cache is left consistent.
+     */
+    public void testDeferredRemovalLogsListenerFailure() throws Exception {
+        final Cache<String, String> cache = CacheBuilder.<String, String>builder().removalListener(notification -> {
+            throw new RuntimeException("removal listener failure");
+        }).build();
+        final CountDownLatch loadStarted = new CountDownLatch(1);
+        final CountDownLatch releaseLoad = new CountDownLatch(1);
+
+        Thread loader = new Thread(() -> loadInFlightKey(cache, loadStarted, releaseLoad, new CountDownLatch(1)), "loader");
+        loader.start();
+        assertTrue(loadStarted.await(10, TimeUnit.SECONDS));
+        cache.invalidate(IN_FLIGHT_KEY);
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(Cache.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "removal listener failure",
+                    Cache.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify the removal of key [" + IN_FLIGHT_KEY + "]"
+                )
+            );
+            releaseLoad.countDown();
+            loader.join(10_000);
+            assertFalse("the failed notification should not have disturbed the loading thread", loader.isAlive());
+            appender.assertAllExpectationsMatched();
+        }
+
+        assertNull(cache.get(IN_FLIGHT_KEY));
+        assertEquals(List.of(), cache.keysSnapshot());
+        assertEquals(List.of(), lruKeys(cache));
+        assertEquals(0, cache.count());
+        assertEquals(0L, cache.weight());
+    }
+
+    /**
+     * True if the calling thread does not hold the LRU lock: another thread can take that lock, and so mutate the
+     * cache, while this thread waits.
+     */
+    private boolean lruLockIsFree(Cache<String, String> cache) {
+        final CountDownLatch mutated = new CountDownLatch(1);
+        // refresh() takes the LRU lock and nothing else
+        Thread mutator = new Thread(() -> {
+            cache.refresh();
+            mutated.countDown();
+        }, "mutator");
+        mutator.start();
+        try {
+            return mutated.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
