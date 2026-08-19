@@ -302,7 +302,18 @@ the analysis originally recommended and expressing the floor as COST rather than
 credits `inputRows/parallelism`, so a 100-row aggregate is already not worth distributing on cost alone.
 (b) is the better end state and removes the setting's veto semantics entirely.
 
-### BLOCKED 2: `OpenSearchAggregate.passThroughTraits` claiming the SINGLE alternative → 59 failures
+### BLOCKED 2 — CORRECTED: it is 12 failures, not 59, and it is salvageable
+
+**My "59" was measured BEFORE `aca15b77fd0` and `434f62c27cd` landed** (the two commits that widened the
+split rule's `isPartitioned`/`childForcesGather` and moved the sub-toggle into `matches()`). Re-measured
+at current HEAD with `--rerun-tasks`: **12 failures** (10 baseline + 2 new), reproduced independently
+twice. Verified 103 XMLs / 1053 tests / 12 failures / **0 errors**, all `ComparisonFailure`.
+
+A methodology trap worth recording: gradle only rewrites JUnit XML for classes it re-runs, so an
+incremental run can leave ONE xml for 1053 tests and silently under-report. Always `--rerun-tasks` before
+counting.
+
+### (superseded) original claim: 59 failures
 
 Making SINGLE claim the SINGLETON alternative (so Volcano explores it and gives the rule a chance to fire)
 took 10 → **59**. Reverted. The declining javadoc is load-bearing beyond the two gates it cites: claiming
@@ -356,3 +367,47 @@ Revised recommendation: do NOT try to delete the floor. Either leave it in the p
 plumb a `PlannerContext` override so a rule can read a test-lowered value the way the pass reads its
 explicit parameter. Adding a per-stage cost term is the principled fix but is its own project, and it
 would change every strategy decision — it needs the TPC-H sweep as a guard, not just unit tests.
+
+
+---
+
+## STEP 3b-ii RESOLVED (commit `e471603eb9b`) — was a 2-test cost race, not a broad regression
+
+### What the failures actually were
+
+Both new failures are in `AggregateSplitCostTests`
+(`testFourPredicateFilterBelowCountByKey_2shard`, `testSevenPredicateFilterBelowAvgByKey_2shard`), and
+both are category **(a) different-but-valid plan** — NOT a dead end, NOT semantically wrong:
+
+- The new plan is `OpenSearchAggregate(mode=SINGLE)` directly over `OpenSearchExchangeReducer`, i.e. the
+  input IS gathered.
+- `OpenSearchAggregate.computeSelfCost:329-331` prices `SINGLE` over non-singleton input at **infinite
+  cost**, so an unsplit aggregate can never read partitioned input and under-count. Correctness is not at
+  stake in either shape.
+
+Mechanism: claiming the alternative materializes a `SINGLE`-over-`coordSingleton` subset that did not
+previously exist, so the split rule re-fires there and emits `singleOnSingleton`. Volcano then costs both
+legal plans and picks the cheaper. These are the ONLY two tests in the suite that stub
+`when(table.getRowCount()).thenReturn(100d)`, and their own javadoc says the estimate is deliberately
+driven to "the 1.0 floor" so that "without the gate the coordinator-PARTIAL wins on cost"
+(`AggregateSplitCostTests.java:188-195`). At 1 estimated row a two-phase aggregate is pure overhead, so
+the gather legitimately wins by ~1.1 cost units. The edit removed exactly the gate those tests pin.
+
+### Shipped: the principled narrowing
+
+Claim the SINGLETON alternative only when `shouldSkipPartialFinalSplit(this)` — i.e. only for aggregates
+that CANNOT be split (STATE_EXPANDING / DISTINCT / cross-family non-prefix). For those, gather-then-run-
+SINGLE is the only correct shape, so it can never out-compete a two-phase alternative because none
+exists. Measured **10 failures** (baseline), and verified NOT dead code: the branch fires 5x across the
+suite.
+
+Deliberately did NOT take the alternative options — updating the 2 goldens would weaken a gate that
+exists for a real cost hazard, and the unconditional version buys nothing extra today since the pass's
+`splitAggregate` still owns the splittable cases.
+
+### Also invalidated: the "fix it via step 2'" suggestion
+
+The subagent proposed that step 2' (floor as cost) subsumes this. It does not — step 2' is independently
+INVALIDATED (see the section above): with the floor neutralized, cost distributes a 1,000-row join and
+`testEnforcementPass_smallJoinBelowFloorStaysCoordCentric` fails. The cost model has no per-stage term, so
+it cannot express "too small to distribute" at any row count.
