@@ -476,7 +476,14 @@ public final class DistributionEnforcementPass {
         // honors the aggregate's HASH(groupKeys) requirement. See step 3c.)
         RelNode rebuilt = copyWithInputs(n, newInputs);
         OpenSearchDistribution out = aware.deriveOutputDistribution(enforcedChildDists, traitDef);
-        return new Visited(rebuilt, out);
+        // RESTAMP the rebuilt operator's own trait with what it now actually produces. copyWithInputs
+        // reuses node.getTraitSet(), so a join the pass just distributed would otherwise keep CBO's
+        // coordSingleton while its inputs are HASH(WORKER) — the "stale trait" the forced buildReducer
+        // calls exist to work around. The staleness is self-inflicted here, not inherited from CBO, so
+        // fixing it at the source is what lets consumers (window Project, non-decomposable aggregate)
+        // see a distributed input and gather it.
+        RelNode restamped = out == null ? rebuilt : rebuilt.copy(rebuilt.getTraitSet().replace(out), rebuilt.getInputs());
+        return new Visited(restamped, out);
     }
 
     /**
@@ -561,7 +568,8 @@ public final class DistributionEnforcementPass {
         if (actual != null && actual.satisfies(traitDef.coordSingleton())) {
             return rel;
         }
-        return traitDef.buildReducer(rel);
+        // STEP-1 EXPERIMENT: trust the trait.
+        return traitDef.buildEnforcer(rel, traitDef.coordSingleton());
     }
 
     /**
@@ -608,7 +616,7 @@ public final class DistributionEnforcementPass {
             RelNode child = RelNodeUtils.unwrapHep(project.getInput(0));
             return copyWithInputs(project, List.of(sinkReducerBelowProjects(child)));
         }
-        return traitDef.buildReducer(rel);
+        return traitDef.buildEnforcer(rel, traitDef.coordSingleton());
     }
 
     private static RelNode copyWithInputs(RelNode node, List<RelNode> newInputs) {
