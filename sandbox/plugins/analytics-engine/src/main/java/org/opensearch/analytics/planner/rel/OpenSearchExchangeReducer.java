@@ -200,8 +200,7 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
         // race. WIDTH_COST weights each gathered column. Keep broadcast/shuffle width-agnostic — the
         // join-strategy race must be decided on rows, not width.
         double widthCost = WIDTH_COST * getRowType().getFieldCount();
-        double cost = SETUP_COST + rows + widthCost;
-        return planner.getCostFactory().makeCost(cost, cost, 0);
+        return planner.getCostFactory().makeCost(SETUP_COST + rows + widthCost, SETUP_COST + rows + widthCost, 0);
     }
 
     @Override
