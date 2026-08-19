@@ -839,6 +839,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
+                AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,

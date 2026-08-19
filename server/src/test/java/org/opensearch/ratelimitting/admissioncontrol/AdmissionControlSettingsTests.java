@@ -46,8 +46,38 @@ public class AdmissionControlSettingsTests extends OpenSearchTestCase {
         Set<Setting<?>> settings = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
         assertTrue(
             "All the admission controller settings should be supported built in settings",
-            settings.containsAll(List.of(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE))
+            settings.containsAll(
+                List.of(
+                    AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
+                    AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED
+                )
+            )
         );
+    }
+
+    public void testCpuTransportLayerAdmissionControlDefaultDisabled() {
+        AdmissionControlSettings admissionControlSettings = new AdmissionControlSettings(
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
+        );
+        assertFalse(admissionControlSettings.isCpuTransportLayerAdmissionControlEnabled());
+    }
+
+    public void testCpuTransportLayerAdmissionControlConfiguredEnabled() {
+        Settings settings = Settings.builder().put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED.getKey(), true).build();
+        AdmissionControlSettings admissionControlSettings = new AdmissionControlSettings(clusterService.getClusterSettings(), settings);
+        assertTrue(admissionControlSettings.isCpuTransportLayerAdmissionControlEnabled());
+    }
+
+    public void testCpuTransportLayerAdmissionControlDynamicUpdate() {
+        AdmissionControlSettings admissionControlSettings = new AdmissionControlSettings(
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
+        );
+        assertFalse(admissionControlSettings.isCpuTransportLayerAdmissionControlEnabled());
+        Settings settings = Settings.builder().put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED.getKey(), true).build();
+        clusterService.getClusterSettings().applySettings(settings);
+        assertTrue(admissionControlSettings.isCpuTransportLayerAdmissionControlEnabled());
     }
 
     public void testDefaultSettings() {

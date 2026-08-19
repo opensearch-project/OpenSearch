@@ -38,7 +38,25 @@ public final class AdmissionControlSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Dynamic, opt-in feature setting for the CPU-only transport layer admission control flow. Disabled by
+     * default to preserve backward compatibility. When this setting is enabled and the legacy transport
+     * admission control ({@link #ADMISSION_CONTROL_TRANSPORT_LAYER_MODE}) is disabled, only the CPU admission
+     * controller participates in admission decisions and requests are rejected (enforced) once the configured
+     * CPU usage limit is breached. The IO and native-memory admission controllers do not participate in this
+     * flow. When the legacy transport admission control is enabled, it takes precedence and this flow is
+     * bypassed.
+     */
+    public static final Setting<Boolean> ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED = Setting.boolSetting(
+        "admission_control.transport.cpu.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile AdmissionControlMode transportLayeradmissionControlMode;
+
+    private volatile boolean cpuTransportLayerAdmissionControlEnabled;
 
     /**
      * @param clusterSettings clusterSettings Instance
@@ -47,6 +65,11 @@ public final class AdmissionControlSettings {
     public AdmissionControlSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayeradmissionControlMode = ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE, this::setAdmissionControlTransportLayerMode);
+        this.cpuTransportLayerAdmissionControlEnabled = ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED,
+            this::setCpuTransportLayerAdmissionControlEnabled
+        );
     }
 
     /**
@@ -55,6 +78,15 @@ public final class AdmissionControlSettings {
      */
     private void setAdmissionControlTransportLayerMode(AdmissionControlMode admissionControlMode) {
         this.transportLayeradmissionControlMode = admissionControlMode;
+    }
+
+    /**
+     *
+     * @param cpuTransportLayerAdmissionControlEnabled update the enabled state of the CPU-only transport
+     *                                                 layer admission control flow
+     */
+    private void setCpuTransportLayerAdmissionControlEnabled(boolean cpuTransportLayerAdmissionControlEnabled) {
+        this.cpuTransportLayerAdmissionControlEnabled = cpuTransportLayerAdmissionControlEnabled;
     }
 
     /**
@@ -79,5 +111,13 @@ public final class AdmissionControlSettings {
      */
     public Boolean isTransportLayerAdmissionControlEnabled() {
         return this.transportLayeradmissionControlMode != AdmissionControlMode.DISABLED;
+    }
+
+    /**
+     *
+     * @return true if the CPU-only transport layer admission control flow is enabled else false
+     */
+    public boolean isCpuTransportLayerAdmissionControlEnabled() {
+        return this.cpuTransportLayerAdmissionControlEnabled;
     }
 }

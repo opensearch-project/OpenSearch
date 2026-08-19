@@ -9,8 +9,9 @@
 package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
@@ -19,6 +20,8 @@ import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.util.Optional;
 
 import org.mockito.Mockito;
 
@@ -32,16 +35,13 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = ClusterServiceUtils.createClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        clusterService.close();
         threadPool.shutdownNow();
     }
 
@@ -140,5 +140,43 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.SEARCH.getType()), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 5);
+    }
+
+    public void testApplyForTransportLayerEnforcedRejectsRegardlessOfMode() {
+        // The mode-override is left at its default (DISABLED); the enforced-apply used by the CPU-only flow
+        // must still reject when the CPU usage limit is breached, i.e. it does not consult the configured mode.
+        Settings settings = Settings.builder().put(CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT.getKey(), 0).build();
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        NodeResourceUsageStats stats = Mockito.mock(NodeResourceUsageStats.class);
+        Mockito.when(stats.getCpuUtilizationPercent()).thenReturn(50.0);
+        Mockito.when(rs.getNodeStatistics(Mockito.anyString())).thenReturn(Optional.of(stats));
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+            rs,
+            clusterService,
+            settings
+        );
+        assertEquals(AdmissionControlMode.DISABLED, admissionController.settings.getTransportLayerAdmissionControllerMode());
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> admissionController.applyForTransportLayerEnforced(action, AdmissionControlActionType.INDEXING)
+        );
+        assertEquals(1, admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()));
+    }
+
+    public void testApplyForTransportLayerEnforcedNoRejectionBelowLimit() {
+        // Default CPU limit is 95; a usage of 10 is below it, so no rejection should occur.
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        NodeResourceUsageStats stats = Mockito.mock(NodeResourceUsageStats.class);
+        Mockito.when(stats.getCpuUtilizationPercent()).thenReturn(10.0);
+        Mockito.when(rs.getNodeStatistics(Mockito.anyString())).thenReturn(Optional.of(stats));
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+            rs,
+            clusterService,
+            Settings.EMPTY
+        );
+        admissionController.applyForTransportLayerEnforced(action, AdmissionControlActionType.INDEXING);
+        assertEquals(0, admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()));
     }
 }

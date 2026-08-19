@@ -77,6 +77,29 @@ public class CpuBasedAdmissionController extends AdmissionController {
     }
 
     /**
+     * Apply CPU based transport layer admission control in enforced mode, i.e. reject the request when the
+     * configured CPU usage limit has been breached, regardless of the configured admission control mode.
+     * Used by the CPU-only transport layer admission control flow gated by
+     * {@link org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings#ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED}.
+     *
+     * @param actionName is the transport action
+     * @param admissionControlActionType type of the transport request
+     */
+    public void applyForTransportLayerEnforced(String actionName, AdmissionControlActionType admissionControlActionType) {
+        if (isLimitsBreached(actionName, admissionControlActionType)) {
+            this.addRejectionCount(admissionControlActionType.getType(), 1);
+            throw new OpenSearchRejectedExecutionException(
+                String.format(
+                    Locale.ROOT,
+                    "CPU usage admission controller rejected the request for action [%s] as CPU limit reached for action-type [%s]",
+                    actionName,
+                    admissionControlActionType.name()
+                )
+            );
+        }
+    }
+
+    /**
      * Check if the configured resource usage limits are breached for the action
      */
     private boolean isLimitsBreached(String actionName, AdmissionControlActionType admissionControlActionType) {

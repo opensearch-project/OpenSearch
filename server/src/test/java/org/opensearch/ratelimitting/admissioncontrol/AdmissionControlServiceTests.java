@@ -10,14 +10,19 @@ package org.opensearch.ratelimitting.admissioncontrol;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.node.IoUsageStats;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -25,6 +30,9 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Optional;
+
+import org.mockito.Mockito;
 
 public class AdmissionControlServiceTests extends OpenSearchTestCase {
     private ClusterService clusterService;
@@ -36,17 +44,14 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = ClusterServiceUtils.createClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
         action = "indexing";
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        clusterService.close();
         threadPool.shutdownNow();
     }
 
@@ -223,5 +228,104 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
             0
         );
+    }
+
+    /**
+     * New CPU-only flow enabled with the legacy transport mode disabled: only the CPU controller enforces and
+     * rejects; the IO controller must not participate.
+     */
+    public void testNewCpuOnlyFlowEnforcesCpuAndExcludesIo() {
+        this.action = "indices:data/write/bulk[s][p]";
+        Settings settings = Settings.builder()
+            .put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED.getKey(), true)
+            .put(CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT.getKey(), 0)
+            .put(IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT.getKey(), 0)
+            .build();
+        ResourceUsageCollectorService rs = mockResourceCollector(50.0, 50.0);
+        admissionControlService = new AdmissionControlService(settings, clusterService, threadPool, rs, null);
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> admissionControlService.applyTransportAdmissionControl(this.action, AdmissionControlActionType.INDEXING)
+        );
+        assertEquals(
+            1,
+            admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount(AdmissionControlActionType.INDEXING.getType())
+        );
+        if (Constants.LINUX) {
+            // IO controller is registered but must NOT participate in the CPU-only flow.
+            assertEquals(
+                0,
+                admissionControlService.getAdmissionController(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER)
+                    .getRejectionCount(AdmissionControlActionType.INDEXING.getType())
+            );
+        }
+    }
+
+    /**
+     * New CPU-only flow disabled (the default): the legacy multi-controller flow runs. With all legacy modes
+     * disabled, no admission control is applied even at high CPU usage - i.e. existing default behavior is preserved.
+     */
+    public void testNewCpuOnlyFlowDisabledUsesLegacyPath() {
+        this.action = "indices:data/write/bulk[s][p]";
+        ResourceUsageCollectorService rs = mockResourceCollector(100.0, 100.0);
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, rs, null);
+        admissionControlService.applyTransportAdmissionControl(this.action, AdmissionControlActionType.INDEXING);
+        assertEquals(
+            0,
+            admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount(AdmissionControlActionType.INDEXING.getType())
+        );
+    }
+
+    /**
+     * When both the legacy transport mode and the new CPU-only flow are enabled, the legacy flow takes
+     * precedence. Proven by having only the IO controller breach: a rejection from IO shows the legacy
+     * multi-controller path ran (the CPU-only flow would have skipped IO entirely).
+     */
+    public void testLegacyTakesPrecedenceWhenBothEnabled() {
+        assumeTrue("IO/native controllers are Linux-only", Constants.LINUX);
+        this.action = "indices:data/write/bulk[s][p]";
+        Settings settings = Settings.builder()
+            .put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_CPU_ENABLED.getKey(), true)
+            .put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
+            .put(
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.DISABLED.getMode()
+            )
+            .put(
+                NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.DISABLED.getMode()
+            )
+            .put(IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT.getKey(), 0)
+            .build();
+        ResourceUsageCollectorService rs = mockResourceCollector(50.0, 50.0);
+        admissionControlService = new AdmissionControlService(settings, clusterService, threadPool, rs, null);
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> admissionControlService.applyTransportAdmissionControl(this.action, AdmissionControlActionType.INDEXING)
+        );
+        // Rejection came from the IO controller (legacy path), not CPU.
+        assertEquals(
+            1,
+            admissionControlService.getAdmissionController(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount(AdmissionControlActionType.INDEXING.getType())
+        );
+        assertEquals(
+            0,
+            admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount(AdmissionControlActionType.INDEXING.getType())
+        );
+    }
+
+    private ResourceUsageCollectorService mockResourceCollector(double cpuPercent, double ioPercent) {
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        NodeResourceUsageStats stats = Mockito.mock(NodeResourceUsageStats.class);
+        Mockito.when(stats.getCpuUtilizationPercent()).thenReturn(cpuPercent);
+        IoUsageStats ioStats = Mockito.mock(IoUsageStats.class);
+        Mockito.when(ioStats.getIoUtilisationPercent()).thenReturn(ioPercent);
+        Mockito.when(stats.getIoUsageStats()).thenReturn(ioStats);
+        Mockito.when(rs.getNodeStatistics(Mockito.anyString())).thenReturn(Optional.of(stats));
+        return rs;
     }
 }

@@ -91,9 +91,21 @@ public class AdmissionControlService {
      * @param admissionControlActionType admissionControllerActionType value
      */
     public void applyTransportAdmissionControl(String action, AdmissionControlActionType admissionControlActionType) {
-        this.admissionControllers.forEach(
-            (name, admissionController) -> { admissionController.apply(action, admissionControlActionType); }
-        );
+        // Precedence: the legacy transport admission control (admission_control.transport.mode) always wins.
+        // When it is disabled and the new CPU-only flow (admission_control.transport.cpu.enabled) is enabled,
+        // enforce CPU admission control only; the IO and native-memory controllers do not participate.
+        // Otherwise run the legacy multi-controller flow, unchanged.
+        if (!this.admissionControlSettings.isTransportLayerAdmissionControlEnabled()
+            && this.admissionControlSettings.isCpuTransportLayerAdmissionControlEnabled()) {
+            AdmissionController cpuAdmissionController = this.getAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
+            if (cpuAdmissionController != null) {
+                ((CpuBasedAdmissionController) cpuAdmissionController).applyForTransportLayerEnforced(action, admissionControlActionType);
+            }
+        } else {
+            this.admissionControllers.forEach(
+                (name, admissionController) -> { admissionController.apply(action, admissionControlActionType); }
+            );
+        }
     }
 
     /**
