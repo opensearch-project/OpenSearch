@@ -335,6 +335,14 @@ public class OpenSearchSchemaBuilder {
                 // validator rather than a planning-time IllegalArgumentException.
                 continue;
             }
+            // Multi-value keyword fields are stored as Parquet LIST<UTF8> / Arrow List(Utf8).
+            // The Calcite schema must declare them as ARRAY so the Substrait plan emits the
+            // correct List type and DataFusion's schema validation passes.
+            Object multiValue = fieldProps.get("multi_value");
+            if (Boolean.TRUE.equals(multiValue)) {
+                columnType = typeFactory.createArrayType(columnType, -1);
+                columnType = typeFactory.createTypeWithNullability(columnType, true);
+            }
             builder.add(fieldName, columnType);
         }
     }

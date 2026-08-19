@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.engine;
 
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -21,6 +22,7 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
+import org.opensearch.analytics.planner.ArrowCalciteTypes;
 import org.opensearch.analytics.schema.BinaryType;
 import org.opensearch.analytics.schema.DateOnlyType;
 import org.opensearch.analytics.schema.IpType;
@@ -56,6 +58,22 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
         assertFieldType(rowType, "age", SqlTypeName.BIGINT);
         assertFieldType(rowType, "score", SqlTypeName.DOUBLE);
+    }
+
+    public void testMultiValueKeywordMapsToArrowList() throws Exception {
+        ClusterState clusterState = buildClusterStateRaw(
+            "multi_value_index",
+            "{\"properties\":{\"tags\":{\"type\":\"keyword\",\"multi_value\":true}}}"
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("multi_value_index").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType tagsType = rowType.getField("tags", true, false).getType();
+
+        assertEquals(SqlTypeName.ARRAY, tagsType.getSqlTypeName());
+        assertEquals(SqlTypeName.VARCHAR, tagsType.getComponentType().getSqlTypeName());
+        assertTrue(tagsType.isNullable());
+        assertEquals(ArrowType.List.INSTANCE, ArrowCalciteTypes.toArrow(tagsType));
     }
 
     /**

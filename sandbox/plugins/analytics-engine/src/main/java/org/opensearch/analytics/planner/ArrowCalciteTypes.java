@@ -49,6 +49,7 @@ public final class ArrowCalciteTypes {
             // TODO: TIMESTAMP_WITH_LOCAL_TIME_ZONE, DATE, TIME, DECIMAL still missing.
             // precision 9 ⇒ date_nanos; else date — must match the wire unit shards emit (Stitcher copyFromSafe).
             case TIMESTAMP -> new ArrowType.Timestamp(t.getPrecision() == 9 ? TimeUnit.NANOSECOND : TimeUnit.MILLISECOND, null);
+            case ARRAY -> ArrowType.List.INSTANCE;
             default -> throw new IllegalArgumentException("Unsupported Calcite type: " + t.getSqlTypeName());
         };
     }
