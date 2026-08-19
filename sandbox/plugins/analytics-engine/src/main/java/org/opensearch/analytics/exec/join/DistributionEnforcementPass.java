@@ -87,6 +87,7 @@ public final class DistributionEnforcementPass {
     private final int partitionCount;
     private final long minRows;
     private final boolean shuffleAggregateEnabled;
+    private final boolean collapseCoPartitionedTiers;
 
     public DistributionEnforcementPass(
         OpenSearchDistributionTraitDef traitDef,
@@ -94,10 +95,21 @@ public final class DistributionEnforcementPass {
         long minRows,
         boolean shuffleAggregateEnabled
     ) {
+        this(traitDef, partitionCount, minRows, shuffleAggregateEnabled, false);
+    }
+
+    public DistributionEnforcementPass(
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers
+    ) {
         this.traitDef = traitDef;
         this.partitionCount = partitionCount;
         this.minRows = minRows;
         this.shuffleAggregateEnabled = shuffleAggregateEnabled;
+        this.collapseCoPartitionedTiers = collapseCoPartitionedTiers;
     }
 
     /** Result of visiting a node: the (possibly rewritten) rel and the distribution it actually outputs. */
@@ -124,10 +136,37 @@ public final class DistributionEnforcementPass {
         long minRows,
         boolean shuffleAggregateEnabled
     ) {
+        return enforce(plan, traitDef, partitionCount, minRows, shuffleAggregateEnabled, false);
+    }
+
+    /**
+     * {@link #enforce(RelNode, OpenSearchDistributionTraitDef, int, long, boolean)} with the tier-collapse
+     * toggle.
+     *
+     * @param collapseCoPartitionedTiers {@code analytics.mpp.collapse_copartitioned_tiers}: when {@code true},
+     *                       a join input whose child is ALREADY partitioned the way this join needs is reused
+     *                       in place instead of being re-shuffled, so co-partitioned joins collapse into one
+     *                       worker tier. Default {@code false} keeps one tier per join (see the setting's
+     *                       javadoc for the memory trade).
+     */
+    public static RelNode enforce(
+        RelNode plan,
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers
+    ) {
         if (partitionCount <= 1) {
             return plan;
         }
-        DistributionEnforcementPass pass = new DistributionEnforcementPass(traitDef, partitionCount, minRows, shuffleAggregateEnabled);
+        DistributionEnforcementPass pass = new DistributionEnforcementPass(
+            traitDef,
+            partitionCount,
+            minRows,
+            shuffleAggregateEnabled,
+            collapseCoPartitionedTiers
+        );
         // Root demand is SINGLETON — the query result must land on the coordinator. This seeds the
         // top-down demand-flow; a transparent op directly under the root passes it through so its child
         // sees the SINGLETON demand (matching the prior behavior where the root gather handled it).
@@ -410,20 +449,22 @@ public final class DistributionEnforcementPass {
 
         // 4. DistributionAware: enforce each input's required distribution.
         //
-        // Binary-tier lowering: a JOIN is a worker-tier boundary. The hash-shuffle transport delivers
-        // exactly TWO named shuffle inputs per worker (left/right buffer slices — ShuffleScanInstructionNode
-        // side ∈ {left,right}; the buffer has two slices), so every distributed join input must arrive as
-        // its OWN shuffle producer stream. We therefore do NOT take the co-partition-reuse shortcut on a
-        // join input: even when a lower join's output already satisfies the required hash, we insert a
-        // same-key inter-tier shuffle so DAGBuilder cuts the lower join into its own binary producer stage
-        // (rather than collapsing N joins into one fragment with N shuffle leaves, which the binary
-        // transport cannot run). This same-key inter-tier shuffle is exactly what the legacy cascade
-        // already does (each intermediate worker produces a shuffle to its parent worker). UNARY ops
-        // (Project / Filter / PARTIAL aggregate) are NOT tier boundaries — they ride on the same worker as
-        // their child, so they keep the reuse shortcut (e.g. a PARTIAL agg sits on its join's worker with
-        // no extra shuffle). Eliminating the inter-tier shuffle for genuinely co-partitioned tiers is a
-        // documented future optimization (needs N-ary shuffle transport); see MPP-GENERAL-SCHEDULING-DESIGN.md.
-        boolean isTierBoundary = n instanceof OpenSearchJoin;
+        // Tier lowering: by default a JOIN is a worker-tier boundary, so we do NOT take the
+        // co-partition-reuse shortcut on a join input. Even when a lower join's output already satisfies
+        // the required hash, a same-key inter-tier shuffle is inserted so DAGBuilder cuts the lower join
+        // into its own producer stage — the shape the legacy cascade produced and the one validated at
+        // sf=10 (each intermediate worker ships a shuffle to its parent worker).
+        //
+        // With analytics.mpp.collapse_copartitioned_tiers=true the join stops being a boundary: a
+        // co-partitioned input rides in place and the joins collapse into ONE worker tier reading a slot
+        // per leaf. The transport supports this (ShuffleSlots is N-ary; GeneralShuffleDAGRewriter promotes
+        // any-arity shuffle trees) — the toggle exists because collapsing trades a saved shuffle round-trip
+        // for higher peak memory on the one worker that now runs several joins, and DataFusion's hash-join
+        // build does not spill. Default off; see the setting's javadoc.
+        //
+        // UNARY ops (Project / Filter / PARTIAL aggregate) are NEVER tier boundaries — they ride on the same
+        // worker as their child either way (a PARTIAL agg sits on its join's worker with no extra shuffle).
+        boolean isTierBoundary = n instanceof OpenSearchJoin && !collapseCoPartitionedTiers;
         List<RelNode> newInputs = new ArrayList<>(childContents.size());
         List<OpenSearchDistribution> enforcedChildDists = new ArrayList<>(childContents.size());
         for (int i = 0; i < childContents.size(); i++) {

@@ -225,6 +225,31 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Collapse co-partitioned join tiers into ONE worker tier ({@code false} = one tier per join, the
+     * validated default).
+     *
+     * <p>When several joins in a tree partition on the SAME key, the lower join's output is already
+     * hash-partitioned the way its parent needs it, so the inter-tier shuffle between them ships rows that
+     * are already in the right place. With {@code true} the enforcement pass reuses such a co-partitioned
+     * input in place and {@code GeneralShuffleDAGRewriter} promotes the whole collapsed sub-tree to a single
+     * worker tier, saving one shuffle round-trip per collapsed level (a bushy 4-way join on one key goes
+     * from 3 tiers to 1). This requires the N-ary shuffle transport ({@code ShuffleSlots}) — a collapsed
+     * tier reads one slot per leaf, not two.
+     *
+     * <p>Default {@code false} because the saving is a TRADE, not free: collapsing removes a shuffle
+     * round-trip but makes one worker run several joins, raising its peak memory. DataFusion's hash-join
+     * build is non-spillable, so a collapsed tier can OOM where the tiered plan survived (the same hazard
+     * behind {@code analytics.mpp.shuffle.sort_merge_join_min_rows}). Enable per-query and measure before
+     * making it the default; the tiered shape stays the validated path.
+     */
+    public static final Setting<Boolean> MPP_COLLAPSE_COPARTITIONED_TIERS = Setting.boolSetting(
+        "analytics.mpp.collapse_copartitioned_tiers",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
@@ -368,6 +393,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
+        MPP_COLLAPSE_COPARTITIONED_TIERS,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,

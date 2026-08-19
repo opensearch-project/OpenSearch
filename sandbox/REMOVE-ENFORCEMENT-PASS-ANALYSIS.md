@@ -411,3 +411,73 @@ The subagent proposed that step 2' (floor as cost) subsumes this. It does not �
 INVALIDATED (see the section above): with the floor neutralized, cost distributes a 1,000-row join and
 `testEnforcementPass_smallJoinBelowFloorStaysCoordCentric` fails. The cost model has no per-stage term, so
 it cannot express "too small to distribute" at any row count.
+
+---
+
+## STEP 4 OUTCOME (commits `1d3f3bbf31d`, + this one) — transport is N-ary; the no-reuse rule is now a POLICY, not a limit
+
+Step 4 was the largest remaining item and the one the doc called "the big one". It landed in two halves.
+
+### 4a: the transport is N-ary (`1d3f3bbf31d`)
+
+Blocker 1 above described `ShuffleBufferManager.ShuffleBuffer` as having "literal two-sided state, not an
+N-keyed map". That is now a slot-keyed map:
+
+| before | after |
+|---|---|
+| `leftData` / `rightData` | `Map<String, Slot>`, each slot its own list |
+| `leftDoneCount` / `rightDoneCount` | per-slot `doneCount` |
+| `leftReady` / `rightReady` | per-slot `ready` latch; `awaitReady` waits every DECLARED slot |
+| `leftSpill` / `rightSpill` | per-slot spill file, named `<stage>-<partition>-<slot>.spill` |
+| `setExpectedSenders(int,int)` | `setExpectedSenders(Map<String,Integer>)` (binary form kept as a shim) |
+| `ShuffleWorkerSetupInstructionNode(left,right)` | carries `Map<slot,expectedSenders>` on the wire |
+| `WorkerLevel(worker, leftProducer, rightProducer, …)` | `WorkerLevel(worker, List<WorkerInput>, …)` |
+| `findJoinOverTwoShuffles` (both inputs shuffles) | `findJoinOverShuffles` — any-arity join TREE whose LEAVES are all shuffles |
+
+`ShuffleSlots` owns the labelling rule, and the load-bearing property is that **arity ≤ 2 still maps to
+`left`/`right`** — so every binary payload, buffer key and spill-file name is byte-identical and the 31
+existing binary buffer tests pass untouched. Only a 3+-input consumer uses `in<index>`.
+
+Two things blocker 1 listed turned out NOT to be binary at all, which is why 4a was smaller than the doc
+implied: the producer wire path (`ShuffleProducerInstructionNode`, `AnalyticsShuffleDataRequest`,
+`ShuffleSenderImpl`, `createPartitionedSink`) already treats `side` as an OPAQUE string, and
+`DataFusionFragmentConvertor.rewriteStageInputScans` already rewrites N `StageInputScan` leaves. Only the
+buffer, the setup node, the `WorkerLevel` record, and the rewriter's promotion predicate were arity-bound.
+
+Note Calcite's `Join` is always binary, so the N-ary shape is not a wide join node — it is a **collapsed
+join TREE inside one fragment** (`Join(Shuffle, Join(Shuffle, Shuffle))`), one slot per leaf. Key checking
+therefore had to change from position-wise (`info.leftKeys` vs input 0) to set-membership against every
+join in the tree: in a collapsed tree a leaf feeds an inner join whose key lists are relative to THAT
+join, not the root.
+
+### 4b: the no-reuse rule survives — as a default, not a capability limit
+
+With the transport N-ary, `isTierBoundary = n instanceof OpenSearchJoin` was neutralized to `false` to see
+what the rule was actually holding back. Result: **19 failures (baseline 10)**, and all 9 new ones are
+deliberate binary-tier shape assertions — e.g. `bushy (A⋈B)⋈(C⋈D) → three binary worker tiers
+expected:<3> but was:<1>`. So the relaxation WORKS: a bushy 4-way join keyed entirely on `col0` collapses
+3 tiers into 1, which is exactly the win step 4 exists for, and it is key-legal (every join keys on the
+same column, so the lower join's output is already partitioned the way its parent needs).
+
+But collapse is a TRADE, not a free win: it removes a shuffle round-trip and in exchange makes ONE worker
+run several joins, raising peak memory — and DataFusion's hash-join build does not spill (the hazard behind
+`sort_merge_join_min_rows`, and behind q17/q18/q21 at sf=10). JVM tests assert plan shape and cannot settle
+that; only a cluster run can. So it ships as `analytics.mpp.collapse_copartitioned_tiers`, **default
+false**, matching how `shuffle_column_prune` shipped. Two tests pin both directions
+(`testGeneralShuffle_collapseToggleFusesCoPartitionedTiers` → 1 tier / 4 slots / 4 distinct producers, and
+`…DefaultsOffKeepingBinaryTiers` → 3 binary tiers with `left`/`right` labels).
+
+The `exchangeMaterialized` tier rule in `satisfies()` did NOT need relaxing: the demand
+`OpenSearchDistributionTraitDef.hash()` builds is un-materialized, so a co-partitioned child satisfies it;
+only a demand explicitly marked materialized insists on a real shuffle. Its comment is corrected to say
+this is now a conservative default rather than a transport limit.
+
+### What this means for the removal sequence
+
+- Step 4's "no-reuse" responsibility is **retired as a limit** — the pass still applies it, but only as the
+  default value of a documented toggle, which is a policy the pass is allowed to own.
+- Step 3c Variant-A (skipping the aggregate's `HASH(groupKeys)` demand) is **still in force**. 4a removes the
+  transport objection, but the remaining blocker is the REWRITER: `GeneralShuffleDAGRewriter` promotes only
+  join trees, so a group-key shuffle whose consumer is a PARTIAL aggregate is still an unwired edge. That is
+  a rewriter generalization (promote a shuffle-fed AGGREGATE stage), not a transport one — smaller than 4a.
+- Step 5 (reduce-stage shuffle production) is untouched and remains the last big item.

@@ -202,9 +202,13 @@ public class OpenSearchDistribution implements RelDistribution {
             }
             // TIER AWARENESS: a demand for a MATERIALIZED partitioning is not met by a merely DERIVED
             // one. A lower join whose output "is" HASH(k,N) never actually shipped those rows through a
-            // shuffle, so reusing it in place would put two join tiers in one fragment — unrunnable on
-            // the binary shuffle transport (two named inputs per worker). Producing-side materialized
-            // data satisfies BOTH kinds of demand; only derived-satisfying-materialized is rejected.
+            // shuffle, so satisfying a materialized demand with it puts two join tiers in one fragment.
+            // The transport can now RUN that shape (ShuffleSlots is N-ary), so this is no longer a
+            // capability limit — it is the conservative default: collapsing tiers raises one worker's peak
+            // memory and DataFusion's hash-join build does not spill. A caller that wants collapse asks for
+            // a DERIVED partitioning (the demand `hash()` builds is un-materialized, which any
+            // co-partitioned child satisfies); only a demand explicitly marked materialized insists on a
+            // real shuffle. Producing-side materialized data satisfies BOTH kinds of demand.
             if (other.exchangeMaterialized && !this.exchangeMaterialized) {
                 return false;
             }

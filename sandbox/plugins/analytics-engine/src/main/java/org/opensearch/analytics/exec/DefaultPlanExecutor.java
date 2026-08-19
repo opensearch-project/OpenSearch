@@ -348,6 +348,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
             )
+            // Tier collapse must follow dynamic updates too — it changes the enforced plan shape, so a
+            // static node-bootstrap read would pin the default and make a per-query enable a no-op.
+            .put(
+                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS)
+            )
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
@@ -429,7 +435,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 plannerContext.getDistributionTraitDef(),
                 shufflePartitions,
                 AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings)
+                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings),
+                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.get(perQuerySettings)
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;

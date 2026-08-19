@@ -84,14 +84,17 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * {@link DistributionEnforcementPass}. The pass must produce a cascade of BINARY worker tiers —
      * BOTH joins over two ShuffleExchange inputs.
      *
-     * <p><b>Binary-tier lowering.</b> A join is a worker-tier boundary: the hash-shuffle transport
-     * delivers exactly two named inputs per worker (left/right buffer slices). So even though the bottom
-     * join's output already satisfies the top join's hash requirement (shared key), the pass inserts a
-     * SAME-KEY inter-tier shuffle on the top join's left input — the bottom join becomes its own binary
+     * <p><b>Binary-tier lowering (the default).</b> A join is a worker-tier boundary, so even though the
+     * bottom join's output already satisfies the top join's hash requirement (shared key), the pass inserts
+     * a SAME-KEY inter-tier shuffle on the top join's left input — the bottom join becomes its own binary
      * producer stage, exactly as the legacy cascade does (intermediate worker → shuffle → parent worker).
      * The top join thus sits over TWO shuffles (re-shuffled bottom-join output + shuffled c), and under its
-     * left shuffle sits the bottom join (itself over two scan shuffles). Eliminating the same-key inter-tier
-     * shuffle for genuinely co-partitioned tiers is a future N-ary-transport optimization.
+     * left shuffle sits the bottom join (itself over two scan shuffles).
+     *
+     * <p>The transport can now run the collapsed alternative too ({@code ShuffleSlots} is N-ary), so this
+     * shape is the conservative DEFAULT rather than a capability limit —
+     * {@code analytics.mpp.collapse_copartitioned_tiers=true} fuses co-partitioned tiers instead; see
+     * {@link #testGeneralShuffle_collapseToggleFusesCoPartitionedTiers}.
      */
     public void testEnforcementPass_threeWayJoinFormsCascade() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -977,13 +980,22 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     /** Enforce + cut + fork/select + promote, returning the GeneralShuffleDAGRewriter structure. Mirrors the
      *  cascade-probe pipeline (no convertAll — the mock backend has no fragment convertor). */
     private GeneralShuffleDAGRewriter.Structure enforceAndPromote(RelNode logical, PlannerContext context) {
+        return enforceAndPromote(logical, context, /* collapseCoPartitionedTiers */ false);
+    }
+
+    private GeneralShuffleDAGRewriter.Structure enforceAndPromote(
+        RelNode logical,
+        PlannerContext context,
+        boolean collapseCoPartitionedTiers
+    ) {
         RelNode cbo = runPlanner(logical, context);
         RelNode enforced = DistributionEnforcementPass.enforce(
             cbo,
             context.getDistributionTraitDef(),
             CLUSTER_DATA_NODES,
             /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
+            /* shuffleAggregateEnabled */ true,
+            collapseCoPartitionedTiers
         );
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
@@ -994,6 +1006,73 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             context.getCapabilityRegistry(),
             (levelIndex, partitionCount) -> nodeIds(partitionCount)
         );
+    }
+
+    /**
+     * Tier collapse (analytics.mpp.collapse_copartitioned_tiers=true, the N-ary transport's payoff): a
+     * bushy 4-way join whose three joins all key on col0 is already co-partitioned at every level, so the
+     * inter-tier shuffles ship rows that are already in the right partition. With the toggle on, the whole
+     * tree collapses into ONE worker tier reading a slot per leaf — 4 producers, no intermediate tiers —
+     * instead of three binary tiers.
+     */
+    public void testGeneralShuffle_collapseToggleFusesCoPartitionedTiers() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(
+            makeBushyFourWayJoin(context),
+            context,
+            /* collapseCoPartitionedTiers */ true
+        );
+        List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("all three co-partitioned joins fuse into ONE worker tier", 1, levels.size());
+
+        ShuffleEnrichment.WorkerLevel only = levels.get(0);
+        assertEquals("the fused tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, only.worker().getExecutionType());
+        assertEquals("the fused tier's role is SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, only.worker().getRole());
+        // Four leaf scans → four slots, each its own producer stage. This is the shape only the N-ary
+        // transport can run; the binary one delivered exactly two named inputs per worker.
+        assertEquals("one slot per leaf scan", 4, only.inputs().size());
+        assertEquals(
+            "slots are the positional N-ary labels",
+            List.of("in0", "in1", "in2", "in3"),
+            only.inputs().stream().map(ShuffleEnrichment.WorkerInput::slot).toList()
+        );
+        assertEquals(
+            "each slot binds a DISTINCT producer stage (one sink per slot)",
+            4,
+            only.inputs().stream().map(in -> in.producer().getStageId()).distinct().count()
+        );
+        for (ShuffleEnrichment.WorkerInput in : only.inputs()) {
+            assertNotNull("every slot resolves its producer stage in the rewritten DAG", in.producer());
+        }
+        assertEquals(
+            "root stays coordinator reduce",
+            StageExecutionType.COORDINATOR_REDUCE,
+            structure.dag().rootStage().getExecutionType()
+        );
+    }
+
+    /**
+     * The collapse toggle DEFAULTS OFF: the same bushy join keeps its three binary tiers unless a caller
+     * opts in. Pins that the N-ary capability did not silently change the validated plan shape.
+     */
+    public void testGeneralShuffle_collapseToggleDefaultsOffKeepingBinaryTiers() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        List<ShuffleEnrichment.WorkerLevel> levels = enforceAndPromote(makeBushyFourWayJoin(context), context).buildLevels();
+        assertEquals("default (toggle off) keeps three binary tiers", 3, levels.size());
+        for (ShuffleEnrichment.WorkerLevel level : levels) {
+            assertEquals("each default tier is binary (two slots)", 2, level.inputs().size());
+            assertEquals(
+                "binary tiers keep the historical left/right slot labels",
+                List.of("left", "right"),
+                level.inputs().stream().map(ShuffleEnrichment.WorkerInput::slot).toList()
+            );
+        }
     }
 
     /** Like makeThreeWayJoin but the TOP join uses the given type (INNER/LEFT/…). */
