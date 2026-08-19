@@ -112,11 +112,11 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      * {@link #passThroughTraits} supplies the legal alternative by DEMANDING a gathered input
      * (ER below the Sort), which {@link OpenSearchConvention#enforce} materializes.
      *
-     * <p>The gate applies only to a COLLATED sort, and must agree exactly with
-     * {@link #ridesChildDistribution} — if the cost gate rejected a shape the trait hook advertises as
-     * legal, Volcano would explore it and then find every alternative infinite ("Missing conversion is
-     * OpenSearchSort[]"). A pure LIMIT and a perPartition top-N both ride a partitioned input: the
-     * coordinator needs only SOME N rows and each partition's local N supplies them.
+     * <p>The gate must agree exactly with {@link #ridesChildDistribution} — if the cost gate rejected a
+     * shape the trait hook advertises as legal, Volcano would explore it and then find every alternative
+     * infinite ("Missing conversion is OpenSearchSort[]"). Only a no-op Sort and an already-pushed
+     * {@code perPartition} top-N ride a partitioned input; a bare LIMIT does NOT (see
+     * {@link #ridesChildDistribution} for why per-partition-only limiting returns N×partitions rows).
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
@@ -167,10 +167,15 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
             // Rides: pass the demand straight down and deliver whatever the child delivers.
             return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
         }
-        // Global sort/limit: only a SINGLETON request is satisfiable, and the input must be gathered.
-        if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
-            return null;
-        }
+        // Global sort/limit: it gathers its input and its output is therefore COORDINATOR+SINGLETON,
+        // whatever was asked for. Answering a NON-singleton demand with the singleton shape (rather than
+        // declining) is deliberate and load-bearing: this Sort may sit under a join, whose inputs are asked
+        // for RANDOM(SHARD) or WORKER+HASH. No exchange can MOVE data to RANDOM(SHARD) — that is a scan's
+        // natural locality — so declining leaves the subset empty and the whole query fails with
+        // "Missing conversion is OpenSearchSort[]". Returning the gathered shape lets the parent see a
+        // SINGLETON child and place its own exchange, which reproduces the pre-top-down plan
+        // (Sort(fetch) over an ER, per DAGShapeTests case2/case4). Calcite tolerates a passThrough whose
+        // delivered traits differ from the request; it costs the result and the parent re-enforces.
         OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
         OpenSearchDistribution singleton = traitDef.coordSingleton();
         return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
@@ -192,30 +197,58 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         if (perPartition || ridesChildDistribution()) {
             return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
         }
-        return null;
+        // A global sort/limit over a PARTITIONED child: the only legal shape gathers the child first, so
+        // derive the gathered variant rather than declining. Declining leaves the Sort with no node in the
+        // partitioned subset its parent (a join demanding RANDOM(SHARD) / WORKER+HASH inputs) created, and
+        // since no exchange can produce RANDOM(SHARD) the subset stays empty → CannotPlanException
+        // "Missing conversion is OpenSearchSort[]" (DAGShapeTests case2/case4, whose right join input is a
+        // bare LIMIT). Requesting coordSingleton on the input makes Calcite insert the reducer BELOW this
+        // Sort, which is the pre-top-down shape: Sort(fetch) over ER over the shard scan.
+        if (childDistribution.getType() == RelDistribution.Type.SINGLETON) {
+            return null; // already gathered — nothing to derive beyond passThroughTraits' own answer
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) childDistribution.getTraitDef();
+        OpenSearchDistribution singleton = traitDef.coordSingleton();
+        return Pair.of(getTraitSet().replace(singleton), List.of(childTraits.replace(singleton)));
     }
 
     /**
-     * A global sort/limit must not have traits derived into it: {@link #computeSelfCost} charges infinite
-     * cost unless its input is SINGLETON, and Calcite's default {@code LEFT_FIRST} derivation would build
-     * a {@code Sort(RANDOM)} variant without the gather that makes it legal (a dead memo entry that fails
-     * the whole plan). A riding Sort — perPartition shard-local top-N, or a no-op — derives normally.
+     * Every Sort shape derives from its single input, but they answer differently (see
+     * {@link #deriveTraits}): a riding Sort adopts the child's distribution, while a global sort/limit
+     * derives the GATHERED variant so the reducer lands below it.
+     *
+     * <p>{@code LEFT_FIRST} rather than {@code PROHIBITED} even for a global sort: it must contribute a
+     * node to whatever subset its parent created, or a join demanding a partitioned input leaves the
+     * Sort's subset empty and the query dies with "Missing conversion is OpenSearchSort[]". The reason
+     * {@code PROHIBITED} was needed originally — Calcite's DEFAULT derivation manufacturing an illegal
+     * {@code Sort(RANDOM)} variant that {@link #computeSelfCost} then prices infinite — no longer applies,
+     * because {@link #deriveTraits} now returns the gathered shape instead of passing the partitioned
+     * child trait through.
      */
     @Override
     public DeriveMode getDeriveMode() {
-        return (perPartition || ridesChildDistribution()) ? DeriveMode.LEFT_FIRST : DeriveMode.PROHIBITED;
+        return DeriveMode.LEFT_FIRST;
     }
 
     /**
-     * True when this Sort imposes no ORDERING requirement on its input, so it can ride a partitioned
-     * child. Covers both a genuine no-op (no collation, no fetch/offset) and a pure LIMIT: a
-     * partition-local fetch is correct because the coordinator needs only SOME N rows and each
-     * partition's local N supplies them — the same reasoning
-     * {@code OpenSearchSortPushdownRewriter} uses to push a bare {@code head N} below the gather.
-     * Only a COLLATED sort needs the global gather (our ER is a concat, not a merge).
+     * True when this Sort constrains NOTHING, so it can ride a partitioned child: no collation, no fetch
+     * and no offset — a genuine no-op.
+     *
+     * <p><b>A bare LIMIT does NOT ride.</b> It is tempting to let one, on the reasoning that "the
+     * coordinator needs only SOME N rows and each partition's local N supplies them" — but that argument
+     * justifies pushing a limit DOWN to the shards, not REPLACING the coordinator's limit with it. A
+     * riding {@code Sort(fetch=N)} executes once per partition and nothing caps the concatenated result,
+     * so a 2-shard {@code LIMIT 10} returns 20 rows. The correct shape keeps a limit on BOTH sides of the
+     * gather — {@code Sort(fetch=N) / ER / Sort(fetch=N, perPartition) / scan} — which is what
+     * {@code OpenSearchSortPushdownRewriter} builds by pushing a {@code perPartition} copy below the ER
+     * while leaving this one above it. So a fetch/offset Sort must DEMAND SINGLETON (gathering its input),
+     * and only the already-pushed {@code perPartition} copy rides.
+     *
+     * <p>Collation is likewise not the whole test: our ER is a concat, not a merge exchange, so a collated
+     * sort needs the global gather too. Both conditions therefore fold into "constrains nothing".
      */
     private boolean ridesChildDistribution() {
-        return getCollation().getFieldCollations().isEmpty();
+        return getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null;
     }
 
     @Override

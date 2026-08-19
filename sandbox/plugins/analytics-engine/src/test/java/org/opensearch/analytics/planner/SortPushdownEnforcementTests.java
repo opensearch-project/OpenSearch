@@ -168,6 +168,34 @@ public class SortPushdownEnforcementTests extends PlanShapeTestBase {
     }
 
     /**
+     * CORRECTNESS: a bare {@code LIMIT N} must be applied ABOVE the gather, not only per-shard.
+     *
+     * <p>A limit that runs only per-partition returns {@code N × partitions} rows — a 2-shard
+     * {@code LIMIT 10} would yield 20. The trait hooks are what enforce this: an uncollated Sort that
+     * carries a fetch must NOT claim it "rides" its child's distribution, because riding replaces the
+     * coordinator's limit rather than adding a shard-local one beside it. Pushing a copy DOWN is the
+     * optimization ({@code OpenSearchSortPushdownRewriter}); keeping one UP is the correctness half.
+     *
+     * <p>Asserts the outermost operator is a fetch-carrying Sort, so SOMETHING caps the concatenated
+     * result. Regression for the top-down-traits bare-limit bug, where {@code ridesChildDistribution()}
+     * tested only collation and the coordinator limit disappeared entirely.
+     */
+    public void testBareLimit_coordinatorFetchCapsTheGatheredResult() {
+        PlannerContext context = multiShardContext();
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode enforced = enforce(runPlanner(bareLimit(scan, 10), context), context);
+
+        String plan = RelOptUtil.toString(enforced);
+        assertTrue(
+            "a bare LIMIT must be capped ABOVE the gather, else 2 shards return 2xN rows:\n" + plan,
+            enforced instanceof OpenSearchSort topSort && topSort.fetch != null
+        );
+        // And the shard-local copy must still be there (the optimization), below the gather.
+        assertTrue("the shard-local fetch must remain below the gather:\n" + plan, hasSortBelowReducer(enforced));
+        assertEquals("exactly one fetch above and one below the gather:\n" + plan, 2, sorts(enforced).size());
+    }
+
+    /**
      * The enforcement pass must not multiply gathers either: a single-scan top-N needs exactly ONE
      * ExchangeReducer. A second gather would add a redundant coordinator round-trip.
      */
