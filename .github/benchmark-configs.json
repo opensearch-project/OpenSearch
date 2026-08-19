@@ -50,7 +50,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
     "description": "Indexing and search configuration for pmc workload",
@@ -101,7 +101,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_7": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as all",
@@ -120,7 +120,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_8": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as auto",
@@ -139,7 +139,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_9": {
     "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.0.0. Enables range query approximation.",
@@ -158,7 +158,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_10": {
     "description": "Benchmarking config for NESTED workload, benchmarks nested queries with inner-hits",
@@ -227,7 +227,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_14": {
     "description": "Intra-segment search test-procedure for http_logs with concurrent segment search mode as auto",
@@ -264,7 +264,7 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_16": {
     "description": "clickbench workload DSL queries test",
