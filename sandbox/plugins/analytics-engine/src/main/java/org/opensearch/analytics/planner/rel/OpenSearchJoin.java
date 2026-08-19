@@ -201,7 +201,37 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
         if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
             return planner.getCostFactory().makeInfiniteCost();
         }
-        return planner.getCostFactory().makeTinyCost();
+        // Beyond the legality gate above, charge the join for the work it does — DIVIDED by the
+        // parallelism its distribution buys. This is what makes a distributed plan win on its own merit:
+        // the same rows are processed, but across N workers instead of one coordinator.
+        //
+        // Previously every legal shape returned makeTinyCost(), so parallelism was not modelled ANYWHERE
+        // and a coordinator join looked exactly as cheap as an N-way distributed one — only the exchanges
+        // differed. Under bottom-up Volcano that was masked (the coordinator alternative was only
+        // reachable via a split rule that self-suppresses when an MPP rule fires), but top-down can
+        // synthesize the coordinator plan directly, so the missing credit made it win every time.
+        //
+        // Parallelism comes from real cluster facts, not a tuned constant: the shuffle partition count
+        // for a worker-tier hash join, or the probe-node estimate for a broadcast (the same value the
+        // broadcast exchange's own cost model scales by, carried in the REPLICATED input's
+        // partitionCount slot).
+        double inputRows = mq.getRowCount(getLeft()) + mq.getRowCount(getRight());
+        int parallelism = 1;
+        if (isHashWorker && selfDist.getPartitionCount() != null) {
+            parallelism = Math.max(1, selfDist.getPartitionCount());
+        } else if (isBroadcastShape) {
+            for (RelNode input : getInputs()) {
+                OpenSearchDistribution inputDist = distributionOf(input);
+                if (inputDist != null
+                    && inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
+                    && inputDist.getPartitionCount() != null) {
+                    parallelism = Math.max(1, inputDist.getPartitionCount());
+                    break;
+                }
+            }
+        }
+        double executionCost = inputRows / parallelism;
+        return planner.getCostFactory().makeCost(executionCost, executionCost, 0);
     }
 
     // ---- PhysicalNode (top-down trait propagation) ----

@@ -183,37 +183,6 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
      *  which differ by tens of rows) — that race must be decided on rows. */
     private static final double WIDTH_COST = 0.1;
 
-    /**
-     * Multiplier on the transfer term when this gather COLLAPSES PARALLELISM — i.e. when its input is
-     * still distributed (SHARD-random or WORKER-hash) rather than already singleton.
-     *
-     * <p><b>Why this exists.</b> Every gather was previously priced {@code SETUP + rows}, which treats
-     * "funnel N shards' worth of rows into one coordinator" as costing the same as one worker-tier hop.
-     * It does not: the coordinator receives, decodes and materializes the whole row set on ONE node,
-     * with no parallelism, and that node's memory is the scarce resource the MPP work exists to avoid
-     * saturating. Pricing it flat made the coordinator-centric plan look cheaper than every distributed
-     * alternative once top-down optimization made that plan directly reachable:
-     * <pre>
-     *   coord   : ER(scanL) + ER(scanR)                      ~ 2*(SETUP + rows)
-     *   shuffle : SHUF(scanL) + SHUF(scanR) + ER(joinOutput)  ~ 2*(rows + setup*N) + (SETUP + rows)
-     * </pre>
-     * The shuffle plan moves the same rows and then pays one MORE gather, so it always lost — not
-     * because gathering is genuinely cheaper, but because the model never charged for serialization.
-     *
-     * <p><b>Why a multiplier rather than rows×shards.</b> Charging the true fan-in (rows × shardCount)
-     * would swamp the cost vector and re-open the regression the width term is documented to avoid: the
-     * broadcast-vs-coordinator race must stay decided on ROWS, not on a large constant factor. A modest
-     * multiplier is enough to break the "one extra gather is free" tie while keeping every existing
-     * row-dominated comparison intact — verified against {@code JoinStrategyCBOSelectionTests}
-     * (especially {@code testModestAsymmetryStillPicksBroadcast}, dim=5 × fact=30) and
-     * {@code BroadcastJoinIT}.
-     *
-     * <p>A gather whose input is ALREADY singleton (single-shard scan, or a re-gather above a reduce) is
-     * a no-op funnel and keeps the flat price — otherwise single-shard plans would be penalized for a
-     * parallelism they never had.
-     */
-    private static final double PARALLELISM_COLLAPSE_COST = 3.0;
-
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         double rows = mq.getRowCount(getInput());
@@ -231,36 +200,8 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
         // race. WIDTH_COST weights each gathered column. Keep broadcast/shuffle width-agnostic — the
         // join-strategy race must be decided on rows, not width.
         double widthCost = WIDTH_COST * getRowType().getFieldCount();
-        // Charge the transfer term more when this gather collapses real parallelism (see
-        // PARALLELISM_COLLAPSE_COST). Decided off the INPUT's distribution, not this node's own trait:
-        // the reducer always outputs SINGLETON, so its own trait carries no information about how much
-        // parallelism it is funnelling.
-        double transfer = collapsesParallelism() ? rows * PARALLELISM_COLLAPSE_COST : rows;
-        double cost = SETUP_COST + transfer + widthCost;
+        double cost = SETUP_COST + rows + widthCost;
         return planner.getCostFactory().makeCost(cost, cost, 0);
-    }
-
-    /** True when the gathered input is still distributed, so this gather serializes real parallelism. */
-    private boolean collapsesParallelism() {
-        OpenSearchDistribution inputDist = null;
-        RelTraitSet inputTraits = getInput().getTraitSet();
-        for (int i = 0; i < inputTraits.size(); i++) {
-            if (inputTraits.getTrait(i) instanceof OpenSearchDistribution dist) {
-                inputDist = dist;
-                break;
-            }
-        }
-        if (inputDist == null) {
-            return false;
-        }
-        return switch (inputDist.getType()) {
-            case HASH_DISTRIBUTED, RANDOM_DISTRIBUTED, ROUND_ROBIN_DISTRIBUTED, RANGE_DISTRIBUTED -> true;
-            // BROADCAST is deliberately EXCLUDED: a broadcast build is replicated, not partitioned, so a
-            // gather above it is not collapsing parallelism. Including it charged the broadcast plan an
-            // extra 3x that the shuffle plan did not pay, which suppressed legitimate broadcasts.
-            // SINGLETON / ANY: nothing to collapse.
-            default -> false;
-        };
     }
 
     @Override
