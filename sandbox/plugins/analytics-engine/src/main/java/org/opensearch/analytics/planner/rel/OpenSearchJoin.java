@@ -21,8 +21,12 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
+import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.cluster.ClusterState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -325,7 +329,89 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
             }
             return Pair.of(getTraitSet().replace(output), inputs);
         }
+        // BROADCAST shape: one input is replicated to every probe node, the other stays SHARD-local, and the
+        // join runs alongside the probe scan (output RANDOM+SHARD, carrying the probe's tableId / shardCount
+        // — the identity computeSelfCost's broadcast gate checks). Without this case a broadcast-shaped child
+        // derived NOTHING, so the only distributed alternative CBO could form above a scan was hash-shuffle.
+        //
+        // Derived from the PROBE side (childId is the probe): the build's BROADCAST+REPLICATED trait says
+        // nothing about where the join runs. Note the derived alternative still COMPETES on cost with the
+        // shuffle/coord ones — this only makes the broadcast shape reachable, it does not force it.
+        if (childDistribution.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED
+            && childDistribution.getLocality() == OpenSearchDistribution.Locality.SHARD) {
+            if (!broadcastDeriveEnabled(traitDef)) {
+                return null;
+            }
+            // Only the sides the split rule considers build-eligible may be broadcast: the build is
+            // duplicated to every probe node, so a join type that must preserve the build side's own rows
+            // cannot use it as the build. Same predicate as the rule, so formation paths agree.
+            int buildId = 1 - childId;
+            if (!broadcastBuildEligible(buildId)) {
+                return null;
+            }
+            int probeNodes = probeNodeEstimate(traitDef);
+            if (probeNodes <= 1) {
+                // No parallelism to gain over coord-centric (single-node cluster / unstubbed test fixture).
+                return null;
+            }
+            // Same pre-flight size gate the split rule applies: a build whose estimated bytes exceed
+            // analytics.mpp.broadcast.max_bytes can never be broadcast at runtime (the capture sink would
+            // reject it), so the alternative must not be formed here either — otherwise lowering the cap
+            // would stop suppressing broadcast, which is exactly how operators (and
+            // testEnforcementPass_filteredScanJoinInputStaysShardProducer) force the shuffle path.
+            long maxBytes = AnalyticsSettings.BROADCAST_MAX_BYTES.get(traitDef.getPlannerContext().getSettings()).getBytes();
+            if (!OpenSearchBroadcastJoinSplitRule.buildSideFitsBroadcast(getInput(buildId), getCluster().getMetadataQuery(), maxBytes)) {
+                return null;
+            }
+            OpenSearchDistribution probeDist = traitDef.from(childDistribution);
+            List<RelTraitSet> inputs = new ArrayList<>(List.of(getLeft().getTraitSet(), getRight().getTraitSet()));
+            inputs.set(childId, childTraits);
+            inputs.set(buildId, getInput(buildId).getTraitSet().replace(traitDef.broadcast(probeNodes)));
+            return Pair.of(getTraitSet().replace(probeDist), inputs);
+        }
         return null;
+    }
+
+    /**
+     * True when input {@code buildId} may serve as a broadcast BUILD side, mirroring
+     * {@code OpenSearchBroadcastJoinSplitRule}'s eligibility: the build is replicated to every probe node, so
+     * a join type that must preserve the build side's own rows cannot broadcast it. LEFT preserves left rows
+     * → only the right may be the build; RIGHT is the mirror; SEMI/ANTI test existence of the right side →
+     * build = right; FULL preserves both → neither.
+     */
+    private boolean broadcastBuildEligible(int buildId) {
+        return switch (getJoinType()) {
+            case INNER -> true;
+            case LEFT, SEMI, ANTI -> buildId == 1;
+            case RIGHT -> buildId == 0;
+            case FULL, ASOF, LEFT_ASOF -> false;
+        };
+    }
+
+    /** Whether the broadcast derive is allowed: MPP must be on, and broadcast must not have been made
+     *  ineligible for this planning attempt (the re-plan after a runtime broadcast-size overflow). A trait
+     *  hook has no {@code matches()}, so the gate lives here — the same conditions the split rule checks. */
+    private static boolean broadcastDeriveEnabled(OpenSearchDistributionTraitDef traitDef) {
+        PlannerContext context = traitDef.getPlannerContext();
+        if (context == null) {
+            return false;
+        }
+        return AnalyticsSettings.MPP_ENABLED.get(context.getSettings()) && context.isBroadcastEligible();
+    }
+
+    /** Probe-node estimate for the derived broadcast, resolved exactly as the split rule resolves it: the
+     *  {@code analytics.mpp.broadcast.probe_estimate} override, else the cluster's data-node count. */
+    private static int probeNodeEstimate(OpenSearchDistributionTraitDef traitDef) {
+        PlannerContext context = traitDef.getPlannerContext();
+        Integer override = AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.get(context.getSettings());
+        if (override != null && override > 0) {
+            return override;
+        }
+        ClusterState state = context.getClusterState();
+        if (state == null || state.nodes() == null) {
+            return 1;
+        }
+        return Math.max(state.nodes().getDataNodes().size(), 1);
     }
 
     /**

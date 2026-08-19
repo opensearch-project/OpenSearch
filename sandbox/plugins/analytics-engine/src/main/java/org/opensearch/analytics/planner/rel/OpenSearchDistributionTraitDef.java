@@ -43,6 +43,13 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         this.plannerContext = plannerContext;
     }
 
+    /** The query's {@link PlannerContext}. Exposed so a trait hook — which, unlike a rule, has no
+     *  {@code matches()} to gate on — can read the same settings / cluster state the split rules read
+     *  (see {@code OpenSearchJoin.deriveTraits}'s broadcast case). */
+    public PlannerContext getPlannerContext() {
+        return plannerContext;
+    }
+
     // ---- Factory methods ----
 
     /** COORDINATOR + SINGLETON — data gathered to coord. Stamped on ER output, FINAL

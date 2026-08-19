@@ -170,8 +170,13 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * <p>Returns {@code true} (admit broadcast) when the row count is unknown or the row width can't
      * be estimated: missing stats must not suppress broadcast. A cap of {@code 0} (or negative)
      * means "no limit configured" → always admit.
+     *
+     * <p>Public because {@code OpenSearchJoin.deriveTraits} applies the SAME gate when it derives a
+     * broadcast alternative from a probe-shaped child. Both formation paths must agree, or lowering
+     * {@code analytics.mpp.broadcast.max_bytes} would suppress only the rule's alternative and the trait
+     * hook would keep forming a broadcast the runtime capture sink then rejects.
      */
-    static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
+    public static boolean buildSideFitsBroadcast(RelNode buildSide, RelMetadataQuery mq, long maxBytes) {
         if (maxBytes <= 0) {
             return true;
         }

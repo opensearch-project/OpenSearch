@@ -61,6 +61,15 @@ public enum OpenSearchConvention implements Convention {
      * <p>Returning {@code null} for a request that carries no {@link OpenSearchDistribution} means
      * "cannot enforce", which is correct: our only physical trait is the distribution, so a request
      * for anything else has no exchange to build.
+     *
+     * <p>Null is ALSO the answer for a distribution no exchange can produce. Calcite calls {@code enforce}
+     * speculatively — {@code RelSet.addConverters} runs it for every subset that appears, including
+     * distributions that are only ever DERIVED bottom-up and never demanded top-down (a broadcast join's
+     * {@code RANDOM(SHARD)} output is the live case: the join runs where the probe already is, so no
+     * exchange "moves" data there). {@code buildEnforcer} signals those with
+     * {@link UnsupportedOperationException}, which must be translated to null here rather than propagated:
+     * "no converter exists" is a normal planning answer, and letting it escape aborts the whole query with
+     * "RANGE exchange not yet implemented".
      */
     @Override
     public RelNode enforce(RelNode input, RelTraitSet required) {
@@ -68,7 +77,11 @@ public enum OpenSearchConvention implements Convention {
         if (distribution == null) {
             return null;
         }
-        return ((OpenSearchDistributionTraitDef) distribution.getTraitDef()).buildEnforcer(input, distribution);
+        try {
+            return ((OpenSearchDistributionTraitDef) distribution.getTraitDef()).buildEnforcer(input, distribution);
+        } catch (UnsupportedOperationException noConverter) {
+            return null;
+        }
     }
 
     @Override
