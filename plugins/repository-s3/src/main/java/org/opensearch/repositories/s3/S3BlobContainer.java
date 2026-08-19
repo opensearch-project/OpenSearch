@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -53,6 +54,8 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -73,8 +76,10 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -98,6 +103,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -230,6 +236,73 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     ) throws IOException {
         // Delegate to crypto-aware version with null CryptoMetadata
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null);
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        final GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .build();
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final ResponseBytes<GetObjectResponse> responseBytes = AccessController.doPrivileged(
+                () -> clientReference.get().getObjectAsBytes(getObjectRequest)
+            );
+            return new VersionedBlob(responseBytes.asByteArray(), responseBytes.response().eTag());
+        } catch (NoSuchKeyException e) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        } catch (SdkException e) {
+            throw new IOException("Unable to read object [" + blobName + "] with version", e);
+        }
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        if (blobSize > blobStore.bufferSizeInBytes()) {
+            throw new IllegalArgumentException("Conditional write request size [" + blobSize + "] can't be larger than buffer size");
+        }
+        PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
+        if (expectedVersionToken == null) {
+            // create-if-absent
+            putObjectRequestBuilder.ifNoneMatch("*");
+        } else {
+            // compare-and-swap on the version token (ETag) observed at read time
+            putObjectRequestBuilder.ifMatch(expectedVersionToken);
+        }
+        configureEncryptionSettings(putObjectRequestBuilder, blobStore, null);
+        final PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final PutObjectResponse response = AccessController.doPrivileged(
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, blobSize))
+            );
+            return response.eTag();
+        } catch (S3Exception e) {
+            // 412 Precondition Failed: If-Match/If-None-Match condition not met.
+            // 409 ConditionalRequestConflict: a concurrent conditional write on the same key is in progress.
+            if (e.statusCode() == 412 || e.statusCode() == 409) {
+                throw new BlobVersionConflictException(
+                    "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]",
+                    e
+                );
+            }
+            throw new IOException("Unable to conditionally upload object [" + blobName + "]", e);
+        } catch (SdkException e) {
+            throw new IOException("Unable to conditionally upload object [" + blobName + "]", e);
+        }
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -68,6 +69,8 @@ public class TranslogTransferManager {
     private final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private final RemoteStoreSettings remoteStoreSettings;
+    @Nullable
+    private final RemoteStoreFence fence;
     private static final int METADATA_FILES_TO_FETCH = 10;
     // Flag to include checkpoint file data as translog file metadata during upload/download
     private final boolean isTranslogMetadataEnabled;
@@ -92,6 +95,30 @@ public class TranslogTransferManager {
         RemoteStoreSettings remoteStoreSettings,
         boolean isTranslogMetadataEnabled
     ) {
+        this(
+            shardId,
+            transferService,
+            remoteDataTransferPath,
+            remoteMetadataTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings,
+            isTranslogMetadataEnabled,
+            null
+        );
+    }
+
+    public TranslogTransferManager(
+        ShardId shardId,
+        TransferService transferService,
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled,
+        @Nullable RemoteStoreFence fence
+    ) {
         this.shardId = shardId;
         this.transferService = transferService;
         this.remoteDataTransferPath = remoteDataTransferPath;
@@ -101,6 +128,7 @@ public class TranslogTransferManager {
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
         this.isTranslogMetadataEnabled = isTranslogMetadataEnabled;
+        this.fence = fence;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -213,6 +241,18 @@ public class TranslogTransferManager {
                 throw exception;
             }
             if (exceptionList.isEmpty()) {
+                // The fence CAS runs concurrently with the metadata upload so fencing stays off the latency path;
+                // the upload is acknowledged only when BOTH succeed. A fenced writer may therefore publish one
+                // orphan metadata file — never acknowledged, term-scoped, and ignored by readers that follow the
+                // highest-term lineage.
+                final CountDownLatch fenceLatch = new CountDownLatch(fence == null ? 0 : 1);
+                final SetOnce<Exception> fenceException = new SetOnce<>();
+                if (fence != null) {
+                    fence.validateAndAdvanceAsync(
+                        transferSnapshot.getTranslogTransferMetadata().getPrimaryTerm(),
+                        new LatchedActionListener<>(ActionListener.wrap(ignored -> {}, fenceException::set), fenceLatch)
+                    );
+                }
                 TransferFileSnapshot tlogMetadata = prepareMetadata(transferSnapshot);
                 metadataBytesToUpload = tlogMetadata.getContentLength();
                 remoteTranslogTransferTracker.addUploadBytesStarted(metadataBytesToUpload);
@@ -228,6 +268,7 @@ public class TranslogTransferManager {
 
                 remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
                 remoteTranslogTransferTracker.addUploadBytesSucceeded(metadataBytesToUpload);
+                awaitFenceValidation(fenceLatch, fenceException);
                 captureStatsOnUploadSuccess(prevUploadBytesSucceeded, prevUploadTimeInMillis);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
@@ -239,9 +280,35 @@ public class TranslogTransferManager {
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Transfer failed for snapshot {}", transferSnapshot), ex);
             captureStatsOnUploadFailure();
-            Exception exWithoutSuppressed = new TranslogUploadFailedException(ex.getMessage());
+            // Preserve the fenced exception type: callers treat fencing as fatal for the shard, not a retryable
+            // upload failure.
+            Exception exWithoutSuppressed = ex instanceof TranslogFencedException
+                ? new TranslogFencedException(ex.getMessage())
+                : new TranslogUploadFailedException(ex.getMessage());
             translogTransferListener.onUploadFailed(transferSnapshot, exWithoutSuppressed);
             return false;
+        }
+    }
+
+    /**
+     * Joins the concurrent fence validation. The upload must not be acknowledged (and the metadata file must not be
+     * considered published) until the fence CAS has succeeded.
+     */
+    private void awaitFenceValidation(CountDownLatch fenceLatch, SetOnce<Exception> fenceException) throws IOException {
+        try {
+            if (fenceLatch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
+                throw new TranslogUploadFailedException("Timed out waiting for fence validation");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new TranslogUploadFailedException("Interrupted while waiting for fence validation", e);
+        }
+        Exception exception = fenceException.get();
+        if (exception != null) {
+            if (exception instanceof IOException ioException) {
+                throw ioException;
+            }
+            throw new TranslogUploadFailedException("Fence validation failed", exception);
         }
     }
 

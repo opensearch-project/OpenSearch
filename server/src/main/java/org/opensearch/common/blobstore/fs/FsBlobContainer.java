@@ -38,9 +38,12 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.util.io.IOUtils;
 
@@ -64,6 +67,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
@@ -266,6 +272,71 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /**
+     * Per-blob locks used to emulate compare-and-swap semantics for conditional writes. Object stores provide this
+     * atomically server-side; on a local filesystem we serialize readers/writers of the same blob within this JVM.
+     */
+    private static final ConcurrentMap<String, Object> CONDITIONAL_WRITE_LOCKS = new ConcurrentHashMap<>();
+
+    private Object conditionalWriteLock(final String blobName) {
+        return CONDITIONAL_WRITE_LOCKS.computeIfAbsent(path.resolve(blobName).toAbsolutePath().toString(), k -> new Object());
+    }
+
+    private static String versionTokenFor(final byte[] content) {
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(content));
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        synchronized (conditionalWriteLock(blobName)) {
+            final Path file = path.resolve(blobName);
+            try {
+                final byte[] content = Files.readAllBytes(file);
+                return new VersionedBlob(content, versionTokenFor(content));
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                throw new NoSuchFileException("[" + blobName + "] blob not found");
+            }
+        }
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        synchronized (conditionalWriteLock(blobName)) {
+            final Path file = path.resolve(blobName);
+            final String currentVersionToken = Files.exists(file) ? versionTokenFor(Files.readAllBytes(file)) : null;
+            if (Objects.equals(expectedVersionToken, currentVersionToken) == false) {
+                throw new BlobVersionConflictException(
+                    "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]"
+                );
+            }
+            final byte[] content = inputStream.readAllBytes();
+            final String tempBlob = tempBlobName(blobName);
+            final Path tempBlobPath = path.resolve(tempBlob);
+            try {
+                Files.createDirectories(path);
+                Files.write(tempBlobPath, content);
+                IOUtils.fsync(tempBlobPath, false);
+                moveBlobAtomic(tempBlob, blobName, false);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            } finally {
+                IOUtils.fsync(path, true);
+            }
+            return versionTokenFor(content);
+        }
     }
 
     public static String tempBlobName(final String blobName) {

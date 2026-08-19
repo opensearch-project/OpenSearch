@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -26,8 +27,10 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.RemoteStoreFence;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot;
+import org.opensearch.index.translog.transfer.TranslogFencedException;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -140,7 +143,9 @@ public class RemoteFsTranslog extends Translog {
             indexSettings().getRemoteStorePathStrategy(),
             remoteStoreSettings,
             isTranslogMetadataEnabled,
-            isServerSideEncryptionEnabled
+            isServerSideEncryptionEnabled,
+            indexSettings().isRemoteStoreFencingEnabled(),
+            config.getNodeId()
         );
         try {
             if (config.downloadRemoteTranslogOnInit()) {
@@ -336,6 +341,34 @@ public class RemoteFsTranslog extends Translog {
         boolean isTranslogMetadataEnabled,
         boolean isServerSideEncryptionEnabled
     ) {
+        return buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker,
+            tracker,
+            pathStrategy,
+            remoteStoreSettings,
+            isTranslogMetadataEnabled,
+            isServerSideEncryptionEnabled,
+            false,
+            null
+        );
+    }
+
+    public static TranslogTransferManager buildTranslogTransferManager(
+        BlobStoreRepository blobStoreRepository,
+        ThreadPool threadPool,
+        ShardId shardId,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker tracker,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled,
+        boolean isServerSideEncryptionEnabled,
+        boolean fencingEnabled,
+        String fenceOwnerNodeId
+    ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
@@ -361,6 +394,19 @@ public class RemoteFsTranslog extends Translog {
             blobStoreRepository.blobStore(isServerSideEncryptionEnabled),
             threadPool
         );
+        RemoteStoreFence fence = null;
+        if (fencingEnabled) {
+            // The fence lives alongside the translog metadata files (its name does not match the metadata prefix, so
+            // metadata listings and GC never see it) and is updated only via conditional writes.
+            BlobContainer fenceContainer = blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(mdPath);
+            if (fenceContainer.isConditionalWriteSupported()) {
+                fence = new RemoteStoreFence(fenceContainer, fenceOwnerNodeId, shardId, threadPool);
+            } else {
+                throw new IllegalArgumentException(
+                    "Remote store fencing is enabled for " + shardId + " but the translog repository does not support conditional writes"
+                );
+            }
+        }
         return new TranslogTransferManager(
             shardId,
             transferService,
@@ -369,7 +415,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             tracker,
             remoteStoreSettings,
-            isTranslogMetadataEnabled
+            isTranslogMetadataEnabled,
+            fence
         );
     }
 
@@ -448,6 +495,11 @@ public class RemoteFsTranslog extends Translog {
             } else {
                 return upload(primaryTerm, generation, maxSeqNo);
             }
+        } catch (TranslogFencedException ex) {
+            // The tragic exception is set by upload(); close here, where the resources of the try-with-resources above
+            // (notably the read lock) have already been released - closeOnTragicEvent acquires the write lock.
+            closeOnTragicEvent(ex);
+            throw ex;
         }
     }
 
@@ -472,6 +524,12 @@ public class RemoteFsTranslog extends Translog {
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint),
                 cryptoMetadata
             );
+        } catch (TranslogFencedException ex) {
+            // Another shard copy owns the fence: this copy must never acknowledge another write. Treat as tragic so
+            // the engine fails the shard instead of retrying the upload. The translog is closed by the caller, once
+            // the read lock held around this call has been released.
+            tragedy.setTragicException(ex);
+            throw ex;
         } finally {
             syncPermit.release(SYNC_PERMIT);
         }
