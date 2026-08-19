@@ -611,7 +611,12 @@ final class DocumentParser {
         }
 
         ObjectMapper.Nested nested = mapper.nested();
-        if (nested.isNested()) {
+        // [correlated: true] keeps the group's fields in the parent document so each accumulates its
+        // values into its own column, paired with its siblings by array position. Building the hidden
+        // per-element documents instead would put every field in a separate document, which is the
+        // representation the declaration exists to opt out of.
+        boolean buildNestedDocuments = nested.isNested() && mapper.correlated() == false;
+        if (buildNestedDocuments) {
             context = nestedContext(context, mapper);
         }
 
@@ -627,7 +632,7 @@ final class DocumentParser {
         innerParseObject(context, mapper, parser, currentFieldName, token);
 
         // restore the enable path flag
-        if (nested.isNested()) {
+        if (buildNestedDocuments) {
             nested(context, nested);
         }
     }

@@ -230,4 +230,131 @@ public class ParquetDocumentInputTests extends ParquetBaseTests {
             .findFirst()
             .orElseThrow(() -> new AssertionError("no collected field named " + fieldName));
     }
+
+    // ---- correlated-group array-length validation ----
+
+    /**
+     * A multi_value keyword field stamped as a member of {@code group}, standing in for a sub-field of
+     * an object declared {@code nested} with {@code correlated: true} (which applies the stamp at
+     * mapping build time).
+     */
+    private MappedFieldType groupField(String name, String group) {
+        MappedFieldType ft = new KeywordFieldMapper.KeywordFieldType(name);
+        ft.setMultiValued(true);
+        ft.setCorrelationGroup(group);
+        assignTestCapabilities(ft, PARQUET_FORMAT);
+        return ft;
+    }
+
+    /**
+     * Equal array lengths within a group are accepted: each field is a separate LIST column, and index
+     * i of one describing the same element as index i of the others is exactly the invariant being
+     * preserved.
+     */
+    public void testCorrelatedGroupWithEqualLengthsIsAccepted() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType names = groupField("Events.Name", "Events");
+        MappedFieldType kinds = groupField("Events.Kind", "Events");
+        input.addField(names, "a");
+        input.addField(names, "b");
+        input.addField(kinds, "k1");
+        input.addField(kinds, "k2");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        assertFalse(input.getFinalInput().isEmpty());
+    }
+
+    /**
+     * Differing lengths are rejected. Without this the document writes cleanly and reads back
+     * mispaired — Events.Name[1] would be attributed to the element described by Events.Kind[1],
+     * which belongs to a different event. ClickHouse refuses the equivalent insert into a Nested
+     * column for the same reason.
+     */
+    public void testCorrelatedGroupWithUnequalLengthsIsRejected() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType names = groupField("Events.Name", "Events");
+        MappedFieldType kinds = groupField("Events.Kind", "Events");
+        input.addField(names, "a");
+        input.addField(names, "b");
+        input.addField(kinds, "k1");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, input::getFinalInput);
+        assertTrue("expected the group name in the message: " + e.getMessage(), e.getMessage().contains("Events"));
+        assertTrue("expected both counts in the message: " + e.getMessage(), e.getMessage().contains("2") && e.getMessage().contains("1"));
+        assertTrue(
+            "expected both field names in the message: " + e.getMessage(),
+            e.getMessage().contains("Events.Name") && e.getMessage().contains("Events.Kind")
+        );
+    }
+
+    /**
+     * A sub-field the document never mentions is exempt: with no values at all there is nothing to
+     * mispair, so requiring its presence would reject legitimate documents such as an event batch
+     * carrying no attributes.
+     */
+    public void testCorrelatedGroupIgnoresAbsentSubFields() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType names = groupField("Events.Name", "Events");
+        input.addField(names, "a");
+        input.addField(names, "b");
+        // Events.Kind is simply not in this document.
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        assertFalse(input.getFinalInput().isEmpty());
+    }
+
+    /** Unstamped fields, and single-valued fields, are never compared. */
+    public void testValidationIgnoresUngroupedAndSingleValuedFields() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType names = groupField("Events.Name", "Events");
+        input.addField(names, "a");
+        input.addField(names, "b");
+        // Stamped with the same group but single-valued: it holds one value by definition, so it is
+        // not a mismatched array and must not constrain its multi-valued siblings.
+        MappedFieldType scalar = new KeywordFieldMapper.KeywordFieldType("Events.Scalar");
+        scalar.setCorrelationGroup("Events");
+        assignTestCapabilities(scalar, PARQUET_FORMAT);
+        input.addField(scalar, "s");
+        // A multi_value field in no group at all.
+        MappedFieldType ungrouped = new KeywordFieldMapper.KeywordFieldType("Tags");
+        ungrouped.setMultiValued(true);
+        assignTestCapabilities(ungrouped, PARQUET_FORMAT);
+        input.addField(ungrouped, "t");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        assertFalse(input.getFinalInput().isEmpty());
+    }
+
+    /** Groups are independent: Links having a different length than Events is not a conflict. */
+    public void testGroupsAreValidatedIndependently() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType eventNames = groupField("Events.Name", "Events");
+        input.addField(eventNames, "a");
+        input.addField(eventNames, "b");
+        MappedFieldType linkIds = groupField("Links.TraceId", "Links");
+        input.addField(linkIds, "t1");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        assertFalse(input.getFinalInput().isEmpty());
+    }
+
+    /**
+     * Membership comes from the stamp, not the field name, so a same-prefixed field belonging to no
+     * group is unaffected — there is no path-prefix matching to get wrong.
+     */
+    public void testMembershipIsByStampNotByNamePrefix() {
+        ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
+        MappedFieldType names = groupField("Events.Name", "Events");
+        input.addField(names, "a");
+        input.addField(names, "b");
+        MappedFieldType lookalike = new KeywordFieldMapper.KeywordFieldType("Events.Unstamped");
+        lookalike.setMultiValued(true);
+        assignTestCapabilities(lookalike, PARQUET_FORMAT);
+        input.addField(lookalike, "x");
+        input.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
+        assertFalse(input.getFinalInput().isEmpty());
+    }
 }

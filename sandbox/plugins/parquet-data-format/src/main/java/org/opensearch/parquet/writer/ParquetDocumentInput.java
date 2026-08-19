@@ -95,9 +95,62 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         this.rowId = rowId;
     }
 
+    /**
+     * Rejects a document whose correlated group has sub-fields of differing array length.
+     * <p>
+     * Each field is written as its own {@code LIST} column with independent offsets, so unequal
+     * lengths mean index {@code i} of one field no longer describes the same element as index
+     * {@code i} of its siblings — a document that writes cleanly and reads back mispaired. Mirrors
+     * ClickHouse, which refuses such an insert into a {@code Nested} column rather than storing a
+     * misaligned row.
+     * <p>
+     * Group membership comes from {@link MappedFieldType#correlationGroup()}, stamped at mapping build
+     * time on the children of an object declared {@code nested} with {@code correlated: true}.
+     * <p>
+     * Only fields <em>present</em> in the document are compared. A sub-field the document never
+     * mentions has nothing to mispair — every element of it is absent — so requiring it to be
+     * present would reject legitimate documents (an event batch carrying no attributes at all).
+     */
+    private void validateCorrelatedGroups() {
+        // Tracks the first present, multi-valued field seen per group and the count it established.
+        Map<String, FieldValuePair> firstInGroup = null;
+        for (FieldValuePair pair : collectedFields) {
+            String group = pair.getFieldType().correlationGroup();
+            if (group == null || pair.isMultiValued() == false) {
+                continue;
+            }
+            if (firstInGroup == null) {
+                firstInGroup = new HashMap<>();
+            }
+            FieldValuePair first = firstInGroup.putIfAbsent(group, pair);
+            if (first == null) {
+                continue;
+            }
+            int expected = first.valueCount();
+            int count = pair.valueCount();
+            if (count != expected) {
+                throw new MapperParsingException(
+                    "Fields in correlated group ["
+                        + group
+                        + "] must have the same number of values in a document, but ["
+                        + first.getFieldType().name()
+                        + "] has "
+                        + expected
+                        + " and ["
+                        + pair.getFieldType().name()
+                        + "] has "
+                        + count
+                        + ". Correlated arrays are paired by position, so differing lengths would "
+                        + "associate values from different elements."
+                );
+            }
+        }
+    }
+
     @Override
     public List<FieldValuePair> getFinalInput() {
         if (!isClosed) {
+            validateCorrelatedGroups();
             assert rowId >= 0 : "Row ID must be set before calling getFinalInput";
             // assertions for parquet primary
             // TODO: once parquet is supported in secondary mode, this assertion would change

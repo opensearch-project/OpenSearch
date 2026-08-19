@@ -310,6 +310,20 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         if (!nestedObjectMapper.nested().isNested()) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
+        // A correlated group is stored as parallel columns with no per-element document, so the block
+        // join this query relies on has nothing to join against and would silently match nothing.
+        // Fail loudly instead: the weaker semantics are the documented cost of [correlated: true].
+        if (nestedObjectMapper.correlated()) {
+            throw new IllegalStateException(
+                "["
+                    + NAME
+                    + "] cannot be used on the object under path ["
+                    + path
+                    + "] because it is declared [correlated: true], which stores the group as parallel "
+                    + "columns rather than nested documents. Query its fields directly; note that they "
+                    + "match across elements, so a match on two fields need not come from the same element."
+            );
+        }
         final BitSetProducer parentFilter;
         Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();

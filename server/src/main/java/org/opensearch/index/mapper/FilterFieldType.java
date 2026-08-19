@@ -280,6 +280,16 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
+    public String correlationGroup() {
+        return delegate.correlationGroup();
+    }
+
+    @Override
+    public void setCorrelationGroup(String correlationGroup) {
+        delegate.setCorrelationGroup(correlationGroup);
+    }
+
+    @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         return delegate.docValueFormat(format, timeZone);
     }
