@@ -281,9 +281,37 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
                 List.of(getLeft().getTraitSet().replace(leftHash), getRight().getTraitSet().replace(rightHash))
             );
             inputs.set(childId, childTraits);
-            return Pair.of(getTraitSet().replace(leftHash), inputs);
+            // Both inputs may be co-partitioned on their equi keys for ANY join type — that is what makes
+            // the distributed join legal. But only some join types may ADVERTISE the output as still
+            // hash-partitioned on the LEFT keys. A RIGHT or FULL outer join emits null-extended rows for
+            // unmatched right rows: those rows never passed through the left-key hash, so their left-key
+            // columns are NULL and they sit in whichever partition their right key landed in. Claiming
+            // HASH(leftKeys) would let a parent join/aggregate keyed on the same column skip its exchange
+            // and silently miss matches. Report "unknown" instead and let the parent demand its own
+            // exchange. (Songkan's design note calls this out; neither implementation had the gate.)
+            OpenSearchDistribution output = advertisesLeftKeyHash() ? leftHash : null;
+            if (output == null) {
+                return null;
+            }
+            return Pair.of(getTraitSet().replace(output), inputs);
         }
         return null;
+    }
+
+    /**
+     * True when this join's output really is partitioned by its LEFT equi keys, so a parent may consume it
+     * co-partitioned. False for RIGHT/FULL, whose null-extended rows carry NULL left keys and therefore do
+     * not obey the left-key hash. SEMI/ANTI project only the left side and emit no null-extension, so their
+     * output remains left-key partitioned.
+     */
+    private boolean advertisesLeftKeyHash() {
+        return switch (getJoinType()) {
+            case INNER, LEFT, SEMI, ANTI -> true;
+            // RIGHT/FULL: null-extended rows carry NULL left keys. ASOF/LEFT_ASOF are temporal
+            // nearest-match joins whose output ordering/partitioning we do not model — decline rather
+            // than guess, so a parent always demands its own exchange.
+            case RIGHT, FULL, ASOF, LEFT_ASOF -> false;
+        };
     }
 
     /** Derive from EITHER input: a join is co-partitionable when either side supplies a usable hash. */
@@ -359,7 +387,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
         if (n == null) {
             return null;
         }
-        return traitDef.hash(info.leftKeys, n);
+        // Same RIGHT/FULL restriction as the top-down deriveTraits path: a null-extended row has NULL
+        // left keys and does not obey the left-key hash, so such a join must not advertise a
+        // co-partitionable output. Without this the cascade in DistributionEnforcementPass can reuse the
+        // partitioning and skip a required re-shuffle, silently dropping matches.
+        return advertisesLeftKeyHash() ? traitDef.hash(info.leftKeys, n) : null;
     }
 
     @Override
