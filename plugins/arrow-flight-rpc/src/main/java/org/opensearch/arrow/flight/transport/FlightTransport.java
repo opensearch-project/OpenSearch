@@ -171,7 +171,14 @@ class FlightTransport extends TcpTransport {
             }
         } finally {
             if (!success) {
-                doStop();
+                // Start failed (typically a BindTransportException from bindServer). Release resources
+                // directly via stopInternal() rather than doStop(): doStop() defers cleanup to an async
+                // threadpool task and invokes stopInternal() with no surrounding catch, so the shutdown
+                // of the event-loop groups created in the constructor (os-grpc-boss-ELG / os-grpc-worker-ELG)
+                // can be silently skipped, leaking those threads. stopInternal() runs synchronously here and
+                // shuts them down unconditionally in its finally block. It is guarded against partially
+                // initialized state (null flightServer/allocators), so it is safe on a half-started transport.
+                stopInternal();
             }
         }
     }
@@ -270,18 +277,39 @@ class FlightTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
-
-            if (flightServer != null) {
-                flightServer.shutdown();
-                flightServer.awaitTermination();
-                flightServer.close();
-                flightServer = null;
+            // Stop the flight server first (guarded, so a failure here does not skip the thread cleanup below).
+            try {
+                if (flightServer != null) {
+                    flightServer.shutdown();
+                    flightServer.awaitTermination();
+                    flightServer.close();
+                    flightServer = null;
+                }
+            } catch (Exception e) {
+                logger.error("Error stopping flight server", e);
             }
-            serverAllocator.close();
-            clientAllocator.close();
+            // Arrow allocator close() throws if any buffer is still outstanding. Guard each independently so a
+            // still-allocated buffer cannot skip the event-loop-group shutdown in the finally block below.
+            try {
+                serverAllocator.close();
+            } catch (Exception e) {
+                logger.error("Error closing server allocator", e);
+            }
+            try {
+                clientAllocator.close();
+            } catch (Exception e) {
+                logger.error("Error closing client allocator", e);
+            }
+            if (statsCollector != null) {
+                statsCollector.decrementServerChannelsActive();
+            }
+        } finally {
+            // The event-loop groups and executors OWN the gRPC threads (os-grpc-boss-ELG / os-grpc-worker-ELG /
+            // flight-eventloop-*). Shut them down UNCONDITIONALLY: if this is skipped (e.g. an allocator close
+            // above throws on an outstanding buffer), those threads leak and randomizedtesting's ThreadLeakControl
+            // then marks every subsequent suite in the fork as skipped ("Leaked background threads present").
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
-
             for (ExecutorService executor : flightEventLoopGroup) {
                 executor.shutdown();
                 try {
@@ -293,11 +321,6 @@ class FlightTransport extends TcpTransport {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (statsCollector != null) {
-                statsCollector.decrementServerChannelsActive();
-            }
-        } catch (Exception e) {
-            logger.error("Error stopping FlightTransport", e);
         }
     }
 

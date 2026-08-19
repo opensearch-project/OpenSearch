@@ -139,6 +139,20 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  // Sandbox parquet/analytics/DSL plugin stack, loaded in-JVM by internalClusterTest via nodePlugins()
+  // (default in OpenSearchIntegTestCase — replaced, i.e. skipped, for any test that declares its own
+  // plugins). These target JDK 25, so the internalClusterTest source set is compiled at JDK 25 below
+  // (server's main artifact stays at the JDK 21 minimum). Only included when -Dsandbox.enabled=true.
+  if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+    internalClusterTestImplementation project(':plugins:arrow-base')
+    internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+    internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
+    internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
+    internalClusterTestImplementation project(':sandbox:plugins:dsl-query-executor')
+  }
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
@@ -158,6 +172,73 @@ compileJava {
 tasks.named("internalClusterTest").configure {
   // TODO: these run faster with C2 only because they run for so, so long
   jvmArgs -= '-XX:TieredStopAtLevel=1'
+}
+
+// The sandbox plugins pull patched calcite-core/linq4j SNAPSHOT artifacts from the OpenSearch Snapshots
+// repo and require the same calcite `force` sandbox/build.gradle applies. server declares neither, so add
+// both — and pin every transitive that would otherwise trip failOnVersionConflict to server's managed set.
+// Only when -Dsandbox.enabled=true, so normal core builds are unaffected.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  repositories {
+    maven {
+      name = 'OpenSearch Snapshots'
+      url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+    }
+  }
+  def sandboxLibVersions = org.opensearch.gradle.VersionProperties.getVersions()
+  def patchedCalciteVersion = "${sandboxLibVersions['calcite']}-opensearch-${sandboxLibVersions['calcite_os_rev']}"
+  configurations.matching { it.name.startsWith('internalClusterTest') }.configureEach {
+    resolutionStrategy {
+      force "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
+      force "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
+      force "com.google.guava:guava:${sandboxLibVersions['guava']}"
+      force "com.fasterxml.jackson.core:jackson-core:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.core:jackson-databind:${sandboxLibVersions['jackson_databind']}"
+      force "com.fasterxml.jackson.core:jackson-annotations:${sandboxLibVersions['jackson_annotations']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${sandboxLibVersions['jackson']}"
+      force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${sandboxLibVersions['jackson']}"
+      force "org.locationtech.jts:jts-core:${sandboxLibVersions['jts']}"
+      force "joda-time:joda-time:${sandboxLibVersions['joda']}"
+      force "org.yaml:snakeyaml:${sandboxLibVersions['snakeyaml']}"
+      force "org.slf4j:slf4j-api:${sandboxLibVersions['slf4j']}"
+      force "commons-codec:commons-codec:${sandboxLibVersions['commonscodec']}"
+      force "commons-logging:commons-logging:${sandboxLibVersions['commonslogging']}"
+      force "org.apache.commons:commons-lang3:${sandboxLibVersions['commonslang']}"
+      force "com.google.errorprone:error_prone_annotations:2.36.0"
+      force "org.checkerframework:checker-qual:3.43.0"
+      force "com.google.guava:failureaccess:1.0.2"
+    }
+  }
+}
+
+// When the sandbox stack is on the internalClusterTest classpath, compile/run that source set at JDK 25
+// (the plugins are JDK 25-only; server's main artifact stays at JDK 21). Wire the native library + Arrow
+// native access the parquet/DataFusion stack needs at node start (mirrors composite-engine). Feature flags
+// are NOT set here — OpenSearchIntegTestCase enables them per-node, coupled to plugin presence.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  tasks.named('compileInternalClusterTestJava').configure {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+  }
+  tasks.named('internalClusterTest').configure {
+    jvmArgs += [
+      '--add-opens=java.base/java.nio=ALL-UNNAMED',
+      '--enable-native-access=ALL-UNNAMED'
+    ]
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+    systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+    systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+    // Gradle does NOT propagate the -Dsandbox.enabled build flag into the forked test JVM. Forward it so
+    // OpenSearchIntegTestCase's sandbox.enabled-gated logic (default nodePlugins() + coupled feature flags)
+    // runs inside the worker.
+    systemProperty 'sandbox.enabled', 'true'
+    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {

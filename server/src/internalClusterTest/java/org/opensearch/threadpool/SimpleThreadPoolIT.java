@@ -35,6 +35,7 @@ package org.opensearch.threadpool;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -43,6 +44,8 @@ import org.opensearch.test.hamcrest.RegexMatcher;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -55,6 +58,14 @@ public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().build();
+    }
+
+    // This test asserts that every thread spawned after node start follows OpenSearch's node-thread naming
+    // convention. The injected sandbox stack (arrow-flight) spawns gRPC/netty threads (os-grpc-*), which are
+    // not so named, so opt out of the stack: this is a core thread-pool test that does not need those plugins.
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
     }
 
     public void testThreadNames() throws Exception {

@@ -164,6 +164,10 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        // This test supplies its own "FLIGHT" stream transport via MockStreamTransportPlugin. Drop the real
+        // FlightStreamPlugin that the sandbox stack injects into super.nodePlugins(), otherwise two plugins
+        // register a transport named "FLIGHT" and NetworkModule fails node startup ("already registered").
+        plugins.removeIf(c -> "org.opensearch.arrow.flight.transport.FlightStreamPlugin".equals(c.getName()));
         plugins.add(InterceptingTransportService.TestPlugin.class);
         plugins.add(StreamSearchIntegrationTests.MockStreamTransportPlugin.class);
         return plugins;

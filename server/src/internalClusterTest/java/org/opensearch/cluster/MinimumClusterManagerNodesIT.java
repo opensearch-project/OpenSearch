@@ -60,6 +60,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -78,7 +79,9 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
+        // LinkedHashSet (not HashSet) to preserve super.nodePlugins() ordering: the injected sandbox stack
+        // requires arrow-base to initialize before parquet-data-format (component sharing is order-dependent).
+        final LinkedHashSet<Class<? extends Plugin>> classes = new LinkedHashSet<>(super.nodePlugins());
         classes.add(MockTransportService.TestPlugin.class);
         return classes;
     }
