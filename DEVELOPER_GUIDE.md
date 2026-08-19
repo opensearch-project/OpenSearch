@@ -325,7 +325,7 @@ To include sandbox modules in snapshot distributions, use the `sandbox.enabled` 
 
     ./gradlew assemble -Dsandbox.enabled=true
 
-One experimental feature currently in the sandbox is the **pluggable data format**, which lets an index be backed by non-Lucene storage engines (e.g. a Parquet primary with a Lucene secondary) via the composite engine. To spin it up from source, see [Getting Started with the Pluggable Data Format](sandbox/plugins/composite-engine/GETTING_STARTED.md).
+One experimental feature currently incubating in the sandbox is the **pluggable data format**, which lets an index be backed by non-Lucene storage engines — for example a columnar Parquet primary paired with a Lucene secondary — through the composite engine. For a guided walkthrough of running it from source, creating and querying a composite-backed index, and running its test suites, see [Getting Started with the Pluggable Data Format](sandbox/plugins/composite-engine/GETTING_STARTED.md).
 
 ### `qa`
 
