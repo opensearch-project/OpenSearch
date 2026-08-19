@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
@@ -73,7 +74,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@link StageExecution.State#CREATED} — built by {@code LateMaterializationStageExecutionFactory};
  *       the parent (Post-Sort) stage's start is gated on this stage's SUCCEEDED.</li>
  *   <li>{@link StageExecution.State#RUNNING} — entered when the child Sort+Limit stage
- *       SUCCEEDED. The cascade in {@code PlanWalker} fires {@link #start()}; we drain the
+ *       SUCCEEDED. The cascade in {@code PlanWalker} fires {@link #start}; we drain the
  *       child's output, fan out fetches, stitch, feed the parent's input sink.</li>
  *   <li>{@link StageExecution.State#SUCCEEDED} — every fetch returned, every stitched batch
  *       fed to the parent sink, parent stage can start.</li>
@@ -81,14 +82,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <h2>Implementation status</h2>
  *
- * <p><b>SKELETON ONLY.</b> Today {@link #start()} throws
+ * <p><b>SKELETON ONLY.</b> Today {@link #start} throws
  * {@link UnsupportedOperationException}. The four phases below are the work to land:
  *
  * <h3>Phase A — drain reduce output (Java)</h3>
  *
  * <p>The child stage's reduced K rows are buffered in its
  * {@link RowProducingSink}-style output (arriving via {@code feed(VSR)} on whatever
- * sink the LM stage provides via {@link #inputSink(int)}). At {@link #start()} time the
+ * sink the LM stage provides via {@link #inputSink(int)}). At {@link #start} time the
  * full input is available — block-read it.
  *
  * <pre>
@@ -173,7 +174,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
      * Sink the child Sort+Limit stage feeds into (Phase A input).
      *
      * <p>Returned by {@link #inputSink(int)}; the child stage writes K rows here. The
-     * stage execution drains this sink at {@link #start()} time. Today a
+     * stage execution drains this sink at {@link #start} time. Today a
      * {@link RowProducingSink} works as a buffer (it implements both {@link ExchangeSink}
      * and {@link ExchangeSource}); a custom sink may be needed if Phase A wants to
      * stream-decode rather than block-buffer.
@@ -246,7 +247,7 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
 
     /**
      * Phase A input. Child stage (Sort+Limit reduce) writes its K rows here. Returned
-     * sink must be the same one we drain in {@link #start()}.
+     * sink must be the same one we drain in {@link #start}.
      */
     @Override
     public ExchangeSink inputSink(int childStageId) {
@@ -304,6 +305,12 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
         Stitcher s = this.stitcher;
         if (s != null) {
             s.close();
+        }
+        if ((terminal == State.CANCELLED || terminal == State.FAILED) && parentSink instanceof CancellableExchangeSink cancellable) {
+            // Fetch failure is terminal for the QTF query. The parent reduce stream may otherwise
+            // observe its inputs as ordinary EOF and complete the top-level PPL request before
+            // this asynchronous failure reaches the query listener.
+            cancellable.cancel();
         }
     }
 

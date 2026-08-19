@@ -1,0 +1,38 @@
+{
+  "testName": "range_date_nanos",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "event_nanos": "TIMESTAMP_NANOS"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "event_nanos": {
+          "gte": "2024-01-01T00:00:00.123456789",
+          "lte": "2024-12-31T23:59:59.999999999"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, 2024-01-01 00:00:00.123456789), <=($1, 2024-12-31 23:59:59.999999999))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "event_nanos"],
+  "mockResultRows": [
+    ["event1", "2024-06-15T10:30:00.000000000Z"]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

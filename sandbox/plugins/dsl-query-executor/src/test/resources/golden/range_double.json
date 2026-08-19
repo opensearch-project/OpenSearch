@@ -1,0 +1,38 @@
+{
+  "testName": "range_double",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "rating": {
+          "gte": 3.5,
+          "lte": 9.5
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, CAST(3.5E0:DOUBLE):DOUBLE), <=($1, CAST(9.5E0:DOUBLE):DOUBLE))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "rating"],
+  "mockResultRows": [
+    ["item1", 4.5]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
