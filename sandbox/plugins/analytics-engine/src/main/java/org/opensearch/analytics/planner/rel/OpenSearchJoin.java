@@ -8,8 +8,10 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
@@ -18,6 +20,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -199,6 +202,94 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
             return planner.getCostFactory().makeInfiniteCost();
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- PhysicalNode (top-down trait propagation) ----
+
+    /**
+     * A SINGLETON demand is satisfied by gathering BOTH inputs to the coordinator — the coord-centric
+     * shape, and legal shape #1 in {@link #computeSelfCost}. Any other demand is declined here and left
+     * to {@link #deriveTraits}: a hash or broadcast shape is discovered bottom-up from what an input can
+     * actually deliver, not requested top-down, because whether a given side is shuffleable or
+     * broadcastable depends on the input subtree rather than on the parent's wish.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null || requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+            return null;
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+        OpenSearchDistribution singleton = traitDef.coordSingleton();
+        return Pair.of(
+            getTraitSet().replace(singleton),
+            List.of(getLeft().getTraitSet().replace(singleton), getRight().getTraitSet().replace(singleton))
+        );
+    }
+
+    /**
+     * Derives the join's output from ONE input's distribution, emitting only the shapes
+     * {@link #computeSelfCost} accepts:
+     * <ul>
+     *   <li>{@code COORDINATOR+SINGLETON} on a child → gather the sibling too (shape #1).</li>
+     *   <li>{@code WORKER+HASH} on a child whose keys match that side's equi keys → demand the SAME
+     *       partition count on the sibling, keyed on ITS equi keys, and output the left keys' hash
+     *       (shape #2). Declining on a key mismatch is essential: shuffling on the wrong column is
+     *       type-correct but silently produces wrong results.</li>
+     * </ul>
+     * Everything else (broadcast, single-shard co-location) is left to the existing split rules and the
+     * post-CBO enforcement pass, which own the extra context those shapes need — the probe's shard
+     * identity and the runtime broadcast-size gate.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0 && childId != 1) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null || childDistribution.getType() == RelDistribution.Type.ANY) {
+            return null;
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) childDistribution.getTraitDef();
+
+        if (childDistribution.getType() == RelDistribution.Type.SINGLETON
+            && childDistribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR) {
+            OpenSearchDistribution singleton = traitDef.coordSingleton();
+            List<RelTraitSet> inputs = new ArrayList<>(
+                List.of(getLeft().getTraitSet().replace(singleton), getRight().getTraitSet().replace(singleton))
+            );
+            inputs.set(childId, childTraits);
+            return Pair.of(getTraitSet().replace(singleton), inputs);
+        }
+
+        JoinInfo info = analyzeCondition();
+        if (info.leftKeys.isEmpty()) {
+            // Pure theta / cross join: no key to partition on, so no distributed shape exists.
+            return null;
+        }
+        if (childDistribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+            && childDistribution.getLocality() == OpenSearchDistribution.Locality.WORKER
+            && childDistribution.getPartitionCount() != null) {
+            List<Integer> expectedKeys = childId == 0 ? info.leftKeys : info.rightKeys;
+            if (!childDistribution.getKeys().equals(expectedKeys)) {
+                return null;
+            }
+            int partitionCount = childDistribution.getPartitionCount();
+            OpenSearchDistribution leftHash = traitDef.hash(info.leftKeys, partitionCount);
+            OpenSearchDistribution rightHash = traitDef.hash(info.rightKeys, partitionCount);
+            List<RelTraitSet> inputs = new ArrayList<>(
+                List.of(getLeft().getTraitSet().replace(leftHash), getRight().getTraitSet().replace(rightHash))
+            );
+            inputs.set(childId, childTraits);
+            return Pair.of(getTraitSet().replace(leftHash), inputs);
+        }
+        return null;
+    }
+
+    /** Derive from EITHER input: a join is co-partitionable when either side supplies a usable hash. */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return DeriveMode.BOTH;
     }
 
     private static OpenSearchDistribution distributionOf(RelNode rel) {

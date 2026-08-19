@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -207,12 +208,23 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
      */
     @Override
     public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
-        if (containsOver() || pinAboveExchange) {
-            return null;
-        }
         OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
         if (requiredDistribution == null) {
             return null;
+        }
+        if (containsOver() || pinAboveExchange) {
+            // A window / pinned project cannot ride an arbitrary partitioning — its frame semantics are
+            // global (and a pinned literal must stay coordinator-side), which is why computeSelfCost
+            // charges infinite cost over a partitioned input. It must therefore DEMAND a gathered input
+            // rather than decline: declining leaves no legal alternative at all now that
+            // ExpandConversionRule and OpenSearchDistributionDeriveRule (the two bottom-up mechanisms
+            // that used to insert this gather) are gone, and planning fails outright.
+            if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+                return null;
+            }
+            OpenSearchDistributionTraitDef windowTraitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+            OpenSearchDistribution singleton = windowTraitDef.coordSingleton();
+            return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
         }
         if (requiredDistribution.getKeys().isEmpty()) {
             // Locality-only demand (SINGLETON / RANDOM / ANY): no key to remap, ride it as-is.
@@ -250,7 +262,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
      */
     @Override
     public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
-        if (childId != 0) {
+        if (childId != 0 || containsOver() || pinAboveExchange) {
             return null;
         }
         OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
@@ -265,6 +277,19 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
             return null;
         }
         return Pair.of(getTraitSet().replace(out), List.of(childTraits));
+    }
+
+    /**
+     * A window / pinned project must NOT have traits derived into it. Its {@link #computeSelfCost} charges
+     * infinite cost unless its input is SINGLETON, so Calcite's default {@code LEFT_FIRST} derive mode —
+     * which happily builds a {@code Project(SINGLETON)} directly over a {@code RANDOM(SHARD)} input,
+     * without inserting the gather that would make it legal — produces a dead memo entry and the whole
+     * plan fails with "not enough rules ... cost is still infinite". Prohibiting derivation leaves the
+     * SINGLETON demand to {@link #requiredInputDistribution} / the enforcement path, which does gather.
+     */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return (containsOver() || pinAboveExchange) ? DeriveMode.PROHIBITED : DeriveMode.LEFT_FIRST;
     }
 
     @Override

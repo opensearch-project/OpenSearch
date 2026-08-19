@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -21,6 +22,7 @@ import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -106,9 +108,9 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      * A collated Sort needs globally-ordered input. Our {@link OpenSearchExchangeReducer}
      * is a concat gather (not a merge exchange), so per-partition sort + ER produces
      * partition-locally ordered rows concatenated in arrival order — wrong. Returning
-     * infinite cost unless the input is EXECUTION(SINGLETON) forces Volcano to pick the
-     * {@link org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule} alternative
-     * (ER below the Sort, Sort sees a fully-gathered input).
+     * infinite cost unless the input is EXECUTION(SINGLETON) keeps that shape unplannable;
+     * {@link #passThroughTraits} supplies the legal alternative by DEMANDING a gathered input
+     * (ER below the Sort), which {@link OpenSearchConvention#enforce} materializes.
      *
      * <p>A Sort with no collation AND no fetch/offset is a no-op — skip the gate.
      * A pure LIMIT (fetch != null, no collation) still needs gathering so it applies globally.
@@ -131,6 +133,79 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
             }
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- PhysicalNode (top-down trait propagation) ----
+
+    /**
+     * A collated-or-limiting Sort DEMANDS a fully-gathered input, for the same reason
+     * {@link #computeSelfCost} charges infinite cost otherwise: {@link OpenSearchExchangeReducer} is a
+     * concat gather, not a merge exchange, so sorting per-partition and concatenating yields
+     * partition-locally ordered rows in arrival order — wrong. Expressing that demand here is what
+     * replaces {@code OpenSearchSortSplitRule}: Calcite materializes the reducer below the Sort via
+     * {@link OpenSearchConvention#enforce} instead of a rule transforming the tree.
+     *
+     * <p>Two carve-outs, both load-bearing:
+     * <ul>
+     *   <li>A {@code perPartition} Sort is a shard-local top-N deliberately placed BELOW the gather by
+     *       {@code OpenSearchSortPushdownRewriter} / {@code OpenSearchTopKRewriter}. It must RIDE its
+     *       child's distribution — demanding SINGLETON here would hoist it above the gather and leave the
+     *       shard fragment streaming every row (measured: 51ms → 5391ms over 10M rows).</li>
+     *   <li>A Sort with no collation AND no fetch/offset is a no-op, so it imposes nothing and rides.</li>
+     * </ul>
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        if (perPartition || isNoOp()) {
+            // Rides: pass the demand straight down and deliver whatever the child delivers.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        // Global sort/limit: only a SINGLETON request is satisfiable, and the input must be gathered.
+        if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+            return null;
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+        OpenSearchDistribution singleton = traitDef.coordSingleton();
+        return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
+    }
+
+    /**
+     * Only a riding Sort derives from its child. A global sort's output is SINGLETON regardless of what
+     * the child offers, and claiming otherwise would let a parent consume it as partitioned.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        if (perPartition || isNoOp()) {
+            return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
+        }
+        return null;
+    }
+
+    /**
+     * A global sort/limit must not have traits derived into it: {@link #computeSelfCost} charges infinite
+     * cost unless its input is SINGLETON, and Calcite's default {@code LEFT_FIRST} derivation would build
+     * a {@code Sort(RANDOM)} variant without the gather that makes it legal (a dead memo entry that fails
+     * the whole plan). A riding Sort — perPartition shard-local top-N, or a no-op — derives normally.
+     */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return (perPartition || isNoOp()) ? DeriveMode.LEFT_FIRST : DeriveMode.PROHIBITED;
+    }
+
+    /** A Sort with neither ordering nor fetch/offset changes nothing about its input. */
+    private boolean isNoOp() {
+        return getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null;
     }
 
     @Override

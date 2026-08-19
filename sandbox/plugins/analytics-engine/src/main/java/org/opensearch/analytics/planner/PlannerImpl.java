@@ -45,7 +45,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
-import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
@@ -54,7 +53,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewri
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
-import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
@@ -537,13 +535,27 @@ public class PlannerImpl {
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);
         OpenSearchDistributionTraitDef distTraitDef = context.getDistributionTraitDef();
         volcanoPlanner.addRelTraitDef(distTraitDef);
+        // Top-down (Cascades-style) trait propagation. Each OpenSearch* operator answers "given this
+        // required distribution, what do I demand of my inputs?" via Calcite's PhysicalNode
+        // passThroughTraits/deriveTraits hooks, and OpenSearchConvention.enforce materializes the
+        // exchange when a demand isn't already satisfied. That replaces two bottom-up crutches:
+        //   - OpenSearchDistributionDeriveRule, which existed ONLY because bottom-up Volcano never pushes
+        //     a parent's trait demand into a child's RelSet (its own javadoc named this migration);
+        //   - OpenSearchSortSplitRule, now expressed as OpenSearchSort.passThroughTraits demanding
+        //     SINGLETON (with the perPartition shard-local top-N riding its child instead).
+        // AbstractConverter.ExpandConversionRule goes too: top-down mode converts through
+        // Convention.enforce rather than by expanding abstract converters.
+        volcanoPlanner.setTopDownOpt(true);
         volcanoPlanner.addRule(new OpenSearchAggregateSplitRule(context));
-        volcanoPlanner.addRule(new OpenSearchSortSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchBroadcastJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchHashJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
-        volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
+        // STILL REQUIRED alongside Convention.enforce: the split rules materialize their alternatives by
+        // calling RelOptRule.convert(input, traits), which registers an AbstractConverter that only this
+        // rule expands. Convention.enforce serves the top-down passThrough/derive path; it does not
+        // observe an explicit convert() from a rule. Dropping this collapses every broadcast/shuffle
+        // alternative to coordinator-centric.
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
 
         if (listener != null) {
@@ -562,8 +574,8 @@ public class PlannerImpl {
 
             // Root demands SINGLETON with null locality — satisfied by either SHARD+SINGLETON
             // (1-shard scan, no ER) or COORDINATOR+SINGLETON (after ER). Multi-shard scans stamp
-            // RANDOM → ER inserted by ExpandConversionRule + trait def's convert(). Single-shard
-            // scans stamp SHARD+SINGLETON → already satisfies, no top ER.
+            // RANDOM requires an ER, materialized through OpenSearchConvention.enforce(). Single-shard
+            // scans stamp SHARD+SINGLETON → already satisfies the locality-agnostic root demand, no top ER.
             volcanoPlanner.setRoot(copied);
             RelTraitSet desiredTraits = copied.getTraitSet().replace(distTraitDef.anySingleton());
             if (!copied.getTraitSet().equals(desiredTraits)) {
