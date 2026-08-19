@@ -254,7 +254,10 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
             return false;
         }
         return switch (inputDist.getType()) {
-            case HASH_DISTRIBUTED, RANDOM_DISTRIBUTED, BROADCAST_DISTRIBUTED, ROUND_ROBIN_DISTRIBUTED, RANGE_DISTRIBUTED -> true;
+            case HASH_DISTRIBUTED, RANDOM_DISTRIBUTED, ROUND_ROBIN_DISTRIBUTED, RANGE_DISTRIBUTED -> true;
+            // BROADCAST is deliberately EXCLUDED: a broadcast build is replicated, not partitioned, so a
+            // gather above it is not collapsing parallelism. Including it charged the broadcast plan an
+            // extra 3x that the shuffle plan did not pay, which suppressed legitimate broadcasts.
             // SINGLETON / ANY: nothing to collapse.
             default -> false;
         };
