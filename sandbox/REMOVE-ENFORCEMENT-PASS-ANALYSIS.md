@@ -162,3 +162,58 @@ in-code: `gatherSinkingProjects` keeps an aggregate's literal-arg Project in the
 consumer (percentile's `50`), and keeps a computed-column Project (`round()` Int32-vs-Float64) from being
 stranded below a cut. These are fragment-packaging concerns, not distribution — they need a home
 (probably `DAGBuilder`) before the pass goes away.
+
+
+---
+
+## STEP 1 OUTCOME (commits `1f229655c94`, `c2b1421166f`)
+
+**Done, and the root cause was NOT what either of my hypotheses said.**
+
+### What I got wrong, twice
+
+1. First I claimed traits were already authoritative → disproved by widening the probe (8 disagreements).
+2. Then I claimed the fix was TIER-AWARE `satisfies()` → implemented it, regression-free at 10 failures,
+   but it did **NOT** unlock trusting the trait (still 10→12). Tier-awareness is correct and worth keeping,
+   but it was not the blocker.
+
+### The actual root cause: the pass invalidates its own traits
+
+`copyWithInputs` reuses `node.getTraitSet()`. So when the pass distributes a join it rebuilds it over
+`HASH(WORKER)` inputs while the node itself **keeps CBO's `coordSingleton`**. The "stale CBO trait" the
+five forced `buildReducer` calls exist to work around is therefore **self-inflicted by the pass**, not
+inherited from CBO — the comments at `:142`, `:450`, `:503`, `:558` misattribute it.
+
+Fix: restamp the rebuilt operator with what it now actually produces —
+```java
+RelNode restamped = out == null ? rebuilt
+    : rebuilt.copy(rebuilt.getTraitSet().replace(out), rebuilt.getInputs());
+```
+
+### Evidence chain (each step measured, baseline 10 failures)
+
+| change | failures |
+|---|---|
+| tier-aware `satisfies()` alone | 10 (no regression) |
+| tier-aware + trust trait at `sinkReducerBelowProjects` | **12** (tier flag did NOT unlock it) |
+| the 2 new failures | window-Project-over-join and non-decomposable-agg-over-join fail to GATHER |
+| restamp rebuilt traits | 10 (no regression) |
+| restamp + trust trait at BOTH gather sites | **10** — unlocked |
+
+Forced-vs-gated exchange builds in the pass: **5 forced / 1 gated → 3 forced / 3 gated.**
+
+### Why tier-awareness still ships
+
+It replaces an accidental dependency with a stated rule. Step 4's inter-tier shuffle previously worked
+*because* the trait was stale (`:464-467` documents relying on `from=coordSingleton ⊭ HASH`). Once traits
+are restamped that inequality would vanish, so without the tier flag the cascade would silently collapse.
+`OpenSearchDistribution.exchangeMaterialized` (set only by `buildShuffleExchange`) makes
+"derived HASH does not satisfy a demand for materialized HASH" explicit. Deliberately NOT added to
+`toString()` — that would churn every plan-shape golden and hide the real signal.
+
+### Remaining 3 forced `buildReducer` calls
+
+The root gather in `enforce()` and the PARTIAL/FINAL forced ER in `splitAggregate` — both construct nodes
+whose traits the pass has not yet derived, so there is nothing to trust yet. Those need the aggregate
+split to move into `OpenSearchAggregateSplitRule` (see Q1: widen its `isPartitioned` to accept
+`HASH+WORKER`, drop `OpenSearchJoin` from `childForcesGather`), which is step 3 of the sequence.
