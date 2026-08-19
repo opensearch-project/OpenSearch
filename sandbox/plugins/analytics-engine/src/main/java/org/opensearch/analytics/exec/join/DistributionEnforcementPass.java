@@ -560,15 +560,18 @@ public final class DistributionEnforcementPass {
 
     /**
      * Gathers {@code rel} to COORDINATOR+SINGLETON unless its TRACKED distribution {@code actual} already
-     * satisfies SINGLETON. Decides off {@code actual} (the pass's tracked distribution), then forces the
-     * reducer via {@code buildReducer} — NOT {@code buildEnforcer}, whose satisfies() check trusts
-     * {@code rel}'s stale CBO trait and would skip the ER for a rel the pass actually left partitioned.
+     * satisfies SINGLETON.
+     *
+     * <p>The early-out still consults {@code actual} (the pass's tracked distribution) rather than the trait,
+     * but the gather itself now goes through the satisfies-gated {@code buildEnforcer}: the per-operator
+     * RESTAMP in {@code visit} keeps {@code rel}'s own trait in step with what the pass made it produce, so
+     * the trait is authoritative here and no forced {@code buildReducer} is needed. (Only the two sites that
+     * must gather a rel whose trait the pass deliberately leaves partitioned still force the reducer.)
      */
     private RelNode gatherIfNeeded(RelNode rel, OpenSearchDistribution actual) {
         if (actual != null && actual.satisfies(traitDef.coordSingleton())) {
             return rel;
         }
-        // STEP-1 EXPERIMENT: trust the trait.
         return traitDef.buildEnforcer(rel, traitDef.coordSingleton());
     }
 
