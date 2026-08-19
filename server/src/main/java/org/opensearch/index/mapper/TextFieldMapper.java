@@ -348,6 +348,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             this.analyzers = new TextParams.Analyzers(indexAnalyzers);
         }
 
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers, List<Parameter<?>> pluginParameters) {
+            this(name, indexCreatedVersion, indexAnalyzers);
+            setPluginMappingParameters(pluginParameters);
+        }
+
         public Builder index(boolean index) {
             this.index.setValue(index);
             return this;
@@ -375,25 +380,29 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
-                index,
-                store,
-                indexOptions,
-                norms,
-                termVectors,
-                analyzers.indexAnalyzer,
-                analyzers.searchAnalyzer,
-                analyzers.searchQuoteAnalyzer,
-                similarity,
-                positionIncrementGap,
-                fieldData,
-                freqFilter,
-                eagerGlobalOrdinals,
-                indexPhrases,
-                indexPrefixes,
-                boost,
-                meta
+            List<Parameter<?>> parameters = new ArrayList<>(
+                Arrays.asList(
+                    index,
+                    store,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    boost,
+                    meta
+                )
             );
+            parameters.addAll(pluginMappingParameters());
+            return List.copyOf(parameters);
         }
 
         protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
@@ -471,6 +480,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public TextFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
             if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
@@ -490,7 +500,12 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), pluginParameters);
+    });
 
     /**
      * A phrase wrapped field analyzer
@@ -1011,6 +1026,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1038,6 +1055,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.freqFilter = builder.freqFilter.getValue();
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     @Override
@@ -1047,7 +1071,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers).init(this);
+        Builder builder = new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers, mappingPluginParameters);
+        return builder.init(this);
     }
 
     @Override
@@ -1258,6 +1283,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+        // Plugin-contributed parameters are not part of the fixed backwards-compatibility list above and are serialized explicitly.
+        for (Parameter<?> pluginMappingParameter : mapperBuilder.pluginMappingParameters()) {
+            pluginMappingParameter.toXContent(builder, includeDefaults);
+        }
     }
 
     @Override
