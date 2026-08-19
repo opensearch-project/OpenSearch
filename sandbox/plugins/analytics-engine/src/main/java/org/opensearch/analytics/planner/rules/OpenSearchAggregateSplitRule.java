@@ -248,7 +248,12 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         for (int i = 0; i < input.getTraitSet().size(); i++) {
             RelTrait trait = input.getTraitSet().getTrait(i);
             if (trait instanceof OpenSearchDistribution dist) {
-                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED;
+                // RANDOM+SHARD: a multi-shard scan, the original case. HASH+WORKER: the output of a
+                // distributed join or a shuffle — also partitioned, and the shape the aggregate-over-join
+                // split (q5/q10) needs. Accepting only RANDOM made this rule and the post-CBO pass agree
+                // on NOTHING: the pass's own isPartitioned means HASH+WORKER exclusively, so the two
+                // predicates covered disjoint sets and the rule could never produce the agg-over-join split.
+                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED || dist.getType() == RelDistribution.Type.HASH_DISTRIBUTED;
             }
         }
         return false;
@@ -281,7 +286,15 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             if (cur instanceof OpenSearchSort sort) {
                 return !sort.getCollation().getFieldCollations().isEmpty() || sort.fetch != null || sort.offset != null;
             }
-            if (cur instanceof OpenSearchJoin || cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
+            if (cur instanceof OpenSearchJoin) {
+                // A join no longer forces a gather: under top-down it is legal at WORKER+HASH, so an
+                // aggregate above a DISTRIBUTED join can and should split PARTIAL/FINAL (the q5/q10
+                // shape). Defer to the input's actual distribution instead of assuming coordinator —
+                // isPartitioned() reads the trait, and OpenSearchAggregate's own cost gate still rejects
+                // SINGLE-over-partitioned, so an unsafe placement cannot survive.
+                return false;
+            }
+            if (cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
                 return true;
             }
             if (cur instanceof OpenSearchProject project) {
