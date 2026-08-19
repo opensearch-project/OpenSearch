@@ -299,7 +299,8 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         // gather the worker join's inputs — collapsing the MPP plan straight back to coordinator-centric.
         // Under bottom-up Volcano this was masked because the coord alternative was registered before the
         // worker join existed; top-down explores the worker join first, so the re-fire became reachable.
-        if (joinDist.getLocality() == OpenSearchDistribution.Locality.WORKER && joinDist.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+        if (joinDist.getLocality() == OpenSearchDistribution.Locality.WORKER
+            && joinDist.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
             return true;
         }
         if (joinDist.getLocality() == OpenSearchDistribution.Locality.SHARD

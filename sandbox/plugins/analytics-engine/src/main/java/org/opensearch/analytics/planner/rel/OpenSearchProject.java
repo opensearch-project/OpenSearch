@@ -269,10 +269,17 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         if (childDistribution == null) {
             return null;
         }
-        OpenSearchDistribution out = deriveOutputDistribution(
-            List.of(childDistribution),
-            (OpenSearchDistributionTraitDef) childDistribution.getTraitDef()
-        );
+        OpenSearchDistribution out;
+        try {
+            out = deriveOutputDistribution(List.of(childDistribution), (OpenSearchDistributionTraitDef) childDistribution.getTraitDef());
+        } catch (RuntimeException e) {
+            // RelDistribution.apply walks the projection's inverse mapping, and Calcite's
+            // InverseMapping.getTargetOpt throws UnsupportedOperationException for mappings that are
+            // not invertible (duplicated or computed columns). Bottom-up never reached this because the
+            // enforcement pass calls deriveOutputDistribution on an already-decided concrete tree;
+            // top-down probes speculative child traits, so it does. No alternative is the safe answer.
+            return null;
+        }
         if (out == null) {
             return null;
         }

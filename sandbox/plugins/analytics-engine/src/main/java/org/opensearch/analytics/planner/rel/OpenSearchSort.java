@@ -112,12 +112,15 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      * {@link #passThroughTraits} supplies the legal alternative by DEMANDING a gathered input
      * (ER below the Sort), which {@link OpenSearchConvention#enforce} materializes.
      *
-     * <p>A Sort with no collation AND no fetch/offset is a no-op — skip the gate.
-     * A pure LIMIT (fetch != null, no collation) still needs gathering so it applies globally.
+     * <p>The gate applies only to a COLLATED sort, and must agree exactly with
+     * {@link #ridesChildDistribution} — if the cost gate rejected a shape the trait hook advertises as
+     * legal, Volcano would explore it and then find every alternative infinite ("Missing conversion is
+     * OpenSearchSort[]"). A pure LIMIT and a perPartition top-N both ride a partitioned input: the
+     * coordinator needs only SOME N rows and each partition's local N supplies them.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        if (getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null) {
+        if (perPartition || ridesChildDistribution()) {
             return planner.getCostFactory().makeTinyCost();
         }
         for (RelNode input : getInputs()) {
@@ -160,7 +163,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         if (requiredDistribution == null) {
             return null;
         }
-        if (perPartition || isNoOp()) {
+        if (perPartition || ridesChildDistribution()) {
             // Rides: pass the demand straight down and deliver whatever the child delivers.
             return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
         }
@@ -186,7 +189,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
         if (childDistribution == null) {
             return null;
         }
-        if (perPartition || isNoOp()) {
+        if (perPartition || ridesChildDistribution()) {
             return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
         }
         return null;
@@ -200,12 +203,19 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
      */
     @Override
     public DeriveMode getDeriveMode() {
-        return (perPartition || isNoOp()) ? DeriveMode.LEFT_FIRST : DeriveMode.PROHIBITED;
+        return (perPartition || ridesChildDistribution()) ? DeriveMode.LEFT_FIRST : DeriveMode.PROHIBITED;
     }
 
-    /** A Sort with neither ordering nor fetch/offset changes nothing about its input. */
-    private boolean isNoOp() {
-        return getCollation().getFieldCollations().isEmpty() && fetch == null && offset == null;
+    /**
+     * True when this Sort imposes no ORDERING requirement on its input, so it can ride a partitioned
+     * child. Covers both a genuine no-op (no collation, no fetch/offset) and a pure LIMIT: a
+     * partition-local fetch is correct because the coordinator needs only SOME N rows and each
+     * partition's local N supplies them — the same reasoning
+     * {@code OpenSearchSortPushdownRewriter} uses to push a bare {@code head N} below the gather.
+     * Only a COLLATED sort needs the global gather (our ER is a concat, not a merge).
+     */
+    private boolean ridesChildDistribution() {
+        return getCollation().getFieldCollations().isEmpty();
     }
 
     @Override

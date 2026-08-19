@@ -539,10 +539,10 @@ public class PlannerImpl {
         // required distribution, what do I demand of my inputs?" via Calcite's PhysicalNode
         // passThroughTraits/deriveTraits hooks, and OpenSearchConvention.enforce materializes the
         // exchange when a demand isn't already satisfied. That replaces two bottom-up crutches:
-        //   - OpenSearchDistributionDeriveRule, which existed ONLY because bottom-up Volcano never pushes
-        //     a parent's trait demand into a child's RelSet (its own javadoc named this migration);
-        //   - OpenSearchSortSplitRule, now expressed as OpenSearchSort.passThroughTraits demanding
-        //     SINGLETON (with the perPartition shard-local top-N riding its child instead).
+        // - OpenSearchDistributionDeriveRule, which existed ONLY because bottom-up Volcano never pushes
+        // a parent's trait demand into a child's RelSet (its own javadoc named this migration);
+        // - OpenSearchSortSplitRule, now expressed as OpenSearchSort.passThroughTraits demanding
+        // SINGLETON (with the perPartition shard-local top-N riding its child instead).
         // AbstractConverter.ExpandConversionRule goes too: top-down mode converts through
         // Convention.enforce rather than by expanding abstract converters.
         volcanoPlanner.setTopDownOpt(true);
