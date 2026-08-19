@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.docvaluescodec.bridge;
+package org.opensearch.parquet.codec.bridge;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -78,7 +78,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
 
     /** Opens a numeric cursor with an explicit starting window. */
     public static ParquetColumnReader open(Path file, String column, int initialBatchSize) throws IOException {
-        long handle = ParquetDocValuesBridge.openColumnCursor(file.toString(), column, initialBatchSize);
+        long handle = ParquetCodecBridge.openColumnCursor(file.toString(), column, initialBatchSize);
         return new ParquetColumnReader(handle, file, column);
     }
 
@@ -104,7 +104,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
     /** Replaces the forward-only cursor with a fresh one at row zero. Only reached on a backward request. */
     private void reopen() throws IOException {
         decodedBatch = null;
-        ParquetDocValuesBridge.resetColumnCursor(handle);
+        ParquetCodecBridge.resetColumnCursor(handle);
     }
 
     private void loadNumericBatch(long row) throws IOException {
@@ -127,7 +127,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
             MemorySegment validityBitOffsetOut = out.asSlice(4L * Long.BYTES, Long.BYTES);
             MemorySegment valueKindOut = out.asSlice(5L * Long.BYTES, Long.BYTES);
 
-            long rc = ParquetDocValuesBridge.nextBatch(
+            long rc = ParquetCodecBridge.nextBatch(
                 handle,
                 row,
                 firstRowOut,
@@ -199,10 +199,10 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
     }
 
     private void checkStatus(long rc, long row) throws IOException {
-        if (rc == ParquetDocValuesBridge.RC_EOF) {
+        if (rc == ParquetCodecBridge.RC_EOF) {
             throw new IOException("native numeric cursor exhausted before row " + row + " (" + file + "/" + column + ")");
         }
-        if (rc != ParquetDocValuesBridge.RC_OK) {
+        if (rc != ParquetCodecBridge.RC_OK) {
             throw new IOException("Unexpected native numeric cursor status " + rc + " at row " + row + " (" + file + "/" + column + ")");
         }
     }
@@ -221,6 +221,6 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         long current = handle;
         handle = CLOSED_HANDLE;
         decodedBatch = null;
-        ParquetDocValuesBridge.closeColumnCursor(current);
+        ParquetCodecBridge.closeColumnCursor(current);
     }
 }

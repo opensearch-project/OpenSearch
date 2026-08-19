@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.docvaluescodec.bridge;
+package org.opensearch.parquet.codec.bridge;
 
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
@@ -20,11 +20,12 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 
 /**
- * FFM bridge for the Parquet DocValues read codec: binds the forward-only numeric column-cursor
- * downcalls exported by the native library. Kept separate from the write-path {@code RustBridge} so
- * the read and write native surfaces stay independent.
+ * FFM bridge for the Parquet read codec: binds the forward-only column-cursor downcalls exported by
+ * the native library. Kept separate from the write-path {@code RustBridge} so the read and write
+ * native surfaces stay independent. The cursor is column-oriented rather than doc-values specific,
+ * so later codec parts (binary/keyword columns, a doc-values skipper) bind their downcalls here too.
  */
-public final class ParquetDocValuesBridge {
+public final class ParquetCodecBridge {
 
     private static final MethodHandle OPEN_CURSOR;
     private static final MethodHandle CLOSE_CURSOR;
@@ -128,5 +129,5 @@ public final class ParquetDocValuesBridge {
         }
     }
 
-    private ParquetDocValuesBridge() {}
+    private ParquetCodecBridge() {}
 }
