@@ -271,6 +271,214 @@ public class AggregationResponseBuilderTests extends OpenSearchTestCase {
         assertEquals("avg must reflect filtered documents (200.0, not unfiltered 300.0)", 200.0, avgResult.getValue(), 0.001);
     }
 
+    /**
+     * Reproduces the unsized-render-path defect: a {@code terms} aggregation nested inside a
+     * {@code filter} aggregation must receive buckets through the sized path. The filter's
+     * zero-field grouping must not block the metadata builder from recognising the terms plan
+     * as bounded.
+     *
+     * <p>Feeds mock rows to BOTH plans (filter bucket + terms sub-agg) and asserts the terms
+     * buckets are correct.
+     *
+     * <p>Note: the golden fixture {@code terms_nested_in_filter.json} is {@code planShapeOnly}
+     * because its multi-plan structure prevents a single mock-row array from covering all plans.
+     * This test and {@link #testTermsNestedInFilterSizeTruncation()} cover the response path.
+     */
+    public void testTermsNestedInFilterResponsePath() throws Exception {
+        org.apache.calcite.schema.SchemaPlus schema = org.apache.calcite.jdbc.CalciteSchema.createRootSchema(true).plus();
+        schema.add("test-index", new org.apache.calcite.schema.impl.AbstractTable() {
+            @Override
+            public org.apache.calcite.rel.type.RelDataType getRowType(org.apache.calcite.rel.type.RelDataTypeFactory tf) {
+                return tf.builder()
+                    .add("category", tf.createTypeWithNullability(tf.createSqlType(org.apache.calcite.sql.type.SqlTypeName.VARCHAR), true))
+                    .add("status", tf.createTypeWithNullability(tf.createSqlType(org.apache.calcite.sql.type.SqlTypeName.VARCHAR), true))
+                    .build();
+            }
+        });
+
+        org.opensearch.dsl.converter.SearchSourceConverter converter = new org.opensearch.dsl.converter.SearchSourceConverter(
+            schema,
+            org.opensearch.dsl.golden.TestMapperServices.fromSqlMapping(java.util.Map.of("category", "VARCHAR"))
+        );
+
+        // filter(status=active) with terms(category) sub-agg — produces TWO aggregation plans:
+        // one for the filter bucket, one for the terms sub-aggregation.
+        org.opensearch.search.builder.SearchSourceBuilder source = new org.opensearch.search.builder.SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "active_only",
+                    new org.opensearch.index.query.TermQueryBuilder("status", "active")
+                ).subAggregation(new org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder("by_cat").field("category"))
+            );
+
+        org.opensearch.dsl.executor.QueryPlans plans = converter.convert(source, "test-index");
+        List<org.opensearch.dsl.executor.QueryPlans.QueryPlan> aggPlans = plans.get(
+            org.opensearch.dsl.executor.QueryPlans.Type.AGGREGATION
+        );
+        assertEquals("filter+terms produces exactly two aggregation plans", 2, aggPlans.size());
+
+        // Assert that the child terms plan carries the ancestor filter predicate (status=active).
+        // This makes the test falsifiable: deleting the production ancestor-filter injection
+        // will cause this assertion to fail.
+        String childPlan = aggPlans.get(1).relNode().explain();
+        assertTrue(
+            "child terms plan must carry the ancestor filter predicate: " + childPlan,
+            childPlan.contains("$1") && childPlan.contains("active")
+        );
+
+        // Identify which plan is the filter bucket plan and which is the terms plan by
+        // inspecting their metadata's agg name path.
+        List<ExecutionResult> results = new java.util.ArrayList<>();
+        for (org.opensearch.dsl.executor.QueryPlans.QueryPlan plan : aggPlans) {
+            List<String> path = plan.aggregationMetadata().getAggNamePath();
+            if (path.size() == 1 && path.get(0).equals("active_only")) {
+                // Filter bucket plan: returns _count = 4 (4 active docs)
+                results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { 4L })));
+            } else if (path.size() == 2 && path.get(1).equals("by_cat")) {
+                // Terms sub-agg plan: 2 buckets within the filter scope
+                // Fields: category (group key), _count, with parent eligible riding along
+                List<Object[]> termsRows = new java.util.ArrayList<>();
+                termsRows.add(new Object[] { "electronics", 3L, 4L });
+                termsRows.add(new Object[] { "books", 1L, 4L });
+                results.add(new ExecutionResult(plan, termsRows));
+            }
+        }
+        assertEquals("Both plans must have results", 2, results.size());
+
+        // Add the COUNT plan to provide hits.total
+        for (org.opensearch.dsl.executor.QueryPlans.QueryPlan countPlan : plans.get(org.opensearch.dsl.executor.QueryPlans.Type.COUNT)) {
+            List<String> fields = countPlan.relNode().getRowType().getFieldNames();
+            Object[] row = new Object[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                row[i] = 10L;
+            }
+            results.add(new ExecutionResult(countPlan, List.<Object[]>of(row)));
+        }
+
+        org.opensearch.action.search.SearchRequest searchRequest = new org.opensearch.action.search.SearchRequest("test-index");
+        searchRequest.source(source);
+        org.opensearch.action.search.SearchResponse response = SearchResponseBuilder.build(
+            results,
+            searchRequest,
+            converter.getAggregationRegistry(),
+            0L
+        );
+
+        // Verify filter bucket
+        org.opensearch.search.aggregations.bucket.filter.InternalFilter filterResult = response.getAggregations().get("active_only");
+        assertNotNull("filter aggregation must be present", filterResult);
+        assertEquals("filter doc_count must be 4", 4, filterResult.getDocCount());
+
+        // Verify terms sub-aggregation buckets
+        org.opensearch.search.aggregations.bucket.terms.StringTerms termsResult = filterResult.getAggregations().get("by_cat");
+        assertNotNull("terms sub-aggregation must be present", termsResult);
+        assertEquals("terms must have 2 buckets", 2, termsResult.getBuckets().size());
+        assertEquals("electronics", termsResult.getBuckets().get(0).getKeyAsString());
+        assertEquals(3, termsResult.getBuckets().get(0).getDocCount());
+        assertEquals("books", termsResult.getBuckets().get(1).getKeyAsString());
+        assertEquals(1, termsResult.getBuckets().get(1).getDocCount());
+    }
+
+    /**
+     * Proves the bounded-plan path actually enforces the {@code size} limit: a nested terms
+     * with {@code size=2} receiving 3 distinct values must truncate to the top 2 buckets.
+     */
+    public void testTermsNestedInFilterSizeTruncation() throws Exception {
+        org.apache.calcite.schema.SchemaPlus schema = org.apache.calcite.jdbc.CalciteSchema.createRootSchema(true).plus();
+        schema.add("test-index", new org.apache.calcite.schema.impl.AbstractTable() {
+            @Override
+            public org.apache.calcite.rel.type.RelDataType getRowType(org.apache.calcite.rel.type.RelDataTypeFactory tf) {
+                return tf.builder()
+                    .add("category", tf.createTypeWithNullability(tf.createSqlType(org.apache.calcite.sql.type.SqlTypeName.VARCHAR), true))
+                    .add("status", tf.createTypeWithNullability(tf.createSqlType(org.apache.calcite.sql.type.SqlTypeName.VARCHAR), true))
+                    .build();
+            }
+        });
+
+        org.opensearch.dsl.converter.SearchSourceConverter converter = new org.opensearch.dsl.converter.SearchSourceConverter(
+            schema,
+            org.opensearch.dsl.golden.TestMapperServices.fromSqlMapping(java.util.Map.of("category", "VARCHAR"))
+        );
+
+        // filter(status=active) with terms(category, size=2) — 3 distinct values, only top 2 should survive
+        org.opensearch.search.builder.SearchSourceBuilder source = new org.opensearch.search.builder.SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "active_only",
+                    new org.opensearch.index.query.TermQueryBuilder("status", "active")
+                ).subAggregation(
+                    new org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder("by_cat").field("category").size(2)
+                )
+            );
+
+        org.opensearch.dsl.executor.QueryPlans plans = converter.convert(source, "test-index");
+        List<org.opensearch.dsl.executor.QueryPlans.QueryPlan> aggPlans = plans.get(
+            org.opensearch.dsl.executor.QueryPlans.Type.AGGREGATION
+        );
+        assertEquals("filter+terms produces exactly two aggregation plans", 2, aggPlans.size());
+
+        // Assert that the child terms plan carries the ancestor filter predicate (status=active).
+        // This makes the test falsifiable: deleting the production ancestor-filter injection
+        // will cause this assertion to fail.
+        String childPlan = aggPlans.get(1).relNode().explain();
+        assertTrue(
+            "child terms plan must carry the ancestor filter predicate: " + childPlan,
+            childPlan.contains("$1") && childPlan.contains("active")
+        );
+
+        List<ExecutionResult> results = new java.util.ArrayList<>();
+        for (org.opensearch.dsl.executor.QueryPlans.QueryPlan plan : aggPlans) {
+            List<String> path = plan.aggregationMetadata().getAggNamePath();
+            if (path.size() == 1 && path.get(0).equals("active_only")) {
+                // Filter bucket plan: 6 active docs
+                results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { 6L })));
+            } else if (path.size() == 2 && path.get(1).equals("by_cat")) {
+                // Terms sub-agg: 3 categories, only top 2 by count should appear in output
+                // The plan has a LIMIT 2, so the engine only returns 2 rows — but we supply
+                // exactly 2 to simulate the engine-enforced limit. The eligible count (6) tells
+                // the response builder there were more docs than the 2 buckets account for.
+                List<Object[]> termsRows = new java.util.ArrayList<>();
+                termsRows.add(new Object[] { "electronics", 3L });
+                termsRows.add(new Object[] { "clothing", 2L });
+                results.add(new ExecutionResult(plan, termsRows));
+            }
+        }
+        assertEquals("Both plans must have results", 2, results.size());
+
+        // COUNT plan with eligible doc count
+        for (org.opensearch.dsl.executor.QueryPlans.QueryPlan countPlan : plans.get(org.opensearch.dsl.executor.QueryPlans.Type.COUNT)) {
+            List<String> fields = countPlan.relNode().getRowType().getFieldNames();
+            Object[] row = new Object[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                row[i] = 6L;
+            }
+            results.add(new ExecutionResult(countPlan, List.<Object[]>of(row)));
+        }
+
+        org.opensearch.action.search.SearchRequest searchRequest = new org.opensearch.action.search.SearchRequest("test-index");
+        searchRequest.source(source);
+        org.opensearch.action.search.SearchResponse response = SearchResponseBuilder.build(
+            results,
+            searchRequest,
+            converter.getAggregationRegistry(),
+            0L
+        );
+
+        org.opensearch.search.aggregations.bucket.filter.InternalFilter filterResult = response.getAggregations().get("active_only");
+        assertNotNull("filter aggregation must be present", filterResult);
+        assertEquals("filter doc_count must be 6", 6, filterResult.getDocCount());
+
+        org.opensearch.search.aggregations.bucket.terms.StringTerms termsResult = filterResult.getAggregations().get("by_cat");
+        assertNotNull("terms sub-aggregation must be present", termsResult);
+        assertEquals("size=2 must truncate to exactly 2 buckets", 2, termsResult.getBuckets().size());
+        assertEquals("electronics", termsResult.getBuckets().get(0).getKeyAsString());
+        assertEquals(3, termsResult.getBuckets().get(0).getDocCount());
+        assertEquals("clothing", termsResult.getBuckets().get(1).getKeyAsString());
+        assertEquals(2, termsResult.getBuckets().get(1).getDocCount());
+        // sum_other_doc_count = eligible(6) - sum_of_returned_buckets(3+2) = 1
+        assertEquals("sum_other_doc_count must reflect truncated bucket", 1, termsResult.getSumOfOtherDocCounts());
+    }
+
     private org.opensearch.dsl.aggregation.AggregationMetadata createFilterAggMetadata() {
         return new org.opensearch.dsl.aggregation.AggregationMetadata(
             List.of("active_only"),
@@ -297,7 +505,8 @@ public class AggregationResponseBuilderTests extends OpenSearchTestCase {
             null,
             null,
             java.util.Map.of(),
-            null
+            null,
+            List.of()
         );
     }
 }

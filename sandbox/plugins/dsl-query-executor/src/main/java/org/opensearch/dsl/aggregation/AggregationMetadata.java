@@ -47,6 +47,7 @@ public class AggregationMetadata {
     private final Long havingMinDocCount;
     private final Map<String, Object> missingValues;
     private final QueryBuilder filterQuery;
+    private final List<AggregationMetadataBuilder.AncestorFilter> ancestorFilters;
 
     /**
      * Creates aggregation metadata.
@@ -65,6 +66,9 @@ public class AggregationMetadata {
      *        for none
      * @param missingValues null-substitution value per group field ({@code missing} parameter);
      *        fields absent from the map get an {@code IS NOT NULL} filter instead
+     * @param filterQuery the defining aggregation's own filter query, or null
+     * @param ancestorFilters filter predicates from enclosing ancestor bucket aggregations;
+     *        accumulated so descendant plans compute over only the filtered document set
      */
     public AggregationMetadata(
         List<String> aggNamePath,
@@ -77,7 +81,8 @@ public class AggregationMetadata {
         Integer perParentFetch,
         Long havingMinDocCount,
         Map<String, Object> missingValues,
-        QueryBuilder filterQuery
+        QueryBuilder filterQuery,
+        List<AggregationMetadataBuilder.AncestorFilter> ancestorFilters
     ) {
         this.aggNamePath = List.copyOf(aggNamePath);
         this.groupByBitSet = groupByBitSet;
@@ -90,6 +95,7 @@ public class AggregationMetadata {
         this.havingMinDocCount = havingMinDocCount;
         this.missingValues = Map.copyOf(missingValues);
         this.filterQuery = filterQuery;
+        this.ancestorFilters = List.copyOf(ancestorFilters);
     }
 
     /**
@@ -197,5 +203,14 @@ public class AggregationMetadata {
     /** Returns the per-aggregation filter query, or empty when no predicate applies. */
     public Optional<QueryBuilder> getFilterQuery() {
         return Optional.ofNullable(filterQuery);
+    }
+
+    /**
+     * Returns the accumulated ancestor filter predicates from enclosing bucket aggregations.
+     * Descendant plans must conjoin these with any own filter to compute over only the
+     * ancestor-filtered document set. Empty when no ancestor carries a filter.
+     */
+    public List<AggregationMetadataBuilder.AncestorFilter> getAncestorFilters() {
+        return ancestorFilters;
     }
 }

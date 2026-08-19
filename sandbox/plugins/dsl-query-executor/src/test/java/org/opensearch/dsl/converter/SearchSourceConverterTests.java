@@ -468,6 +468,205 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertTrue("plan must contain LogicalAggregate: " + plan, plan.contains("LogicalAggregate"));
     }
 
+    // ---- Ancestor filter propagation tests ----
+    // These verify that a filter aggregation's predicate propagates to nested bucket
+    // sub-aggregations — not just metric children.
+
+    public void testFilterWithNestedTermsChildPropagatesFilter() throws ConversionException {
+        // A filter(term: brand=BrandA) with a nested terms(field: name) child must produce a
+        // child plan whose input carries the filter predicate. Without propagation, the child
+        // would aggregate over the full corpus instead of only filtered documents.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name"))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals("filter + nested terms must produce 2 plans", 2, aggPlans.size());
+
+        // The child plan (by_name) must contain the ancestor filter predicate
+        String childPlan = aggPlans.get(1).relNode().explain();
+        assertTrue(
+            "child terms plan must carry the ancestor filter predicate: " + childPlan,
+            childPlan.contains("$2") && childPlan.contains("BrandA")
+        );
+    }
+
+    public void testFilterWithSizedTermsChildPropagatesFilterWithTruncation() throws ConversionException {
+        // A filter(term: brand=BrandA) with terms(field: name, size: 2) — the bounded child
+        // must both carry the ancestor filter AND apply its own top-K truncation.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name").size(2))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals("filter + nested sized terms must produce 2 plans", 2, aggPlans.size());
+
+        String childPlan = aggPlans.get(1).relNode().explain();
+        assertTrue("child plan must carry the ancestor filter: " + childPlan, childPlan.contains("$2") && childPlan.contains("BrandA"));
+        assertTrue("child plan must carry its own top-K truncation: " + childPlan, childPlan.contains("fetch=[2]"));
+    }
+
+    public void testNestedFilterInsideFilterConjoinsPredicates() throws ConversionException {
+        // filter(term: brand=BrandA) → filter(term: name=Widget) → terms(field: rating)
+        // The leaf terms plan must carry BOTH ancestor predicates conjoined.
+        // Uses fields in the test schema: brand(idx 2), name(idx 0), rating(idx 3)
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(
+                    new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                        "name_filter",
+                        new org.opensearch.index.query.TermQueryBuilder("name", "Widget")
+                    ).subAggregation(new TermsAggregationBuilder("by_rating").field("rating"))
+                )
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals("outer filter + inner filter + leaf terms must produce 3 plans", 3, aggPlans.size());
+
+        // The leaf plan (by_rating) must carry both predicates
+        String leafPlan = aggPlans.get(2).relNode().explain();
+        assertTrue("leaf plan must carry the outer filter (brand=BrandA): " + leafPlan, leafPlan.contains("BrandA"));
+        assertTrue("leaf plan must carry the inner filter (name=Widget): " + leafPlan, leafPlan.contains("Widget"));
+    }
+
+    public void testFilterWithBothMetricAndBucketChildPropagates() throws ConversionException {
+        // filter(term: brand=BrandA) with BOTH avg(price) and terms(name) children.
+        // Both plans must carry the filter.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new AvgAggregationBuilder("avg_price").field("price"))
+                    .subAggregation(new TermsAggregationBuilder("by_name").field("name"))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals("filter with metric+bucket children produces 2 plans", 2, aggPlans.size());
+
+        // The filter's own plan (brand_filter) carries the metric and must have the filter
+        String parentPlan = aggPlans.get(0).relNode().explain();
+        assertTrue(
+            "parent plan (metric child rides here) must carry the filter: " + parentPlan,
+            parentPlan.contains("$2") && parentPlan.contains("BrandA")
+        );
+
+        // The child bucket plan (by_name) must also carry the ancestor filter
+        String childPlan = aggPlans.get(1).relNode().explain();
+        assertTrue(
+            "child bucket plan must carry the ancestor filter: " + childPlan,
+            childPlan.contains("$2") && childPlan.contains("BrandA")
+        );
+    }
+
+    public void testUntranslatableAncestorFilterNamesOffendingAggregation() {
+        // An untranslatable filter in an ANCESTOR must report that ancestor's aggregation name,
+        // not the child's, so operators can locate the unsupported query.
+        org.opensearch.index.query.WildcardQueryBuilder unsupportedQuery = new org.opensearch.index.query.WildcardQueryBuilder(
+            "brand",
+            "Brand*"
+        );
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("bad_ancestor", unsupportedQuery).subAggregation(
+                    new TermsAggregationBuilder("by_name").field("name")
+                )
+            );
+
+        ConversionException e = expectThrows(ConversionException.class, () -> converter.convert(source, "test-index"));
+        assertTrue("error must name the ancestor aggregation 'bad_ancestor': " + e.getMessage(), e.getMessage().contains("bad_ancestor"));
+        assertTrue("error must mention 'unsupported query type': " + e.getMessage(), e.getMessage().contains("unsupported query type"));
+    }
+
+    public void testFilterMatchAllWithTermsChildNoSpuriousFilter() throws ConversionException {
+        // filter(match_all) with terms(name): the child must NOT have a spurious filter injected.
+        // match_all translates to a literal TRUE which Calcite simplifies away, so the plan
+        // must look identical to a bare terms(name) without any enclosing filter.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "all_filter",
+                    new org.opensearch.index.query.MatchAllQueryBuilder()
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name"))
+            );
+
+        // Bare terms(name) for comparison
+        SearchSourceBuilder bareSource = new SearchSourceBuilder().size(0)
+            .aggregation(new TermsAggregationBuilder("by_name").field("name"));
+
+        QueryPlans plansWithFilter = converter.convert(source, "test-index");
+        QueryPlans barePlans = converter.convert(bareSource, "test-index");
+
+        List<QueryPlans.QueryPlan> filteredAggPlans = plansWithFilter.get(QueryPlans.Type.AGGREGATION);
+        assertEquals(2, filteredAggPlans.size());
+
+        // The child plan under match_all filter should have the same null-exclusion filter
+        // as a bare terms — no additional predicate injected by the ancestor.
+        String childPlan = filteredAggPlans.get(1).relNode().explain();
+        String barePlan = barePlans.get(QueryPlans.Type.AGGREGATION).get(0).relNode().explain();
+        // Both must have IS NOT NULL for name field (column 0) - standard terms behavior
+        assertTrue("child must null-filter: " + childPlan, childPlan.contains("IS NOT NULL($0)"));
+        assertTrue("bare must null-filter: " + barePlan, barePlan.contains("IS NOT NULL($0)"));
+        // The child must NOT have any extra filter beyond the null-exclusion
+        assertEquals(
+            "match_all ancestor must not inject a spurious predicate — filter count must match bare terms",
+            barePlan.split("LogicalFilter").length,
+            childPlan.split("LogicalFilter").length
+        );
+    }
+
+    // ---- Eligible-doc count (sum_other_doc_count) scoping under filter parents ----
+
+    public void testFilterWithSizedTermsChildEligibleCountCarriesAncestorFilter() throws ConversionException {
+        // A filter(term: brand=BrandA) with terms(field: name, size: 2): the eligible-doc count
+        // plan for by_name must be filtered to only documents matching brand=BrandA. Without this,
+        // sum_other_doc_count = eligibleDocCount - returnedDocCount would use the full corpus
+        // count instead of the filtered count, yielding a value that exceeds the parent's
+        // doc_count (the defect observed in live cluster testing: 8 - 3 = 5, when the filtered
+        // parent only has 3 eligible docs).
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name").size(2))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+
+        // The child terms is bounded (size=2) so it needs an eligible-doc count plan.
+        List<QueryPlans.QueryPlan> countPlans = plans.get(QueryPlans.Type.COUNT);
+        assertFalse("must have at least one COUNT plan", countPlans.isEmpty());
+
+        // Find the count plan carrying the eligible column for "by_name"
+        String eligibleColumn = QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_name";
+        QueryPlans.QueryPlan eligiblePlan = countPlans.stream()
+            .filter(p -> p.relNode().getRowType().getFieldNames().contains(eligibleColumn))
+            .findFirst()
+            .orElse(null);
+        assertNotNull("must have an eligible-count plan for by_name", eligiblePlan);
+
+        // The eligible-count plan MUST include the ancestor filter predicate (brand=BrandA)
+        // so that sum_other_doc_count is scoped to the filtered document set.
+        String plan = eligiblePlan.relNode().explain();
+        assertTrue("eligible-count plan must carry the ancestor filter predicate (brand=BrandA): " + plan, plan.contains("BrandA"));
+    }
+
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {
         String json;
         try (var builder = JsonXContent.contentBuilder()) {

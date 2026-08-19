@@ -14,6 +14,7 @@ import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
 import org.opensearch.dsl.aggregation.bucket.SizedBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 
 import java.util.ArrayList;
@@ -45,8 +46,8 @@ public class AggregationTreeWalker {
         this.registry = registry;
     }
 
-    /** One step of the accumulated nesting path: the aggregation name and its grouping. */
-    private record PathStep(String aggName, GroupingInfo grouping) {
+    /** One step of the accumulated nesting path: the aggregation name, its grouping, and an optional filter. */
+    private record PathStep(String aggName, GroupingInfo grouping, QueryBuilder filterQuery) {
     }
 
     /**
@@ -107,9 +108,10 @@ public class AggregationTreeWalker {
         RelDataType rowType
     ) throws ConversionException {
         GroupingInfo grouping = translator.getGrouping(aggBuilder);
+        QueryBuilder stepFilter = translator.getFilterQuery(aggBuilder).orElse(null);
 
         List<PathStep> accumulatedPath = new ArrayList<>(currentPath);
-        accumulatedPath.add(new PathStep(aggBuilder.getName(), grouping));
+        accumulatedPath.add(new PathStep(aggBuilder.getName(), grouping, stepFilter));
 
         // Every bucket aggregation defines its own plan; sibling names are unique by DSL
         // contract, so the path key cannot collide with another plan's.
@@ -151,6 +153,11 @@ public class AggregationTreeWalker {
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder(aggNamePath);
         for (PathStep step : path) {
             builder.addGrouping(step.grouping());
+            // Ancestor filter predicates must propagate to descendant plans so that nested
+            // bucket sub-aggregations compute over only the ancestor-filtered documents.
+            if (step.filterQuery() != null) {
+                builder.addAncestorFilter(step.aggName(), step.filterQuery());
+            }
         }
         if (!path.isEmpty()) {
             builder.requestImplicitCount();
