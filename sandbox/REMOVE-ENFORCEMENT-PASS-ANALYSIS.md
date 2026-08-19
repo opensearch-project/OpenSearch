@@ -318,9 +318,41 @@ So the rule remains unable to replace the pass, and the 3 forced `buildReducer` 
 - ~~1. traits authoritative~~ **DONE** — 5 forced/1 gated → 3/3
 - ~~3a. widen the rule's placement predicates~~ **DONE**
 - ~~3b-i. move the sub-toggle into matches()~~ **DONE**
-- **2'. express the size floor as COST, not a veto** — prerequisite for the floor leaving the pass, and
-  independently the right model (supersedes "move min_rows into matches()").
+- **2'. express the size floor as COST — INVALIDATED, see below.**
 - **3b-ii. why does claiming the SINGLE alternative cost 49 extra failures?** — needs investigation before
   `splitAggregate` can be retired.
 - 4. N-ary shuffle transport.
 - 5. Reduce-stage shuffle production.
+
+
+---
+
+## STEP 2' IS INVALIDATED — cost cannot replace the size floor (measured)
+
+I recommended expressing `min_rows` as cost rather than a veto, on the premise that "with
+`inputRows/parallelism` on the join, a small aggregate/join is already not worth distributing on cost
+alone". **That premise is false.** Verified two ways.
+
+Arithmetic — the model has no per-STAGE cost, only per-exchange setup:
+```
+distributing swaps 2 ERs (2 * SETUP_COST 25 = 50 setup)
+           for    2 shuffles + 1 ER (2 * 15 + 25 = 55 setup)
+=> only +5 fixed cost, while the join term drops from rows/1 to rows/N
+```
+The parallelism divisor dominates that +5 at EVERY row count. Computed coord-vs-distributed at 100 /
+1,000 / 100,000 / 10,000,000 rows: **distributed wins all four.**
+
+Empirical — neutralized the floor (`aboveFloor = true`) and ran the suite:
+`testEnforcementPass_smallJoinBelowFloorStaysCoordCentric` **FAILS** (26 tests, 3 failed vs baseline 2).
+That test builds three 1,000-row tables with `minRows = 1_000_000` and asserts NO shuffle. So the floor
+is the only thing suppressing distribution of a 1,000-row join; cost alone distributes it. Reverted.
+
+**Conclusion: `min_rows` is load-bearing, not redundant.** Making it a cost term requires FIRST adding a
+per-stage cost the model does not have — task dispatch, RPC round-trips, native session setup per
+fragment — large relative to small row counts. That is a real modelling gap and the honest prerequisite;
+`min_rows` is currently a crude proxy for it.
+
+Revised recommendation: do NOT try to delete the floor. Either leave it in the pass, or (if it must move)
+plumb a `PlannerContext` override so a rule can read a test-lowered value the way the pass reads its
+explicit parameter. Adding a per-stage cost term is the principled fix but is its own project, and it
+would change every strategy decision — it needs the TPC-H sweep as a guard, not just unit tests.
