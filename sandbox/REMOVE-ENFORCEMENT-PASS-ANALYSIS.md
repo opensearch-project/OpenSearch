@@ -43,7 +43,48 @@ purely to undo the peel in step 1).
 This is the strongest argument for removal: a large fraction of the pass is not distribution logic at
 all, it is compensation for operating on a tree whose traits are stale.
 
-### MEASURED: under top-down the traits are ALREADY authoritative
+### CORRECTION — measured properly, the traits are NOT authoritative (my first probe was too narrow)
+
+My initial claim here ("traits are already authoritative, only 1 disagreement") was WRONG: I had
+instrumented only `gatherIfNeeded`. Widening the probe to every forced-gather site across the FULL suite
+gives **8 disagreements, and they point BOTH ways**:
+
+```
+3x  site=gatherSinkingProjects rel=OpenSearchJoin tracked=HASH[0](WORKER:p=3) onTrait=SINGLETON(COORDINATOR)
+1x  site=gatherIfNeeded        rel=OpenSearchJoin tracked=SINGLETON(COORDINATOR) onTrait=HASH[0](WORKER:p=3)
+```
+(counts after de-duplicating the stderr echo)
+
+The 3 `gatherSinkingProjects` cases are the code's documented failure mode exactly: tracked HASH(WORKER)
+but the trait still says COORDINATOR — i.e. **genuinely stale**. Verified by experiment, not inspection:
+
+| change | failures |
+|---|---|
+| baseline | 10 |
+| trust the trait in `gatherIfNeeded` only | **10** (safe) |
+| ALSO trust it in `sinkReducerBelowProjects` | **12** (breaks) |
+
+So step 1 is NOT a mechanical deletion. Reverted the second half; back to 10.
+
+### THE COUPLING that makes step 1 unsafe in isolation
+
+`DistributionEnforcementPass.java:464-467` **depends on the staleness working in its favour**:
+
+> "For a join input whose child is a lower distributed join the child's traitSet still carries the CBO
+> coordSingleton trait (the pass tracks the derived HASH only in Visited), so buildEnforcer sees
+> from=coordSingleton ⊭ HASH and inserts the inter-tier shuffle."
+
+That is the tier-boundary shuffle (step 4) riding on a bug. Making traits authoritative would make
+`satisfies()` return true and SKIP the inter-tier shuffle — silently collapsing the cascade. So:
+
+**Step 1 and the `isTierBoundary` blocker are COUPLED and must be fixed together.** The prerequisite is
+making the distribution trait TIER-AWARE so a lower join's `HASH(k,N)` does not satisfy a parent's
+`HASH(k,N)` demand across a stage boundary (Presto models this with partitioning handles). Until then,
+"trust the trait" removes the very inequality the cascade relies on.
+
+Revised: the honest first step is **tier-aware `satisfies()`**, not "delete the workarounds".
+
+### (superseded) earlier claim: under top-down the traits are ALREADY authoritative
 
 Instrumented `gatherIfNeeded` to compare the pass's separately-tracked distribution against the trait
 actually on the rel, across the whole `CascadeShuffleProbeTests` suite (26 tests). Result: **exactly one
