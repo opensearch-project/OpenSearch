@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.docvaluescodec.bridge;
+package org.opensearch.parquet.codec.bridge;
 
 import java.io.IOException;
 
