@@ -72,6 +72,20 @@ pub fn resolve_predicate_parquet_columns_pair(
 
 /// Resolve predicate column names → parquet leaf indices against a specific arrow
 /// schema, via the same `StatisticsConverter` mapping DataFusion's pruner uses.
+///
+/// Nested (e.g. `List`) columns need their own arm: `StatisticsConverter` delegates to
+/// arrow-rs `parquet_column`, which **silently returns `None` for any nested field**
+/// ("Nested fields are not supported and require non-trivial logic"). Dropping the name
+/// here would leave a *referenced* nested column with only a placeholder OffsetIndex,
+/// and no single-page placeholder can describe a repeated leaf — pages of a repeated
+/// leaf hold VALUES while `first_row_index` is defined in ROWS, so the reader derives
+/// the wrong byte range ("Src size is incorrect" / "StructArrayReader out of sync in
+/// read_records"). For nested fields we therefore map the arrow root to ALL parquet
+/// leaves under that root — the same root-positional correspondence `parquet_column`
+/// itself uses for the flat case, and sound here because `arrow_schema` is derived from
+/// this file's own footer (`parquet_to_arrow_schema`), giving 1:1 field↔root order.
+/// Unreferenced nested columns still get placeholders, which is fine: a placeholder is
+/// only ever dereferenced for columns a read actually touches.
 pub(super) fn resolve_with_schema(
     arrow_schema: &SchemaRef,
     metadata: &ParquetMetaData,
@@ -80,6 +94,16 @@ pub(super) fn resolve_with_schema(
     let parquet_schema = metadata.file_metadata().schema_descr();
     let mut set = HashSet::new();
     for name in predicate_column_names {
+        if let Some((root_idx, field)) = arrow_schema.fields().find(name) {
+            if field.data_type().is_nested() {
+                for leaf in 0..parquet_schema.num_columns() {
+                    if parquet_schema.get_column_root_idx(leaf) == root_idx {
+                        set.insert(leaf);
+                    }
+                }
+                continue;
+            }
+        }
         if let Ok(conv) = StatisticsConverter::try_new(name, arrow_schema, parquet_schema) {
             if let Some(idx) = conv.parquet_column_index() {
                 set.insert(idx);
@@ -87,4 +111,91 @@ pub(super) fn resolve_with_schema(
         }
     }
     set.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{ArrayRef, Int64Array, ListArray, RecordBatch, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    use parquet::arrow::ArrowWriter;
+
+    /// id (flat, leaf 0), tags = List<Utf8> (repeated, leaf 1: tags.list.element),
+    /// score (flat, leaf 2). The nested column shifts nothing here (one leaf per root),
+    /// but names must resolve through the nested arm, which StatisticsConverter refuses.
+    fn file_with_list_column() -> (tempfile::TempDir, ParquetMetaData, SchemaRef) {
+        let child = Arc::new(Field::new("element", DataType::Utf8, true));
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("tags", DataType::List(child.clone()), true),
+            Field::new("score", DataType::Int64, true),
+        ]));
+        let values = StringArray::from(vec![Some("a"), Some("b"), Some("c")]);
+        let offsets = arrow::buffer::OffsetBuffer::new(vec![0, 2, 3].into());
+        let list = ListArray::new(child, offsets, Arc::new(values), None);
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(Int64Array::from(vec![1, 2])) as ArrayRef,
+                Arc::new(list) as ArrayRef,
+                Arc::new(Int64Array::from(vec![10, 20])) as ArrayRef,
+            ],
+        )
+        .unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.parquet");
+        let f = std::fs::File::create(&path).unwrap();
+        let mut w = ArrowWriter::try_new(f, schema.clone(), None).unwrap();
+        w.write(&batch).unwrap();
+        w.close().unwrap();
+
+        let meta = ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(&path).unwrap())
+            .unwrap()
+            .metadata()
+            .as_ref()
+            .clone();
+        (dir, meta, schema)
+    }
+
+    #[test]
+    fn nested_column_resolves_to_its_leaves() {
+        let (_dir, meta, schema) = file_with_list_column();
+        let mut got = resolve_with_schema(&schema, &meta, &["tags".to_string()]);
+        got.sort_unstable();
+        // tags is arrow root 1; its single parquet leaf is index 1 (tags.list.element).
+        assert_eq!(got, vec![1], "nested column must map to its real leaves");
+    }
+
+    #[test]
+    fn flat_columns_unchanged_by_nested_arm() {
+        let (_dir, meta, schema) = file_with_list_column();
+        let mut got = resolve_with_schema(
+            &schema,
+            &meta,
+            &["id".to_string(), "score".to_string()],
+        );
+        got.sort_unstable();
+        assert_eq!(got, vec![0, 2]);
+    }
+
+    #[test]
+    fn mixed_flat_and_nested_names() {
+        let (_dir, meta, schema) = file_with_list_column();
+        let mut got = resolve_with_schema(
+            &schema,
+            &meta,
+            &["tags".to_string(), "score".to_string()],
+        );
+        got.sort_unstable();
+        assert_eq!(got, vec![1, 2]);
+    }
+
+    #[test]
+    fn unknown_name_is_skipped() {
+        let (_dir, meta, schema) = file_with_list_column();
+        let got = resolve_with_schema(&schema, &meta, &["does_not_exist".to_string()]);
+        assert!(got.is_empty());
+    }
 }

@@ -203,6 +203,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        // Multi-valued-field equality: the PPL frontend rewrites `=` on an ARRAY column to
+        // ARRAY_CONTAINS; DataFusion's native name is array_has (element equality, not regex).
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_CONTAINS, "array_has"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
         FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),

@@ -385,6 +385,13 @@ public enum ScalarFunction {
      */
     ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * Calcite's {@code ARRAY_CONTAINS(array, element)} — true when any element of the array
+     * equals the value. Emitted by the PPL frontend for {@code =} on a multi-valued
+     * ({@code multi_value: true}) field, mirroring Lucene's term-match semantics. Lowers to
+     * DataFusion's {@code array_has}.
+     */
+    ARRAY_CONTAINS(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     /**

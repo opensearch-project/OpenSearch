@@ -591,7 +591,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             @Override
             public Set<ScanCapability> scanCapabilities() {
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
-                return Set.of(new ScanCapability.DocValues(formats, Set.copyOf(SUPPORTED_FIELD_TYPES)));
+                // ARRAY is scannable even though it is absent from SUPPORTED_FIELD_TYPES (which
+                // gates filter/sort/aggregate, where array semantics are undefined). A field
+                // mapped with `multi_value: true` is a real LIST column on disk, and
+                // OpenSearchTableScanRule requires the scan backend to cover every column in the
+                // row type — without this, one multi-valued column would disqualify DataFusion
+                // from scanning the whole index.
+                Set<FieldType> scanTypes = new HashSet<>(SUPPORTED_FIELD_TYPES);
+                scanTypes.add(FieldType.ARRAY);
+                return Set.of(new ScanCapability.DocValues(formats, Set.copyOf(scanTypes)));
             }
 
             @Override
@@ -612,7 +620,20 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     // predicate against a MAP column is forced through an ITEM lookup that
                     // emits a value-typed scalar before substrait emission.
                     caps.add(new FilterCapability.Standard(op, Set.of(FieldType.MAP), formats));
+                    // Same reasoning for ARRAY (multi_value fields): predicates over an ARRAY
+                    // column reach the comparison through an element-typed scalar — either the
+                    // ARRAY_CONTAINS rewrite of `=`, or functions like mvfind/array_length whose
+                    // return is scalar (`mvfind(tags,'x') >= 0`). The filter rule's per-field
+                    // capability check sees the underlying ARRAY column, so without this the
+                    // outer comparison is rejected before the scalar-producing call is considered.
+                    caps.add(new FilterCapability.Standard(op, Set.of(FieldType.ARRAY), formats));
                 }
+                // Contains-filter over a multi_value (ARRAY-typed) column: the PPL frontend
+                // rewrites `tags = 'x'` to ARRAY_CONTAINS(tags, 'x') (and `!=` to
+                // NOT(ARRAY_CONTAINS(...))), matching Lucene's term semantics on multi-valued
+                // fields. DataFusion executes it natively as array_has.
+                caps.add(new FilterCapability.Standard(ScalarFunction.ARRAY_CONTAINS, Set.of(FieldType.ARRAY), formats));
+                caps.add(new FilterCapability.Standard(ScalarFunction.NOT, Set.of(FieldType.ARRAY), formats));
                 return Set.copyOf(caps);
             }
 

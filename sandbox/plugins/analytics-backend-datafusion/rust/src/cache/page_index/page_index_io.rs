@@ -344,6 +344,17 @@ async fn get_or_build_offset_index(
     // placeholder is always safe to dereference and makes pruning conservatively
     // keep the whole RG (1 page = all rows → can't prune), never a wrong result.
     //
+    // NOTE on nested (repeated) leaves: a placeholder can NEVER validly describe one —
+    // `first_row_index` is defined in ROWS and pages must begin on row boundaries
+    // (repetition_level = 0), but a repeated leaf's pages hold VALUES, and rows != values.
+    // The row→value mapping a correct entry would need is exactly the information the real
+    // page index carries (a `data_page_offset()`-based variant was tried; it fails
+    // end-to-end). Placeholders on nested leaves are therefore safe ONLY while the column
+    // is never read, which `column_schema_resolver::resolve_with_schema` guarantees by
+    // mapping every *referenced* nested column to its real leaves (arrow-rs's
+    // `parquet_column` silently drops nested fields, which previously left referenced LIST
+    // columns placeholdered → "Src size is incorrect" / "StructArrayReader out of sync").
+    //
     // The single page MUST carry the column chunk's REAL byte offset+size, not
     // (0, 0). When a row selection actually READS a placeholdered column (e.g. a
     // `match() | sort | head` that page-selects the projected columns), arrow

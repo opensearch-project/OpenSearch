@@ -368,6 +368,13 @@ public class OpenSearchSchemaBuilder {
                 // validator rather than a planning-time IllegalArgumentException.
                 continue;
             }
+            // `multi_value: true` is a mapping parameter, so it appears directly in the field's
+            // properties: such a field is stored as a Parquet LIST column and must be typed
+            // ARRAY here or the planner would bind it as its element type. Nullable so a
+            // document without the field (a null list) matches the column type.
+            if (Boolean.TRUE.equals(fieldProps.get("multi_value"))) {
+                columnType = typeFactory.createTypeWithNullability(typeFactory.createArrayType(columnType, -1), true);
+            }
             builder.add(fieldName, columnType);
         }
     }

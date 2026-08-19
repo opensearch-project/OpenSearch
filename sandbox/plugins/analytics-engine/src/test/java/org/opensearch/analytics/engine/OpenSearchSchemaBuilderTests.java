@@ -11,11 +11,13 @@ package org.opensearch.analytics.engine;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParser;
+import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
@@ -36,6 +38,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
@@ -783,6 +786,77 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
 
         assertNull("Non-matching pattern 'nonexistent*' should resolve to no table", schema.getTable("nonexistent*"));
+    }
+
+    /**
+     * A field mapped with {@code multi_value: true} is stored as a Parquet LIST column,
+     * so the Calcite schema must type it ARRAY&lt;element&gt; rather than as its bare element type.
+     */
+    public void testMultiValueFieldIsTypedAsArray() throws Exception {
+        ClusterState clusterState = buildClusterStateWithMultiValue(
+            "test_index",
+            Map.of("tags", "keyword", "name", "keyword"),
+            List.of("tags")
+        );
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("test_index").getRowType(new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT));
+
+        RelDataType tags = rowType.getField("tags", false, false).getType();
+        assertEquals(SqlTypeName.ARRAY, tags.getSqlTypeName());
+        assertNotNull("ARRAY column must carry its component type", tags.getComponentType());
+        assertEquals(SqlTypeName.VARCHAR, tags.getComponentType().getSqlTypeName());
+        assertTrue("a document without the field reads as a null list", tags.isNullable());
+
+        // Undeclared fields keep their scalar type — no cost, no behaviour change.
+        assertEquals(SqlTypeName.VARCHAR, rowType.getField("name", false, false).getType().getSqlTypeName());
+    }
+
+    /** A declared field of a non-string type wraps its own element type, not VARCHAR. */
+    public void testMultiValueNumericFieldWrapsElementType() throws Exception {
+        ClusterState clusterState = buildClusterStateWithMultiValue("test_index", Map.of("ports", "integer"), List.of("ports"));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("test_index").getRowType(new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT));
+        RelDataType ports = rowType.getField("ports", false, false).getType();
+
+        assertEquals(SqlTypeName.ARRAY, ports.getSqlTypeName());
+        assertEquals(SqlTypeName.INTEGER, ports.getComponentType().getSqlTypeName());
+    }
+
+    /** Declaring a field that the mapping drops (unsupported type) must not invent a column. */
+    public void testMultiValueDeclarationOnUnsupportedTypeIsIgnored() throws Exception {
+        ClusterState clusterState = buildClusterStateWithMultiValue("test_index", Map.of("location", "geo_point"), List.of("location"));
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("test_index").getRowType(new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT));
+
+        assertNull("geo_point has no Calcite type and stays dropped", rowType.getField("location", false, false));
+    }
+
+    private ClusterState buildClusterStateWithMultiValue(String indexName, Map<String, String> fieldTypes, List<String> multiValueFields)
+        throws Exception {
+        Map<String, String> ordered = new LinkedHashMap<>(fieldTypes);
+        StringBuilder mappingJson = new StringBuilder("{\"properties\":{");
+        boolean first = true;
+        for (Map.Entry<String, String> field : ordered.entrySet()) {
+            if (!first) mappingJson.append(",");
+            mappingJson.append("\"").append(field.getKey()).append("\":{\"type\":\"").append(field.getValue()).append("\"");
+            if (multiValueFields.contains(field.getKey())) {
+                mappingJson.append(",\"multi_value\":true");
+            }
+            mappingJson.append("}");
+            first = false;
+        }
+        mappingJson.append("}}");
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(mappingJson.toString())
+            .build();
+        return ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
     }
 
     private ClusterState buildClusterState(Map<String, Map<String, String>> indices) throws Exception {

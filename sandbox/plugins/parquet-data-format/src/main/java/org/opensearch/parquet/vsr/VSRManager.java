@@ -192,9 +192,9 @@ public class VSRManager implements AutoCloseable {
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
      * <p>
-     * Single-value semantics are enforced at the {@link ParquetDocumentInput} layer:
-     * if an array field produces multiple values for the same field type, only the
-     * last value is retained (last-value-wins).
+     * Cardinality is decided at the {@link ParquetDocumentInput} layer: fields mapped with
+     * {@code multi_value: true} accumulate every value into one list-valued pair,
+     * and all other fields still reject a second value.
      *
      * @param doc the document input containing field-value pairs
      */
@@ -367,8 +367,9 @@ public class VSRManager implements AutoCloseable {
         boolean changed = false;
         for (Field schemaField : newSchema.getFields()) {
             if (activeVSR.getVector(schemaField.getName()) == null) {
-                Field field = new Field(schemaField.getName(), schemaField.getFieldType(), null);
-                activeVSR.addFieldVector(field);
+                // Pass the schema field through as-is: rebuilding it from name + FieldType alone
+                // would drop getChildren(), leaving a LIST column with no element vector.
+                activeVSR.addFieldVector(schemaField);
                 changed = true;
             }
         }

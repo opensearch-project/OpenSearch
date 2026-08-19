@@ -786,6 +786,18 @@ public final class ParquetSettings {
     }
 
     /**
+     * Returns the type that encoding and compression settings apply to for a field. For a LIST
+     * column that is the element type, because Parquet encodes the leaf, not the list wrapper —
+     * validating against {@code ArrowType.List} would wrongly accept every encoding.
+     */
+    private static ArrowType elementTypeOf(Field field) {
+        if (field.getType() instanceof ArrowType.List && field.getChildren().isEmpty() == false) {
+            return field.getChildren().get(0).getType();
+        }
+        return field.getType();
+    }
+
+    /**
      * Validates that field-level configurations are compatible with their Arrow types in the schema.
      */
     public static void validateFieldConfigurations(
@@ -796,7 +808,7 @@ public final class ParquetSettings {
     ) {
         Map<String, ArrowType> arrowTypes = new HashMap<>();
         for (Field field : schema.getFields()) {
-            arrowTypes.put(field.getName(), field.getType());
+            arrowTypes.put(field.getName(), elementTypeOf(field));
         }
 
         // Validate encoding configurations
