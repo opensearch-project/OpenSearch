@@ -272,3 +272,55 @@ class earlier in this branch. Only `passThroughTraits` should start claiming the
   and 2 of the 3 remaining forced gathers.
 - 4. N-ary shuffle transport — retires step 4 no-reuse AND step 3c Variant-A.
 - 5. Reduce-stage shuffle production — retires step 3d.
+
+
+---
+
+## STEP 2+3b OUTCOME (commit `434f62c27cd`) — toggle moved; floor and SINGLE-alternative BLOCKED
+
+Attempted the combined change. Only one third of it is safe; the other two are blocked for reasons worth
+recording because both look attractive on paper.
+
+### Landed: the sub-toggle moved into the rule's `matches()`
+
+`analytics.mpp.shuffle.aggregate.enabled` now gates `OpenSearchAggregateSplitRule.matches()`, matching how
+`OpenSearchHashJoinSplitRule` gates on `MPP_ENABLED`. Full suite unchanged at 10 failures; the
+sub-toggle-off test and all of `AggregateSplitCostTests` pass. Precommit green.
+
+### BLOCKED 1: the size floor cannot move into `matches()` as-is → 82 failures
+
+`analytics.mpp.distribute.min_rows` defaults to **1,000,000**, but the plan-shape tests drive the pass with
+`minRows` as an **explicit parameter** (`DistributionEnforcementPass.enforce(..., /* minRows */ 1L, ...)`)
+and never set the cluster setting. Their `mockTable` scans carry Calcite's default ~100 rows. So a rule
+reading the SETTING sees 1,000,000, decides every aggregate is below the floor, and suppresses every split:
+**10 → 82 failures**.
+
+This is not merely a test artifact. It says the floor is currently a *caller-supplied* parameter, not a
+planner-wide policy, and ~30 tests depend on being able to lower it per-call. Moving it into a rule means
+either (a) plumbing an override into `PlannerContext` so tests can lower it the same way, or (b) doing what
+the analysis originally recommended and expressing the floor as COST rather than a veto — the join already
+credits `inputRows/parallelism`, so a 100-row aggregate is already not worth distributing on cost alone.
+(b) is the better end state and removes the setting's veto semantics entirely.
+
+### BLOCKED 2: `OpenSearchAggregate.passThroughTraits` claiming the SINGLE alternative → 59 failures
+
+Making SINGLE claim the SINGLETON alternative (so Volcano explores it and gives the rule a chance to fire)
+took 10 → **59**. Reverted. The declining javadoc is load-bearing beyond the two gates it cites: claiming
+the alternative changes which aggregate shapes Volcano materializes far more broadly than expected. This
+needs its own investigation, not a one-line flip.
+
+Measured, for the record: `rule.matches()` DOES fire for a SINGLE aggregate over a distributed join
+(`PROBE15 agg=157 mode=SINGLE`), but `onMatch` never runs and the pass's `splitAggregate` still fires 20x.
+So the rule remains unable to replace the pass, and the 3 forced `buildReducer` calls stay.
+
+### Where the sequence actually stands
+
+- ~~1. traits authoritative~~ **DONE** — 5 forced/1 gated → 3/3
+- ~~3a. widen the rule's placement predicates~~ **DONE**
+- ~~3b-i. move the sub-toggle into matches()~~ **DONE**
+- **2'. express the size floor as COST, not a veto** — prerequisite for the floor leaving the pass, and
+  independently the right model (supersedes "move min_rows into matches()").
+- **3b-ii. why does claiming the SINGLE alternative cost 49 extra failures?** — needs investigation before
+  `splitAggregate` can be retired.
+- 4. N-ary shuffle transport.
+- 5. Reduce-stage shuffle production.
