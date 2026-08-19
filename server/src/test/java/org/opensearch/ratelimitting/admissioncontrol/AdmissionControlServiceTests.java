@@ -85,35 +85,26 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         }
         CpuBasedAdmissionController cpuBasedAdmissionController = (CpuBasedAdmissionController) admissionControlService
             .getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
-        assertEquals(
-            admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
-            cpuBasedAdmissionController.isEnabledForTransportLayer(
-                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
-            )
-        );
-
-        Settings settings = Settings.builder()
-            .put(AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
-            .build();
-        clusterService.getClusterSettings().applySettings(settings);
-        assertEquals(
-            admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
-            cpuBasedAdmissionController.isEnabledForTransportLayer(
-                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
-            )
-        );
+        // The master transport mode is disabled by default...
         assertFalse(admissionControlSettings.isTransportLayerAdmissionControlEnabled());
+        // ...but the CPU admission controller is enforced by default, independent of the master mode.
+        assertEquals(AdmissionControlMode.ENFORCED, cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode());
+        assertTrue(
+            cpuBasedAdmissionController.isEnabledForTransportLayer(
+                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
+            )
+        );
 
-        Settings newSettings = Settings.builder()
-            .put(settings)
+        // Explicitly disabling the CPU override turns CPU admission control off; the master mode is unaffected.
+        Settings settings = Settings.builder()
             .put(
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
-                AdmissionControlMode.ENFORCED.getMode()
+                AdmissionControlMode.DISABLED.getMode()
             )
             .build();
-        clusterService.getClusterSettings().applySettings(newSettings);
+        clusterService.getClusterSettings().applySettings(settings);
         assertFalse(admissionControlSettings.isTransportLayerAdmissionControlEnabled());
-        assertTrue(
+        assertFalse(
             cpuBasedAdmissionController.isEnabledForTransportLayer(
                 cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
             )
@@ -122,7 +113,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
 
     public void testApplyAdmissionControllerDisabled() {
         this.action = "indices:data/write/bulk[s][p]";
-        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null, null);
+        admissionControlService = new AdmissionControlService(cpuDisabledSettings(), clusterService, threadPool, null, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         admissionControllerList.forEach(admissionController -> {
@@ -132,7 +123,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
 
     public void testApplyAdmissionControllerEnabled() {
         this.action = "indices:data/write/bulk[s][p]";
-        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null, null);
+        admissionControlService = new AdmissionControlService(cpuDisabledSettings(), clusterService, threadPool, null, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
             admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -157,7 +148,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
 
     public void testApplyAdmissionControllerEnforced() {
         this.action = "indices:data/write/bulk[s][p]";
-        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null, null);
+        admissionControlService = new AdmissionControlService(cpuDisabledSettings(), clusterService, threadPool, null, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
             admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -216,12 +207,22 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     public void testApplyNativeMemoryAdmissionControllerDisabled() {
         assumeTrue("native memory controller is Linux-only", Constants.LINUX);
         this.action = "indices:data/write/bulk[s][p]";
-        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null, null);
+        admissionControlService = new AdmissionControlService(cpuDisabledSettings(), clusterService, threadPool, null, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
             admissionControlService.getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
             0
         );
+    }
+
+    private static Settings cpuDisabledSettings() {
+        // CPU-based transport admission control is enforced by default; disable it to exercise the disabled paths.
+        return Settings.builder()
+            .put(
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.DISABLED.getMode()
+            )
+            .build();
     }
 }
