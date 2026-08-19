@@ -217,3 +217,58 @@ The root gather in `enforce()` and the PARTIAL/FINAL forced ER in `splitAggregat
 whose traits the pass has not yet derived, so there is nothing to trust yet. Those need the aggregate
 split to move into `OpenSearchAggregateSplitRule` (see Q1: widen its `isPartitioned` to accept
 `HASH+WORKER`, drop `OpenSearchJoin` from `childForcesGather`), which is step 3 of the sequence.
+
+
+---
+
+## STEP 3 OUTCOME (commit `aca15b77fd0`) — half done, and the second half is a DESIGN decision
+
+Goal: make `OpenSearchAggregateSplitRule` produce the PARTIAL/FINAL split so the pass's `splitAggregate`
+becomes dead code, retiring 2 of the 3 remaining forced `buildReducer` calls.
+
+### Landed: the two placement predicates are now consistent with the pass
+
+1. `isPartitioned` accepted ONLY `RANDOM_DISTRIBUTED`; the pass's own `isPartitioned` means
+   `HASH+WORKER` **exclusively**. The two covered DISJOINT sets, so the rule could never produce the
+   agg-over-join split. Now accepts both.
+2. `childForcesGather` returned true for `OpenSearchJoin` on the premise that "a join returns infinite
+   cost over non-SINGLETON input". Under top-down that premise is **false** — a join is legal at
+   `WORKER+HASH`. Now defers to the input's actual trait; `OpenSearchAggregate`'s SINGLE-over-partitioned
+   infinite-cost gate remains the correctness backstop.
+
+Measured: full suite still 10 failures, `CascadeShuffleProbeTests` + `AggregateSplitCostTests` = 34 tests
+with only the 2 known broadcast goldens failing. Precommit green.
+
+### NOT done: the rule still does not fire, and the blocker is deliberate
+
+Instrumented both sides. `rule.matches()` DOES fire for a SINGLE aggregate over a 3-way distributed join
+(`PROBE15 rule.matches agg=157 mode=SINGLE`), but `onMatch` never runs, and the pass's `splitAggregate`
+still fires 20x across the suite.
+
+Cause is `OpenSearchAggregate` itself declining the alternative top-down:
+- `passThroughTraits` returns null for `SINGLE`
+- `getDeriveMode()` returns `PROHIBITED` for non-PARTIAL
+
+with the javadoc stating the intent outright: *"Whether to split it PARTIAL/FINAL is a decision the
+post-CBO enforcement pass owns (it also gates on the size floor and the shuffle.aggregate.enabled
+toggle), so top-down must not pre-empt it by claiming an alternative here."*
+
+So finishing step 3 means REVERSING that decision: have `OpenSearchAggregate.passThroughTraits` claim the
+SINGLE alternative, and move the size floor + `shuffle.aggregate.enabled` toggle into the rule's
+`matches()`. That is coupled to **step 2** (floor → cost/matches), so the two should be done together
+rather than in the order I originally listed.
+
+Note the `PROHIBITED` derive mode is NOT the thing to relax: it exists because Calcite's default
+`LEFT_FIRST` manufactures a `SINGLE`-over-partitioned variant that the cost gate then rejects as a
+correctness violation — removing it reintroduced the "not enough rules … cost is still infinite" failure
+class earlier in this branch. Only `passThroughTraits` should start claiming the alternative.
+
+### Revised sequence
+
+- ~~1. traits authoritative~~ **DONE** (`1f229655c94`, `c2b1421166f`) — 5 forced/1 gated → 3/3
+- ~~3a. widen the rule's placement predicates~~ **DONE** (`aca15b77fd0`)
+- **2+3b (do together).** Move `min_rows` + `shuffle.aggregate.enabled` into the rule's `matches()`, and
+  have `OpenSearchAggregate.passThroughTraits` claim the SINGLE alternative. Retires `splitAggregate`
+  and 2 of the 3 remaining forced gathers.
+- 4. N-ary shuffle transport — retires step 4 no-reuse AND step 3c Variant-A.
+- 5. Reduce-stage shuffle production — retires step 3d.
