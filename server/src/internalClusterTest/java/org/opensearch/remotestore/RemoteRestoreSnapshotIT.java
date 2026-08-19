@@ -11,6 +11,7 @@ package org.opensearch.remotestore;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
@@ -29,6 +30,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
@@ -39,10 +42,14 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -69,10 +76,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -224,6 +233,176 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(restoredIndexName1);
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
+    }
+
+    private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> METADATA_STREAM_WRAPPER = new VersionedCodecStreamWrapper<>(
+        new RemoteSegmentMetadataHandlerFactory(),
+        RemoteSegmentMetadata.VERSION_ONE,
+        RemoteSegmentMetadata.CURRENT_VERSION,
+        RemoteSegmentMetadata.METADATA_CODEC
+    );
+
+    /**
+     * Restoring a shallow copy snapshot copies the source commit into the restored shard's own remote store during
+     * recovery. That upload has to be recorded in a segment metadata file: without one, the refresh that follows the
+     * engine opening finds no remote state to reconcile against, re-uploads the identical file set under fresh UUIDs,
+     * and leaves recovery's copy named by no metadata file at all - which puts it permanently beyond the reach of
+     * deleteStaleSegments, since that only ever considers blobs it reads out of a metadata file being retired.
+     */
+    public void testRestoreShallowCopyDoesNotUploadSegmentsTwice() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
+        String indexName = "testindex1";
+        String restoredIndexName = indexName + "-restored";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotName = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Client client = client();
+        createIndex(indexName, getIndexSettings(1, 0).build());
+        indexDocuments(client, indexName, randomIntBetween(20, 40));
+        client.admin().indices().prepareFlush(indexName).get();
+        ensureGreen(indexName);
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName, new ArrayList<>(List.of(indexName)));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(snapshotInfo.isRemoteStoreIndexShallowCopyEnabled());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .setRenamePattern(indexName)
+            .setRenameReplacement(restoredIndexName)
+            .get();
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+        ensureGreen(restoredIndexName);
+
+        assertTrue("no segment metadata was written for " + restoredIndexName, countSegmentMetadataFiles(restoredIndexName) > 0);
+        Map<String, Long> blobsPerFile = countSegmentBlobsPerLuceneFile(restoredIndexName);
+        assertFalse("no segment data blobs were uploaded for " + restoredIndexName, blobsPerFile.isEmpty());
+        Map<String, Long> duplicated = blobsPerFile.entrySet()
+            .stream()
+            .filter(e -> e.getValue() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        assertEquals("segment data files uploaded more than once by the restore: " + duplicated, Map.of(), duplicated);
+        assertEverySegmentBlobIsReferenced(restoredIndexName);
+    }
+
+    /**
+     * The restore-in-place variant. {@code RestoreService} only assigns a fresh index UUID when the target name does
+     * not already exist; restoring over an existing closed index reuses that index's UUID, so the restored shard's
+     * remote path is the path the snapshot was taken from and already holds the commit's blobs. Recovery must not
+     * upload a second copy of each of them.
+     */
+    public void testRestoreShallowCopyInPlaceDoesNotUploadSegmentsTwice() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataAndWarmNodes(1);
+        String indexName = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotName = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Client client = client();
+        createIndex(indexName, getIndexSettings(1, 0).build());
+        indexDocuments(client, indexName, randomIntBetween(20, 40));
+        client.admin().indices().prepareFlush(indexName).get();
+        ensureGreen(indexName);
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName, new ArrayList<>(List.of(indexName)));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertTrue(snapshotInfo.isRemoteStoreIndexShallowCopyEnabled());
+
+        String uuidBeforeRestore = client.admin().cluster().prepareState().get().getState().metadata().index(indexName).getIndexUUID();
+
+        // Restoring without a rename pattern requires the target index to be closed, and reuses its index UUID.
+        assertAcked(client.admin().indices().prepareClose(indexName));
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+        ensureGreen(indexName);
+
+        String uuidAfterRestore = client.admin().cluster().prepareState().get().getState().metadata().index(indexName).getIndexUUID();
+        assertEquals("restore in place is expected to reuse the index UUID, and so the remote path", uuidBeforeRestore, uuidAfterRestore);
+
+        Map<String, Long> blobsPerFile = countSegmentBlobsPerLuceneFile(indexName);
+        assertFalse("no segment data blobs were uploaded for " + indexName, blobsPerFile.isEmpty());
+        Map<String, Long> duplicated = blobsPerFile.entrySet()
+            .stream()
+            .filter(e -> e.getValue() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        assertEquals("segment data files uploaded more than once by the restore: " + duplicated, Map.of(), duplicated);
+        assertEverySegmentBlobIsReferenced(indexName);
+    }
+
+    /**
+     * Asserts that every blob under the index's remote segment data path is named by one of its metadata files. A blob
+     * that no metadata file names is unreachable rather than merely stale: {@code deleteStaleSegments} only deletes
+     * blobs it reads out of a metadata file it is retiring, so nothing will ever reclaim it.
+     * <p>
+     * Retried, because a refresh registers an uploaded blob before it writes the metadata file naming it - and
+     * {@code waitForRemoteStoreSync} gates on that in-memory registration, so the restore can report complete while
+     * the metadata file is still pending.
+     */
+    private void assertEverySegmentBlobIsReferenced(String indexName) throws Exception {
+        assertBusy(() -> {
+            Set<String> referenced = new HashSet<>();
+            try (Stream<Path> metadataFiles = Files.list(remoteSegmentPath(indexName, METADATA))) {
+                for (Path metadataFile : metadataFiles.collect(Collectors.toList())) {
+                    RemoteSegmentMetadata metadata = METADATA_STREAM_WRAPPER.readStream(
+                        new ByteArrayIndexInput(metadataFile.getFileName().toString(), Files.readAllBytes(metadataFile))
+                    );
+                    metadata.getMetadata().values().forEach(segment -> referenced.add(segment.getUploadedFilename()));
+                }
+            }
+            try (Stream<Path> blobs = Files.list(remoteSegmentPath(indexName, DATA))) {
+                Set<String> unreferenced = blobs.map(blob -> blob.getFileName().toString())
+                    .filter(blob -> referenced.contains(blob) == false)
+                    .collect(Collectors.toSet());
+                assertEquals("segment blobs named by no metadata file: " + unreferenced, Set.of(), unreferenced);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Counts the blobs under the index's remote segment data path, grouped by the Lucene file they hold. Each blob is
+     * named {@code <lucene filename>__<uuid>}, so more than one blob per group means the same file was uploaded twice.
+     * <p>
+     * Commit files are excluded. A segment file's name is content-unique - Lucene never rewrites one - but a
+     * {@code segments_N} generation can legitimately recur with different content, notably when a restore in place
+     * rewinds the shard to the snapshot's commit and it commits forward again over a generation the closed index had
+     * already used. The UUID suffix exists to disambiguate exactly that, so the invariant for commit files is
+     * reachability, asserted by {@link #assertEverySegmentBlobIsReferenced}, not name-uniqueness.
+     */
+    private Map<String, Long> countSegmentBlobsPerLuceneFile(String indexName) throws IOException {
+        try (Stream<Path> blobs = Files.list(remoteSegmentPath(indexName, DATA))) {
+            return blobs.map(blob -> blob.getFileName().toString())
+                .map(blob -> blob.split(RemoteSegmentStoreDirectory.SEGMENT_NAME_UUID_SEPARATOR)[0])
+                .filter(luceneFile -> luceneFile.startsWith(IndexFileNames.SEGMENTS) == false)
+                .collect(Collectors.groupingBy(luceneFile -> luceneFile, Collectors.counting()));
+        }
+    }
+
+    private long countSegmentMetadataFiles(String indexName) throws IOException {
+        try (Stream<Path> metadataFiles = Files.list(remoteSegmentPath(indexName, METADATA))) {
+            return metadataFiles.count();
+        }
+    }
+
+    private Path remoteSegmentPath(String indexName, RemoteStoreEnums.DataType dataType) {
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String path = getShardLevelBlobPath(client(), indexName, new BlobPath(), "0", SEGMENTS, dataType, segmentsPathFixedPrefix)
+            .buildAsString();
+        return Path.of(remoteRepoPath + "/" + path);
     }
 
     /**
