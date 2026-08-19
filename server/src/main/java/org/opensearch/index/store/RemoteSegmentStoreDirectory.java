@@ -757,16 +757,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
      * <p>
-     * The upload is skipped when this directory already holds the file under the same checksum. Restoring a snapshot
-     * over an existing closed index reuses that index's UUID, so the restored shard's remote path is the path the
-     * snapshot was taken from and already holds the commit's blobs; copying them again would store a second copy of
-     * every segment. Segment files are immutable, so a matching name and checksum means identical content - this is
-     * the same condition {@code RemoteStoreRefreshListener#skipUpload} applies on the refresh path.
+     * Skips the upload when this directory already holds the file under the same checksum, so that a restore into a
+     * remote path that already has the commit's blobs does not store a second copy of every segment. Only applies
+     * when {@code dest} equals {@code src}, since the cache is keyed by {@code src} and so says nothing about
+     * whether a differently named {@code dest} exists.
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
         String checksum = getChecksumOfLocalFile(from, src);
-        if (containsFile(src, checksum)) {
+        if (src.equals(dest) && containsFile(src, checksum)) {
             return;
         }
         String remoteFilename = getNewRemoteSegmentFilename(dest);
