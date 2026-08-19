@@ -26,6 +26,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -458,6 +459,24 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
             OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
             OpenSearchDistribution singleton = traitDef.coordSingleton();
             return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
+        }
+        // SINGLE: claim the SINGLETON alternative ONLY for an aggregate that cannot be split at all
+        // (STATE_EXPANDING / DISTINCT / cross-family non-prefix group set). For those, gather-then-run-
+        // SINGLE is the only correct shape, so this can never out-compete a two-phase alternative —
+        // there is none to compete with. Claiming it unconditionally instead lets a SINGLE-over-gather
+        // plan beat a legitimate PARTIAL/FINAL split whenever the row estimate collapses to the 1.0
+        // floor (measured: the two multi-predicate AggregateSplitCostTests, where 4-7 equi conjuncts at
+        // Calcite's 0.15 selectivity drive the estimate to 1 row and a two-phase aggregate is pure
+        // overhead). Splittable aggregates keep deferring to OpenSearchAggregateSplitRule.
+        //
+        // Correctness is not at stake either way: computeSelfCost prices SINGLE-over-partitioned at
+        // infinity, so an unsplit aggregate can never read partitioned input and under-count.
+        if (mode == AggregateMode.SINGLE
+            && requiredDistribution.getType() == RelDistribution.Type.SINGLETON
+            && OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
+            OpenSearchDistributionTraitDef td = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+            OpenSearchDistribution sg = td.coordSingleton();
+            return Pair.of(getTraitSet().replace(sg), List.of(getInput().getTraitSet().replace(sg)));
         }
         return null;
     }
