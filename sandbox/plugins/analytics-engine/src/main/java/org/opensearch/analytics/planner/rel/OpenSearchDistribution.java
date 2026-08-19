@@ -74,6 +74,24 @@ public class OpenSearchDistribution implements RelDistribution {
     private final Integer tableId;
     private final Integer shardCount;
     private final Integer partitionCount;
+    /**
+     * True when this partitioning was MATERIALIZED by an exchange (a shuffle actually moved the rows),
+     * false when it was merely DERIVED by an operator claiming its output happens to be so partitioned.
+     *
+     * <p>This is what makes the trait TIER-AWARE. The hash-shuffle transport delivers exactly two named
+     * inputs per worker, so each distributed join input must arrive as its OWN producer stream: a lower
+     * join's derived {@code HASH(k,N)} must NOT satisfy a parent join's {@code HASH(k,N)} demand, or
+     * Volcano would reuse it in place and collapse N joins into one fragment with N shuffle leaves —
+     * which the transport cannot run.
+     *
+     * <p>Previously the same effect was obtained accidentally: the enforcement pass tracked the real
+     * distribution in a side record while the rel's traitSet kept CBO's stale {@code coordSingleton}, so
+     * {@code satisfies()} happened to return false and an inter-tier shuffle got inserted
+     * ({@code DistributionEnforcementPass}:464-467 documents the dependency). Encoding the tier in the
+     * trait replaces that accident with a stated rule, which is the prerequisite for making traits
+     * authoritative and retiring the pass's forced {@code buildReducer} calls.
+     */
+    private final boolean exchangeMaterialized;
 
     OpenSearchDistribution(
         OpenSearchDistributionTraitDef traitDef,
@@ -84,6 +102,19 @@ public class OpenSearchDistribution implements RelDistribution {
         Integer shardCount,
         Integer partitionCount
     ) {
+        this(traitDef, locality, type, keys, tableId, shardCount, partitionCount, false);
+    }
+
+    OpenSearchDistribution(
+        OpenSearchDistributionTraitDef traitDef,
+        Locality locality,
+        Type type,
+        List<Integer> keys,
+        Integer tableId,
+        Integer shardCount,
+        Integer partitionCount,
+        boolean exchangeMaterialized
+    ) {
         this.traitDef = traitDef;
         this.locality = locality;
         this.type = type;
@@ -91,6 +122,19 @@ public class OpenSearchDistribution implements RelDistribution {
         this.tableId = tableId;
         this.shardCount = shardCount;
         this.partitionCount = partitionCount;
+        this.exchangeMaterialized = exchangeMaterialized;
+    }
+
+    /** See {@link #exchangeMaterialized}. */
+    public boolean isExchangeMaterialized() {
+        return exchangeMaterialized;
+    }
+
+    /** This distribution with the exchange-materialized flag set — used by the shuffle exchange. */
+    public OpenSearchDistribution asExchangeMaterialized() {
+        return exchangeMaterialized
+            ? this
+            : new OpenSearchDistribution(traitDef, locality, type, keys, tableId, shardCount, partitionCount, true);
     }
 
     public Locality getLocality() {
@@ -154,6 +198,14 @@ public class OpenSearchDistribution implements RelDistribution {
             // A null demanded partitionCount accepts any (used while the rule is still
             // resolving the count); a concrete demand requires equality.
             if (other.partitionCount != null && !other.partitionCount.equals(this.partitionCount)) {
+                return false;
+            }
+            // TIER AWARENESS: a demand for a MATERIALIZED partitioning is not met by a merely DERIVED
+            // one. A lower join whose output "is" HASH(k,N) never actually shipped those rows through a
+            // shuffle, so reusing it in place would put two join tiers in one fragment — unrunnable on
+            // the binary shuffle transport (two named inputs per worker). Producing-side materialized
+            // data satisfies BOTH kinds of demand; only derived-satisfying-materialized is rejected.
+            if (other.exchangeMaterialized && !this.exchangeMaterialized) {
                 return false;
             }
             // Locality: WORKER produced data satisfies a WORKER demand. A null demanded
@@ -226,12 +278,13 @@ public class OpenSearchDistribution implements RelDistribution {
             && Objects.equals(keys, other.keys)
             && Objects.equals(tableId, other.tableId)
             && Objects.equals(shardCount, other.shardCount)
-            && Objects.equals(partitionCount, other.partitionCount);
+            && Objects.equals(partitionCount, other.partitionCount)
+            && exchangeMaterialized == other.exchangeMaterialized;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, locality, keys, tableId, shardCount, partitionCount);
+        return Objects.hash(type, locality, keys, tableId, shardCount, partitionCount, exchangeMaterialized);
     }
 
     @Override
