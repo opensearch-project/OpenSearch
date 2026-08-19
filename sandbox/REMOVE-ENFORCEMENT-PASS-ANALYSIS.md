@@ -481,3 +481,49 @@ this is now a conservative default rather than a transport limit.
   join trees, so a group-key shuffle whose consumer is a PARTIAL aggregate is still an unwired edge. That is
   a rewriter generalization (promote a shuffle-fed AGGREGATE stage), not a transport one — smaller than 4a.
 - Step 5 (reduce-stage shuffle production) is untouched and remains the last big item.
+
+---
+
+## SUITE FULLY GREEN — 1987 tests / 0 failures (`659020bb804` … `52812f3e743`)
+
+The 10 residual failures this doc kept describing as "plan-shape / rule-count goldens" are resolved. The
+headline correction: **all 10 were REGRESSIONS from this branch, not stale goldens.** Verified by running
+each at the branch point `af1e9151c63`, where all 10 pass. Regenerating them — which the earlier triage
+recommended — would have written a row-count bug into the expected output.
+
+| group | verdict | fix |
+|---|---|---|
+| 4 limit-shape | **CORRECTNESS BUG** — bare `LIMIT N` returned N×shards rows | `659020bb804` |
+| 2 rule-count profiles | genuine bookkeeping (deleted derive rule) | `8c7cb9d515e` |
+| 2 DAGShapeTests | genuine improvement (Project pushed into the shard stage) | `8c7cb9d515e` |
+| 2 broadcast-under-cascade | goldens asserted a NON-OPTIMAL shape | `52812f3e743` |
+
+**The limit bug.** `OpenSearchSort.ridesChildDistribution()` tested only collation, so an uncollated
+`Sort(fetch=N)` "rode" its child's distribution and executed once per shard with nothing capping the
+concatenated result. Riding REPLACED the coordinator's limit instead of adding a shard-local copy beside
+it. `LIMIT 10` over 2 shards returned 20 rows — type-correct plan, wrong answers, no exception. Fixing it
+forced two follow-ons, both about a Sort under a JOIN: `passThroughTraits` must answer a NON-singleton
+demand with the GATHERED shape (declining leaves the subset empty, and no exchange can produce
+`RANDOM(SHARD)`), and `getDeriveMode` returns to `LEFT_FIRST` because `deriveTraits` now derives the
+gathered variant rather than passing a partitioned child trait through.
+
+**The broadcast pair.** Both tests used the SHARED-key `makeThreeWayJoin`, where broadcast-bottom is
+genuinely the wrong plan: a shared-key bottom join already outputs `HASH(k)`, which the top join consumes
+with no exchange, so broadcasting the build buys nothing and costs `build × probeNodes`. Measured
+broadcast-bottom 40,003,389 vs all-shuffle 40,001,404 — a 1,985-unit loss that is EXACTLY the tiny build
+moved 3× instead of 1×. Under a KEY CHANGE the top join must reshuffle its large input either way, so not
+moving the 10M probe at the bottom is a ~10M win and CBO picks the mixed shape unprompted. Switched both
+to the existing `makeMixedKeyThreeWayJoin`.
+
+Broadcast is NOT suppressed under top-down: 37 broadcast assertions across `JoinStrategyCBOSelectionTests`,
+`MppStrategyObservationTests` and `SplitRuleContractTests` are green, and the 2-way small×large
+`testEnforcementPass_broadcastWinnerIsPreserved` still picks broadcast.
+
+Also fixed en route (`5831d805b25`): the `RANDOM(SHARD)` derive gap (step 3 of the removal sequence),
+gated on `MPP_ENABLED` + `isBroadcastEligible` via `traitDef.getPlannerContext()` and sharing the split
+rule's `buildSideFitsBroadcast` byte cap so both formation paths agree; plus a latent crash where
+`OpenSearchConvention.enforce` propagated `buildEnforcer`'s UOE instead of returning null (Calcite calls
+`enforce` speculatively from `RelSet.addConverters`, so it aborted whole queries with "RANGE exchange not
+yet implemented").
+
+**The sf=1 / sf=10 TPC-H sweep is now unblocked** — it was gated on exactly this.
