@@ -44,16 +44,15 @@ public class ShardTargetResolver extends TargetResolver {
     private final ClusterService clusterService;
 
     /**
-     * Constructs a resolver that reads the carried {@link IndexResolution} from the fragment's
-     * {@link OpenSearchTableScan}. Fails loudly if the scan carries no resolution — a silent
-     * fallback would re-resolve the index expression with different {@code IndicesOptions} and
-     * target a shard set that disagrees with the row type the plan was built against.
+     * Reads the carried {@link IndexResolution} from the fragment's {@link OpenSearchTableScan}.
+     * Fails if absent — a silent fallback would re-resolve with different {@code IndicesOptions}.
      */
     public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
-        OpenSearchTableScan scan = RelNodeUtils.findNode(fragment, OpenSearchTableScan.class);
-        if (scan == null) {
+        List<OpenSearchTableScan> scans = RelNodeUtils.findNodes(fragment, OpenSearchTableScan.class);
+        if (scans.isEmpty()) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");
         }
+        OpenSearchTableScan scan = scans.getFirst();
         IndexResolution resolution = scan.getCarriedResolution();
         if (resolution == null) {
             throw new IllegalStateException(
@@ -69,8 +68,7 @@ public class ShardTargetResolver extends TargetResolver {
 
     @Override
     public List<ExecutionTarget> resolve(ClusterState clusterState, @Nullable Object childManifest) {
-        // Reuse the planner's resolution rather than resolving again — a second resolution could
-        // use different IndicesOptions and yield a different shard set.
+        // Reuse the planner's resolution — re-resolving could use different IndicesOptions.
         IndexResolution resolution = carriedResolution;
         String[] concreteNames = resolution.concreteIndexNames().toArray(new String[0]);
         GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()

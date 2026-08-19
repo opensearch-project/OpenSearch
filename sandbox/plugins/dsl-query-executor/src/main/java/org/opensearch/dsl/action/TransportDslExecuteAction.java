@@ -17,6 +17,7 @@ import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
@@ -54,16 +55,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
-    /**
-     * Guice-injected constructor — receives analytics engine dependencies.
-     *
-     * @param transportService transport service
-     * @param actionFilters action filters
-     * @param contextProvider analytics engine context providing schema and operator table
-     * @param executor analytics engine plan executor
-     * @param clusterService cluster service for resolving index aliases
-     * @param indexNameExpressionResolver resolves aliases and wildcards to concrete indices
-     */
+    /** Guice-injected constructor — receives analytics engine dependencies. */
     @Inject
     public TransportDslExecuteAction(
         TransportService transportService,
@@ -112,32 +104,13 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                     return;
                 }
 
-                // Pass the user's raw index expression to the converter so alias identity
-                // reaches the engine. The engine's IndexResolution.resolveAlias fires its own
-                // filtered-alias rejection natively when it sees an alias name.
-                //
-                // Coordinator-level guard: reject any request whose expressions involve a
-                // filtering alias. The engine's alias branch (IndexResolution.resolveAlias)
-                // only fires for a single literal alias name; comma-lists and wildcards
-                // bypass it because clusterState.metadata().getIndicesLookup().get(expression)
-                // returns null for multi-valued or wildcard strings, falling through to the
-                // concrete-names branch where aliasMd.filteringRequired() is never consulted.
-                // Example: 'al_filt*' resolves to concrete indices without applying the alias
-                // filter, silently leaking documents the filter is meant to hide.
-                rejectFilteringAliases(state, request.indices(), concreteIndices);
+                // Coordinator-level guard — see rejectFilteringAliases Javadoc for rationale.
+                rejectFilteringAliases(state, request.indices(), concreteIndices, request.indicesOptions());
                 String expression = String.join(",", indices);
 
-                // Build a QueryRequestContext bound to the SAME ClusterState snapshot the
-                // coordinator resolved against. This ensures the engine plans against the
-                // validated state — not a later snapshot from clusterService.state().
-                //
-                // The request's IndicesOptions are supplied twice on purpose, because two
-                // consumers read them at different points and neither can reach the other's
-                // copy. Passing them to getContext bakes them into the schema's lazy
-                // table-resolution closure, which fixes the row type; putting them on the
-                // context lets the planner resolve the concrete index set with the same flags,
-                // and lets the security layer authorize the expression with them. Supply only
-                // one and the schema and the plan can disagree on which indices exist.
+                // IndicesOptions are supplied to both getContext and QueryRequestContext because
+                // schema resolution and planner resolution read them independently — supplying
+                // only one lets the schema and plan disagree on which indices exist.
                 queryCtx = new QueryRequestContext(
                     state,
                     contextProvider.getContext(state, request.indicesOptions()).schema(),
@@ -174,29 +147,25 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
 
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
     // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
-    // so this plugin doesn't need its own resolution logic. The QueryRequestContext now threads
-    // IndicesOptions and ClusterState to the engine, partially satisfying this — full delegation
-    // requires the engine to handle 404 semantics (IndexNotFoundException) that today rely on
-    // the coordinator's concreteIndices call above.
+    // so this plugin doesn't need its own resolution logic.
 
     /**
      * Rejects any request whose index expressions involve a filtering alias.
      *
-     * <p>This guard cannot be delegated to the engine's {@code IndexResolution.resolveAlias}
-     * because that code path only fires when the <em>entire</em> expression string resolves
-     * to a single literal alias name via {@code clusterState.metadata().getIndicesLookup().get(expression)}.
-     * Comma-lists (e.g. {@code "al_filtered,mi_open_b"}) and wildcards (e.g. {@code "al_filt*"})
-     * cause that lookup to return null, so resolution falls through to the concrete-names branch
-     * where {@code aliasMd.filteringRequired()} is never consulted — silently returning
-     * unfiltered data that the alias filter should have hidden.
+     * <p>Required because the engine's {@code IndexResolution.resolveAlias} only checks filters
+     * for single literal alias names; comma-lists and wildcards bypass that check.
      *
-     * @param state the ClusterState snapshot already captured in doExecute
-     * @param requestIndices the raw index expressions from the request
-     * @param concreteIndices the resolved concrete indices
+     * @param indicesOptions forwarded to expression resolution so hidden aliases are visible
+     *                       when the request expands hidden wildcards
      * @throws IllegalArgumentException if a filtering alias is detected
      */
-    private void rejectFilteringAliases(ClusterState state, String[] requestIndices, Index[] concreteIndices) {
-        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, requestIndices);
+    private void rejectFilteringAliases(
+        ClusterState state,
+        String[] requestIndices,
+        Index[] concreteIndices,
+        IndicesOptions indicesOptions
+    ) {
+        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, indicesOptions, requestIndices);
         for (Index concreteIndex : concreteIndices) {
             String[] filteringAliases = indexNameExpressionResolver.filteringAliases(state, concreteIndex.getName(), resolvedExpressions);
             if (filteringAliases != null && filteringAliases.length > 0) {

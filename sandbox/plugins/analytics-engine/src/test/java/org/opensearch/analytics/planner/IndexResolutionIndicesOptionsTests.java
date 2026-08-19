@@ -75,7 +75,7 @@ public class IndexResolutionIndicesOptionsTests extends OpenSearchTestCase {
         IndicesOptions custom = IndicesOptions.strictExpandOpen();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().build()).build();
         CapabilityRegistry registry = null; // not needed for this test
-        PlannerContext ctx = new PlannerContext(registry, state, null, false, true, custom);
+        PlannerContext ctx = new PlannerContext(registry, state, null, false, true, Settings.EMPTY, s -> 0L, custom);
 
         assertSame(custom, ctx.getIndicesOptions());
     }

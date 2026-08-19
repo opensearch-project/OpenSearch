@@ -704,7 +704,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_filtered");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
 
         TransportDslExecuteAction action = new TransportDslExecuteAction(
@@ -749,7 +749,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_filtered");
         resolvedExprs.add("al_open");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
         when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
 
@@ -795,7 +795,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("mi_open_b");
         resolvedExprs.add("al_filtered");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
 
@@ -841,7 +841,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_filtered");
         resolvedExprs.add("mi_open_b");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
         when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
 
@@ -884,7 +884,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_filtered");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
 
         TransportDslExecuteAction action = new TransportDslExecuteAction(
@@ -926,7 +926,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_filtered");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         when(resolver.filteringAliases(state, "mi_open_a", resolvedExprs)).thenReturn(new String[] { "al_filtered" });
 
         TransportDslExecuteAction action = new TransportDslExecuteAction(
@@ -971,7 +971,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
         Set<String> resolvedExprs = new HashSet<>();
         resolvedExprs.add("al_open");
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(resolvedExprs);
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(resolvedExprs);
         // No filtering aliases for this alias
         when(resolver.filteringAliases(state, "mi_open_b", resolvedExprs)).thenReturn(null);
 
@@ -993,6 +993,75 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         assertEquals(200, listener.response.get().status().getStatus());
     }
 
+    /**
+     * A hidden filtered alias must be rejected by the coordinator guard when
+     * {@code expand_wildcards=open,hidden} is set. Before the fix, the guard called
+     * {@code resolveExpressions(state, requestIndices)} which hardcodes
+     * {@code IndicesOptions.lenientExpandOpen()} — excluding hidden abstractions from
+     * the resolved set. This let the alias slip through undetected.
+     */
+    public void testHiddenFilteredAliasIsRejectedWhenExpandWildcardsIncludesHidden() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        // The wildcard "hid_al*" expands (with hidden=true) to the hidden alias "hid_al_filtered",
+        // which backs "concrete_data_index". The index name does NOT match the wildcard.
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(
+            new Index[] { new Index("concrete_data_index", "uuid-data") }
+        );
+
+        // The options-aware overload (3-arg) resolves the hidden alias correctly.
+        Set<String> hiddenResolved = new HashSet<>();
+        hiddenResolved.add("hid_al_filtered");
+        when(resolver.resolveExpressions(any(ClusterState.class), any(IndicesOptions.class), any(String[].class))).thenReturn(
+            hiddenResolved
+        );
+
+        // filteringAliases detects the alias when it appears in the resolved set.
+        when(resolver.filteringAliases(state, "concrete_data_index", hiddenResolved)).thenReturn(new String[] { "hid_al_filtered" });
+
+        // Schema includes the wildcard expression so execution succeeds if guard doesn't throw
+        SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
+        addTable(schema, "hid_al*");
+        QueryRequestContext ctx = new QueryRequestContext(state, schema);
+
+        TransportDslExecuteAction action = new TransportDslExecuteAction(
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            mockContextProvider(ctx),
+            (plan, execCtx, l) -> l.onResponse(Collections.emptyList()),
+            clusterService,
+            resolver,
+            mockThreadPool()
+        );
+
+        // Request with expand_wildcards=open,hidden
+        SearchRequest request = new SearchRequest("hid_al*");
+        request.source(new SearchSourceBuilder());
+        request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false, true));
+
+        TestListener listener = new TestListener();
+        action.doExecute(mock(Task.class), request, listener);
+
+        assertNull("Guard should have rejected the request but it succeeded: response=" + listener.response.get(), listener.response.get());
+        assertNotNull("Expected IllegalArgumentException for hidden filtered alias but guard passed", listener.failure.get());
+        assertTrue(
+            "Expected IllegalArgumentException but got: " + listener.failure.get().getClass(),
+            listener.failure.get() instanceof IllegalArgumentException
+        );
+        assertTrue(
+            "Expected message about filter alias but got: " + listener.failure.get().getMessage(),
+            listener.failure.get()
+                .getMessage()
+                .contains(
+                    "Alias [hid_al_filtered] declares a filter on index [concrete_data_index];"
+                        + " filter aliases are not yet supported by analytics queries"
+                )
+        );
+    }
+
     // --- Helper methods ---
 
     private TestListener executeWith(TransportDslExecuteAction action, String... indices) {
@@ -1012,7 +1081,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(resolvedIndices);
         // Stub the filtering-alias guard: no filtering aliases by default
-        when(resolver.resolveExpressions(any(), any(String[].class))).thenReturn(Collections.emptySet());
+        when(resolver.resolveExpressions(any(), any(IndicesOptions.class), any(String[].class))).thenReturn(Collections.emptySet());
         when(resolver.filteringAliases(any(), any(String.class), any())).thenReturn(null);
 
         return new TransportDslExecuteAction(

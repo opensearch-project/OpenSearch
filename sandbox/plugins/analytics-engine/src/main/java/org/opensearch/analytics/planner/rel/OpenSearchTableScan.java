@@ -39,13 +39,9 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
      */
     private final RelDataType overrideRowType;
     /**
-     * The {@link IndexResolution} computed by the scan rule at planning time. Carrying it here
-     * lets shard targeting reuse the planner's resolution instead of resolving the index
-     * expression again with different {@code IndicesOptions}, which would yield a divergent
-     * shard set. Every copy path must propagate it; the shard-target resolver rejects a scan
-     * that arrives without one.
-     *
-     * <p>Null only on scans built outside the scan rule, which no shard stage consumes.
+     * Resolution from planning time. Carried so shard targeting reuses the same concrete index
+     * set rather than re-resolving with potentially different {@code IndicesOptions}.
+     * Null only on scans built outside the scan rule (which no shard stage consumes).
      */
     @Nullable
     private final IndexResolution carriedResolution;
