@@ -25,6 +25,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
@@ -58,7 +59,14 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     @Override
     public boolean matches(RelOptRuleCall call) {
         OpenSearchAggregate aggregate = call.rel(0);
-        return aggregate.getMode() == AggregateMode.SINGLE;
+        if (aggregate.getMode() != AggregateMode.SINGLE) {
+            return false;
+        }
+        // Per-strategy sub-toggle (analytics.mpp.shuffle.aggregate.enabled): when off, do not offer the
+        // PARTIAL/FINAL alternative — the aggregate runs coordinator-centric while a join BELOW it still
+        // distributes. A rule matches() is the natural home, matching how OpenSearchHashJoinSplitRule
+        // gates on MPP_ENABLED. (The size floor deliberately stays in the pass — see its comment there.)
+        return AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(context.getSettings());
     }
 
     /**
