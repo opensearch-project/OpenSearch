@@ -1229,14 +1229,29 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * avoid an un-runnable shape), the unified dispatcher now COMPOSES broadcast-under-shuffle, so the pass
      * preserves BOTH: the bottom broadcast AND the top shuffle survive in one enforced DAG. Asserts a
      * broadcast exchange is present AND at least one shuffle is present (the mixed shape).
+     *
+     * <p><b>Uses a MIXED-key cascade deliberately.</b> This test formerly used the shared-key
+     * {@code makeThreeWayJoin}, where the mixed shape is NOT the cheapest plan and CBO is right to reject
+     * it: a shared-key bottom join already outputs {@code HASH(k)}, which the top join consumes with no
+     * exchange, so broadcasting the build buys nothing and costs {@code build × probeNodes} (measured:
+     * broadcast-bottom 40,003,389 vs all-shuffle 40,001,404 — broadcast loses by exactly the tiny build
+     * moved 3× instead of 1×). Under a KEY CHANGE the top join must reshuffle its large left input either
+     * way, so not moving the 10M probe at the bottom is a genuine ~10M-unit win and CBO picks the mixed
+     * shape on its own merits. The shared-key variant stayed all-shuffle once top-down could distribute the
+     * TOP join too — a whole-plan shape bottom-up cannot express, since
+     * {@code OpenSearchHashJoinSplitRule} rejects a Join input by design.
      */
     public void testEnforcementPass_broadcastUnderCascadeIsPreserved() {
-        // a_idx (small build) ⋈ b_idx (large) at the bottom → broadcast-eligible; ⋈ c_idx (large) on top → shuffle.
+        // a_idx (small build) ⋈ b_idx (large) on col0 at the bottom → broadcast-eligible; ⋈ c_idx (large)
+        // on col1 (a DIFFERENT key) on top → shuffle. The key CHANGE is what makes broadcast optimal here:
+        // the top join must reshuffle its 10M left input either way, so broadcasting the tiny build at the
+        // bottom saves moving 10M rows. On a SHARED-key cascade broadcast would LOSE by design — the bottom
+        // join's HASH(k) output feeds the top join for free, so broadcast only adds build×probeNodes.
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", SMALL, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
-        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
+        RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
         RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
 
         // The mixed shape: a preserved broadcast AND a shuffle in the same enforced DAG. (Exact counts depend
@@ -1262,12 +1277,16 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * had zero children and threw "COORDINATOR_REDUCE stage N expected at least one child, got zero".
      */
     public void testDagCut_broadcastUnderShuffleProducerIsShardFragment() {
-        // a_idx (small build) ⋈ b_idx (large) at the bottom → broadcast-eligible; ⋈ c_idx (large) on top → shuffle.
+        // a_idx (small build) ⋈ b_idx (large) on col0 at the bottom → broadcast-eligible; ⋈ c_idx (large)
+        // on col1 (a DIFFERENT key) on top → shuffle. The key CHANGE is what makes broadcast optimal here:
+        // the top join must reshuffle its 10M left input either way, so broadcasting the tiny build at the
+        // bottom saves moving 10M rows. On a SHARED-key cascade broadcast would LOSE by design — the bottom
+        // join's HASH(k) output feeds the top join for free, so broadcast only adds build×probeNodes.
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", SMALL, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
-        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
+        RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
         RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
