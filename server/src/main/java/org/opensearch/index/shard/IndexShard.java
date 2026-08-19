@@ -6136,6 +6136,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 overrideLocal,
                 () -> {}
             );
+            // Recovery has just written the restored commit into this shard's own remote store. Record it, so that the
+            // refresh following the engine opening does not upload the identical file set a second time and leave this
+            // copy named by no metadata file. See RemoteSegmentStoreDirectory#uploadMetadataForRestoredCommit.
+            if (remoteDirectory != null && remoteSegmentMetadata != null) {
+                remoteDirectory.uploadMetadataForRestoredCommit(
+                    remoteSegmentMetadata,
+                    shardId,
+                    getOperationPrimaryTerm(),
+                    store.directory(),
+                    getNodeId()
+                );
+            }
             if (pinnedTimestamp) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
