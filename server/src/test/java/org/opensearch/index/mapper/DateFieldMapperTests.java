@@ -54,14 +54,17 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.termvectors.TermVectorsService;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -1023,8 +1026,16 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MockDocValuesDataFormatPlugin());
+    }
+
     private static Settings pluggableSettings() {
-        return Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+        return Settings.builder()
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", MockDocValuesDataFormatPlugin.FORMAT_NAME)
+            .build();
     }
 
     /**
@@ -1069,7 +1080,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b.field("index", true);
             }))
         );
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 
     /** The rejection names the concrete resolution so {@code date_nanos} is not reported as {@code date}. */
@@ -1123,6 +1134,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 }

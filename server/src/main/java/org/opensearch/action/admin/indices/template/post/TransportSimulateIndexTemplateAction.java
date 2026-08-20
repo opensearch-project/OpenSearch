@@ -171,7 +171,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
             xContentRegistry,
             indicesService,
             aliasValidator,
-            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -223,7 +224,8 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final AliasValidator aliasValidator,
-        final boolean clusterPluggableDataFormatEnabled
+        final boolean clusterPluggableDataFormatEnabled,
+        final String clusterPluggableDataFormatValue
     ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
@@ -244,6 +246,13 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
         // matches what real index creation would do (rejecting a field that sets index:true).
         if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(settings) == false) {
             dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+        }
+        // Carry the cluster's default data format name too (mirroring MetadataCreateIndexService) so the
+        // preview resolves a format and rejects index:true; with no name there is no format to check.
+        if (clusterPluggableDataFormatEnabled
+            && clusterPluggableDataFormatValue.isEmpty() == false
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(settings) == false) {
+            dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), clusterPluggableDataFormatValue);
         }
         Settings dummySettings = dummySettingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();

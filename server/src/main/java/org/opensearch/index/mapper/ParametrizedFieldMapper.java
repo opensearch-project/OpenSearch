@@ -80,10 +80,31 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
+     * True when the index uses a pluggable data format. Remembered here so {@link #getMergeBuilder()} can
+     * rebuild a settings-less builder that still knows this, keeping parameter defaults correct (e.g.
+     * {@code index} defaulting to false) during serialization and mapping merges.
+     */
+    protected final boolean pluggableDataFormat;
+
+    /**
      * Creates a new ParametrizedFieldMapper
      */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedFieldType, multiFields, copyTo, false);
+    }
+
+    /**
+     * Creates a new ParametrizedFieldMapper, recording whether the index uses a pluggable data format.
+     */
+    protected ParametrizedFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean pluggableDataFormat
+    ) {
         super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
+        this.pluggableDataFormat = pluggableDataFormat;
     }
 
     /**
@@ -369,7 +390,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             Function<FieldMapper, Boolean> initializer,
             boolean defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return boolParam(name, updateable, initializer, () -> defaultValue);
+        }
+
+        public static Parameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, Boolean> initializer,
+            Supplier<Boolean> defaultValue
+        ) {
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
         /**
@@ -543,6 +573,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -597,10 +631,27 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
         /**
+         * True when this builder defaulted {@code index} to false because the index uses a pluggable
+         * data format. Only set by the constructors that receive index settings, so builders created
+         * for internal field types — such as derived fields, which evaluate queries against an in-memory
+         * index of their own rather than the pluggable storage — are unaffected.
+         */
+        protected boolean pluggableDataFormat;
+
+        /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
             super(name);
+        }
+
+        /**
+         * @return true when the index uses a pluggable data format. Exposed so mappers in other modules
+         *         (which cannot access the protected field across class loaders) can propagate the flag
+         *         when constructing their mapper.
+         */
+        public boolean isPluggableDataFormat() {
+            return pluggableDataFormat;
         }
 
         /**
@@ -612,6 +663,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
+            }
+            // Carry the pluggable-data-format flag over from the mapper being merged/serialized so a
+            // settings-less merge builder keeps the correct parameter defaults (e.g. `index` -> false).
+            if (initializer instanceof ParametrizedFieldMapper) {
+                this.pluggableDataFormat = ((ParametrizedFieldMapper) initializer).pluggableDataFormat;
             }
             return this;
         }

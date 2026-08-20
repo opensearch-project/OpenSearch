@@ -1255,7 +1255,8 @@ public final class IndexModule {
     public MapperService newIndexMapperService(
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService
+        ScriptService scriptService,
+        DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         return new MapperService(
             indexSettings,
@@ -1267,7 +1268,8 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             () -> false,
-            scriptService
+            scriptService,
+            dataFormatRegistry
         );
     }
 
