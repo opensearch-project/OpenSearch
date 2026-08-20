@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "is_active"
+    "is_active",
+    "_id"
   ],
   "mockResultRows": [
     [
       "product1",
-      true
+      true,
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "product1",
             "is_active": true
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
