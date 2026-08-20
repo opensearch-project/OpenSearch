@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -325,7 +326,9 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start(ActionListener<Void> onStarted) {
+            onStarted.onResponse(null);
+        }
 
         @Override
         public void addStateListener(StageStateListener listener) {
@@ -395,7 +398,9 @@ public class AttachChildrenTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start(ActionListener<Void> onStarted) {
+            onStarted.onResponse(null);
+        }
 
         @Override
         public void addStateListener(StageStateListener listener) {

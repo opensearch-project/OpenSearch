@@ -1,0 +1,38 @@
+{
+  "testName": "range_unsigned_long",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "counter": "UNSIGNED_LONG"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "counter": {
+          "gte": 100,
+          "lte": 9000
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, CAST(100:UNSIGNED_LONG):UNSIGNED_LONG), <=($1, CAST(9000:UNSIGNED_LONG):UNSIGNED_LONG))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "counter"],
+  "mockResultRows": [
+    ["item1", 500]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

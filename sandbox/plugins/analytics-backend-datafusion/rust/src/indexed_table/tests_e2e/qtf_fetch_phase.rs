@@ -61,6 +61,7 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -80,14 +81,18 @@ async fn query_phase(tree: BoolNode) -> Vec<i64> {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,

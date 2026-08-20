@@ -11,7 +11,6 @@ package org.opensearch.analytics.planner;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.AbstractConverter;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
@@ -19,9 +18,9 @@ import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttle;
 import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Sort;
-import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
 import org.apache.calcite.rel.rules.ReduceExpressionsRule;
@@ -31,18 +30,24 @@ import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql2rel.RelDecorrelator;
+import org.apache.calcite.sql2rel.RelFieldTrimmer;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
+import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
+import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
@@ -56,8 +61,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -118,18 +121,20 @@ public class PlannerImpl {
      * Package-private so planner rule tests can inspect the marked+optimized tree.
      */
     public static RelNode runAllOptimizations(RelNode rawRelNode, PlannerContext context) {
-        LOGGER.debug("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
+        RelNodeUtils.logPlan(LOGGER, "Input RelNode", rawRelNode);
 
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
+        modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
+        modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
-        LOGGER.debug("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        RelNodeUtils.logPlan(LOGGER, "After marking", modifiedRelNode);
         modifiedRelNode = splitAggLiteralArgProject(modifiedRelNode, listener);
         // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
         // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
@@ -141,21 +146,21 @@ public class PlannerImpl {
         // Revisit once those are designed. The rule would also strip performance peers from
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
-        LOGGER.debug("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
+        RelNodeUtils.logPlan(LOGGER, "After CBO", modifiedRelNode);
         Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
-            LOGGER.debug("After late-materialization:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After late-materialization", modifiedRelNode);
         }
         Optional<RelNode> topK = OpenSearchTopKRewriter.rewrite(modifiedRelNode, context);
         if (topK.isPresent()) {
             modifiedRelNode = topK.get();
-            LOGGER.debug("After TopK rewrite:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After TopK rewrite", modifiedRelNode);
         }
         Optional<RelNode> sortPushdown = OpenSearchSortPushdownRewriter.rewrite(modifiedRelNode);
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
-            LOGGER.debug("After sort pushdown:\n{}", RelOptUtil.toString(modifiedRelNode));
+            RelNodeUtils.logPlan(LOGGER, "After sort pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
@@ -164,6 +169,78 @@ public class PlannerImpl {
             LOGGER.info("Planner profile for raw RelNode is :\n{}", profile.format());
         }
         return modifiedRelNode;
+    }
+
+    /**
+     * Pre-marking cost-based join reordering for multi-way joins. Collapses the frontend's
+     * left-deep {@code LogicalJoin} tree into a single {@code MultiJoin} ({@code JOIN_TO_MULTI_JOIN}),
+     * then re-orders it with Calcite's bushy-join heuristic ({@code MULTI_JOIN_OPTIMIZE_BUSHY}), which
+     * ranks join factors by {@code RelMetadataQuery.getRowCount} — the per-index counts seeded by
+     * {@code IndexRowCountFetcher}. The effect: the smaller/more-selective joins run first, so a fat
+     * fact-table intermediate is not carried through every downstream join (and not re-shuffled at
+     * each worker tier). This is the plan-layer analog of the column-prune win — less data moved by
+     * construction, not by a bigger memory ceiling.
+     *
+     * <p>Runs here (pre-marking, on {@code Logical*}) for the same reason as {@link #trimFields}: the
+     * reorder rules match {@code LogicalProject(MultiJoin)} / {@code LogicalJoin}, and marking lowers
+     * the reordered shape in one pass.
+     *
+     * <p><b>The two rules run as SEPARATE HEP instructions</b> — {@code JOIN_TO_MULTI_JOIN} to fixpoint,
+     * THEN {@code MULTI_JOIN_OPTIMIZE_BUSHY} to fixpoint. Running them in one rule collection loops
+     * indefinitely (the optimize rule's {@code Join} output re-triggers {@code JOIN_TO_MULTI_JOIN}); as
+     * ordered instructions the flatten completes once and the optimizer consumes its {@code MultiJoin}
+     * without re-flattening (the documented deferral hazard at the old {@code reduceExpressions} TODO).
+     *
+     * <p><b>Gated</b> by {@link AnalyticsSettings#MPP_JOIN_REORDER} (default {@code false}) AND to plans
+     * with 3+ joins that are ALL equi-joins — a 2-way join has a single order (nothing to reorder), and
+     * a cross-join (PPL {@code transpose}) must not be flattened into a {@code MultiJoin}. A reorder-rule
+     * edge case falls back to the input plan rather than failing the query.
+     */
+    private static RelNode reorderJoins(RelNode input, PlannerContext context, RuleProfilingListener listener) {
+        if (!AnalyticsSettings.MPP_JOIN_REORDER.get(context.getSettings())) {
+            return input;
+        }
+        // 3+ PURE-equi joins only: fewer than 3 has a single order; and every join must be a pure equi-join
+        // (isEqui() = no residual non-equi conjunct). A cross-join (no keys) or a mixed equi+theta condition
+        // (e.g. a.x=b.x AND a.y>b.y) must NOT be flattened into a MultiJoin — the bushy rule is narrow around
+        // condition shape, and a leftKeys-non-empty-but-not-pure-equi join would slip a theta predicate into
+        // the reorder. (Same spirit as the trimFields all-equi scoping, tightened to isEqui.)
+        List<org.apache.calcite.rel.core.Join> joins = RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Join.class);
+        boolean reorderable = joins.size() >= 3 && joins.stream().allMatch(j -> j.analyzeCondition().isEqui());
+        if (!reorderable) {
+            return input;
+        }
+        // Exclude plans carrying a Correlate or a non-INNER join. JOIN_TO_MULTI_JOIN flattens inner joins
+        // into a MultiJoin, but MULTI_JOIN_OPTIMIZE_BUSHY only re-expands a MultiJoin it can fully reorder;
+        // an EXISTS/NOT-EXISTS subquery (LogicalCorrelate, or a semi/anti join once decorrelated — TPC-H
+        // q21/q11) leaves a residual MultiJoin that no bushy match consumes, and marking then rejects the
+        // unmarked MultiJoin ("Filter rule encountered unmarked child [MultiJoin]"). Skip those shapes.
+        if (!RelNodeUtils.findNodes(input, org.apache.calcite.rel.core.Correlate.class).isEmpty()
+            || joins.stream().anyMatch(j -> j.getJoinType() != org.apache.calcite.rel.core.JoinRelType.INNER)) {
+            return input;
+        }
+        try {
+            RelNode reordered = HepPhase.named("join-reorder")
+                .addRuleInstance(CoreRules.JOIN_TO_MULTI_JOIN)
+                .addRuleInstance(CoreRules.MULTI_JOIN_OPTIMIZE_BUSHY)
+                .run(input, listener);
+            // Belt-and-suspenders: the optimize rule must leave ZERO MultiJoin nodes — a residual one is a
+            // deferred failure (marking throws on it, which the try/catch here can't see because the reorder
+            // phase itself didn't throw). If any survived, discard the reorder and keep the as-written tree.
+            if (!RelNodeUtils.findNodes(reordered, org.apache.calcite.rel.rules.MultiJoin.class).isEmpty()) {
+                LOGGER.debug("Join reorder left a residual MultiJoin; falling back to as-written order");
+                return input;
+            }
+            RelNodeUtils.logPlan(LOGGER, "After join reorder", reordered);
+            return reordered;
+        } catch (Exception | AssertionError e) {
+            // Defensive: a reorder-rule edge case must not fail planning — Calcite can assert-fail (not just
+            // throw a RuntimeException) on an unsupported condition shape when assertions are enabled. Fall
+            // back to the as-written order; correctness is unaffected, only the ordering win is lost. The
+            // returned `input` is the original, unmutated tree (HepPlanner builds a fresh output).
+            LOGGER.debug("Join reorder skipped (fell back to as-written order): {}", e.toString());
+            return input;
+        }
     }
 
     /**
@@ -302,6 +379,9 @@ public class PlannerImpl {
      * Project may not have backend support for.
      */
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
+        // NOTE: join reordering does NOT run here — running JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY
+        // in the same ARBITRARY pass loops indefinitely (they invert each other). It lives in its own
+        // dedicated phase, {@link #reorderJoins}, which runs them as two separate fixpoint instructions.
         return HepPhase.named("reduce-expressions")
             .bottomUp()
             .addRuleCollection(
@@ -356,6 +436,8 @@ public class PlannerImpl {
      * Runs before {@link OpenSearchAggregateRule} marks the aggregate so the marking phase, the
      * Volcano split rule, and the {@code DistributedAggregateRewriter} see the rewritten shape:
      * <ul>
+     *   <li>{@link OpenSearchCheckedLongSumRule} and {@link OpenSearchCheckedLongSumWindowRule} —
+     *       PPL's reflective {@code CHECKED_LONG_SUM} marker → Calcite's canonical {@code SUM}.</li>
      *   <li>{@link OpenSearchDistinctCountRule} — single-arg {@code COUNT(DISTINCT x)} →
      *       {@code APPROX_COUNT_DISTINCT(x)} so distinct counts engage the engine-native
      *       HLL sketch merge instead of additive SUM-of-counts.</li>
@@ -367,9 +449,57 @@ public class PlannerImpl {
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
         return HepPhase.named("aggregate-decompose")
             .bottomUp()
+            .addRuleInstance(new OpenSearchCheckedLongSumRule())
+            .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
             .addRuleInstance(new OpenSearchAggregateReduceRule())
+            .addRuleInstance(CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS)
+            // AGGREGATE_PROJECT_PULL_UP_CONSTANTS lifts constant group keys into a Project above
+            // the Aggregate. That Project lands directly beneath the query's own projection, and
+            // PROJECT_MERGE already ran back in the pushdown phase — so without merging here the
+            // tree keeps two adjacent, column-reordering Projects between any downstream Sort and
+            // the Aggregate. OpenSearchTopKRewriter only composes its sort-key remap through a
+            // single Project (it treats further Projects as transparent passthroughs), so the
+            // second reordering Project made it map the collation past the Aggregate's output and
+            // throw IndexOutOfBoundsException. Collapsing the pair back into one Project here keeps
+            // that invariant intact and lets TopK oversampling still fire for these queries.
+            .addRuleInstance(CoreRules.PROJECT_MERGE)
             .run(input, listener);
+    }
+
+    /**
+     * Invokes Calcite's {@link RelFieldTrimmer} to slim each node to only the columns its consumer
+     * needs, inserting a narrowing Project above the scan so DataFusion prunes the parquet read.
+     *
+     * <p><b>Declines on any plan containing a non-equi join.</b> The trimmer rewrites the WHOLE tree,
+     * not a subtree, so one CROSS JOIN anywhere — e.g. what PPL {@code transpose} lowers to, sitting
+     * beside a real equi-join — is enough for it to prune every column of the cross-join's unreferenced
+     * input down to a synthetic {@code DUMMY} literal Project. That plan is valid-but-WRONG (it drops
+     * the branch's rows) and throws nothing, so the try/catch below would not catch it. Requiring EVERY
+     * join to carry equi-keys excludes such plans, sibling arm or not; a cross-join never distributes,
+     * so nothing is lost. Regression: {@code CascadeShuffleProbeTests#testColumnPruneSkipsPlanWithCrossJoin}
+     * (positive control: {@code #testColumnPruneNarrowsShuffleInputs}).
+     */
+    static RelNode trimFields(RelNode input) {
+        List<Join> joins = RelNodeUtils.findNodes(input, Join.class);
+        if (joins.stream().anyMatch(j -> j.analyzeCondition().leftKeys.isEmpty())) {
+            LOGGER.debug("Field trimming skipped: plan contains a non-equi join (trimmer would mis-rewrite it)");
+            return input;
+        }
+        RelBuilder relBuilder = RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null);
+        // Trimming is a pure optimization; any trimmer failure must fall back, never fail the query.
+        try {
+            RelNode trimmed = new RelFieldTrimmer(null, relBuilder).trim(input);
+            // trim() asserts an identity ref-mapping at the root, so field count/order are preserved
+            // but names can drift (it drops alias-only top Projects, e.g. transpose's RENAME). Re-impose
+            // the original output names — same contract as Calcite's RelRoot.project()/RelBuilder.rename().
+            trimmed = relBuilder.push(trimmed).rename(input.getRowType().getFieldNames()).build();
+            RelNodeUtils.logPlan(LOGGER, "After field trimming", trimmed);
+            return trimmed;
+        } catch (RuntimeException | AssertionError e) {
+            LOGGER.warn("RelFieldTrimmer skipped (falling back to untrimmed tree): {}", e.toString());
+            return input;
+        }
     }
 
     /**
@@ -410,6 +540,8 @@ public class PlannerImpl {
         volcanoPlanner.addRule(new OpenSearchAggregateSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchSortSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
+        volcanoPlanner.addRule(new OpenSearchBroadcastJoinSplitRule(context));
+        volcanoPlanner.addRule(new OpenSearchHashJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
@@ -420,7 +552,10 @@ public class PlannerImpl {
         }
         try {
             RelOptCluster volcanoCluster = RelOptCluster.create(volcanoPlanner, rawRelNode.getCluster().getRexBuilder());
-            volcanoCluster.setMetadataQuerySupplier(RelMetadataQuery::instance);
+            // Use our metadata query so OpenSearchJoin gets a PK-FK row-count estimate instead of
+            // Calcite's no-stats cartesian × 0.15 over-estimate. The subclass overrides only
+            // getRowCount; every other metadata def falls through to the default handler chain.
+            volcanoCluster.setMetadataQuerySupplier(OpenSearchRelMetadataQuery::new);
 
             // TODO: eliminate this copy
             RelNode copied = RelNodeUtils.copyToCluster(marked, volcanoCluster, distTraitDef);
@@ -435,11 +570,10 @@ public class PlannerImpl {
                 volcanoPlanner.setRoot(volcanoPlanner.changeTraits(copied, desiredTraits));
             }
             RelNode best = volcanoPlanner.findBestExp();
-            if (LOGGER.isDebugEnabled()) {
-                StringWriter sw = new StringWriter();
-                volcanoPlanner.dump(new PrintWriter(sw));
-                LOGGER.debug("Volcano memo:\n{}", sw);
-            }
+            // NB: do NOT log volcanoPlanner.dump() here — it runs Dumpers.dumpGraphviz, whose
+            // PartiallyOrderedSet build is O(memo^2+) and takes MINUTES for a multi-way join (a 6-way join's
+            // memo hangs the query purely in the debug dump; findBestExp already returned). The chosen plan
+            // is already rendered by the "After CBO" DEBUG line in runAllOptimizations, so no dump is needed.
             return best;
         } finally {
             if (listener != null) listener.endPhase("cbo");

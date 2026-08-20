@@ -1,0 +1,38 @@
+{
+  "testName": "range_date",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "created_date": "DATE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "created_date": {
+          "gte": "2024-01-01",
+          "lte": "2024-12-31"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalFilter(condition=[AND(>=($1, 2024-01-01 00:00:00), <=($1, 2024-12-31 23:59:59))])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "created_date"],
+  "mockResultRows": [
+    ["event1", "2024-06-15"]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}

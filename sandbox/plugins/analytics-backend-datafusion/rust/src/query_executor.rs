@@ -258,7 +258,13 @@ pub async fn execute_with_context(
 
         // Empty shard: skip physical planning (ParquetExec errors on zero files)
         // and emit an EmptyExec stream with the logical plan's output schema.
-        if handle.object_metas.is_empty() {
+        //
+        // Gate on a non-empty table_name so this fires ONLY for real shard scans. Hash-shuffle
+        // WORKER sessions (create_worker_session_context) also carry empty object_metas — they
+        // scan registered StreamingTables, not parquet files — but use an empty table_name. Without
+        // this guard a worker's join/aggregate plan would short-circuit to EmptyExec and silently
+        // return zero rows (regression caught by HashShuffleJoinIT after the #21754 empty-index merge).
+        if handle.object_metas.is_empty() && !handle.table_name.is_empty() {
             use datafusion::physical_plan::empty::EmptyExec;
             use datafusion::physical_plan::ExecutionPlan;
             let plan_schema: arrow::datatypes::SchemaRef =

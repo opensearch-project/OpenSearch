@@ -44,6 +44,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
@@ -173,6 +174,7 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
                     engineConfig.store().shardPath(),
                     () -> schema,
                     () -> 1L,
+                    () -> ParquetSettings.getLowCardinalityEnabledFields(engineConfig.mapperService()),
                     engineConfig.indexSettings(),
                     threadPool,
                     new PrecomputedChecksumStrategy(),

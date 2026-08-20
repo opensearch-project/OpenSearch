@@ -33,7 +33,7 @@ dependencies {
   compileOnly project(':sandbox:libs:analytics-framework')
   compileOnly project(':sandbox:plugins:analytics-engine')
   // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.
-  compileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+  compileOnly "org.apache.calcite.avatica:avatica-core:${versions.avatica}"
 
   // Guava for compilation — Calcite API exposes guava types in annotations
   calciteCompile "com.google.guava:guava:${versions.guava}"
@@ -45,4 +45,9 @@ dependencies {
 
   internalClusterTestImplementation project(':server')
   internalClusterTestImplementation project(':test:framework')
+}
+
+tasks.withType(JavaCompile).configureEach {
+  // Calcite's TimestampString references Jackson @JsonProperty not on compile classpath — suppress classfile warning
+  options.compilerArgs -= '-Xlint:classfile'
 }

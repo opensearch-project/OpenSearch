@@ -70,9 +70,9 @@ import java.util.function.Function;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.idsQuery;
-import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.scriptScoreQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
@@ -268,7 +268,9 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
         indexRandomForConcurrentSearch("bulk-test-index");
 
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "bulk_score", Collections.emptyMap());
-        SearchResponse resp = client().prepareSearch("bulk-test-index").setQuery(scriptScoreQuery(matchAllQuery(), script)).get();
+        SearchResponse resp = client().prepareSearch("bulk-test-index")
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script))
+            .get();
         assertNoFailures(resp);
         assertEquals(3, resp.getHits().getTotalHits().value());
         for (var hit : resp.getHits().getHits()) {
@@ -290,7 +292,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
         // The per-doc path (newInstance) returns a fixed score of 2.0.
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "bulk_score", Collections.emptyMap());
         SearchResponse resp = client().prepareSearch("bulk-test-minscore")
-            .setQuery(scriptScoreQuery(matchAllQuery(), script).setMinScore(1.5f))
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script).setMinScore(1.5f))
             .get();
         assertNoFailures(resp);
         assertEquals(2, resp.getHits().getTotalHits().value());
@@ -309,15 +311,18 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
         indexRandomForConcurrentSearch("bulk-test-boost");
 
         float boost = 3.0f;
-        // First query without boost to get the base score
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "bulk_score", Collections.emptyMap());
-        SearchResponse baseResp = client().prepareSearch("bulk-test-boost").setQuery(scriptScoreQuery(matchAllQuery(), script)).get();
+        // Use a term filter to match only our specific doc, avoiding random docs from indexRandomForConcurrentSearch
+        SearchResponse baseResp = client().prepareSearch("bulk-test-boost")
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script))
+            .get();
         assertNoFailures(baseResp);
+        assertEquals(1, baseResp.getHits().getTotalHits().value());
         float baseScore = baseResp.getHits().getHits()[0].getScore();
 
         // Query with boost — score should be base * boost
         SearchResponse resp = client().prepareSearch("bulk-test-boost")
-            .setQuery(scriptScoreQuery(matchAllQuery(), script).boost(boost))
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script).boost(boost))
             .get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits().value());
@@ -335,7 +340,9 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
         // "fallback_score" source triggers null from bulkScorer() → falls back to per-doc scoring (returns 2.0)
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "fallback_score", Collections.emptyMap());
-        SearchResponse resp = client().prepareSearch("bulk-test-fallback").setQuery(scriptScoreQuery(matchAllQuery(), script)).get();
+        SearchResponse resp = client().prepareSearch("bulk-test-fallback")
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script))
+            .get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits().value());
         assertEquals(2.0f, resp.getHits().getHits()[0].getScore(), 0.001f);
@@ -350,11 +357,11 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
         refresh();
         indexRandomForConcurrentSearch("bulk-test-explain");
 
-        // The bulk scorer produces score = (docId + 1) * boost, but explain always uses the per-doc
+        // The bulk scorer produces score = 1.0 * boost, but explain always uses the per-doc
         // path (newInstance → execute() returns 2.0). Verify explain returns the per-doc score.
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "bulk_score", Collections.emptyMap());
         SearchResponse resp = client().prepareSearch("bulk-test-explain")
-            .setQuery(scriptScoreQuery(matchAllQuery(), script))
+            .setQuery(scriptScoreQuery(termQuery("field1", "foo"), script))
             .setExplain(true)
             .get();
         assertNoFailures(resp);
@@ -375,7 +382,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
     /**
      * A minimal script engine that produces a {@link ScoreScript.BulkScoringLeafFactory}.
      * <p>
-     * Source "bulk_score": bulk scorer assigns score = (segment-local docId + 1) * boost.
+     * Source "bulk_score": bulk scorer assigns score = 1.0 * boost (docId-independent).
      * Source "fallback_score": bulkScorer() returns null, falling back to per-doc scoring with score = 2.0.
      */
     public static class BulkScoringScriptEngine implements ScriptEngine {
@@ -448,9 +455,16 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
     /**
      * A simple bulk scorer that drives the sub-query's bulk scorer to discover matched docs,
-     * then assigns each document a score of (docId + 1) * boost.
+     * then assigns each document a score of BASE_SCORE * boost.
+     * <p>
+     * The base score is intentionally independent of the (segment-local) docId. With concurrent
+     * segment search, the bogus docs indexed by {@code indexRandomForConcurrentSearch} shift the
+     * segment-local docId of the real doc non-deterministically, so a docId-derived score would
+     * make assertions on absolute score values flaky.
      */
     private static class SimpleBulkScorer extends BulkScorer {
+
+        private static final float BASE_SCORE = 1.0f;
 
         private final BulkScorer subQueryBulkScorer;
         private final float boost;
@@ -477,7 +491,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    currentScore[0] = (doc + 1) * boost;
+                    currentScore[0] = BASE_SCORE * boost;
                     collector.collect(doc);
                 }
             }, acceptDocs, min, max);

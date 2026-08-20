@@ -310,7 +310,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
+                        // Only fail if we know it is an object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
                 }

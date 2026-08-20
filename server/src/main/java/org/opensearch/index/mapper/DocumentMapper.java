@@ -208,6 +208,7 @@ public class DocumentMapper implements ToXContentFragment {
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME,
             IdFieldMapper.NAME,
+            RoutingFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SeqNoFieldMapper.PRIMARY_TERM_NAME,
             SeqNoFieldMapper.TOMBSTONE_NAME
@@ -310,7 +311,11 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
+        return createDeleteTombstoneDoc(index, id, null);
+    }
+
+    public ParsedDocument createDeleteTombstoneDoc(String index, String id, @Nullable String routing) throws MapperParsingException {
+        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON, routing);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 

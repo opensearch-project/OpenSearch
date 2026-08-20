@@ -74,7 +74,11 @@ struct PerSegmentCollector {
 }
 
 impl RowGroupDocsCollector for PerSegmentCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -83,7 +87,7 @@ impl RowGroupDocsCollector for PerSegmentCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -130,6 +134,7 @@ async fn run_two_segment_query(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -152,7 +157,11 @@ async fn run_two_segment_query(
                 .unwrap_or_default();
             let collector: Arc<dyn RowGroupDocsCollector> =
                 Arc::new(PerSegmentCollector { matching });
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     Some(collector), pruner, None, None, None, None,
@@ -267,7 +276,11 @@ struct ConcurrencyWitnessCollector {
 }
 
 impl RowGroupDocsCollector for ConcurrencyWitnessCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         use std::sync::atomic::Ordering;
         let cur = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
         // Update high-water-mark with a CAS loop.
@@ -335,6 +348,7 @@ async fn run_two_segment_query_witness(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -361,7 +375,11 @@ async fn run_two_segment_query_witness(
                 in_flight: Arc::clone(&in_flight),
                 max_in_flight: Arc::clone(&max_in_flight),
             });
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     Some(collector), pruner, None, None, None, None,
@@ -552,6 +570,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -570,7 +589,11 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                 .unwrap_or_default();
             let collector: Arc<dyn RowGroupDocsCollector> =
                 Arc::new(PerSegmentCollector { matching });
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
                     Some(collector), pruner, None, None, None, None,
@@ -1001,13 +1024,13 @@ async fn run_wide_segments(
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1049,6 +1072,7 @@ async fn run_wide_segments(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -1074,7 +1098,11 @@ async fn run_wide_segments(
                 })
                 .collect();
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::TreeBitsetSource {
                     tree: Arc::new(resolved),
@@ -1345,13 +1373,13 @@ async fn run_wide_segments_with_stats_pruning(
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1392,6 +1420,7 @@ async fn run_wide_segments_with_stats_pruning(
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -1432,7 +1461,11 @@ async fn run_wide_segments_with_stats_pruning(
                 })
                 .collect();
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let rg_index_to_pos: HashMap<usize, usize> = chunk
                 .row_group_indices
                 .iter()
@@ -1688,6 +1721,7 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         &parquet_meta,
         &schema,
         &rg_indices,
+        &schema,
     );
 
     // Assert: rg_can_match for position 0 (RG2, prices 80-110) should be true (price>60 matches).
@@ -1715,6 +1749,7 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         &parquet_meta,
         &schema,
         &rg_indices_low,
+        &schema,
     );
     // RG0 (prices 0-30): price>60 → false → AND=false
     assert!(
@@ -1733,13 +1768,13 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1747,7 +1782,11 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
     let per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
         vec![(0, Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>)];
     let resolved = tree_arc.resolve(&per_leaf).unwrap();
-    let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta)));
+    let pruner = Arc::new(PagePruner::new(
+        &schema,
+        Arc::clone(&parquet_meta),
+        schema.clone(),
+    ));
 
     let source = crate::indexed_table::eval::TreeBitsetSource {
         tree: Arc::new(resolved),
@@ -1803,7 +1842,11 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
         leaves: Arc::new(
             crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::without_metrics(),
         ),
-        page_pruner: Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta))),
+        page_pruner: Arc::new(PagePruner::new(
+            &schema,
+            Arc::clone(&parquet_meta),
+            schema.clone(),
+        )),
         cost_predicate: 1,
         cost_collector: 10,
         max_collector_parallelism: 1,
@@ -1903,6 +1946,7 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
         &parquet_meta,
         &schema,
         &rg_indices,
+        &schema,
     );
     // Root OR should still be true (Collector1 child is always-true).
     assert!(
@@ -1925,13 +1969,13 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1940,7 +1984,11 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
         (1, Arc::new(AllDocs) as Arc<dyn RowGroupDocsCollector>),
     ];
     let resolved = Arc::new(tree).resolve(&per_leaf).unwrap();
-    let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&parquet_meta)));
+    let pruner = Arc::new(PagePruner::new(
+        &schema,
+        Arc::clone(&parquet_meta),
+        schema.clone(),
+    ));
     let rg_index_to_pos: HashMap<usize, usize> = rg_indices
         .iter()
         .enumerate()
@@ -1989,7 +2037,8 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
         .downcast_ref::<crate::indexed_table::eval::TreePrefetch>()
         .expect("context should be TreePrefetch");
 
-    // Critical assertion: per_leaf must have 2 entries (one per collector).
+    // Both collectors have per_leaf entries. Collector0 (inside pruned AND)
+    // gets empty bitmap from skip_dfs_with_empty_bitmaps (no FFM call).
     assert_eq!(
         tree_prefetch.per_leaf.len(),
         2,
