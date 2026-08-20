@@ -16,6 +16,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.test.OpenSearchTestCase;
@@ -78,7 +79,7 @@ public class StitcherTests extends OpenSearchTestCase {
 
     /** ExchangeSink that takes ownership on feed() and closes what it receives on close(). */
     private static final class OwningSink implements ExchangeSink {
-        private final List<VectorSchemaRoot> received = new ArrayList<>();
+        final List<VectorSchemaRoot> received = new ArrayList<>();
         boolean closed = false;
 
         @Override
@@ -109,8 +110,9 @@ public class StitcherTests extends OpenSearchTestCase {
 
     /**
      * Success path: the single shard reports one batch, {@code shardComplete} triggers
-     * {@code finish}, and the output is fed to the sink. Closing the sink (owner) releases the
-     * output. Baseline that the happy path leaves nothing stranded.
+     * {@code finish}, and the output is fed to the sink. {@code finish} leaves the sink open —
+     * the consumer owns it — so the release happens when its owner closes it. Baseline that the
+     * happy path leaves nothing stranded.
      */
     public void testSuccessPathTransfersOwnershipAndLeavesNoLeak() {
         OwningSink sink = new OwningSink();
@@ -123,12 +125,15 @@ public class StitcherTests extends OpenSearchTestCase {
         stitcher.shardComplete();
 
         assertEquals("onComplete fired once", 1, completes.get());
-        assertTrue("sink took ownership and was closed by finish", sink.closed);
-        assertEquals("output released once the owning sink closed it", 0, allocator.getAllocatedMemory());
+        assertFalse("finish must not close the parent sink; its owner does", sink.closed);
+        assertEquals("sink took ownership of the output", 1, sink.received.size());
 
         // A defensive stage-terminal close() must be a no-op after ownership transferred.
         stitcher.close();
-        assertEquals(0, allocator.getAllocatedMemory());
+        assertTrue("output still held by the sink, not freed by the stitcher", allocator.getAllocatedMemory() > 0);
+
+        sink.close();
+        assertEquals("output released once the owning sink closed it", 0, allocator.getAllocatedMemory());
     }
 
     /**
@@ -177,5 +182,36 @@ public class StitcherTests extends OpenSearchTestCase {
         // Idempotent: a late shardComplete (if it ever arrived) or a second close must not throw.
         stitcher.close();
         assertEquals(0, allocator.getAllocatedMemory());
+    }
+
+    /**
+     * Root-stage wiring: when the LM wrapper is the plan root, {@code parentSink} is the query
+     * terminal {@link RowProducingSink} that {@code StageExecutionBuilder.buildRootExecution}
+     * supplies, and {@code QueryExecution.fireListener} reads the answer out of it only after the
+     * root stage reaches SUCCEEDED. {@code RowProducingSink.close()} releases and clears every
+     * buffered batch, so {@code finish} must hand the stitched output over without closing the
+     * sink — otherwise the result is freed before anyone reads it and the client sees a correct
+     * schema with zero rows (issue #22786, {@code source = idx | sort id | head N} on a
+     * multi-shard index).
+     */
+    public void testRootTerminalSinkStillHoldsResultAfterFinish() {
+        RowProducingSink terminal = new RowProducingSink();
+        Stitcher stitcher = new Stitcher(allocator, outputFields(), 1, 1, terminal, () -> {});
+
+        VectorSchemaRoot resp = responseBatch(new Object[] { "0" }, new Object[] { "a" });
+        stitcher.acceptBatch(resp, new int[] { 0 }, 0);
+        resp.close();
+        stitcher.shardComplete();
+
+        // What QueryExecution.fireListener() does on the root stage terminal transition.
+        List<VectorSchemaRoot> read = new ArrayList<>();
+        terminal.readResult().forEach(read::add);
+        assertEquals("terminal sink still holds the stitched batch", 1, read.size());
+        assertEquals("stitched row reaches the reader", 1, read.get(0).getRowCount());
+        assertEquals("cell value readable by the row renderer", "a", terminal.getValueAt("val", 0).toString());
+
+        // QueryExecution.closeTerminalSink() owns the release, and it runs after the read.
+        terminal.close();
+        assertEquals("terminal sink close releases the stitched output", 0, allocator.getAllocatedMemory());
     }
 }

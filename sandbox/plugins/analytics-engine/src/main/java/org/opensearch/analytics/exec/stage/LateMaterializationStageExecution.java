@@ -135,8 +135,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code [sort_cols, fetch_cols...]} (helper columns {@code ___row_id} + {@code ___ugsi}
  * stripped per {@link OpenSearchLateMaterialization} contract). Each row's sort cols
  * come from the buffered Phase A batches; fetched cols from the Phase C map. Feed
- * batches into {@link #parentSink}. On EOF call {@link ExchangeSink#close()} on
- * parentSink and transition to {@link StageExecution.State#SUCCEEDED}.
+ * batches into {@link #parentSink} and transition to
+ * {@link StageExecution.State#SUCCEEDED}; the parent owns closing its own sink.
  *
  * <h2>Cancellation</h2>
  *

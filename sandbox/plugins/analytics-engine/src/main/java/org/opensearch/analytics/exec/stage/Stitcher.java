@@ -15,7 +15,6 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.VectorUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.CancellableExchangeSink;
@@ -197,14 +196,13 @@ public final class Stitcher {
                     outputDisposed = true;
                 }
                 ownershipTransferred = true;
-                // Guard the sink close like the failure branch below: feed() already transferred
-                // ownership of output, so a close-time failure must not propagate out of finish()
-                // (it runs on a shard's GatherListener callback thread) — log and swallow it.
-                try {
-                    parentSink.close();
-                } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("[Stitcher] parentSink.close() failed after emit for {} rows", totalRows), e);
-                }
+                // No parentSink.close() here: the consumer owns its sink. The cascade signals
+                // per-input EOF via closeChildInput() on this stage's SUCCEEDED, and the parent
+                // releases the sink on its own terminal transition. Closing it here frees a root
+                // stage's terminal RowProducingSink, clearing the buffered result before
+                // QueryExecution reads it, and races a buffered parent reduce ("sink closed before
+                // reduce") — the same reason the K=0 path in LateMaterializationStageExecution
+                // leaves it alone.
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
             } else {
                 // A fetch failure is not normal input completion. Abort a cancellable parent
