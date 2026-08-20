@@ -120,7 +120,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> skiplist = new Parameter<>(
@@ -140,24 +140,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         private final NumberType type;
 
-        /**
-         * True when this builder defaulted {@code index} to false because the index uses a pluggable
-         * data format. Only set by the constructor that receives index settings, so builders created
-         * for internal field types — derived fields, which evaluate queries against an in-memory
-         * index of their own rather than the pluggable storage — are unaffected.
-         */
-        private boolean pluggableDataFormat;
-
         public Builder(String name, NumberType type, Settings settings) {
             this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
-            if (Mapper.isPluggableDataFormatEnabled(settings)) {
-                // Pluggable data formats serve numeric queries from the doc-values column and write
-                // no BKD points, so the field is not point-searchable. Default `index` to false; an
-                // explicit `index: true` overwrites this during parameter parsing and is rejected in
-                // build().
-                this.pluggableDataFormat = true;
-                this.indexed.setValue(false);
-            }
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
@@ -202,19 +187,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public NumberFieldMapper build(BuilderContext context) {
-            // Runs after parameter parsing, so a still-true `index` here means the mapping explicitly
-            // set it and overwrote the not-indexed default from the constructor. Enabling `index` on a
-            // pluggable data format index cannot be honoured — no BKD points are written — and would
-            // route queries to a point branch that matches nothing.
-            if (pluggableDataFormat && indexed.getValue()) {
-                throw new MapperParsingException(
-                    "Field ["
-                        + name
-                        + "] of type ["
-                        + type.typeName()
-                        + "] cannot set [index] to true on an index using a pluggable data format"
-                );
-            }
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -2158,7 +2130,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean coerceByDefault;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

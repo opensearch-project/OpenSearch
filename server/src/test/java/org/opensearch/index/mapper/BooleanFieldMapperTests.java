@@ -53,9 +53,13 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -449,8 +453,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MockDocValuesDataFormatPlugin());
+    }
+
     private static Settings pluggableSettings() {
-        return Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+        return Settings.builder()
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", MockDocValuesDataFormatPlugin.FORMAT_NAME)
+            .build();
     }
 
     /**
@@ -487,7 +499,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 b.field("index", true);
             }))
         );
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [FULL_TEXT_SEARCH]"));
     }
 
     /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
@@ -531,6 +543,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [FULL_TEXT_SEARCH]"));
     }
 }

@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -22,6 +23,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -41,9 +43,10 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        // Supplies a committer factory so EngineConfigFactory accepts pluggable-dataformat indices,
-        // which the dummy index built during template validation requires.
-        return Collections.singletonList(MockCommitterEnginePlugin.class);
+        // MockCommitterEnginePlugin supplies a committer factory so EngineConfigFactory accepts pluggable
+        // indices; MockDocValuesDataFormatPlugin registers the "mock-dv" data format (columnar storage
+        // only for doc-values-backed types) so the capability path rejects index:true.
+        return List.of(MockCommitterEnginePlugin.class, MockDocValuesDataFormatPlugin.class);
     }
 
     @Override
@@ -56,6 +59,7 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
         return Settings.builder()
             .put(super.nodeSettings())
             .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), MockDocValuesDataFormatPlugin.FORMAT_NAME)
             .build();
     }
 
@@ -93,7 +97,7 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
             Exception.class,
             () -> service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "ct", componentTemplate(INDEX_TRUE))
         );
-        assertThat(fullMessage(e), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(fullMessage(e), containsString("cannot cover: [POINT_RANGE]"));
     }
 
     public void testComponentTemplateAcceptsIndexFalse() throws Exception {
@@ -115,7 +119,7 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
             () -> service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "it", composableTemplate(Settings.EMPTY, INDEX_TRUE))
         );
         // The composable path wraps the mapper rejection; assert on the full cause chain.
-        assertThat(fullMessage(e), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(fullMessage(e), containsString("cannot cover: [POINT_RANGE]"));
     }
 
     public void testComposableTemplateAcceptsIndexFalse() throws Exception {
@@ -160,10 +164,11 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
                 xContentRegistry(),
                 getInstanceFromNode(IndicesService.class),
                 new AliasValidator(),
-                true
+                true,
+                MockDocValuesDataFormatPlugin.FORMAT_NAME
             )
         );
-        assertThat(fullMessage(e), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(fullMessage(e), containsString("cannot cover: [POINT_RANGE]"));
     }
 
     /** A template with index: false resolves cleanly through the simulate path. */
@@ -178,7 +183,8 @@ public class PluggableDataFormatTemplateValidationTests extends OpenSearchSingle
             xContentRegistry(),
             getInstanceFromNode(IndicesService.class),
             new AliasValidator(),
-            true
+            true,
+            MockDocValuesDataFormatPlugin.FORMAT_NAME
         );
         assertNotNull(resolved);
     }

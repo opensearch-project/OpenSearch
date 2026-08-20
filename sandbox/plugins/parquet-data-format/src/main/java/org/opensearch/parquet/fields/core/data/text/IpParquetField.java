@@ -48,10 +48,8 @@ public class IpParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        return Set.of(
-            FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
-            FieldTypeCapabilities.Capability.BLOOM_FILTER,
-            FieldTypeCapabilities.Capability.POINT_RANGE
-        );
+        // No POINT_RANGE: the pluggable data format writes no BKD points for ip fields, so a mapping
+        // that requests search (index:true) is rejected via the capability path.
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER);
     }
 }

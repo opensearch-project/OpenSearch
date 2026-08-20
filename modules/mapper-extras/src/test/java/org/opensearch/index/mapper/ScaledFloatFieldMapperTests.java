@@ -52,6 +52,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.dataformat.stub.MockDocValuesDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -59,7 +60,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -68,7 +68,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasModulePlugin(), new MockDocValuesDataFormatPlugin());
     }
 
     @Override
@@ -607,7 +607,10 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     private static Settings pluggableSettings() {
-        return Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+        return Settings.builder()
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", MockDocValuesDataFormatPlugin.FORMAT_NAME)
+            .build();
     }
 
     /**
@@ -645,7 +648,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 b.field("index", true);
             }))
         );
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 
     /** Indices that do not use a pluggable dataformat keep the standard {@code index: true} default. */
@@ -689,6 +692,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("cannot set [index] to true on an index using a pluggable data format"));
+        assertThat(e.getMessage(), containsString("cannot cover: [POINT_RANGE]"));
     }
 }
