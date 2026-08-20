@@ -30,6 +30,8 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -52,6 +54,12 @@ public class TransferManager {
     private final StreamReader streamReader;
     private final FileCache fileCache;
     private final ThreadPool threadPool;
+
+    /**
+     * Default timeout for block fetch operations (5 minutes).
+     * Used when no explicit timeout is provided.
+     */
+    static final long DEFAULT_BLOCK_FETCH_TIMEOUT_MILLIS = 300_000L;
 
     public TransferManager(final StreamReader streamReader, final FileCache fileCache, ThreadPool threadPool) {
         this.streamReader = streamReader;
@@ -197,11 +205,17 @@ public class TransferManager {
         private final CompletableFuture<IndexInput> result = new CompletableFuture<>();
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private final AtomicBoolean isClosed = new AtomicBoolean(false);
+        private final long timeoutMillis;
 
         private DelayedCreationCachedIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
+            this(fileCache, streamReader, request, DEFAULT_BLOCK_FETCH_TIMEOUT_MILLIS);
+        }
+
+        private DelayedCreationCachedIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request, long timeoutMillis) {
             this.fileCache = fileCache;
             this.streamReader = streamReader;
             this.request = request;
+            this.timeoutMillis = timeoutMillis;
         }
 
         @Override
@@ -219,14 +233,24 @@ public class TransferManager {
                 }
             }
             try {
-                return result.join();
-            } catch (CompletionException e) {
-                if (e.getCause() instanceof UncheckedIOException) {
-                    throw ((UncheckedIOException) e.getCause()).getCause();
-                } else if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
+                return result.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                throw new IOException(
+                    "Timed out after " + timeoutMillis + "ms waiting for block fetch: " + request.getFilePath()
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "Interrupted while waiting for block fetch: " + request.getFilePath()
+                );
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof UncheckedIOException) {
+                    throw ((UncheckedIOException) cause).getCause();
+                } else if (cause instanceof RuntimeException) {
+                    throw (RuntimeException) cause;
                 }
-                throw e;
+                throw new IOException(e);
             }
         }
 
