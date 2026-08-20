@@ -96,7 +96,8 @@ public class SearchSourceConverter {
         // no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
         this.typeFactory = new SqlTypeFactoryImpl(DslTypeSystems.NANO_TIMESTAMP);
 
-        CalciteSchema rootSchema = CalciteSchema.from(schema);
+        // Tables in DSL's catalog carry the _id metadata column; see IdColumnSchema.
+        CalciteSchema rootSchema = CalciteSchema.createRootSchema(false, false, "", IdColumnSchema.wrap(schema));
         this.catalogReader = new CalciteCatalogReader(
             rootSchema,
             Collections.singletonList(""),

@@ -54,13 +54,19 @@ public class TestUtils {
 
     /** Creates a LogicalTableScan backed by the standard test schema. */
     public static LogicalTableScan createTestRelNode() {
-        Infra infra = buildInfra();
+        Infra infra = buildInfra(false);
+        return LogicalTableScan.create(infra.cluster, infra.table, List.of());
+    }
+
+    /** Like {@link #createTestRelNode()}, with the {@code _id} metadata column appended. */
+    public static LogicalTableScan createTestRelNodeWithId() {
+        Infra infra = buildInfra(true);
         return LogicalTableScan.create(infra.cluster, infra.table, List.of());
     }
 
     /** Creates a ConversionContext with the given search source and standard test schema. */
     public static ConversionContext createContext(SearchSourceBuilder searchSource) {
-        Infra infra = buildInfra();
+        Infra infra = buildInfra(false);
         return new ConversionContext(searchSource, infra.cluster, infra.table);
     }
 
@@ -69,7 +75,7 @@ public class TestUtils {
         return createContext(new SearchSourceBuilder());
     }
 
-    private static Infra buildInfra() {
+    private static Infra buildInfra(boolean includeIdColumn) {
         // Mirrors SearchSourceConverter: TIMESTAMP max precision raised to 9 for date_nanos support.
         RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(DslTypeSystems.NANO_TIMESTAMP);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
@@ -80,7 +86,7 @@ public class TestUtils {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
                 // Nullable fields — matches OpenSearchSchemaBuilder behavior
-                return tf.builder()
+                RelDataTypeFactory.Builder builder = tf.builder()
                     .add("name", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
                     .add("price", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.INTEGER), true))
                     .add("brand", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
@@ -98,8 +104,12 @@ public class TestUtils {
                     .add("unsigned_counter", UnsignedLongType.nullable(tf))
                     .add("tiny_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.TINYINT), true))
                     .add("small_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.SMALLINT), true))
-                    .add("float_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.REAL), true))
-                    .build();
+                    .add("float_val", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.REAL), true));
+                if (includeIdColumn) {
+                    // matches IdColumnSchema: appended last, not null
+                    builder.add("_id", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARBINARY), false));
+                }
+                return builder.build();
             }
         });
 
