@@ -18,7 +18,6 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,15 +57,6 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
     @Override
     public void validate(ExtendedStatsAggregationBuilder agg) throws ConversionException {
         MetricTranslator.validateSupportedParams(agg);
-    }
-
-    /** See {@link AbstractMetricTranslator#toAggregateCalls(ValuesSourceAggregationBuilder, RelDataType)}. */
-    @Override
-    public List<AggregateCall> toAggregateCalls(ExtendedStatsAggregationBuilder agg, RelDataType rowType) throws ConversionException {
-        if (agg.missing() != null) {
-            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
-        }
-        return toAggregateCalls(agg, rowType, null);
     }
 
     @Override

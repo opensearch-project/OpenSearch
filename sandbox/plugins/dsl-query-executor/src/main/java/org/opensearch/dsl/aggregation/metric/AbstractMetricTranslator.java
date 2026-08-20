@@ -57,15 +57,6 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
         return true;
     }
 
-    /** Literal-free variant; {@code missing} needs the {@link LiteralColumnAllocator} variant. */
-    @Override
-    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
-        if (agg.missing() != null) {
-            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
-        }
-        return toAggregateCalls(agg, rowType, null);
-    }
-
     @Override
     public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
         MetricTranslator.validateFormat(agg.format(), agg.getName());

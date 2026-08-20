@@ -121,30 +121,36 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
     }
 
     /**
-     * Converts the metric aggregation to Calcite AggregateCall(s). Callers run
+     * Converts the metric aggregation to Calcite AggregateCall(s). Constants allocated
+     * through {@code literals} — aggregate-call literal arguments or the {@code missing}
+     * substitute's COALESCE column — become input columns of the aggregate. Callers run
      * {@link #validate} first (the tree walker does, once per aggregation); this method
      * assumes an already-validated request.
      *
      * @param agg the metric aggregation builder
      * @param rowType the index row type for field lookup
+     * @param literals allocator for literal-derived input columns
      * @return list of Calcite AggregateCalls
      * @throws ConversionException if conversion fails
      */
-    List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException;
+    List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException;
 
     /**
-     * Variant for metrics whose aggregate calls take literal arguments:
-     * constants allocated through {@code literals} become input columns of the aggregate.
-     * Metrics without literal arguments need not override this.
+     * Literal-free convenience variant for callers with no {@link LiteralColumnAllocator}
+     * (tests, mostly). Requests whose translation would need a literal column —
+     * {@code missing} is the one such parameter today — are rejected here rather than
+     * silently mistranslated.
      *
      * @param agg the metric aggregation builder
      * @param rowType the index row type for field lookup
-     * @param literals allocator for constant input columns
      * @return list of Calcite AggregateCalls
      * @throws ConversionException if conversion fails
      */
-    default List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
-        return toAggregateCalls(agg, rowType);
+    default List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
+        if (agg instanceof ValuesSourceAggregationBuilder<?> vs && vs.missing() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
+        }
+        return toAggregateCalls(agg, rowType, null);
     }
 
     /**
