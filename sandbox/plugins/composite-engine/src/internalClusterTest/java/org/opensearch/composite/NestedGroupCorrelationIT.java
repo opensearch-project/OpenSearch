@@ -16,6 +16,9 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.sort.NestedSortBuilder;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
@@ -154,5 +157,49 @@ public class NestedGroupCorrelationIT extends AbstractCompositeEngineIT {
                 .get()
         );
         assertTrue("expected a correlated-group explanation, got: " + e.getMessage(), e.getMessage().contains("correlated"));
+    }
+
+    /**
+     * A {@code nested} aggregation buckets the per-element documents. A correlated group has none, so
+     * its child filter matches nothing and every bucket would come back empty — a plausible-looking
+     * zero rather than an unsupported operation.
+     */
+    public void testNestedAggregationOnCorrelatedGroupIsRejected() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createIndex("grp-agg", CORRELATED_MAPPING);
+        indexOneSpan("grp-agg");
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("grp-agg").addAggregation(AggregationBuilders.nested("ev", "Events")).get()
+        );
+        assertTrue("expected a correlated-group explanation, got: " + e.getMessage(), e.getMessage().contains("correlated"));
+    }
+
+    /**
+     * Nested sorting picks a value from the matching child documents. With none, the sort would
+     * silently fall back to the missing value for every hit instead of reporting that it cannot work.
+     */
+    public void testNestedSortOnCorrelatedGroupIsRejected() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        createIndex("grp-sort", CORRELATED_MAPPING);
+        indexOneSpan("grp-sort");
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("grp-sort")
+                .addSort(SortBuilders.fieldSort("Events.Name").setNestedSort(new NestedSortBuilder("Events")))
+                .get()
+        );
+        assertTrue("expected a correlated-group explanation, got: " + e.getMessage(), e.getMessage().contains("correlated"));
+    }
+
+    private void indexOneSpan(String index) {
+        client().prepareIndex(index)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource("{\"TraceId\":\"t\",\"Events\":{\"Name\":[\"a\",\"b\"],\"Kind\":[\"k1\",\"k2\"]}}", XContentType.JSON)
+            .get();
     }
 }

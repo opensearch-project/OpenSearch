@@ -128,6 +128,16 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             if (parentObjectMapper.nested().isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
             }
+            // A correlated group has no per-element documents, so there is no parent to reverse to: the
+            // parent filter matches nothing and the aggregation would silently return empty.
+            if (parentObjectMapper.correlated()) {
+                throw new AggregationExecutionException(
+                    "[reverse_nested] aggregation is not supported on path ["
+                        + path
+                        + "] because it is declared [correlated: true]: the group is stored as parallel columns "
+                        + "rather than nested documents, so there is no parent document to step back to"
+                );
+            }
         }
 
         NestedScope nestedScope = queryShardContext.nestedScope();

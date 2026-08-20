@@ -121,6 +121,16 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         if (childObjectMapper.nested().isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
+        // A correlated group is stored as parallel columns with no document per element, so the child
+        // filter this aggregation buckets on matches nothing and every bucket would come back empty.
+        if (childObjectMapper.correlated()) {
+            throw new AggregationExecutionException(
+                "[nested] aggregation is not supported on path ["
+                    + path
+                    + "] because it is declared [correlated: true]: the group is stored as parallel columns "
+                    + "rather than nested documents, so there are no per-element documents to bucket"
+            );
+        }
         try {
             ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(childObjectMapper);
             return new NestedAggregatorFactory(
