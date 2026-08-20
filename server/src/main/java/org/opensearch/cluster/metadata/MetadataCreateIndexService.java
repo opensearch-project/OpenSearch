@@ -663,8 +663,28 @@ public class MetadataCreateIndexService {
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
+        validateDataStreamIngestionSource(request, tempMetadata);
 
         return tempMetadata;
+    }
+
+    /**
+     * Pull-based ingestion binds a poller to a single concrete index, so every backing index of a data stream would
+     * poll the source independently and index the same messages once per generation. Rollover is documented as
+     * unsupported for pull-based ingestion, so reject the backing index instead of silently duplicating data.
+     */
+    private static void validateDataStreamIngestionSource(CreateIndexClusterStateUpdateRequest request, IndexMetadata indexMetadata) {
+        if (request.dataStreamName() != null && indexMetadata.useIngestionSource()) {
+            throw new IllegalArgumentException(
+                "cannot create backing index ["
+                    + request.index()
+                    + "] of data stream ["
+                    + request.dataStreamName()
+                    + "] with ["
+                    + IndexMetadata.SETTING_INGESTION_SOURCE_TYPE
+                    + "] set, pull-based ingestion does not support index rollover"
+            );
+        }
     }
 
     /**

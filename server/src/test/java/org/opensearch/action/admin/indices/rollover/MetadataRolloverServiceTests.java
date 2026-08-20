@@ -398,6 +398,65 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5), req);
     }
 
+    public void testPullBasedIngestionValidation() {
+        final Settings ingestionSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        final String aliasName = randomAlphaOfLength(5);
+        final String indexName = randomAlphaOfLength(6);
+        Metadata aliasMetadata = Metadata.builder()
+            .put(IndexMetadata.builder(indexName).settings(ingestionSettings).putAlias(AliasMetadata.builder(aliasName)))
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataRolloverService.validate(aliasMetadata, aliasName, null, new CreateIndexRequest())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "rollover target ["
+                    + aliasName
+                    + "] has write index ["
+                    + indexName
+                    + "] with [index.ingestion_source.type] set, pull-based ingestion does not support index rollover"
+            )
+        );
+
+        // a data stream created before this validation existed must not be rolled over either
+        final String dataStreamName = randomAlphaOfLength(7);
+        final String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata backingIndex = IndexMetadata.builder(backingIndexName).settings(ingestionSettings).build();
+        Metadata dataStreamMetadata = Metadata.builder()
+            .put(backingIndex, false)
+            .put(
+                new DataStream(
+                    dataStreamName,
+                    DataStreamTestHelper.createTimestampField("@timestamp"),
+                    Collections.singletonList(backingIndex.getIndex())
+                )
+            )
+            .build();
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataRolloverService.validate(dataStreamMetadata, dataStreamName, null, new CreateIndexRequest())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "rollover target ["
+                    + dataStreamName
+                    + "] has write index ["
+                    + backingIndexName
+                    + "] with [index.ingestion_source.type] set, pull-based ingestion does not support index rollover"
+            )
+        );
+    }
+
     public void testDataStreamValidation() throws IOException {
         Metadata.Builder md = Metadata.builder();
         DataStream randomDataStream = DataStreamTests.randomInstance();
