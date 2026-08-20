@@ -25,7 +25,6 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -37,6 +36,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 
 import javax.inject.Inject;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
@@ -234,7 +234,13 @@ public class LicenseHeadersTask extends DefaultTask {
 
         Document document;
         try {
-            document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(resource.toExternalForm());
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
+            document = factory.newDocumentBuilder().parse(resource.toExternalForm());
         } catch (Exception e) {
             throw new GradleException("Could not parse " + CONFIG_RESOURCE, e);
         }
@@ -248,7 +254,11 @@ public class LicenseHeadersTask extends DefaultTask {
         File generated = new File(reportDir, "rat-config.xml");
         try {
             Files.createDirectories(generated.getParentFile().toPath());
-            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            transformerFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+            Transformer transformer = transformerFactory.newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.transform(new DOMSource(document), new StreamResult(generated));
         } catch (Exception e) {
@@ -320,9 +330,9 @@ public class LicenseHeadersTask extends DefaultTask {
     private List<File> sourceDirectories() {
         List<File> result = new ArrayList<>();
         for (FileCollection files : javaFiles) {
-            for (File dir : ((SourceDirectorySet) files).getSrcDirs()) {
-                if (dir.exists()) {
-                    result.add(dir);
+            for (File file : files.getFiles()) {
+                if (file.exists() && file.isDirectory()) {
+                    result.add(file);
                 }
             }
         }
