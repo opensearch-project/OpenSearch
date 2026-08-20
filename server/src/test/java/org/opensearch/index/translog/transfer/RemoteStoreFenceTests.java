@@ -215,6 +215,28 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("v1|1|node-1".getBytes(StandardCharsets.UTF_8)));
     }
 
+    /**
+     * The separator is unescaped, so an owner containing it would encode a blob that {@code parse} rejects - which
+     * would fence a healthy primary. Node ids are base64 UUIDs so this cannot happen today; reject it at the source
+     * rather than rely on that.
+     */
+    public void testFenceStateRejectsOwnerContainingTheSeparator() {
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState(1, "node|1", 0));
+        // and the encoding of a well-formed owner still round-trips
+        RemoteStoreFence.FenceState roundTripped = expectSuccess(new RemoteStoreFence.FenceState(7, "node-1", 3));
+        assertEquals(7, roundTripped.term);
+        assertEquals("node-1", roundTripped.owner);
+        assertEquals(3, roundTripped.seq);
+    }
+
+    private static RemoteStoreFence.FenceState expectSuccess(RemoteStoreFence.FenceState state) {
+        try {
+            return RemoteStoreFence.FenceState.parse(state.toBytes());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public void testFenceRejectsContainerWithoutConditionalWriteSupport() {
         // The BlobContainer defaults must be inert: no silent non-atomic fallback for repositories that cannot CAS
         BlobContainer unsupported = mock(BlobContainer.class, CALLS_REAL_METHODS);

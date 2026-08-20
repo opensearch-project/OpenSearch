@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
@@ -300,17 +301,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testWriteBlobConditionallyTranslatesPreconditionFailures() {
-        for (int statusCode : new int[] { 412, 409 }) {
+        final S3Exception[] conflicts = new S3Exception[] {
+            // 412 is unambiguous, with or without an error code
+            (S3Exception) S3Exception.builder().statusCode(412).message("precondition failed").build(),
+            s3Exception(412, "PreconditionFailed"),
+            s3Exception(409, "ConditionalRequestConflict") };
+        for (S3Exception conflict : conflicts) {
             final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
             final S3BlobContainer blobContainer = conditionalWriteContainer(
                 ArgumentCaptor.forClass(PutObjectRequest.class),
                 null,
-                S3Exception.builder().statusCode(statusCode).message("precondition failed").build()
+                conflict
             );
             expectThrows(
                 BlobVersionConflictException.class,
                 () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"stale\"")
             );
+        }
+    }
+
+    /**
+     * A lost CAS is fatal for a fenced writer, so retryable 409s such as {@code OperationAborted} must not be
+     * mistaken for one.
+     */
+    public void testWriteBlobConditionallyDoesNotTreatRetryableConflictsAsLostCas() {
+        final S3Exception[] retryable = new S3Exception[] {
+            s3Exception(409, "OperationAborted"),
+            // an unlabelled 409 is not evidence that the precondition failed
+            (S3Exception) S3Exception.builder().statusCode(409).message("conflict").build() };
+        for (S3Exception error : retryable) {
+            final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+            final S3BlobContainer blobContainer = conditionalWriteContainer(ArgumentCaptor.forClass(PutObjectRequest.class), null, error);
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+            );
+            assertFalse("[" + error + "] must not be reported as a lost CAS", e instanceof BlobVersionConflictException);
         }
     }
 
@@ -326,6 +352,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
         );
         assertFalse(e instanceof BlobVersionConflictException);
+    }
+
+    private static S3Exception s3Exception(int statusCode, String errorCode) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(statusCode)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+            .message(errorCode)
+            .build();
     }
 
     public void testWriteBlobConditionallyRejectsOversizedPayload() {

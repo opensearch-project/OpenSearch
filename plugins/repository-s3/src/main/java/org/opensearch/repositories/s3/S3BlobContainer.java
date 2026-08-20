@@ -107,6 +107,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -291,9 +292,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             );
             return response.eTag();
         } catch (S3Exception e) {
-            // 412 Precondition Failed: If-Match/If-None-Match condition not met.
-            // 409 ConditionalRequestConflict: a concurrent conditional write on the same key is in progress.
-            if (e.statusCode() == 412 || e.statusCode() == 409) {
+            if (isConditionFailure(e)) {
                 throw new BlobVersionConflictException(
                     "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]",
                     e
@@ -304,6 +303,27 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             throw new IOException("Unable to conditionally upload object [" + blobName + "]", e);
         }
     }
+
+    /**
+     * Distinguishes a genuinely lost compare-and-swap from a transient conflict. Losing the CAS is fatal for a fenced
+     * writer, so it is classified on the error code rather than the status code alone: 409 is also returned for
+     * retryable conditions such as {@code OperationAborted}, which must surface as an ordinary
+     * {@link IOException} and be retried rather than fencing the shard.
+     */
+    private static boolean isConditionFailure(S3Exception e) {
+        // 412 Precondition Failed is unambiguous: the If-Match/If-None-Match condition was not met.
+        if (e.statusCode() == 412) {
+            return true;
+        }
+        if (e.statusCode() != 409) {
+            return false;
+        }
+        final String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
+        // An unlabelled 409 is not evidence that the precondition failed, so it is not treated as a lost CAS.
+        return errorCode != null && CONDITIONAL_WRITE_CONFLICT_ERROR_CODES.contains(errorCode);
+    }
+
+    private static final Set<String> CONDITIONAL_WRITE_CONFLICT_ERROR_CODES = Set.of("ConditionalRequestConflict", "PreconditionFailed");
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {

@@ -68,8 +68,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
@@ -275,19 +273,38 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * Per-blob locks used to emulate compare-and-swap semantics for conditional writes. Object stores provide this
-     * atomically server-side; on a local filesystem we serialize readers/writers of the same blob within this JVM.
+     * Fixed set of stripes used to emulate compare-and-swap semantics for conditional writes. Object stores provide
+     * this atomically server-side; on a local filesystem we serialize readers/writers of the same blob within this
+     * JVM. Stripes are keyed by blob path hash, so distinct blobs may share a lock: over-locking only costs
+     * contention, whereas a per-blob map keyed by path would grow without bound as shards and indices come and go.
      */
-    private static final ConcurrentMap<String, Object> CONDITIONAL_WRITE_LOCKS = new ConcurrentHashMap<>();
+    private static final int CONDITIONAL_WRITE_STRIPES = 64;
+    private static final Object[] CONDITIONAL_WRITE_LOCKS = new Object[CONDITIONAL_WRITE_STRIPES];
+    static {
+        for (int i = 0; i < CONDITIONAL_WRITE_STRIPES; i++) {
+            CONDITIONAL_WRITE_LOCKS[i] = new Object();
+        }
+    }
 
     private Object conditionalWriteLock(final String blobName) {
-        return CONDITIONAL_WRITE_LOCKS.computeIfAbsent(path.resolve(blobName).toAbsolutePath().toString(), k -> new Object());
+        final int hash = path.resolve(blobName).toAbsolutePath().toString().hashCode();
+        // Math.floorMod rather than % so that Integer.MIN_VALUE does not yield a negative index.
+        return CONDITIONAL_WRITE_LOCKS[Math.floorMod(hash, CONDITIONAL_WRITE_STRIPES)];
     }
 
     private static String versionTokenFor(final byte[] content) {
         return MessageDigests.toHexString(MessageDigests.sha256().digest(content));
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Emulated, and only within this JVM.</b> A local filesystem offers no atomic compare-and-swap, so the
+     * conditional write below is serialized with in-process locks. That is sufficient for tests and single-node
+     * development, but it is <b>not</b> a cross-node fencing primitive: two nodes writing the same blob on a shared
+     * filesystem can both believe they won the CAS. Only a repository whose backing store enforces the precondition
+     * server-side (such as S3 conditional writes) can fence writers across nodes.
+     */
     @Override
     public boolean isConditionalWriteSupported() {
         return true;

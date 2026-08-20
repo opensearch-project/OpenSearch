@@ -135,6 +135,13 @@ public class RemoteStoreFence {
                         )
                     );
                 }
+                // remote.term == primaryTerm with a different owner is a legitimate takeover, not a conflict: primary
+                // relocation hands the shard over at a constant term, so the target must be able to claim the chain.
+                // Treating it as a fence here would make relocation impossible. Ordering between the two copies is
+                // still enforced by the CAS: whoever claims the chain second wins, and the loser fails its next
+                // upload. A relocation that is claimed and then aborted therefore fences the source, which is safe
+                // (the shard fails and is reassigned) but coarse; wiring the handoff through an explicit ownership
+                // CAS is a follow-up.
                 expectedToken = blob.versionToken();
                 nextSeq = remote.seq + 1;
             } else {
@@ -207,6 +214,11 @@ public class RemoteStoreFence {
         final long seq;
 
         FenceState(long term, String owner, long seq) {
+            // Node ids are base64 UUIDs today, so this cannot fire; encoding an owner containing the separator would
+            // silently produce a blob that parse() rejects, which would fence a healthy primary.
+            if (owner.contains(FIELD_SEPARATOR)) {
+                throw new IllegalArgumentException("Fence owner [" + owner + "] must not contain [" + FIELD_SEPARATOR + "]");
+            }
             this.term = term;
             this.owner = owner;
             this.seq = seq;
