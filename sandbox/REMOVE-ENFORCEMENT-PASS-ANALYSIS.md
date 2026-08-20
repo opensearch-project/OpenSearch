@@ -530,39 +530,55 @@ yet implemented").
 
 ---
 
-## TPC-H sf=1 SWEEP — first live validation of top-down traits (21/22)
+## TPC-H sf=1 SWEEP — first live validation of top-down traits (20/22 warm)
 
-Ran `dev-tools/tpch/per_query_stress.py --sf 1 --runs 1` (fresh cluster per query, the authoritative mode)
-with this branch's jars deployed. **21/22 correct.**
+Ran `dev-tools/tpch/per_query_stress.py --sf 1 --runs 4` with this branch's jars deployed. **20/22 fully
+correct (4/4 runs each).** Report: `per_query_stress_sf1_report_20260820-074128.md`.
 
-Deployment notes worth keeping — the sf=1 cluster dirs were a stale **3.8.0** distro while the branch
-builds **3.9.0**, so they had to be rebuilt from `testclusters/integTest-0/distro/3.9.0-INTEG_TEST` with
-`data/`, `config/opensearch.yml` and `start-node.sh` preserved. Two traps hit on the way:
-- `opensearch.yml` carried `analytics.mpp.shuffle.flight.*` from the Flight-shuffle worktree. Those are
-  NOT registered on this branch, so every node would have rejected them at boot. Stripped.
-- Rebuilding from a distro RESETS `config/jvm.options` to the stock **1g** heap. The sf=1 profile needs
-  `-Xmx8g` + `-XX:MaxDirectMemorySize=2g` (see `setup_cluster.sh`). Missing this produced three bogus
-  `CircuitBreakingException` failures (q16/q18/q19) that vanished once the heap was restored — a
-  deployment error, NOT a branch regression. Re-verified q18/q19 PASS on the corrected cluster.
+**Use `--runs 4`, never `--runs 1`.** The harness drops run 1 and reports the P50 of the WARM runs
+(`ok_timed[1:]`) — run 1 pays JIT warmup, class-loading and the native lz4/zstd `dlopen` that steady state
+never repeats. A first pass at `--runs 1` took the single-run branch and reported COLD numbers 5-15x too
+high (q1 3.4s cold vs 0.2s warm; q7 6.4s vs 1.4s). sf=1's profile default is `default_runs: 1`, so the
+correct value must be passed EXPLICITLY. Each run also writes its own report AND refreshes the
+`per_query_stress_sf1_report.md` symlink, so a small re-check run silently becomes "the current report".
 
 ### Result vs the last full sf=1 baseline (`per_query_stress_sf1_report_20260703-132318.md`, 20/22)
 
 | change | queries |
 |---|---|
-| **FIXED** | q11, q21 (both FAIL → PASS) |
-| **strategy shift** HASH_SHUFFLE → BROADCAST | q7, q20 |
-| **strategy shift** COORDINATOR_CENTRIC → BROADCAST | q4 |
-| still failing | q16 only |
+| **FIXED** | q11, q21 (FAIL -> PASS, both HASH_SHUFFLE -> BROADCAST) |
+| **strategy shift** HASH_SHUFFLE -> BROADCAST | q7, q20 |
+| **strategy shift** COORDINATOR_CENTRIC -> BROADCAST | q4 |
+| pre-existing failures | q15 (flaky), q16 (native pool) |
 
-q16's failure is a NATIVE-pool `CircuitBreakingException` at 16% heap — the documented orthogonal engine
-limit (10k result cap / native allocation), not a scheduler defect, and it is the same failure the
-pre-branch baseline table records.
+Neither remaining failure is a branch regression:
+- **q16** — native-pool `CircuitBreakingException` at 16% heap: the documented orthogonal engine limit
+  (10k result cap / native allocation), the same failure the pre-branch table records.
+- **q15** — `row mismatch`: 4/4 runs SUCCEEDED but only 2/4 matched the reference. Historically flaky at
+  sf=1 with the IDENTICAL `2/4` on 2026-07-02 (`...20260702-095523.md`), plus `0/3`, `0/1`, `1/2` in
+  neighbouring reports. Pre-existing nondeterminism, unrelated to top-down.
 
-**The hash→broadcast shifts are exactly what songkant reported at sf=10 and what the user identified as an
-IMPROVEMENT, now reproduced independently at sf=1.** They follow from the parallelism-aware join cost
-(`fa0bb79e5f7`): broadcast moves only the small build while the probe stays sharded, so for a small-dim
-join it beats shuffling both sides. Strategy mix is healthy and varied — BROADCAST 13, COORDINATOR_CENTRIC
-5, HASH_SHUFFLE 4 — so top-down is NOT collapsing everything to one strategy, which was the original fear
-when `setTopDownOpt(true)` suppressed all distributed alternatives.
+Warm latencies 0.1-2.2s across all 22 (sum of P50s ~16.6s). Strategy mix **BROADCAST 14 /
+COORDINATOR_CENTRIC 5 / HASH_SHUFFLE 3** — top-down is NOT collapsing everything onto one strategy, which
+was the original fear when `setTopDownOpt(true)` suppressed all distributed alternatives.
 
-Net: **+2 fixed, 0 regressions, 1 pre-existing orthogonal failure.** sf=10 remains to be run.
+**The hash->broadcast shifts reproduce songkant's sf=10 finding at sf=1, and the user identified them as an
+IMPROVEMENT.** They follow from the parallelism-aware join cost (`fa0bb79e5f7`): broadcast moves only the
+small build while the probe stays sharded, so it beats shuffling both sides on a small-dim join.
+
+### Deployment traps (cost two bogus runs)
+
+The sf=1 cluster dirs were a stale **3.8.0** distro while the branch builds **3.9.0**, so they were rebuilt
+from `testclusters/integTest-0/distro/3.9.0-INTEG_TEST` with `data/`, `config/opensearch.yml` and
+`start-node.sh` preserved. Two traps:
+- `opensearch.yml` carried `analytics.mpp.shuffle.flight.*` from the Flight-shuffle worktree. NOT
+  registered on this branch -> every node rejects them at boot. Strip them, and check each `analytics.*`
+  yml key against the branch before launching.
+- Rebuilding from a distro RESETS `config/jvm.options` to the stock **1g** heap. sf=1 needs `-Xmx8g` +
+  `-XX:MaxDirectMemorySize=2g` (see `setup_cluster.sh`; sf=10 wants 12g + 4g). Missing this produced three
+  bogus `CircuitBreakingException` failures (q16/q18/q19) — a deployment error, not a regression; q18/q19
+  PASS once the heap is right.
+
+All timings come from three JVMs on ONE dev host (`network.host: 127.0.0.1`, ports 9210-9212) sharing
+CPU / page cache / disk. Correctness is unaffected; absolute latency is meaningful only as a same-host
+comparison. The `--no-mpp` arm was NOT run, so this is not yet an on-vs-off A/B.
