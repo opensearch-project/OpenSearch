@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
@@ -30,9 +31,14 @@ import java.util.Set;
  * {@code entries: STRUCT<key, value>} group.
  *
  * <p>One document contributes one map cell holding however many leaves its object had, so the
- * attribute set stays in a single column no matter how many distinct keys the index sees. This is why
- * the field is single-arity and does not support {@code multi_value}: a {@code LIST<MAP>} has no
- * meaning here, and the per-document entry count is already variable.
+ * attribute set stays in a single column no matter how many distinct keys the index sees. A variable
+ * entry count therefore needs no {@code multi_value} declaration.
+ *
+ * <p>Declaring {@code multi_value: true} means something different and is supported: the column becomes
+ * {@code LIST<MAP>}, one map per array element. That is the shape an OTel {@code Events.Attributes}
+ * needs — {@code [{...}, {...}]}, one attribute set per event — where merging the elements into a
+ * single map would lose which event each attribute belonged to. The document parser hands each array
+ * element to this mapper separately, so every element arrives as its own entry list.
  *
  * <p>Values arrive from {@code FlatObjectFieldMapper} as an ordered {@code List<Map.Entry>} of
  * {@code (relative path, value)} pairs — see
@@ -61,26 +67,52 @@ public class FlatObjectParquetField extends ParquetField {
             mapVector.setNull(row);
             return;
         }
+        addToVector(mapVector, row, parseValue);
+    }
+
+    /**
+     * Writes one map cell at an explicit index.
+     * <p>
+     * Used for both shapes of this column. A single-arity MAP writes at the row index; a
+     * {@code LIST<MAP>} writes at a position in the child MapVector that has nothing to do with the
+     * row, so the index has to be passed in rather than derived from the VSR row count.
+     *
+     * @param vector the MapVector to write into — the list's child vector when multi-valued
+     * @param index the map value index to write at
+     * @param parseValue the entry list for this map cell
+     */
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        MapVector mapVector = (MapVector) vector;
         List<?> entries = (List<?>) parseValue;
         StructVector entriesVector = (StructVector) mapVector.getDataVector();
         VarCharVector keyVector = (VarCharVector) entriesVector.getChild(MapVector.KEY_NAME);
         VarCharVector valueVector = (VarCharVector) entriesVector.getChild(MapVector.VALUE_NAME);
-        int start = mapVector.startNewValue(row);
+        int start = mapVector.startNewValue(index);
         for (int i = 0; i < entries.size(); i++) {
             Map.Entry<?, ?> entry = (Map.Entry<?, ?>) entries.get(i);
-            int index = start + i;
+            int at = start + i;
             // The entries struct is non-nullable per the Arrow MAP spec, so every slot written must
             // have its validity bit set; without this the child values read back as null.
-            entriesVector.setIndexDefined(index);
-            keyVector.setSafe(index, entry.getKey().toString().getBytes(StandardCharsets.UTF_8));
+            entriesVector.setIndexDefined(at);
+            keyVector.setSafe(at, entry.getKey().toString().getBytes(StandardCharsets.UTF_8));
             Object value = entry.getValue();
             if (value == null) {
-                valueVector.setNull(index);
+                valueVector.setNull(at);
             } else {
-                valueVector.setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
+                valueVector.setSafe(at, value.toString().getBytes(StandardCharsets.UTF_8));
             }
         }
-        mapVector.endValue(row, entries.size());
+        mapVector.endValue(index, entries.size());
+    }
+
+    /**
+     * Supported: the column becomes {@code LIST<MAP>}, one map per array element. {@link #addToVector}
+     * is implemented, which is the contract the base class requires.
+     */
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
     }
 
     /**

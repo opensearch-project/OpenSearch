@@ -331,6 +331,84 @@ public class ArrowValuesTests extends OpenSearchTestCase {
         }
     }
 
+    // ---- LIST<MAP> columns (multi_value flat_object) in _source ----
+
+    /**
+     * Builds a {@code LIST<MAP<utf8,utf8>>} vector holding one row whose elements are the given maps —
+     * the shape a multi_value flat_object writes for an OTel {@code Events.Attributes}.
+     */
+    private ListVector listOfMapVectorWith(String name, List<List<String[]>> elements) {
+        Field key = new Field(MapVector.KEY_NAME, FieldType.notNullable(new ArrowType.Utf8()), null);
+        Field value = new Field(MapVector.VALUE_NAME, FieldType.nullable(new ArrowType.Utf8()), null);
+        Field entries = new Field(MapVector.DATA_VECTOR_NAME, FieldType.notNullable(ArrowType.Struct.INSTANCE), List.of(key, value));
+        Field element = new Field("element", FieldType.nullable(new ArrowType.Map(false)), List.of(entries));
+        Field listField = new Field(name, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
+
+        ListVector list = (ListVector) listField.createVector(allocator);
+        MapVector maps = (MapVector) list.getDataVector();
+        StructVector struct = (StructVector) maps.getDataVector();
+        VarCharVector keys = (VarCharVector) struct.getChild(MapVector.KEY_NAME);
+        VarCharVector values = (VarCharVector) struct.getChild(MapVector.VALUE_NAME);
+
+        int listStart = list.startNewValue(0);
+        for (int e = 0; e < elements.size(); e++) {
+            List<String[]> pairs = elements.get(e);
+            int mapIndex = listStart + e;
+            int start = maps.startNewValue(mapIndex);
+            for (int i = 0; i < pairs.size(); i++) {
+                struct.setIndexDefined(start + i);
+                keys.setSafe(start + i, pairs.get(i)[0].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (pairs.get(i)[1] == null) {
+                    values.setNull(start + i);
+                } else {
+                    values.setSafe(start + i, pairs.get(i)[1].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+            maps.endValue(mapIndex, pairs.size());
+        }
+        list.endValue(0, elements.size());
+        list.setValueCount(1);
+        return list;
+    }
+
+    /**
+     * Each element reconstructs as its own map, in order. Flattening them into one map would lose which
+     * event an attribute came from, so this is the property that makes the column worth being a LIST.
+     */
+    public void testListOfMapsReconstructsPerElement() {
+        try (
+            ListVector v = listOfMapVectorWith(
+                "Events.Attributes",
+                List.of(
+                    List.<String[]>of(new String[] { "exception.type", "IOError" }),
+                    List.<String[]>of(new String[] { "http.method", "GET" }, new String[] { "retry", "1" })
+                )
+            )
+        ) {
+            Object cell = ArrowValues.toSourceValue(v, 0);
+            assertEquals(List.of(Map.of("exception.type", "IOError"), Map.of("http.method", "GET", "retry", "1")), cell);
+        }
+    }
+
+    /** An empty attribute set on one event stays an empty map rather than collapsing the element away. */
+    public void testListOfMapsKeepsEmptyElement() {
+        try (
+            ListVector v = listOfMapVectorWith(
+                "Events.Attributes",
+                List.of(List.<String[]>of(), List.<String[]>of(new String[] { "a", "1" }))
+            )
+        ) {
+            assertEquals(List.of(Map.of(), Map.of("a", "1")), ArrowValues.toSourceValue(v, 0));
+        }
+    }
+
+    /** An empty array stays an empty list, keeping it distinct from an absent field. */
+    public void testListOfMapsEmptyArray() {
+        try (ListVector v = listOfMapVectorWith("Events.Attributes", List.of())) {
+            assertEquals(List.of(), ArrowValues.toSourceValue(v, 0));
+        }
+    }
+
     // ---- MAP columns (flat_object) in _source ----
 
     /** Builds a {@code MAP<utf8,utf8>} vector with one cell holding the given (key, value) pairs in order. */

@@ -114,7 +114,12 @@ public abstract class ParquetField {
         }
         // The element is always nullable: a null inside an array (e.g. ["a", null]) is a legal
         // document even when the column itself is declared non-nullable.
-        Field element = new Field(LIST_ELEMENT_NAME, FieldType.nullable(getArrowType()), null);
+        //
+        // The element carries getChildren() for the same reason the scalar branch above does: a nested
+        // element type is not fully described by its ArrowType alone. A MAP element needs its
+        // `entries` struct, and passing null here yields a childless MAP that allocates as an empty
+        // vector, so writes land nowhere. Primitive elements return null and are unaffected.
+        Field element = new Field(LIST_ELEMENT_NAME, FieldType.nullable(getArrowType()), getChildren());
         return new Field(name, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
     }
 

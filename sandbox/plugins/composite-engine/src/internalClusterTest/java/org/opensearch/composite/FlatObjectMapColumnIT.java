@@ -19,6 +19,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Indexing-side support for {@code flat_object} fields on a composite parquet+lucene index, using
@@ -313,18 +314,96 @@ public class FlatObjectMapColumnIT extends AbstractCompositeEngineIT {
      * declaring it {@code multi_value: true} would ask for a {@code LIST<MAP>} the writer does not
      * build. It must fail at creation time rather than at first write.
      */
-    public void testFlatObjectRejectsMultiValue() {
+    /** Mapping for an OTel {@code Events} group: parallel columns, attributes as one map per event. */
+    private static final String OTEL_EVENTS_MAPPING = "{\"properties\":{"
+        + "\"TraceId\":{\"type\":\"keyword\"},"
+        + "\"Events\":{\"type\":\"nested\",\"correlated\":true,\"properties\":{"
+        + "  \"Name\":{\"type\":\"keyword\",\"multi_value\":true},"
+        + "  \"Attributes\":{\"type\":\"flat_object\",\"multi_value\":true}"
+        + "}}}}";
+
+    private void createEventsIndex(String index) {
+        assertTrue(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(compositeSettings())
+                .setMapping(OTEL_EVENTS_MAPPING)
+                .get()
+                .isAcknowledged()
+        );
+        ensureGreen(index);
+    }
+
+    /**
+     * A {@code multi_value} flat_object is a {@code LIST<MAP>} — one attribute set per array element,
+     * which is the OTel {@code Events.Attributes} shape. Merging the elements into a single map would
+     * lose which event each attribute belonged to, so {@code _source} must return them separately and
+     * in order.
+     */
+    public void testFlatObjectMultiValueRoundTripsPerElement() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(1);
-        expectThrows(
+        String index = "otel-events-idx";
+        createEventsIndex(index);
+
+        client().prepareIndex(index)
+            .setId("1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(
+                "{\"TraceId\":\"t1\",\"Events\":{"
+                    + "\"Name\":[\"exception\",\"retry\"],"
+                    + "\"Attributes\":[{\"exception.type\":\"IOError\"},{\"http.method\":\"GET\",\"retry\":\"1\"}]"
+                    + "}}",
+                XContentType.JSON
+            )
+            .get();
+
+        Object attributes = resolveField(client().prepareGet(index, "1").get().getSourceAsMap(), "Events", "Attributes");
+        assertTrue("expected a list of per-event maps, got: " + attributes, attributes instanceof List);
+        List<?> perEvent = (List<?>) attributes;
+        assertEquals("one attribute map per event", 2, perEvent.size());
+        assertEquals(Map.of("exception.type", "IOError"), perEvent.get(0));
+        assertEquals(Map.of("http.method", "GET", "retry", "1"), perEvent.get(1));
+    }
+
+    /**
+     * The correlated length check covers the flat_object member too: two event names but one attribute
+     * set means the second name has no attributes of its own, so any positional pairing is a guess.
+     */
+    public void testCorrelatedLengthCheckAppliesToFlatObjectMember() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1);
+        String index = "otel-events-ragged-idx";
+        createEventsIndex(index);
+
+        Exception e = expectThrows(
             Exception.class,
-            () -> client().admin()
-                .indices()
-                .prepareCreate("otel-mv-flat-idx")
-                .setSettings(compositeSettings())
-                .setMapping("{\"properties\":{\"LogAttributes\":{\"type\":\"flat_object\",\"multi_value\":true}}}")
+            () -> client().prepareIndex(index)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setSource(
+                    "{\"TraceId\":\"t1\",\"Events\":{"
+                        + "\"Name\":[\"exception\",\"retry\"],"
+                        + "\"Attributes\":[{\"exception.type\":\"IOError\"}]"
+                        + "}}",
+                    XContentType.JSON
+                )
                 .get()
         );
+        assertTrue("expected a correlated-group error, got: " + e.getMessage(), e.getMessage().contains("correlated group"));
+    }
+
+    /**
+     * Reads a field from {@code _source} whether the reconstruction nests it under its parent object or
+     * keeps the dotted path as a single key, so the assertion is about the values rather than the
+     * envelope shape.
+     */
+    private static Object resolveField(Map<String, Object> source, String parent, String child) {
+        Object nested = source.get(parent);
+        if (nested instanceof Map<?, ?> map && map.containsKey(child)) {
+            return map.get(child);
+        }
+        return source.get(parent + "." + child);
     }
 
     /**

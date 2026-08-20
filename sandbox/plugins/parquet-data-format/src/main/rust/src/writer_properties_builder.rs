@@ -1578,6 +1578,28 @@ mod tests {
         )])
     }
 
+    /// A multi_value `flat_object` column is a `LIST<MAP<Utf8, Utf8>>`: one Arrow field, still two
+    /// parquet leaves, but nested one level deeper (an OTel `Events.Attributes`).
+    fn list_of_map_schema(name: &str) -> ArrowSchema {
+        let key = std::sync::Arc::new(Field::new("key", ArrowDataType::Utf8, false));
+        let value = std::sync::Arc::new(Field::new("value", ArrowDataType::Utf8, true));
+        let entries = std::sync::Arc::new(Field::new(
+            "entries",
+            ArrowDataType::Struct(vec![key, value].into()),
+            false,
+        ));
+        let element = std::sync::Arc::new(Field::new(
+            "element",
+            ArrowDataType::Map(entries, false),
+            true,
+        ));
+        ArrowSchema::new(vec![Field::new(
+            name,
+            ArrowDataType::List(element),
+            true,
+        )])
+    }
+
     fn map_leaf_path(name: &str, leaf: &str) -> parquet::schema::types::ColumnPath {
         parquet::schema::types::ColumnPath::new(vec![
             name.to_string(),
@@ -1592,7 +1614,11 @@ mod tests {
     /// than silently turning every per-column setting on a nested field back into a no-op.
     #[test]
     fn nested_leaf_paths_match_arrow_rs_writer() {
-        for schema in [map_schema("attrs"), list_schema("tags", ArrowDataType::Utf8)] {
+        for schema in [
+            map_schema("attrs"),
+            list_schema("tags", ArrowDataType::Utf8),
+            list_of_map_schema("Events.Attributes"),
+        ] {
             let parquet_schema = parquet::arrow::ArrowSchemaConverter::new()
                 .convert(&schema)
                 .expect("schema converts");

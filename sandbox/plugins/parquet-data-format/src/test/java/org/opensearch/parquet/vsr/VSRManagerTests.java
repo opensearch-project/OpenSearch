@@ -711,6 +711,77 @@ public class VSRManagerTests extends ParquetBaseTests {
         }
     }
 
+    /**
+     * A multi_value flat_object writes {@code LIST<MAP>}, one map per array element — the OTel
+     * {@code Events.Attributes} shape. The flush is the real assertion: a malformed element type (a MAP
+     * described without its {@code entries} struct) survives allocation but fails at export, so only a
+     * completed native write proves the schema is well-formed.
+     */
+    public void testFlatObjectMultiValueWritesListOfMapThroughNativeWriter() throws Exception {
+        String filePath = createTempDir().resolve("flat-object-list-map.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            List<Field> fields = new ArrayList<>(schema.getFields());
+            fields.addAll(metadataFields());
+            fields.add(new FlatObjectParquetField().toArrowField("Events.Attributes", true));
+            manager.reconcileSchema(new Schema(fields));
+
+            FlatObjectFieldMapper.FlatObjectFieldType attrs = new FlatObjectFieldMapper.FlatObjectFieldType(
+                "Events.Attributes",
+                null,
+                true,
+                true
+            );
+            attrs.setMultiValued(true);
+            assignTestCapabilities(attrs, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
+
+            // Row 0: two events, each contributing its own attribute set via a separate addField call,
+            // exactly as the document parser hands over the elements of an array.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(attrs, List.of(Map.entry("exception.type", "IOError")));
+            doc0.addField(attrs, List.of(Map.entry("http.method", "GET"), Map.entry("retry", "1")));
+            manager.addDocument(doc0);
+
+            // Row 1: no events at all.
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("Events.Attributes");
+            assertTrue("the element vector must be a MapVector", listVector.getDataVector() instanceof MapVector);
+            assertFalse(listVector.isNull(0));
+            assertTrue("a document with no events must read back as a null list", listVector.isNull(1));
+
+            MapVector maps = (MapVector) listVector.getDataVector();
+            int start = listVector.getOffsetBuffer().getInt(0);
+            int end = listVector.getOffsetBuffer().getInt(ListVector.OFFSET_WIDTH);
+            assertEquals("two events", 2, end - start);
+            // Element 0 has one attribute, element 1 has two: the counts stay separate per event.
+            assertEquals(
+                1,
+                maps.getOffsetBuffer().getInt((long) (start + 1) * MapVector.OFFSET_WIDTH) - maps.getOffsetBuffer()
+                    .getInt((long) start * MapVector.OFFSET_WIDTH)
+            );
+            assertEquals(
+                2,
+                maps.getOffsetBuffer().getInt((long) (start + 2) * MapVector.OFFSET_WIDTH) - maps.getOffsetBuffer()
+                    .getInt((long) (start + 1) * MapVector.OFFSET_WIDTH)
+            );
+
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(2, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
     public void testReconcileSchemaPreservesListChildren() throws Exception {
         String filePath = createTempDir().resolve("reconcile-children.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);

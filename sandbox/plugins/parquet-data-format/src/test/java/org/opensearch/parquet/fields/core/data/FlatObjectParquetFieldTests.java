@@ -11,6 +11,7 @@ package org.opensearch.parquet.fields.core.data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -65,13 +66,13 @@ public class FlatObjectParquetFieldTests extends OpenSearchTestCase {
         assertTrue(value.getFieldType().isNullable());
     }
 
-    public void testMultiValueUnsupported() {
-        // flat_object is single-arity: one MAP cell per document already holds any number of
-        // entries, so wrapping it in a LIST is rejected rather than silently mis-shaping data.
-        FlatObjectParquetField field = new FlatObjectParquetField();
-        assertFalse(field.supportsMultiValue());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> field.toArrowField("attrs", true));
-        assertTrue(e.getMessage().contains("attrs"));
+    /**
+     * Without {@code multi_value} the column stays a single MAP cell per document, which already holds
+     * any number of entries. The LIST wrapper is only added when arity is declared.
+     */
+    public void testSingleArityIsNotWrappedInList() {
+        Field arrowField = new FlatObjectParquetField().toArrowField("attrs", false);
+        assertTrue(arrowField.getType() instanceof ArrowType.Map);
     }
 
     public void testWritesEntriesPreservingOrderAndDuplicates() {
@@ -126,6 +127,128 @@ public class FlatObjectParquetFieldTests extends OpenSearchTestCase {
             result.add(new AbstractMap.SimpleEntry<>(key, value));
         }
         return result;
+    }
+
+    // ---- LIST<MAP>: one map per array element (OTel Events.Attributes) ----
+
+    /**
+     * The list element must carry the {@code entries} struct. Describing a MAP element by its ArrowType
+     * alone yields a childless MAP that allocates as an empty vector, so writes land nowhere and the
+     * column reads back empty — the failure this asserts against.
+     */
+    public void testMultiValueArrowFieldIsListOfMap() {
+        FlatObjectParquetField field = new FlatObjectParquetField();
+        Field arrowField = field.toArrowField("Events.Attributes", true);
+
+        assertEquals(ArrowType.List.INSTANCE, arrowField.getType());
+        assertEquals(1, arrowField.getChildren().size());
+
+        Field element = arrowField.getChildren().get(0);
+        assertTrue("element must be a MAP", element.getType() instanceof ArrowType.Map);
+        assertTrue("element must be nullable: [{...}, null] is a legal document", element.getFieldType().isNullable());
+
+        assertEquals("element must carry its entries struct", 1, element.getChildren().size());
+        Field entries = element.getChildren().get(0);
+        assertEquals(MapVector.DATA_VECTOR_NAME, entries.getName());
+        assertFalse(entries.getFieldType().isNullable());
+        assertEquals(2, entries.getChildren().size());
+        assertEquals(MapVector.KEY_NAME, entries.getChildren().get(0).getName());
+        assertEquals(MapVector.VALUE_NAME, entries.getChildren().get(1).getName());
+    }
+
+    public void testSupportsMultiValue() {
+        assertTrue(new FlatObjectParquetField().supportsMultiValue());
+    }
+
+    /**
+     * Each array element keeps its own attribute set. Merging them into one map would lose which event
+     * an attribute belonged to, which is the whole reason this column is a LIST.
+     */
+    public void testMultiValueWritesOneMapPerElement() {
+        FlatObjectParquetField field = new FlatObjectParquetField();
+        ManagedVSR vsr = createListVSR(field);
+        MappedFieldType ft = flatObjectType("Events.Attributes");
+
+        // Row 0: two events, each with its own attributes.
+        field.createField(
+            ft,
+            vsr,
+            List.of(List.of(Map.entry("exception.type", "IOError")), List.of(Map.entry("http.method", "GET"), Map.entry("retry", "1")))
+        );
+        vsr.setRowCount(1);
+        // Row 1: a single event.
+        field.createField(ft, vsr, List.of(List.of(Map.entry("k", "v"))));
+        vsr.setRowCount(2);
+
+        ListVector listVector = (ListVector) vsr.getVector("Events.Attributes");
+        MapVector mapVector = (MapVector) listVector.getDataVector();
+
+        assertEquals(2, elementCount(listVector, 0));
+        int row0 = elementStart(listVector, 0);
+        assertEquals(List.of(Map.entry("exception.type", "IOError")), mapEntries(mapVector, row0));
+        assertEquals(List.of(Map.entry("http.method", "GET"), Map.entry("retry", "1")), mapEntries(mapVector, row0 + 1));
+
+        assertEquals(1, elementCount(listVector, 1));
+        assertEquals(List.of(Map.entry("k", "v")), mapEntries(mapVector, elementStart(listVector, 1)));
+
+        cleanupVSR(vsr);
+    }
+
+    /**
+     * An absent field is a null list and an explicit empty array is a zero-length non-null list, so
+     * {@code "Attributes": []} stays distinguishable from no attributes at all.
+     */
+    public void testMultiValueNullAndEmptyList() {
+        FlatObjectParquetField field = new FlatObjectParquetField();
+        ManagedVSR vsr = createListVSR(field);
+        MappedFieldType ft = flatObjectType("Events.Attributes");
+
+        field.createField(ft, vsr, null);
+        vsr.setRowCount(1);
+        field.createField(ft, vsr, List.of());
+        vsr.setRowCount(2);
+
+        ListVector listVector = (ListVector) vsr.getVector("Events.Attributes");
+        assertTrue("absent field must be a null list", listVector.isNull(0));
+        assertFalse("an explicit empty array must be non-null", listVector.isNull(1));
+        assertEquals(0, elementCount(listVector, 1));
+
+        cleanupVSR(vsr);
+    }
+
+    /** An empty attribute set on one event must not collapse that element away. */
+    public void testMultiValuePreservesEmptyElement() {
+        FlatObjectParquetField field = new FlatObjectParquetField();
+        ManagedVSR vsr = createListVSR(field);
+        MappedFieldType ft = flatObjectType("Events.Attributes");
+
+        field.createField(ft, vsr, List.of(List.of(), List.of(Map.entry("a", "1"))));
+        vsr.setRowCount(1);
+
+        ListVector listVector = (ListVector) vsr.getVector("Events.Attributes");
+        MapVector mapVector = (MapVector) listVector.getDataVector();
+        assertEquals("both elements must survive", 2, elementCount(listVector, 0));
+        int start = elementStart(listVector, 0);
+        assertEquals(0, mapEntries(mapVector, start).size());
+        assertEquals(List.of(Map.entry("a", "1")), mapEntries(mapVector, start + 1));
+
+        cleanupVSR(vsr);
+    }
+
+    private static int elementStart(ListVector listVector, int row) {
+        return listVector.getOffsetBuffer().getInt((long) row * ListVector.OFFSET_WIDTH);
+    }
+
+    private static int elementCount(ListVector listVector, int row) {
+        int start = elementStart(listVector, row);
+        int end = listVector.getOffsetBuffer().getInt((long) (row + 1) * ListVector.OFFSET_WIDTH);
+        return end - start;
+    }
+
+    private ManagedVSR createListVSR(FlatObjectParquetField field) {
+        Schema schema = new Schema(List.of(field.toArrowField("Events.Attributes", true)));
+        BufferAllocator child = allocator.newChildAllocator("flat-object-list-test", 0, Long.MAX_VALUE);
+        return new ManagedVSR("flat-object-list-test", schema, child);
     }
 
     private ManagedVSR createVSR(FlatObjectParquetField field) {
