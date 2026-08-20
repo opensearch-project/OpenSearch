@@ -123,7 +123,6 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 listener.onFailure(new IllegalArgumentException(e.getMessage(), e));
                 return;
             } catch (Exception e) {
-                logger.error("DSL conversion failed", e);
                 listener.onFailure(e);
                 return;
             }
@@ -154,33 +153,38 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         final QueryPlans mainPlans = mainBuilder.build();
 
         if (countPlans.isEmpty()) {
-            planExecutor.execute(
-                mainPlans,
-                ActionListener.wrap(results -> { buildAndRespond(results, request, converter, startNanos, listener); }, e -> {
-                    logger.error("DSL execution failed", e);
-                    listener.onFailure(e);
-                })
-            );
+            try {
+                planExecutor.execute(
+                    mainPlans,
+                    ActionListener.wrap(results -> buildAndRespond(results, request, converter, startNanos, listener), listener::onFailure)
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
             return;
         }
 
         // COUNT plans run concurrently with the main plans - all are engine calls.
         final GroupedActionListener<List<ExecutionResult>> joined = new GroupedActionListener<>(ActionListener.wrap(collections -> {
-            final long executedNanos = System.nanoTime();
             List<ExecutionResult> allResults = new ArrayList<>();
             for (List<ExecutionResult> branch : collections) {
                 allResults.addAll(branch);
             }
             buildAndRespond(allResults, request, converter, startNanos, listener);
-        }, e -> {
-            logger.error("DSL execution failed", e);
-            listener.onFailure(e);
-        }), 1 + countPlans.size());
+        }, listener::onFailure), 1 + countPlans.size());
 
-        planExecutor.execute(mainPlans, ActionListener.wrap(results -> { joined.onResponse(results); }, joined::onFailure));
+        try {
+            planExecutor.execute(mainPlans, joined);
+        } catch (Exception e) {
+            joined.onFailure(e);
+        }
 
         for (QueryPlans.QueryPlan countPlan : countPlans) {
-            planExecutor.executeOne(countPlan, ActionListener.wrap(result -> { joined.onResponse(List.of(result)); }, joined::onFailure));
+            try {
+                planExecutor.execute(new QueryPlans.Builder().add(countPlan).build(), joined);
+            } catch (Exception e) {
+                joined.onFailure(e);
+            }
         }
     }
 
@@ -196,7 +200,6 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             long tookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
             response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), tookInMillis);
         } catch (Exception buildEx) {
-            logger.error("DSL response building failed", buildEx);
             listener.onFailure(buildEx);
             return;
         }

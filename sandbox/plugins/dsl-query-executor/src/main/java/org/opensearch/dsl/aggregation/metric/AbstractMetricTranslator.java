@@ -14,7 +14,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
@@ -24,7 +23,7 @@ import java.util.Collections;
  * logic — subclasses supply the SQL aggregate function, field name, and optionally
  * override the return type.
  */
-public abstract class AbstractMetricTranslator<T extends AggregationBuilder> implements MetricTranslator<T> {
+public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
     /** Creates a metric translator. */
     protected AbstractMetricTranslator() {}
@@ -37,17 +36,15 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
      */
     @Override
     public void validate(T agg) throws ConversionException {
-        if (agg instanceof ValuesSourceAggregationBuilder<?> vs) {
-            if (vs.missing() != null) {
-                throw new ConversionException(
-                    "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-                );
-            }
-            if (vs.script() != null) {
-                throw new ConversionException(
-                    "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
-                );
-            }
+        if (agg.missing() != null) {
+            throw new ConversionException(
+                "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
+        }
+        if (agg.script() != null) {
+            throw new ConversionException(
+                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
         }
     }
 
