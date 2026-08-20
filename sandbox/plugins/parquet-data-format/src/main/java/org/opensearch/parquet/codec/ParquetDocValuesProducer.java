@@ -50,6 +50,10 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
 
     private static final Logger logger = LogManager.getLogger(ParquetDocValuesProducer.class);
 
+    static final long MIN_SUPPORTED_FORMAT_VERSION = 1_000_000L;
+
+    static final long MAX_SUPPORTED_FORMAT_VERSION = 1_000_000L;
+
     private final Path parquetFile;
     private final MapperService mapperService;
     private final int maxDoc;
@@ -82,6 +86,7 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
         this.parquetFile = resolved;
 
         ParquetFileMetadata metadata = RustBridge.getFileMetadata(parquetFile.toString());
+        checkFormatVersion(metadata.opensearchFormatVersion(), parquetFile);
         this.parquetRowCount = metadata.numRows();
         if (parquetRowCount != maxDoc) {
             throw new IllegalStateException(
@@ -186,6 +191,48 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
         if (first != null) {
             throw first;
         }
+    }
+
+    /**
+     * Rejects a file this codec cannot decode: unstamped, older than {@link #MIN_SUPPORTED_FORMAT_VERSION},
+     * or newer than {@link #MAX_SUPPORTED_FORMAT_VERSION}, failing on an out-of-range file rather than reading it
+     * with assumptions that may not hold.
+     */
+    static void checkFormatVersion(long formatVersion, Path file) throws IOException {
+        if (formatVersion == ParquetFileMetadata.FORMAT_VERSION_UNKNOWN) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Parquet file %s carries no parseable opensearch.format_version; this doc-values codec requires a stamped version in %s",
+                    file,
+                    supportedRange()
+                )
+            );
+        }
+        if (formatVersion < MIN_SUPPORTED_FORMAT_VERSION || formatVersion > MAX_SUPPORTED_FORMAT_VERSION) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Parquet file %s has OpenSearch format version %s, outside this doc-values codec's supported range %s",
+                    file,
+                    describeFormatVersion(formatVersion),
+                    supportedRange()
+                )
+            );
+        }
+    }
+
+    /** Renders the inclusive supported version range for an error message. */
+    private static String supportedRange() {
+        return "[" + describeFormatVersion(MIN_SUPPORTED_FORMAT_VERSION) + ", " + describeFormatVersion(MAX_SUPPORTED_FORMAT_VERSION) + "]";
+    }
+
+    /** Renders a long-encoded format version as {@code major.minor.patch} for an error message. */
+    private static String describeFormatVersion(long formatVersion) {
+        long major = formatVersion / 1_000_000L;
+        long minor = formatVersion / 1_000L % 1_000L;
+        long patch = formatVersion % 1_000L;
+        return major + "." + minor + "." + patch;
     }
 
     /** Validates the field's mapping type supports the requested DV type, when a mapper is present. */
