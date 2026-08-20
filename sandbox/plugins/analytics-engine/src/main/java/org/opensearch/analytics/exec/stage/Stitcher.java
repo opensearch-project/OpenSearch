@@ -15,7 +15,6 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.VectorUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.CancellableExchangeSink;
@@ -197,14 +196,13 @@ public final class Stitcher {
                     outputDisposed = true;
                 }
                 ownershipTransferred = true;
-                // Guard the sink close like the failure branch below: feed() already transferred
-                // ownership of output, so a close-time failure must not propagate out of finish()
-                // (it runs on a shard's GatherListener callback thread) — log and swallow it.
-                try {
-                    parentSink.close();
-                } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("[Stitcher] parentSink.close() failed after emit for {} rows", totalRows), e);
-                }
+                // The parentSink lifecycle is managed by the stage execution, not by the
+                // stitcher. For a root-stage LM (QTF plan where the LM stage is the plan root),
+                // parentSink is a RowProducingSink whose close() clears every buffered batch,
+                // while QueryExecution reads the result after the stage's terminal transition
+                // via outputSource().readResult(). Closing the sink here would free the result
+                // before anyone reads it, causing the query to silently return zero rows.
+                // See https://github.com/opensearch-project/OpenSearch/issues/22786.
                 logger.debug("[Stitcher] emitted rows={}", totalRows);
             } else {
                 // A fetch failure is not normal input completion. Abort a cancellable parent
