@@ -97,9 +97,11 @@ import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodecFactory;
 import io.netty.handler.codec.http2.CleartextHttp2ServerUpgradeHandler;
 import io.netty.handler.codec.http2.Http2CodecUtil;
+import io.netty.handler.codec.http2.Http2FrameCodec;
 import io.netty.handler.codec.http2.Http2FrameCodecBuilder;
 import io.netty.handler.codec.http2.Http2MultiplexHandler;
 import io.netty.handler.codec.http2.Http2ServerUpgradeCodec;
+import io.netty.handler.codec.http2.Http2Settings;
 import io.netty.handler.codec.http2.Http2StreamFrameToHttpObjectCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -419,7 +421,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 public UpgradeCodec newUpgradeCodec(CharSequence protocol) {
                     if (AsciiString.contentEquals(Http2CodecUtil.HTTP_UPGRADE_PROTOCOL_NAME, protocol)) {
                         return new Http2ServerUpgradeCodec(
-                            Http2FrameCodecBuilder.forServer().build(),
+                            createHttp2FrameCodec(),
                             new Http2MultiplexHandler(createHttp2ChannelInitializer(ch.pipeline()))
                         );
                     } else {
@@ -500,8 +502,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
 
         protected void configureDefaultHttp2Pipeline(ChannelPipeline pipeline) {
-            pipeline.addLast(Http2FrameCodecBuilder.forServer().build())
-                .addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+            pipeline.addLast(createHttp2FrameCodec()).addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+        }
+
+        /**
+         * Advertises {@code http.max_header_size} as SETTINGS_MAX_HEADER_LIST_SIZE, otherwise Netty's 8kb default
+         * caps HTTP/2 request headers regardless of the configured value.
+         */
+        private Http2FrameCodec createHttp2FrameCodec() {
+            return Http2FrameCodecBuilder.forServer()
+                .initialSettings(Http2Settings.defaultSettings().maxHeaderListSize(handlingSettings.getMaxHeaderSize()))
+                .build();
         }
 
         private ChannelInitializer<Channel> createHttp2ChannelInitializerPriorKnowledge() {
