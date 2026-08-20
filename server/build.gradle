@@ -122,13 +122,6 @@ dependencies {
   api libs.protobuf
   api libs.jakartaannotation
 
-  // Keeping Jackson 2.x dependencies till migration to 3.x completes across the ecosystem
-  api libs.jackson.core
-  api libs.jackson.dataformat.smile
-  api libs.jackson.dataformat.yaml
-  api libs.jackson.dataformat.cbor
-  api "org.yaml:snakeyaml:${versions.snakeyaml}"
-
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
   testImplementation 'org.awaitility:awaitility:4.3.0'
@@ -256,10 +249,21 @@ tasks.named("thirdPartyAudit").configure {
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
             'com.fasterxml.jackson.databind.util.ClassUtil',
-            'com.fasterxml.jackson.databind.cfg.MapperBuilder',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.JsonGenerator',
+            'com.fasterxml.jackson.core.JsonParser',
+            'com.fasterxml.jackson.core.JsonParser$Feature',
+            'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.ObjectCodec',
+            'com.fasterxml.jackson.core.PrettyPrinter',
+            'com.fasterxml.jackson.core.Version',
+            'com.fasterxml.jackson.core.Versioned',
+            'com.fasterxml.jackson.core.io.IOContext',
+            'com.fasterxml.jackson.core.type.TypeReference',
+            'com.fasterxml.jackson.core.util.VersionUtil',
+            'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
             'com.fasterxml.jackson.databind.DeserializationFeature',
