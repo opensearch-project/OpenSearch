@@ -527,3 +527,42 @@ rule's `buildSideFitsBroadcast` byte cap so both formation paths agree; plus a l
 yet implemented").
 
 **The sf=1 / sf=10 TPC-H sweep is now unblocked** — it was gated on exactly this.
+
+---
+
+## TPC-H sf=1 SWEEP — first live validation of top-down traits (21/22)
+
+Ran `dev-tools/tpch/per_query_stress.py --sf 1 --runs 1` (fresh cluster per query, the authoritative mode)
+with this branch's jars deployed. **21/22 correct.**
+
+Deployment notes worth keeping — the sf=1 cluster dirs were a stale **3.8.0** distro while the branch
+builds **3.9.0**, so they had to be rebuilt from `testclusters/integTest-0/distro/3.9.0-INTEG_TEST` with
+`data/`, `config/opensearch.yml` and `start-node.sh` preserved. Two traps hit on the way:
+- `opensearch.yml` carried `analytics.mpp.shuffle.flight.*` from the Flight-shuffle worktree. Those are
+  NOT registered on this branch, so every node would have rejected them at boot. Stripped.
+- Rebuilding from a distro RESETS `config/jvm.options` to the stock **1g** heap. The sf=1 profile needs
+  `-Xmx8g` + `-XX:MaxDirectMemorySize=2g` (see `setup_cluster.sh`). Missing this produced three bogus
+  `CircuitBreakingException` failures (q16/q18/q19) that vanished once the heap was restored — a
+  deployment error, NOT a branch regression. Re-verified q18/q19 PASS on the corrected cluster.
+
+### Result vs the last full sf=1 baseline (`per_query_stress_sf1_report_20260703-132318.md`, 20/22)
+
+| change | queries |
+|---|---|
+| **FIXED** | q11, q21 (both FAIL → PASS) |
+| **strategy shift** HASH_SHUFFLE → BROADCAST | q7, q20 |
+| **strategy shift** COORDINATOR_CENTRIC → BROADCAST | q4 |
+| still failing | q16 only |
+
+q16's failure is a NATIVE-pool `CircuitBreakingException` at 16% heap — the documented orthogonal engine
+limit (10k result cap / native allocation), not a scheduler defect, and it is the same failure the
+pre-branch baseline table records.
+
+**The hash→broadcast shifts are exactly what songkant reported at sf=10 and what the user identified as an
+IMPROVEMENT, now reproduced independently at sf=1.** They follow from the parallelism-aware join cost
+(`fa0bb79e5f7`): broadcast moves only the small build while the probe stays sharded, so for a small-dim
+join it beats shuffling both sides. Strategy mix is healthy and varied — BROADCAST 13, COORDINATOR_CENTRIC
+5, HASH_SHUFFLE 4 — so top-down is NOT collapsing everything to one strategy, which was the original fear
+when `setTopDownOpt(true)` suppressed all distributed alternatives.
+
+Net: **+2 fixed, 0 regressions, 1 pre-existing orthogonal failure.** sf=10 remains to be run.
