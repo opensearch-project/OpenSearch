@@ -26,7 +26,7 @@ jobs:
           java-version: 21
 
       - name: Load secret
-        uses: 1password/load-secrets-action@14f2fed3712a25f8ad8916ddcca3c4ed737810f6 # v3
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
         with:
           # Export loaded secrets as environment variables
           export-env: true
