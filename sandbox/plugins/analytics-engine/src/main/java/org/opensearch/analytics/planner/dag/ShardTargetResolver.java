@@ -48,6 +48,8 @@ public class ShardTargetResolver extends TargetResolver {
      * Fails if absent — a silent fallback would re-resolve with different {@code IndicesOptions}.
      */
     public ShardTargetResolver(RelNode fragment, ClusterService clusterService) {
+        // Plural lookup: the scan may sit on a non-first join input a first-input-only walk cannot reach.
+        // First is safe: the only multi-scan shape is the collocated single-shard join, all scans same table and shard.
         List<OpenSearchTableScan> scans = RelNodeUtils.findNodes(fragment, OpenSearchTableScan.class);
         if (scans.isEmpty()) {
             throw new IllegalArgumentException("ShardTargetResolver: no OpenSearchTableScan found in fragment");

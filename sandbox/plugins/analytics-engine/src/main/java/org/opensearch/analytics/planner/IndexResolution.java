@@ -35,8 +35,8 @@ import java.util.SortedMap;
  * every field present in any backing index has the same declared type in all others.
  *
  * <p>Aliases that declare a filter are rejected — the planner does not weave alias filters
- * into the query plan, so honoring such an alias would silently return more rows than the
- * user asked for. Data streams resolve to their backing indices like aliases do.
+ * into the query plan today, so honoring such an alias would silently return more rows than
+ * the user asked for. Data streams are likewise rejected for now.
  *
  * <p>Index expressions (comma lists, wildcards, exclusions, date-math) are resolved through the
  * cluster's {@link IndexNameExpressionResolver} and unioned, with the same schema-compatibility

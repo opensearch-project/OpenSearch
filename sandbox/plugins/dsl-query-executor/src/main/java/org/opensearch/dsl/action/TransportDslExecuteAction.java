@@ -55,7 +55,16 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
-    /** Guice-injected constructor — receives analytics engine dependencies. */
+    /**
+     * Guice-injected constructor — receives analytics engine dependencies.
+     *
+     * @param transportService transport service
+     * @param actionFilters action filters
+     * @param contextProvider analytics engine context providing schema and operator table
+     * @param executor analytics engine plan executor
+     * @param clusterService cluster service for resolving index aliases
+     * @param indexNameExpressionResolver resolves aliases and wildcards to concrete indices
+     */
     @Inject
     public TransportDslExecuteAction(
         TransportService transportService,
