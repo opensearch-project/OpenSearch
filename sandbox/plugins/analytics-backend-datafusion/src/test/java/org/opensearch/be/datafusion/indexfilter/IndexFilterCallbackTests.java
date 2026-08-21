@@ -108,7 +108,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+            public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
                 return -1;
             }
 
@@ -165,7 +165,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+        public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
             this.lastCollectorKey = collectorKey;
             int wordCount = Math.min(cannedWords.length, (int) (out.byteSize() / Long.BYTES));
             for (int i = 0; i < wordCount; i++) {
