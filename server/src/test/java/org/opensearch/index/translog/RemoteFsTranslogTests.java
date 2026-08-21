@@ -1998,6 +1998,72 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * The recovery seal: a copy taking over claims the chain before it reads its restore point, which invalidates the
+     * incumbent's token immediately - without the new copy having uploaded anything. This is what stops a previous
+     * primary that is still alive from acknowledging writes landing after the new copy's restore point.
+     */
+    public void testSealFenceClaimsChainAndFencesTheIncumbent() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        RemoteFsTranslog incumbent = createFencedTranslog("node-old", fencedRepository);
+        try {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            // A copy recovering at a higher term seals before reading its restore point
+            RemoteFsTranslog.sealFence(
+                fencedRepository,
+                shardId,
+                threadPool,
+                new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                DefaultRemoteStoreSettings.INSTANCE,
+                false,
+                "node-new",
+                primaryTerm.get() + 1
+            );
+
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            String sealed = new String(
+                fenceContainer.readBlobWithVersion(RemoteStoreFence.FENCE_BLOB_NAME).content(),
+                StandardCharsets.UTF_8
+            );
+            assertTrue(sealed, sealed.contains("|" + (primaryTerm.get() + 1) + "|node-new|"));
+
+            // The incumbent now holds a stale token and cannot acknowledge another write
+            incumbent.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            expectThrows(TranslogFencedException.class, incumbent::sync);
+        } finally {
+            try {
+                incumbent.close();
+            } catch (Exception e) {
+                // closing a tragically-failed translog is expected to rethrow
+            }
+        }
+    }
+
+    /** Sealing at a term below the fence's must be refused: that copy has already been superseded. */
+    public void testSealFenceIsRefusedForAStaleTerm() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog incumbent = createFencedTranslog("node-current", fencedRepository)) {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            expectThrows(
+                TranslogFencedException.class,
+                () -> RemoteFsTranslog.sealFence(
+                    fencedRepository,
+                    shardId,
+                    threadPool,
+                    new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false,
+                    "node-stale",
+                    primaryTerm.get() - 1
+                )
+            );
+        }
+    }
+
     public void testBuildTranslogTransferManagerRejectsRepositoryWithoutConditionalWrites() {
         BlobContainer container = mock(BlobContainer.class);
         assertFalse(container.isConditionalWriteSupported());

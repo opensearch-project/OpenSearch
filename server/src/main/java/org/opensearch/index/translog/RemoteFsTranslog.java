@@ -381,31 +381,22 @@ public class RemoteFsTranslog extends Translog {
             .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-        RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
-            .basePath(blobStoreRepository.basePath())
-            .indexUUID(indexUUID)
-            .shardId(shardIdStr)
-            .dataCategory(TRANSLOG)
-            .dataType(METADATA)
-            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
-            .build();
-        BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
+        BlobPath mdPath = translogMetadataPath(blobStoreRepository, shardId, pathStrategy, remoteStoreSettings);
         BlobStoreTransferService transferService = new BlobStoreTransferService(
             blobStoreRepository.blobStore(isServerSideEncryptionEnabled),
             threadPool
         );
         RemoteStoreFence fence = null;
         if (fencingEnabled) {
-            // The fence lives alongside the translog metadata files (its name does not match the metadata prefix, so
-            // metadata listings and GC never see it) and is updated only via conditional writes.
-            BlobContainer fenceContainer = blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(mdPath);
-            if (fenceContainer.isConditionalWriteSupported()) {
-                fence = new RemoteStoreFence(fenceContainer, fenceOwnerNodeId, shardId, threadPool);
-            } else {
-                throw new IllegalArgumentException(
-                    "Remote store fencing is enabled for " + shardId + " but the translog repository does not support conditional writes"
-                );
-            }
+            fence = buildFence(
+                blobStoreRepository,
+                shardId,
+                threadPool,
+                pathStrategy,
+                remoteStoreSettings,
+                isServerSideEncryptionEnabled,
+                fenceOwnerNodeId
+            );
         }
         return new TranslogTransferManager(
             shardId,
@@ -418,6 +409,85 @@ public class RemoteFsTranslog extends Translog {
             isTranslogMetadataEnabled,
             fence
         );
+    }
+
+    private static BlobPath translogMetadataPath(
+        BlobStoreRepository blobStoreRepository,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        return pathStrategy.generatePath(
+            RemoteStorePathStrategy.ShardDataPathInput.builder()
+                .basePath(blobStoreRepository.basePath())
+                .indexUUID(shardId.getIndex().getUUID())
+                .shardId(String.valueOf(shardId.id()))
+                .dataCategory(TRANSLOG)
+                .dataType(METADATA)
+                .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
+                .build()
+        );
+    }
+
+    private static RemoteStoreFence buildFence(
+        BlobStoreRepository blobStoreRepository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled,
+        String fenceOwnerNodeId
+    ) {
+        // The fence lives alongside the translog metadata files (its name does not match the metadata prefix, so
+        // metadata listings and GC never see it) and is updated only via conditional writes.
+        BlobPath mdPath = translogMetadataPath(blobStoreRepository, shardId, pathStrategy, remoteStoreSettings);
+        BlobContainer fenceContainer = blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(mdPath);
+        if (fenceContainer.isConditionalWriteSupported() == false) {
+            throw new IllegalArgumentException(
+                "Remote store fencing is enabled for " + shardId + " but the translog repository does not support conditional writes"
+            );
+        }
+        return new RemoteStoreFence(fenceContainer, fenceOwnerNodeId, shardId, threadPool);
+    }
+
+    /**
+     * Claims the fence for this shard copy at {@code primaryTerm}, before the caller reads its translog restore point.
+     * <p>
+     * Sealing first is what makes the restore point trustworthy. A copy that read the restore point before claiming the
+     * fence would leave a window in which a previous primary — alive but no longer in the cluster's view, e.g. behind a
+     * network partition — still holds a valid CAS token and can therefore keep acknowledging writes that land after the
+     * restore point was read. Those writes would be acknowledged and then lost. Claiming the chain first invalidates
+     * the old primary's token, so its very next upload fails and it can acknowledge nothing this copy will not see.
+     * <p>
+     * This must not be called for a copy receiving a handoff from a live peer (primary relocation): the source is still
+     * legitimately serving at the same term, and sealing would fence it mid-handoff.
+     *
+     * @throws TranslogFencedException if another copy already owns the fence at a higher term
+     */
+    public static void sealFence(
+        Repository repository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled,
+        String fenceOwnerNodeId,
+        long primaryTerm
+    ) throws IOException {
+        assert repository instanceof BlobStoreRepository : String.format(
+            Locale.ROOT,
+            "%s repository should be instance of BlobStoreRepository",
+            shardId
+        );
+        buildFence(
+            (BlobStoreRepository) repository,
+            shardId,
+            threadPool,
+            pathStrategy,
+            remoteStoreSettings,
+            isServerSideEncryptionEnabled,
+            fenceOwnerNodeId
+        ).validateAndAdvance(primaryTerm);
     }
 
     @Override

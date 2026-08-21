@@ -38,9 +38,11 @@ import java.util.Locale;
  * The fence blob is control-plane only: it is never read by snapshot restore, pinned-timestamp resolution or GC, and
  * all snapshot-referenced files remain immutable with unchanged names.
  * <p>
- * Note: bootstrap (and therefore the seal to a new primary term) currently happens lazily on the first upload of a
- * new primary. Sealing before the recovery restore-point read — required to fully close the acked-write-loss window
- * during failover — is a follow-up that integrates the seal into the remote store restore path.
+ * A recovering primary claims the fence <b>before</b> it reads its translog restore point (see
+ * {@code RemoteFsTranslog#sealFence}), which is what closes the acked-write-loss window during failover: a previous
+ * primary that is still alive but no longer in the cluster's view has its token invalidated at that point, so it can
+ * acknowledge nothing that lands after the restore point the new copy read. A copy receiving a primary relocation
+ * handoff deliberately does not seal, since the source is still legitimately serving at the same term.
  *
  * @opensearch.internal
  */

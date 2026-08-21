@@ -11,10 +11,12 @@ package org.opensearch.remotestore;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
@@ -53,6 +55,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-fencing-idx";
+
+    /**
+     * {@code IndexShard}'s seal step. Asserted as a stack frame because the point being verified is <i>where</i> on the
+     * recovery path the failure happens, which no exception type or message can distinguish.
+     */
+    private static final String SEAL_METHOD_NAME = "sealRemoteStoreFenceBeforeRestore";
 
     private Settings fencedIndexSettings(int replicaCount, Translog.Durability durability) {
         return Settings.builder()
@@ -267,6 +275,78 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             assertNotEquals("fence ownership did not move to the promoted copy", beforeFailover.owner, afterFailover.owner);
         });
         assertEquals(nodeId(primaryNodeName(INDEX_NAME)), readFence(fenceBlob).owner);
+    }
+
+    /**
+     * Seal-before-restore. A recovering primary claims the fence <b>before</b> it reads its translog restore point:
+     * otherwise a previous primary that is still alive - and still holding a valid CAS token - could keep acknowledging
+     * writes that land after the restore point the new copy read, and those acknowledged writes would be lost.
+     * <p>
+     * The race window itself is not observable from an integration test, so what is asserted here is that the seal is a
+     * real, blocking step on the recovery path rather than something the first post-recovery upload happens to do: a
+     * copy that has been superseded - the chain is owned by another writer at a strictly higher term - must fail
+     * recovery <em>at the seal</em>, never reach the restore point, and never claim the chain. Without the seal the
+     * shard opens its engine, reads its restore point, and only trips later on the upload path, so the recorded
+     * allocation failure comes from a different call site and this test fails.
+     */
+    public void testASupersededCopyFailsRecoveryAtTheSeal() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME, fencedIndexSettings(0, Translog.Durability.REQUEST));
+        ensureGreen(INDEX_NAME);
+
+        Path fenceBlob = translogMetadataDirectory(INDEX_NAME).resolve(FENCE_BLOB_NAME);
+        BlobPath metadataBlobPath = translogMetadataBlobPath(INDEX_NAME);
+        ShardId shardId = getIndexShard(dataNode, INDEX_NAME).shardId();
+
+        indexSingleDoc(INDEX_NAME);
+        Fence before = awaitFence(fenceBlob);
+        assertEquals(nodeId(dataNode), before.owner);
+
+        // Stand in for a copy hydrated elsewhere that has already moved the shard well past this node's term. The gap
+        // is deliberately wider than the number of allocation retries, so no reassignment can lift this node's primary
+        // term above the fence and turn the takeover into a legitimate one.
+        String clusterManager = internalCluster().getClusterManagerName();
+        BlobStoreRepository translogRepository = (BlobStoreRepository) internalCluster().getInstance(
+            RepositoriesService.class,
+            clusterManager
+        ).repository(REPOSITORY_2_NAME);
+        BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
+        new RemoteStoreFence(fenceContainer, "superseding-node", shardId, internalCluster().getInstance(ThreadPool.class, clusterManager))
+            .validateAndAdvance(before.term + 50);
+        Fence superseding = readFence(fenceBlob);
+        assertEquals("superseding-node", superseding.owner);
+
+        internalCluster().restartNode(dataNode);
+
+        // Every allocation attempt must abort in the seal, so the shard stays unassigned with that failure recorded.
+        assertBusy(() -> {
+            UnassignedInfo unassignedInfo = client().admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .routingTable()
+                .index(INDEX_NAME)
+                .shard(0)
+                .primaryShard()
+                .unassignedInfo();
+            assertNotNull("primary was assigned despite being superseded", unassignedInfo);
+            assertNotNull("no allocation failure recorded yet: " + unassignedInfo, unassignedInfo.getFailure());
+            String stackTrace = ExceptionsHelper.stackTrace(unassignedInfo.getFailure());
+            assertTrue("recovery did not fail in the fence seal, but with:\n" + stackTrace, stackTrace.contains(SEAL_METHOD_NAME));
+            assertThat("recovery was not retried to exhaustion", unassignedInfo.getNumFailedAllocations(), greaterThan(0));
+        }, 60, TimeUnit.SECONDS);
+
+        // The superseded copy neither claimed nor advanced the chain, so it cannot have read a restore point it would
+        // then serve from.
+        Fence after = readFence(fenceBlob);
+        assertEquals("superseded copy claimed the fence: " + after, superseding.owner, after.owner);
+        assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.term, after.term);
+        assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.seq, after.seq);
+
+        // The index is unrecoverable by construction; drop it rather than leaving a red index for the test teardown.
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
     }
 
     /**
