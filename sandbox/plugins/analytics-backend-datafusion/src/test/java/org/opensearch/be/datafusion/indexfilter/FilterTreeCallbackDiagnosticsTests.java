@@ -19,6 +19,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Regression tests for the SILENT {@code -1} returns from {@link FilterTreeCallbacks}.
@@ -56,7 +57,7 @@ public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
         return CONTEXT_IDS.incrementAndGet();
     }
 
-    private static final java.util.concurrent.atomic.AtomicLong CONTEXT_IDS = new java.util.concurrent.atomic.AtomicLong(9_000_000L);
+    private static final AtomicLong CONTEXT_IDS = new AtomicLong(9_000_000L);
 
     /**
      * THE OBSERVED BUG. A native collector call arrives after the query's binding was
