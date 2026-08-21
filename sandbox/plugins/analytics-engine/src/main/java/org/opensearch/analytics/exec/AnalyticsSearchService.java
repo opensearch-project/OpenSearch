@@ -16,6 +16,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultBatch;
@@ -355,12 +356,66 @@ public class AnalyticsSearchService implements AutoCloseable {
                 } catch (Exception e) {
                     // Query phase failed: no fetch will follow, so free the reader eagerly (no-op if already freed).
                     readerContextStore.freeContext(request.getQueryId(), shard.shardId());
-                    responseHandler.onFailure(convertWith(selectedBackendId(request), e));
+                    responseHandler.onFailure(convertWith(selectedBackendId(request), asCancellationIfTornDown(e, task)));
                 }
             });
         } catch (Exception e) {
             responseHandler.onFailure(e);
         }
+    }
+
+    /**
+     * Marker from the native delegated-filter collector path: the Rust row-group evaluator formats a
+     * negative return from the {@code collectDocs} FFM upcall as
+     * {@code "collector.collect_packed_u64_bitset(rg=…, […, …)): collectDocs(context_id=…, key=…) failed: -1"}.
+     * Matching on {@code collectDocs(context_id=} identifies that family without pinning the
+     * surrounding wording (see {@code indexed_table/ffm_callbacks.rs}).
+     */
+    private static final String DELEGATED_COLLECTOR_UPCALL_MARKER = "collectDocs(context_id=";
+
+    /**
+     * Re-types a delegated-collector upcall failure as a {@link TaskCancelledException} when this
+     * fragment's task is already cancelled.
+     *
+     * <p>Why: the per-query {@code FilterDelegationHandle} binding is unregistered when the fragment
+     * tears down, but a native scan task can still be inside a row-group prefetch at that moment —
+     * tokio's abort is cooperative, so it only unwinds at its next yield point and can issue one more
+     * {@code collectDocs} upcall first. That upcall correctly returns {@code -1} (there is no handle
+     * left to serve it, and the query's results are being discarded anyway), which the native side
+     * turns into a hard execution error. Reported verbatim it surfaces as an opaque
+     * {@code "Execution error: External error: delegated-backend collector…failed: -1"} — a 500-class
+     * failure for what is really an already-cancelled query. Re-typing keeps the cancellation
+     * recognizable: {@code AnalyticsTransportErrors.toWireError} tags it {@code CANCELLED} and the
+     * coordinator rebuilds a {@code TaskCancelledException} instead of a retryable generic error.
+     *
+     * <p>Deliberately narrow — it fires ONLY when the task is genuinely cancelled AND the failure
+     * carries the delegated-collector marker, so a real delegation defect on a live query still
+     * surfaces as itself. {@code FilterTreeCallbacks} logs which condition produced the {@code -1}
+     * (cancelled / no-binding / handle-error), so the underlying cause stays diagnosable either way.
+     */
+    // Package-private for DelegatedCollectorCancellationTests, which drives it directly rather
+    // than standing up a shard + native session just to reach the catch block.
+    static Exception asCancellationIfTornDown(Exception e, AnalyticsShardTask task) {
+        if (task == null || task.isCancelled() == false) {
+            return e;
+        }
+        if (carriesDelegatedCollectorFailure(e) == false) {
+            return e;
+        }
+        TaskCancelledException cancelled = new TaskCancelledException(
+            "fragment cancelled during delegated-filter execution: "
+                + (task.getReasonCancelled() != null ? task.getReasonCancelled() : "unknown")
+        );
+        cancelled.initCause(e);
+        return cancelled;
+    }
+
+    /** True if any exception in {@code e}'s cause chain carries the delegated-collector upcall marker. */
+    private static boolean carriesDelegatedCollectorFailure(Throwable e) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> {
+            String msg = t.getMessage();
+            return msg != null && msg.contains(DELEGATED_COLLECTOR_UPCALL_MARKER);
+        }).isPresent();
     }
 
     /**
