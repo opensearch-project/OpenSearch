@@ -127,6 +127,17 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Controls whether remote translog bytes written since the last index commit are used to evaluate
+     * {@code index.translog.flush_threshold_size}.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING = Setting.boolSetting(
+        "cluster.remote_store.translog.track_bytes_since_last_commit.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls timeout value while uploading segment files to remote segment store
      */
     public static final Setting<TimeValue> CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING = Setting.timeSetting(
@@ -227,6 +238,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
+    private volatile boolean translogBytesTrackingEnabled;
     private volatile boolean isClusterServerSideEncryptionRepoEnabled;
     private volatile boolean isTranslogMetadataEnabled;
     private static volatile boolean isPinnedTimestampsEnabled;
@@ -266,6 +278,12 @@ public class RemoteStoreSettings {
 
         maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
+
+        translogBytesTrackingEnabled = CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING,
+            this::setTranslogBytesTrackingEnabled
+        );
 
         clusterRemoteSegmentTransferTimeout = CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
@@ -354,6 +372,14 @@ public class RemoteStoreSettings {
 
     private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
         this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
+    }
+
+    public boolean isTranslogBytesTrackingEnabled() {
+        return translogBytesTrackingEnabled;
+    }
+
+    private void setTranslogBytesTrackingEnabled(boolean translogBytesTrackingEnabled) {
+        this.translogBytesTrackingEnabled = translogBytesTrackingEnabled;
     }
 
     public boolean isClusterServerSideEncryptionEnabled() {

@@ -46,6 +46,9 @@ public class InternalTranslogManager implements TranslogManager {
     private final TranslogEventListener translogEventListener;
     private final Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier;
     private final Logger logger;
+    private final TranslogBytesTracker translogBytesTracker = new TranslogBytesTracker();
+    private final boolean supportsTranslogBytesTracking;
+    private TranslogBytesTracker.CommitSnapshot commitSnapshot;
 
     public InternalTranslogManager(
         TranslogConfig translogConfig,
@@ -62,6 +65,40 @@ public class InternalTranslogManager implements TranslogManager {
         BooleanSupplier startedPrimarySupplier,
         TranslogOperationHelper translogOperationHelper
     ) throws IOException {
+        this(
+            translogConfig,
+            primaryTermSupplier,
+            globalCheckpointSupplier,
+            translogDeletionPolicy,
+            shardId,
+            readLock,
+            localCheckpointTrackerSupplier,
+            translogUUID,
+            translogEventListener,
+            engineLifeCycleAware,
+            translogFactory,
+            startedPrimarySupplier,
+            translogOperationHelper,
+            false
+        );
+    }
+
+    public InternalTranslogManager(
+        TranslogConfig translogConfig,
+        LongSupplier primaryTermSupplier,
+        LongSupplier globalCheckpointSupplier,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        ShardId shardId,
+        ReleasableLock readLock,
+        Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
+        String translogUUID,
+        TranslogEventListener translogEventListener,
+        LifecycleAware engineLifeCycleAware,
+        TranslogFactory translogFactory,
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper,
+        boolean supportsTranslogBytesTracking
+    ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
         this.engineLifeCycleAware = engineLifeCycleAware;
@@ -76,6 +113,7 @@ public class InternalTranslogManager implements TranslogManager {
         }, translogUUID, translogFactory, startedPrimarySupplier, translogOperationHelper);
         assert translog.getGeneration() != null;
         this.translog = translog;
+        this.supportsTranslogBytesTracking = supportsTranslogBytesTracking && translog instanceof RemoteFsTranslog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
         // don't allow commits until we are done with recovering
         pendingTranslogRecovery.set(true);
@@ -337,7 +375,39 @@ public class InternalTranslogManager implements TranslogManager {
      */
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
-        return translog.add(operation);
+        Translog.Location location = translog.add(operation);
+        if (isTranslogBytesTrackingEnabled()) {
+            translogBytesTracker.addBytes(location.size);
+        }
+        return location;
+    }
+
+    /**
+     * Returns whether byte tracking is supported by the engine and enabled for the remote translog.
+     */
+    public boolean isTranslogBytesTrackingEnabled() {
+        return supportsTranslogBytesTracking && ((RemoteFsTranslog) translog).isTranslogBytesTrackingEnabled();
+    }
+
+    /**
+     * Captures the remote translog bytes that are eligible to be cleared by the next index commit.
+     */
+    public void startIndexCommit() {
+        assert commitSnapshot == null : "an index commit is already in progress";
+        commitSnapshot = translogBytesTracker.startCommit();
+    }
+
+    /**
+     * Completes byte tracking for an index commit.
+     *
+     * @param successful whether the index commit completed successfully
+     */
+    public void finishIndexCommit(boolean successful) {
+        assert commitSnapshot != null : "index commit was not started";
+        if (successful) {
+            translogBytesTracker.completeCommit(commitSnapshot);
+        }
+        commitSnapshot = null;
     }
 
     /**
@@ -450,6 +520,9 @@ public class InternalTranslogManager implements TranslogManager {
          */
         if (translog.shouldFlush()) {
             return true;
+        }
+        if (isTranslogBytesTrackingEnabled()) {
+            return translogBytesTracker.getBytesSinceLastCommit() >= flushThreshold;
         }
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size
         long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);

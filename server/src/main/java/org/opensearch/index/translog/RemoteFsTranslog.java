@@ -73,6 +73,7 @@ public class RemoteFsTranslog extends Translog {
     protected final FileTransferTracker fileTransferTracker;
     protected final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
+    private final RemoteStoreSettings remoteStoreSettings;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -128,6 +129,7 @@ public class RemoteFsTranslog extends Translog {
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.remoteStoreSettings = remoteStoreSettings;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
@@ -793,6 +795,10 @@ public class RemoteFsTranslog extends Translog {
             return false;
         }
         return readers.size() >= maxRemoteTlogReaders;
+    }
+
+    boolean isTranslogBytesTrackingEnabled() {
+        return remoteStoreSettings.isTranslogBytesTrackingEnabled();
     }
 
     private CryptoMetadata resolveCryptoMetadata() {

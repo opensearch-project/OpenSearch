@@ -409,7 +409,8 @@ public class InternalEngine extends Engine {
             this::ensureOpen,
             engineConfig.getTranslogFactory(),
             engineConfig.getStartedPrimarySupplier(),
-            TranslogOperationHelper.create(engineConfig)
+            TranslogOperationHelper.create(engineConfig),
+            true
         );
     }
 
@@ -2222,7 +2223,21 @@ public class InternalEngine extends Engine {
                 refresh("commit", SearcherScope.INTERNAL, true);
             }
 
-            writer.commit();
+            final InternalTranslogManager internalTranslogManager = translogManager instanceof InternalTranslogManager manager
+                ? manager
+                : null;
+            if (internalTranslogManager != null && internalTranslogManager.isTranslogBytesTrackingEnabled()) {
+                internalTranslogManager.startIndexCommit();
+                boolean commitSuccessful = false;
+                try {
+                    writer.commit();
+                    commitSuccessful = true;
+                } finally {
+                    internalTranslogManager.finishIndexCommit(commitSuccessful);
+                }
+            } else {
+                writer.commit();
+            }
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);

@@ -867,6 +867,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
+                RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_SCHEDULER_INTERVAL,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_LOOKBACK_INTERVAL,
