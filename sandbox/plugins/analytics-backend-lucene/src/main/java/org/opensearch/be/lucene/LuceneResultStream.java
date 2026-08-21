@@ -23,7 +23,6 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -80,7 +79,7 @@ public class LuceneResultStream implements EngineResultStream {
         try {
             if (iteratorInstance != null) {
                 iteratorInstance.closeLastBatch();
-                iteratorInstance.reclaimDrainedStaging();
+                iteratorInstance.closeStagingAllocator();
             }
         } finally {
             try {
@@ -112,9 +111,18 @@ public class LuceneResultStream implements EngineResultStream {
         private Boolean nextAvailable;
         private boolean batchEmitted;
         private boolean exhausted;
-        // Per-batch staging allocators used by {@link #importBatch}. Each is reclaimed once its batch's
-        // buffers have been released by the consumer (see {@link #reclaimDrainedStaging}).
-        private final List<BufferAllocator> stagingAllocators = new ArrayList<>();
+        /**
+         * ONE staging allocator for the whole stream, created lazily on first import (see
+         * {@link #importBatch}). Deliberately NOT per-batch: the Flight transport builds its reused stream
+         * root on {@code fieldVectors.getFirst().getAllocator()}, i.e. the FIRST batch's staging allocator
+         * ({@code FlightServerChannel#transferIntoStreamRoot}, whose comment states "The producer's
+         * allocator must be long-lived (not closed per-request)"), then charges that same allocator for every
+         * later batch. Closing one per-batch closed an allocator the transport was still using, so
+         * {@code BaseAllocator#close} threw {@code IllegalStateException: Memory was leaked by query} when a
+         * transfer landed between the drained-check and the close. Unboundedness is the only property the
+         * per-batch design needed; one unbounded child keeps it without the race.
+         */
+        private BufferAllocator stagingAllocator;
 
         BatchIterator(
             ArrowArray arrowArray,
@@ -159,38 +167,43 @@ public class LuceneResultStream implements EngineResultStream {
          * mid-array, so the release callback always fires.
          *
          * <p>The batch is returned as-is (zero-copy); its buffers are released by the existing consumer close
-         * paths, which drives the C Data reference count to zero. Each staging allocator is reclaimed once
-         * drained (see {@link #reclaimDrainedStaging}); on import failure it is closed immediately.
+         * paths, which drives the C Data reference count to zero. The staging allocator is stream-scoped and
+         * outlives every batch (see {@link #stagingAllocator}), so nothing is closed per-batch.
          */
         private VectorSchemaRoot importBatch() {
-            reclaimDrainedStaging();
-            BufferAllocator staging = allocator.getRoot().newChildAllocator("lucene-import-staging", 0, Long.MAX_VALUE);
-            VectorSchemaRoot root = VectorSchemaRoot.create(schema, staging);
+            if (stagingAllocator == null) {
+                stagingAllocator = allocator.getRoot().newChildAllocator("lucene-import-staging", 0, Long.MAX_VALUE);
+            }
+            VectorSchemaRoot root = VectorSchemaRoot.create(schema, stagingAllocator);
             try {
-                Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
+                Data.importIntoVectorSchemaRoot(stagingAllocator, arrowArray, root, dictionaryProvider);
             } catch (RuntimeException e) {
+                // Close the partially-imported root (fires the native release) but KEEP the allocator: it is
+                // stream-scoped and a later batch may still use it.
                 root.close();
-                staging.close();
                 throw e;
             }
-            stagingAllocators.add(staging);
             return root;
         }
 
         /**
-         * Closes staging allocators whose batches have been fully released (drained to zero). A batch still
-         * in flight keeps its staging allocator open so the eventual release callback frees the small C Data
-         * bookkeeping allocation against a live allocator; that allocator is a leaf child of the root and
-         * holds no batch data once drained.
+         * Closes the stream-scoped staging allocator, if it can be closed. Called only from
+         * {@link LuceneResultStream#close()} — never per-batch.
+         *
+         * <p>A non-zero balance means the transport still holds buffers charged here (its reused stream root
+         * is freed in its own {@code close()}, which may run after ours). Closing anyway would throw AND leave
+         * the allocator permanently half-closed, because {@code BaseAllocator#close} sets {@code isClosed}
+         * BEFORE its leak check — so its bytes would never return to the parent. Leaving it open hands
+         * ownership to the root, matching what the old per-batch code did for an in-flight batch.
          */
-        private void reclaimDrainedStaging() {
-            stagingAllocators.removeIf(a -> {
-                if (a.getAllocatedMemory() == 0) {
-                    a.close();
-                    return true;
-                }
-                return false;
-            });
+        void closeStagingAllocator() {
+            if (stagingAllocator == null) {
+                return;
+            }
+            if (stagingAllocator.getAllocatedMemory() == 0) {
+                stagingAllocator.close();
+                stagingAllocator = null;
+            }
         }
 
         @Override
