@@ -30,14 +30,71 @@ public class TranslogBytesTrackerTests extends OpenSearchTestCase {
         assertEquals(0, tracker.getBytesSinceLastCommit());
     }
 
-    public void testFailedCommitDoesNotResetTrackedBytes() {
+    public void testDiscardedCommitSnapshotRetainsTrackedBytes() {
         TranslogBytesTracker tracker = new TranslogBytesTracker();
         tracker.addBytes(10);
 
+        // A snapshot that is never completed, which is what a failed index commit leaves behind, must not release
+        // anything. The bytes have to stay eligible for the commit that follows.
         tracker.startCommit();
         tracker.addBytes(20);
-
         assertEquals(30, tracker.getBytesSinceLastCommit());
+
+        tracker.completeCommit(tracker.startCommit());
+        assertEquals(0, tracker.getBytesSinceLastCommit());
+    }
+
+    public void testInitializeSeedsBaselineOnce() {
+        TranslogBytesTracker tracker = new TranslogBytesTracker();
+        assertFalse(tracker.isInitialized());
+
+        assertTrue(tracker.initialize(100));
+        assertTrue(tracker.isInitialized());
+        assertEquals(100, tracker.getBytesSinceLastCommit());
+
+        // A second seeding attempt is a no-op so that every entry point can call it unguarded.
+        assertFalse(tracker.initialize(500));
+        assertEquals(100, tracker.getBytesSinceLastCommit());
+    }
+
+    public void testInitializeRemainsMarkedAfterCommit() {
+        TranslogBytesTracker tracker = new TranslogBytesTracker();
+        assertTrue(tracker.initialize(100));
+        tracker.completeCommit(tracker.startCommit());
+
+        assertEquals(0, tracker.getBytesSinceLastCommit());
+        assertTrue(tracker.isInitialized());
+        assertFalse(tracker.initialize(100));
+        assertEquals(0, tracker.getBytesSinceLastCommit());
+    }
+
+    public void testInitializeRejectsNegativeBaseline() {
+        TranslogBytesTracker tracker = new TranslogBytesTracker();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> tracker.initialize(-1));
+        assertEquals("translog bytes must be non-negative", exception.getMessage());
+        assertFalse(tracker.isInitialized());
+    }
+
+    public void testAddBytesSaturatesInsteadOfOverflowing() {
+        TranslogBytesTracker tracker = new TranslogBytesTracker();
+        tracker.addBytes(Long.MAX_VALUE - 1);
+
+        tracker.addBytes(10);
+
+        assertEquals(Long.MAX_VALUE, tracker.getBytesSinceLastCommit());
+        tracker.completeCommit(tracker.startCommit());
+        assertEquals(0, tracker.getBytesSinceLastCommit());
+    }
+
+    public void testCompleteCommitRejectsSnapshotLargerThanTrackedBytes() {
+        TranslogBytesTracker tracker = new TranslogBytesTracker();
+        tracker.addBytes(100);
+        TranslogBytesTracker.CommitSnapshot commitSnapshot = tracker.startCommit();
+        tracker.completeCommit(commitSnapshot);
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> tracker.completeCommit(commitSnapshot));
+        assertEquals("commit snapshot contains [100] bytes but only [0] bytes are tracked", exception.getMessage());
     }
 
     public void testSuccessfulCommitRetainsConcurrentWrites() throws Exception {

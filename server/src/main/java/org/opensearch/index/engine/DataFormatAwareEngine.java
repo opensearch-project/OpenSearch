@@ -553,6 +553,11 @@ public class DataFormatAwareEngine implements Indexer {
         };
     }
 
+    /**
+     * Note that this does not opt into tracking translog bytes since the last commit. That tracking exists to release
+     * soft deleted documents which a lagging safe commit keeps protected, and this engine does not support updates yet,
+     * so it never accumulates them.
+     */
     private TranslogManager createTranslogManager(
         String translogUUID,
         TranslogDeletionPolicy deletionPolicy,

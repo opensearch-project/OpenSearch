@@ -131,6 +131,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
 import org.opensearch.indices.recovery.DefaultRecoverySettings;
@@ -313,6 +314,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
         indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE, "");
         return fut.get();
+    }
+
+    /**
+     * The cluster level remote store settings handed to the remote backed components of shards created by this test.
+     * Override to exercise a non default {@code cluster.remote_store.*} setting.
+     */
+    protected RemoteStoreSettings remoteStoreSettings() {
+        return DefaultRemoteStoreSettings.INSTANCE;
     }
 
     /**
@@ -759,7 +768,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         threadPool,
                         settings.getRemoteStoreTranslogRepository(),
                         new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
-                        DefaultRemoteStoreSettings.INSTANCE,
+                        remoteStoreSettings(),
                         RemoteStoreUtils.isServerSideEncryptionEnabledIndex(settings.getIndexMetadata())
                     );
                 }
@@ -795,7 +804,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStoreStatsTrackerFactory,
                 "dummy-node",
                 recoverySettings,
-                DefaultRemoteStoreSettings.INSTANCE,
+                remoteStoreSettings(),
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,

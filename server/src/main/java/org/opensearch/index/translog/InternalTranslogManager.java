@@ -48,6 +48,10 @@ public class InternalTranslogManager implements TranslogManager {
     private final Logger logger;
     private final TranslogBytesTracker translogBytesTracker = new TranslogBytesTracker();
     private final boolean supportsTranslogBytesTracking;
+    /**
+     * Guarded by the engine's flush lock, which serialises {@link #startIndexCommit()} and
+     * {@link #finishIndexCommit(boolean)} and publishes this field between the threads that run successive commits.
+     */
     private TranslogBytesTracker.CommitSnapshot commitSnapshot;
 
     public InternalTranslogManager(
@@ -113,7 +117,14 @@ public class InternalTranslogManager implements TranslogManager {
         }, translogUUID, translogFactory, startedPrimarySupplier, translogOperationHelper);
         assert translog.getGeneration() != null;
         this.translog = translog;
-        this.supportsTranslogBytesTracking = supportsTranslogBytesTracking && translog instanceof RemoteFsTranslog;
+        /*
+         * Only indices backed by a remote translog see the moving retention boundary that this tracking compensates
+         * for. A node that merely has a translog repository configured also hands a RemoteFsTranslog to the primaries
+         * of plain document replication indices, and those must keep using the untouched size computation.
+         */
+        this.supportsTranslogBytesTracking = supportsTranslogBytesTracking
+            && translog instanceof RemoteFsTranslog
+            && translogConfig.getIndexSettings().isRemoteTranslogStoreEnabled();
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
         // don't allow commits until we are done with recovering
         pendingTranslogRecovery.set(true);
@@ -375,8 +386,13 @@ public class InternalTranslogManager implements TranslogManager {
      */
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
+        // Read the setting once so that a concurrent update cannot make us add an operation without accounting for it.
+        final boolean trackBytes = isTranslogBytesTrackingEnabled();
+        if (trackBytes) {
+            ensureTranslogBytesTrackerInitialized();
+        }
         Translog.Location location = translog.add(operation);
-        if (isTranslogBytesTrackingEnabled()) {
+        if (trackBytes) {
             translogBytesTracker.addBytes(location.size);
         }
         return location;
@@ -390,10 +406,30 @@ public class InternalTranslogManager implements TranslogManager {
     }
 
     /**
+     * Seeds the tracker with the uncommitted translog bytes this shard already holds. A tracker starts empty, so
+     * without this a shard whose engine was just created (a restart, a relocation or an engine reset) would forget the
+     * uncommitted translog it recovered and postpone the next size based flush by up to a full threshold. The same
+     * seeding lets a cluster that turns the setting on mid flight account for the translog written before that point.
+     * <p>
+     * The baseline matches the {@code uncommitted_size_in_bytes} translog stat. Bytes belonging to generations that
+     * were already trimmed are not part of it because those files no longer exist.
+     */
+    private void ensureTranslogBytesTrackerInitialized() {
+        if (translogBytesTracker.isInitialized()) {
+            return;
+        }
+        final long uncommittedGeneration = translog.getMinGenerationForSeqNo(
+            translog.getDeletionPolicy().getLocalCheckpointOfSafeCommit() + 1
+        ).translogFileGeneration;
+        translogBytesTracker.initialize(translog.sizeInBytesByMinGen(uncommittedGeneration));
+    }
+
+    /**
      * Captures the remote translog bytes that are eligible to be cleared by the next index commit.
      */
     public void startIndexCommit() {
         assert commitSnapshot == null : "an index commit is already in progress";
+        ensureTranslogBytesTrackerInitialized();
         commitSnapshot = translogBytesTracker.startCommit();
     }
 
@@ -522,6 +558,7 @@ public class InternalTranslogManager implements TranslogManager {
             return true;
         }
         if (isTranslogBytesTrackingEnabled()) {
+            ensureTranslogBytesTrackerInitialized();
             return translogBytesTracker.getBytesSinceLastCommit() >= flushThreshold;
         }
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size

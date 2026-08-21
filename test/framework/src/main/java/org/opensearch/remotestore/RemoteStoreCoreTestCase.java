@@ -1096,6 +1096,102 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    /**
+     * Verifies that byte tracking accounts for the uncommitted translog a shard already holds when tracking begins.
+     * <ol>
+     *     <li>Builds up uncommitted translog with byte tracking disabled, which the legacy retention boundary never
+     *     flushes.</li>
+     *     <li>Records the uncommitted translog size and enables byte tracking.</li>
+     *     <li>Lowers the flush threshold to that size, so only a tracker seeded from the existing translog can reach
+     *     it. A tracker starting from zero would need a whole threshold of new writes first.</li>
+     *     <li>Asserts a periodic flush becomes due without any further indexing, and that one small write is enough to
+     *     carry it out and advance the commit.</li>
+     * </ol>
+     */
+    public void testRemoteTranslogSizeFlushSeedsExistingUncommittedBytes() throws Exception {
+        Settings nodeSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "1h").build();
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        String dataNode = internalCluster().startDataOnlyNode(nodeSettings);
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), -1)
+                        .put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms")
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING.getKey(), false)
+                )
+                .get()
+        );
+
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(remoteStoreIndexSettings(0, 10000L, -1))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "32kb")
+                .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1")
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+        RemoteFsTranslog remoteTranslog = (RemoteFsTranslog) getTranslog(indexShard);
+        long initialPeriodicFlushes = indexShard.flushStats().getPeriodic();
+        long initialCommitCheckpoint = getLastCommittedLocalCheckpoint(indexShard);
+
+        String payload = randomAlphaOfLength(4 * 1024);
+        for (int i = 0; i < 10; i++) {
+            IndexResponse response = client(dataNode).prepareIndex(INDEX_NAME)
+                .setId(Integer.toString(i))
+                .setSource("payload", payload)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            assertBusy(
+                () -> assertThat(remoteTranslog.getMinUnreferencedSeqNoInSegments(0), greaterThanOrEqualTo(response.getSeqNo())),
+                30,
+                TimeUnit.SECONDS
+            );
+        }
+        assertEquals(initialCommitCheckpoint, getLastCommittedLocalCheckpoint(indexShard));
+
+        long uncommittedSizeInBytes = indexShard.translogStats().getUncommittedSizeInBytes();
+        assertThat(uncommittedSizeInBytes, greaterThan(0L));
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING.getKey(), true)
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .updateSettings(
+                    new UpdateSettingsRequest(INDEX_NAME).settings(
+                        Settings.builder()
+                            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), uncommittedSizeInBytes + "b")
+                    )
+                )
+                .get()
+        );
+
+        // Nothing has been written since the threshold was lowered, so this can only be true if the tracker picked up
+        // the translog that already existed.
+        assertTrue(indexShard.shouldPeriodicallyFlush());
+        assertEquals(initialPeriodicFlushes, indexShard.flushStats().getPeriodic());
+
+        client(dataNode).prepareIndex(INDEX_NAME).setId("trigger").setSource("payload", "v").get();
+        assertBusy(() -> {
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(initialPeriodicFlushes));
+            assertThat(getLastCommittedLocalCheckpoint(indexShard), greaterThan(initialCommitCheckpoint));
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private long getLastCommittedLocalCheckpoint(IndexShard indexShard) {
         return Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
     }
