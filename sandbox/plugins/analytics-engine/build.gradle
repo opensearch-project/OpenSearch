@@ -81,6 +81,11 @@ dependencies {
   implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
   implementation "org.lz4:lz4-java:1.8.0"
 
+  implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}") {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
   calciteCompile "com.google.guava:guava:${versions.guava}"
@@ -223,7 +228,7 @@ configurations.all {
     force "org.locationtech.jts:jts-core:${versions.jts}"
     force "commons-codec:commons-codec:${versions.commonscodec}"
     force "joda-time:joda-time:2.12.7"
-    force "org.yaml:snakeyaml:2.4"
+    force "org.yaml:snakeyaml:${versions.snakeyaml}"
     force "org.codehaus.janino:janino:3.1.12"
     force "org.codehaus.janino:commons-compiler:3.1.12"
     force "commons-io:commons-io:${versions.commonsio}"
