@@ -18,6 +18,8 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
@@ -46,6 +48,8 @@ import static org.apache.arrow.c.Data.importField;
  */
 @ExperimentalApi
 public class LuceneResultStream implements EngineResultStream {
+
+    private static final Logger LOGGER = LogManager.getLogger(LuceneResultStream.class);
 
     /** C-Data array carrying the populated batch. Owned by this stream until {@link #close}. */
     private final ArrowArray arrowArray;
@@ -179,8 +183,14 @@ public class LuceneResultStream implements EngineResultStream {
                 Data.importIntoVectorSchemaRoot(stagingAllocator, arrowArray, root, dictionaryProvider);
             } catch (RuntimeException e) {
                 // Close the partially-imported root (fires the native release) but KEEP the allocator: it is
-                // stream-scoped and a later batch may still use it.
-                root.close();
+                // stream-scoped and a later batch may still use it. The release can itself throw
+                // (VectorSchemaRoot#close rethrows any RuntimeException from the vectors); attach it rather
+                // than let it mask the import failure that is the real diagnosis.
+                try {
+                    root.close();
+                } catch (RuntimeException releaseFailure) {
+                    e.addSuppressed(releaseFailure);
+                }
                 throw e;
             }
             return root;
@@ -195,6 +205,10 @@ public class LuceneResultStream implements EngineResultStream {
          * the allocator permanently half-closed, because {@code BaseAllocator#close} sets {@code isClosed}
          * BEFORE its leak check — so its bytes would never return to the parent. Leaving it open hands
          * ownership to the root, matching what the old per-batch code did for an in-flight batch.
+         *
+         * <p>The deferral is logged at DEBUG, not WARN: the transport frees its stream root asynchronously
+         * (posted to the flight executor by {@code FlightServerChannel#close}), so a non-zero balance here is
+         * the expected outcome of every streaming query, not a signal of a leak.
          */
         void closeStagingAllocator() {
             if (stagingAllocator == null) {
@@ -203,6 +217,13 @@ public class LuceneResultStream implements EngineResultStream {
             if (stagingAllocator.getAllocatedMemory() == 0) {
                 stagingAllocator.close();
                 stagingAllocator = null;
+            } else {
+                LOGGER.debug(
+                    "Deferring close of staging allocator [{}] with {} bytes outstanding; the transport still "
+                        + "holds them and frees them with its stream root",
+                    stagingAllocator.getName(),
+                    stagingAllocator.getAllocatedMemory()
+                );
             }
         }
 

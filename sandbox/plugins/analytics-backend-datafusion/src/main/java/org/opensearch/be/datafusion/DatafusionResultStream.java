@@ -18,6 +18,8 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
@@ -44,6 +46,8 @@ import static org.apache.arrow.c.Data.importField;
  */
 @ExperimentalApi
 public class DatafusionResultStream implements EngineResultStream, FragmentResources.MetricsCapable {
+
+    private static final Logger LOGGER = LogManager.getLogger(DatafusionResultStream.class);
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
@@ -194,6 +198,10 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
          * BEFORE its leak check, so its bytes would never be returned to the parent and a later retry would
          * early-return as a no-op. Leaving it open hands ownership to the root allocator, which is the same
          * outcome the previous per-batch code produced for any still-in-flight batch.
+         *
+         * <p>The deferral is logged at DEBUG, not WARN: the transport frees its stream root asynchronously
+         * (posted to the flight executor by {@code FlightServerChannel#close}), so a non-zero balance here is
+         * the expected outcome of every streaming query, not a signal of a leak.
          */
         void closeStagingAllocator() {
             if (stagingAllocator == null) {
@@ -202,6 +210,13 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
             if (stagingAllocator.getAllocatedMemory() == 0) {
                 stagingAllocator.close();
                 stagingAllocator = null;
+            } else {
+                LOGGER.debug(
+                    "Deferring close of staging allocator [{}] with {} bytes outstanding; the transport still "
+                        + "holds them and frees them with its stream root",
+                    stagingAllocator.getName(),
+                    stagingAllocator.getAllocatedMemory()
+                );
             }
         }
 
@@ -237,7 +252,14 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
             try {
                 Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
             } catch (RuntimeException e) {
-                root.close();
+                // Releasing a partially-imported root can itself throw (VectorSchemaRoot#close rethrows any
+                // RuntimeException from the vectors' release). Attach it rather than let it mask the import
+                // failure that is the real diagnosis.
+                try {
+                    root.close();
+                } catch (RuntimeException releaseFailure) {
+                    e.addSuppressed(releaseFailure);
+                }
                 throw e;
             }
             return root;
