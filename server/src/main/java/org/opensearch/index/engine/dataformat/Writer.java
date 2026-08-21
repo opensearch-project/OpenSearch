@@ -149,4 +149,13 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
     default DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
         throw new UnsupportedOperationException("deleteDocument is not supported by this writer");
     }
+
+    /**
+     * Buffers a row-id delete for application during flush.
+     *
+     * @param rowId insertion row id within this writer generation
+     */
+    default void recordPositionalDelete(long rowId) {
+        throw new UnsupportedOperationException("recordPositionalDelete is not supported by this writer");
+    }
 }

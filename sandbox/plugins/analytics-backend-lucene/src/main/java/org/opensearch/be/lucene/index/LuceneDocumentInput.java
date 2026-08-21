@@ -19,6 +19,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.util.Set;
 
@@ -40,6 +42,13 @@ import java.util.Set;
  */
 @ExperimentalApi
 public class LuceneDocumentInput implements DocumentInput<Document> {
+
+    /** Version metadata mirrored to Lucene doc values for update-time resolution. */
+    private static final Set<String> VERSION_METADATA_TYPES = Set.of(
+        VersionFieldMapper.CONTENT_TYPE,
+        SeqNoFieldMapper.CONTENT_TYPE,
+        SeqNoFieldMapper.PRIMARY_TERM_NAME
+    );
 
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
@@ -89,14 +98,17 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     public void addField(MappedFieldType fieldType, Object value) {
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap().getOrDefault(LucenePlugin.DATA_FORMAT, Set.of());
         if (capabilities.isEmpty()) {
-            // nothing to support on this format for this field.
+            // Mirror version metadata as doc values for update-time resolution.
+            if (VERSION_METADATA_TYPES.contains(fieldType.typeName())) {
+                requireNonNullValue(fieldType, value);
+                LuceneFieldFactory factory = fieldFactory(fieldType);
+                if (factory != null) {
+                    factory.addField(document, fieldType, value, null);
+                }
+            }
             return;
         }
-        if (value == null) {
-            throw new IllegalArgumentException(
-                "Field value must not be null for: " + fieldType.name() + " of type: " + fieldType.typeName()
-            );
-        }
+        requireNonNullValue(fieldType, value);
         LuceneFieldFactory factory = fieldFactory(fieldType);
         if (factory == null) {
             // capabilities need to be supported but actual implementation to support lucene field type does not exist.
@@ -106,6 +118,14 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
         }
         FieldType luceneFieldType = getFieldType(fieldType, capabilities);
         factory.addField(document, fieldType, value, luceneFieldType);
+    }
+
+    private static void requireNonNullValue(MappedFieldType fieldType, Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException(
+                "Field value must not be null for: " + fieldType.name() + " of type: " + fieldType.typeName()
+            );
+        }
     }
 
     private static FieldType getFieldType(MappedFieldType fieldType, Set<FieldTypeCapabilities.Capability> capabilities) {

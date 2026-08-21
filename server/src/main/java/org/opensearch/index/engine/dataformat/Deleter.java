@@ -48,4 +48,13 @@ public interface Deleter extends Closeable {
     boolean recordBufferedDeletes(String id);
 
     boolean isActive();
+
+    /**
+     * Records a row-id delete for application during the paired writer's flush.
+     *
+     * @param rowId insertion row id within the writer generation
+     */
+    default void recordPositionalDelete(long rowId) {
+        throw new UnsupportedOperationException("Positional delete is not supported by this deleter");
+    }
 }

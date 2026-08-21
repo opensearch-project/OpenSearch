@@ -16,6 +16,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver.DocumentMetadata;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -57,32 +58,44 @@ public class DocumentLookupService {
     }
 
     public DocumentLookupResult getById(String id, IndexReaderProvider.Reader reader, Index index) throws IOException {
-        Map<String, Object> row = fetchRow(id, reader);
-        return row == null ? DocumentLookupResult.notFound(id) : buildResultFromRow(id, row);
+        DocumentMetadata metadata = documentResolver.resolveMetadata(reader, id);
+        if (metadata == null) {
+            return DocumentLookupResult.notFound(id);
+        }
+        return buildResultFromRow(id, fetchRow(metadata, reader));
     }
 
     /**
-     * Resolves only the version metadata ({@code _version}/{@code _seq_no}/{@code _primary_term}) for an id,
-     * skipping {@code _source} reconstruction.
+     * Resolves version metadata without reconstructing {@code _source}. Uses resolver metadata when
+     * available; legacy segments without these doc values fall back to a primary-store row lookup.
      */
     public DocumentLookupResult getVersionMetadata(String id, IndexReaderProvider.Reader reader, Index index) throws IOException {
-        Map<String, Object> row = fetchRow(id, reader);
-        if (row == null) {
+        DocumentMetadata metadata = documentResolver.resolveMetadata(reader, id);
+        if (metadata == null) {
             return DocumentLookupResult.notFound(id);
         }
+        if (metadata.hasVersionMetadata()) {
+            return new DocumentLookupResult(
+                id,
+                metadata.version(),
+                true,
+                null,
+                metadata.seqNo(),
+                metadata.primaryTerm(),
+                Map.of(),
+                Map.of()
+            );
+        }
+        Map<String, Object> row = fetchRow(metadata, reader);
         long seqNo = extractLong(row, "_seq_no", SequenceNumbers.UNASSIGNED_SEQ_NO);
         long primaryTerm = extractLong(row, "_primary_term", SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         long version = extractLong(row, "_version", Versions.NOT_FOUND);
         return new DocumentLookupResult(id, version, true, null, seqNo, primaryTerm, Map.of(), Map.of());
     }
 
-    /** Locates an id via the resolver and fetches its raw row. Returns null only when the id is not found. */
-    private Map<String, Object> fetchRow(String id, IndexReaderProvider.Reader reader) throws IOException {
-        DocumentMetadataResolver.DocumentMetadata metadata = documentResolver.resolveMetadata(reader, id);
-        if (metadata == null) {
-            return null;
-        }
-
+    /** Fetches the raw row for an already-resolved document location. */
+    private Map<String, Object> fetchRow(DocumentMetadata metadata, IndexReaderProvider.Reader reader) throws IOException {
+        String id = metadata.id();
         WriterFileSet fileSet = reader.catalogSnapshot().findFileSet(executor.formatName(), metadata.writerGeneration());
         if (fileSet == null) {
             throw new IllegalStateException(

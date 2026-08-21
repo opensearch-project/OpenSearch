@@ -17,12 +17,15 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.plugins.Plugin;
 
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A mock {@link DataFormatPlugin} for testing purposes.
  */
 public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
     private final MockDataFormat dataFormat;
+    private Function<IndexingEngineConfig, IndexingExecutionEngine<?, ?>> indexingEngineFactory;
+    private Function<Committer, DeleteExecutionEngine<?>> deleteEngineFactory;
 
     public MockDataFormatPlugin() {
         this(new MockDataFormat("", 100L, Set.of()));
@@ -41,13 +44,25 @@ public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
         return dataFormat;
     }
 
+    /** Supplies the indexing engine instead of the default mock, so tests need not subclass this plugin. */
+    public MockDataFormatPlugin withIndexingEngine(Function<IndexingEngineConfig, IndexingExecutionEngine<?, ?>> factory) {
+        this.indexingEngineFactory = factory;
+        return this;
+    }
+
+    /** Supplies the delete engine instead of the default mock, so tests need not subclass this plugin. */
+    public MockDataFormatPlugin withDeleteExecutionEngine(Function<Committer, DeleteExecutionEngine<?>> factory) {
+        this.deleteEngineFactory = factory;
+        return this;
+    }
+
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
-        return new MockIndexingExecutionEngine(dataFormat);
+        return indexingEngineFactory == null ? new MockIndexingExecutionEngine(dataFormat) : indexingEngineFactory.apply(settings);
     }
 
     @Override
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
-        return new MockDeleteExecutionEngine(dataFormat);
+        return deleteEngineFactory == null ? new MockDeleteExecutionEngine(dataFormat) : deleteEngineFactory.apply(committer);
     }
 }

@@ -55,7 +55,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -311,7 +313,11 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
         long refreshStart = System.nanoTime();
         try {
-            List<Segment> resultSegments = new ArrayList<>(refreshInput.existingSegments());
+            // Preserve non-Lucene file sets while replacing one Lucene entry per generation.
+            Map<Long, Map<String, WriterFileSet>> segmentsByGeneration = new LinkedHashMap<>();
+            for (Segment existing : refreshInput.existingSegments()) {
+                segmentsByGeneration.put(existing.generation(), new HashMap<>(existing.dfGroupedSearchableFiles()));
+            }
 
             // Collect all source directories and their paths for a single batched addIndexes call
             List<Directory> sourceDirectories = new ArrayList<>();
@@ -353,46 +359,42 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                         }
                     }
                 }
-
-                // After addIndexes, open an NRT reader to discover the actual file names
-                // for the newly added segments. Lucene renames files during addIndexes,
-                // so the original temp directory file names are no longer valid.
+            }
+            // Rebuild every live file set because addIndexes can rename files and drained deletes
+            // add .liv files. writeAllDeletes=true materializes liveDocs before catalog publication.
+            Set<Long> liveGenerations = new HashSet<>();
+            if (sourceDirectories.isEmpty() == false || refreshInput.existingSegments().isEmpty() == false) {
                 Path sharedDir = store.shardPath().resolveIndex();
-
-                try (DirectoryReader reader = DirectoryReader.open(sharedWriter)) {
-                    List<LeafReaderContext> leaves = reader.leaves();
-
-                    for (int i = 0; i < leaves.size(); i++) {
-                        LeafReaderContext ctx = leaves.get(i);
+                try (DirectoryReader reader = DirectoryReader.open(sharedWriter, true, true)) {
+                    for (LeafReaderContext ctx : reader.leaves()) {
                         if (ctx.reader() instanceof SegmentReader segReader) {
                             SegmentCommitInfo segInfo = segReader.getSegmentInfo();
                             String genAttr = segInfo.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
                             if (genAttr == null) {
                                 continue;
                             }
-
                             long writerGen = Long.parseLong(genAttr);
-                            if (!writerGenerations.contains(writerGen)) {
-                                continue;
-                            }
-                            long numDocs = segReader.maxDoc();
+                            liveGenerations.add(writerGen);
 
                             WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
                                 .directory(sharedDir)
                                 .writerGeneration(writerGen)
-                                .addNumRows(numDocs);
+                                .addNumRows(segReader.maxDoc());
 
                             for (String file : segInfo.files()) {
                                 wfsBuilder.addFile(file);
                             }
 
-                            resultSegments.add(Segment.builder(writerGen).addSearchableFiles(dataFormat, wfsBuilder.build()).build());
-                            writerGenerations.remove(writerGen);
-                            stats.incRefreshSegmentsIncorporatedTotal();
+                            // Replace this generation's entry; other formats' entries are untouched.
+                            WriterFileSet luceneFiles = wfsBuilder.build();
+                            segmentsByGeneration.computeIfAbsent(writerGen, gen -> new HashMap<>()).put(dataFormat.name(), luceneFiles);
+
+                            if (writerGenerations.remove(writerGen)) {
+                                stats.incRefreshSegmentsIncorporatedTotal();
+                            }
                         }
                     }
                 }
-                assert writerGenerations.isEmpty() : "Could not get segments from all writers";
             }
             assert writerGenerations.isEmpty() : "Could not get segments from all writers";
 
@@ -408,7 +410,19 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 }
             }
 
-            return new RefreshResult(List.copyOf(resultSegments));
+            Set<Long> droppedGenerations = new HashSet<>();
+            for (Segment segment : refreshInput.existingSegments()) {
+                if (liveGenerations.contains(segment.generation()) == false) {
+                    droppedGenerations.add(segment.generation());
+                }
+            }
+
+            List<Segment> resultSegments = new ArrayList<>(segmentsByGeneration.size());
+            for (Map.Entry<Long, Map<String, WriterFileSet>> entry : segmentsByGeneration.entrySet()) {
+                resultSegments.add(new Segment(entry.getKey(), entry.getValue()));
+            }
+
+            return new RefreshResult(List.copyOf(resultSegments), droppedGenerations);
         } finally {
             stats.incRefreshTotal();
             stats.addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - refreshStart));

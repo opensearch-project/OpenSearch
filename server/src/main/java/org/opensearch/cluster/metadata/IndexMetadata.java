@@ -2519,8 +2519,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.get(settings);
             final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit =
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
-            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings)
-                || IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.exists(settings)
+                ? INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings)
+                : IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 

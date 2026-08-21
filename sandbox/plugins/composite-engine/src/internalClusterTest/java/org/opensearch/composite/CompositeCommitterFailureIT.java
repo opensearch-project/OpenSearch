@@ -18,6 +18,7 @@ import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.FlushFailedEngineException;
 import org.opensearch.index.engine.dataformat.stub.FileBackedDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
@@ -51,7 +52,12 @@ public class CompositeCommitterFailureIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(FileBackedDataFormatPlugin.class, CompositeDataFormatPlugin.class, FailureInjectingCommitterPlugin.class);
+        return Arrays.asList(
+            FileBackedDataFormatPlugin.class,
+            MockDataFormatPlugin.class,
+            CompositeDataFormatPlugin.class,
+            FailureInjectingCommitterPlugin.class
+        );
     }
 
     @Override
