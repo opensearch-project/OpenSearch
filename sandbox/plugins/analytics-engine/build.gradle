@@ -84,7 +84,7 @@ dependencies {
   implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}") {
     exclude group: 'com.fasterxml.jackson.core'
   }
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+  implementation "org.yaml:snakeyaml:2.4"
 
   // Guava — required at compile time because Calcite base classes expose guava types.
   // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
