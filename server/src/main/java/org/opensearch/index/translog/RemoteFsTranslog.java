@@ -797,7 +797,12 @@ public class RemoteFsTranslog extends Translog {
         return readers.size() >= maxRemoteTlogReaders;
     }
 
-    boolean isTranslogBytesTrackingEnabled() {
+    /**
+     * Returns whether the cluster setting that enables tracking translog bytes since the last commit is on. This is only
+     * the setting; whether a given shard tracks also depends on the engine and the index, so callers outside this class
+     * should ask {@link InternalTranslogManager#isTranslogBytesTrackingEnabled()}.
+     */
+    boolean isBytesTrackingSettingEnabled() {
         return remoteStoreSettings.isTranslogBytesTrackingEnabled();
     }
 

@@ -397,7 +397,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertFalse(translogManager.shouldPeriodicallyFlush(0, 101));
             assertTrue(translogManager.shouldPeriodicallyFlush(0, 100));
 
-            when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(false);
+            when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(false);
             assertFalse(translogManager.shouldPeriodicallyFlush(0, 100));
         }
     }
@@ -445,7 +445,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             Translog.Operation operation = mock(Translog.Operation.class);
             translogManager.add(operation);
 
-            when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(true);
+            when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(true);
             assertFalse(translogManager.shouldPeriodicallyFlush(0, 100));
 
             translogManager.add(operation);
@@ -519,7 +519,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             assertFalse(translogManager.shouldPeriodicallyFlush(0, 501));
 
             // Enabling the setting now seeds from the translog, so the threshold is met without any new operation.
-            when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(true);
+            when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(true);
             assertTrue(translogManager.shouldPeriodicallyFlush(0, 500));
         }
     }
@@ -538,12 +538,12 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.add(operation);
 
             // Disabled: the legacy computation decides and further operations are not counted.
-            when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(false);
+            when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(false);
             translogManager.add(operation);
             assertFalse(translogManager.shouldPeriodicallyFlush(0, 100));
 
             // Re-enabled: the 100 bytes counted before the cycle are still there, so the threshold arrives early.
-            when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(true);
+            when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(true);
             assertTrue(translogManager.shouldPeriodicallyFlush(0, 100));
 
             // A single commit brings the count back in line.
@@ -553,11 +553,11 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         }
     }
 
-    private RemoteFsTranslog mockRemoteTranslog(boolean bytesTrackingEnabled) {
+    private RemoteFsTranslog mockRemoteTranslog(boolean bytesTrackingSettingEnabled) {
         RemoteFsTranslog remoteTranslog = mock(RemoteFsTranslog.class);
         Translog.TranslogGeneration generation = new Translog.TranslogGeneration(translogUUID, 1);
         when(remoteTranslog.getGeneration()).thenReturn(generation);
-        when(remoteTranslog.isTranslogBytesTrackingEnabled()).thenReturn(bytesTrackingEnabled);
+        when(remoteTranslog.isBytesTrackingSettingEnabled()).thenReturn(bytesTrackingSettingEnabled);
         when(remoteTranslog.getMinUnreferencedSeqNoInSegments(anyLong())).thenReturn(0L);
         when(remoteTranslog.getMinGenerationForSeqNo(anyLong())).thenReturn(generation);
         when(remoteTranslog.sizeInBytesByMinGen(anyLong())).thenReturn(0L);
@@ -569,13 +569,13 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         return createTranslogManager(translog, false);
     }
 
-    private InternalTranslogManager createTranslogManager(Translog translog, boolean supportsTranslogBytesTracking) throws IOException {
-        return createTranslogManager(translog, supportsTranslogBytesTracking, REMOTE_TRANSLOG_INDEX_SETTINGS);
+    private InternalTranslogManager createTranslogManager(Translog translog, boolean releasesTrackedBytesOnCommit) throws IOException {
+        return createTranslogManager(translog, releasesTrackedBytesOnCommit, REMOTE_TRANSLOG_INDEX_SETTINGS);
     }
 
     private InternalTranslogManager createTranslogManager(
         Translog translog,
-        boolean supportsTranslogBytesTracking,
+        boolean releasesTrackedBytesOnCommit,
         IndexSettings indexSettings
     ) throws IOException {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
@@ -593,7 +593,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             new StubTranslogFactory(translog),
             () -> true,
             TranslogOperationHelper.DEFAULT,
-            supportsTranslogBytesTracking
+            releasesTrackedBytesOnCommit
         );
     }
 

@@ -47,13 +47,24 @@ public class InternalTranslogManager implements TranslogManager {
     private final Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier;
     private final Logger logger;
     private final TranslogBytesTracker translogBytesTracker = new TranslogBytesTracker();
-    private final boolean supportsTranslogBytesTracking;
+    /**
+     * Whether this shard qualifies for tracking translog bytes since the last commit at all: the owning engine releases
+     * the tracked bytes on commit, the translog is a {@link RemoteFsTranslog}, and the index is remote translog backed.
+     * Fixed for the life of this manager. The cluster setting is evaluated separately and per call, so use
+     * {@link #isTranslogBytesTrackingEnabled()} rather than reading this directly.
+     */
+    private final boolean bytesTrackingApplicable;
     /**
      * Guarded by the engine's flush lock, which serialises {@link #startIndexCommit()} and
      * {@link #finishIndexCommit(boolean)} and publishes this field between the threads that run successive commits.
      */
     private TranslogBytesTracker.CommitSnapshot commitSnapshot;
 
+    /**
+     * Creates a manager that does not track translog bytes since the last commit. Engines whose commit path does not
+     * release the tracked bytes must use this constructor, otherwise the counter would grow without bound and hold the
+     * shard permanently above its flush threshold.
+     */
     public InternalTranslogManager(
         TranslogConfig translogConfig,
         LongSupplier primaryTermSupplier,
@@ -87,6 +98,15 @@ public class InternalTranslogManager implements TranslogManager {
         );
     }
 
+    /**
+     * Creates a manager, where {@code releasesTrackedBytesOnCommit} is the calling engine's assertion that its commit
+     * path invokes {@link #startIndexCommit()} and {@link #finishIndexCommit(boolean)} around every index commit. Only
+     * an engine that honours that contract may pass {@code true}. Passing {@code true} without it means nothing ever
+     * releases the counted bytes, so the shard reports a due periodic flush on every write for the rest of its life.
+     * <p>
+     * Note that this is only the engine half of the decision. Tracking additionally requires a remote translog, a
+     * remote translog backed index, and the cluster setting to be enabled.
+     */
     public InternalTranslogManager(
         TranslogConfig translogConfig,
         LongSupplier primaryTermSupplier,
@@ -101,7 +121,7 @@ public class InternalTranslogManager implements TranslogManager {
         TranslogFactory translogFactory,
         BooleanSupplier startedPrimarySupplier,
         TranslogOperationHelper translogOperationHelper,
-        boolean supportsTranslogBytesTracking
+        boolean releasesTrackedBytesOnCommit
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -122,7 +142,7 @@ public class InternalTranslogManager implements TranslogManager {
          * for. A node that merely has a translog repository configured also hands a RemoteFsTranslog to the primaries
          * of plain document replication indices, and those must keep using the untouched size computation.
          */
-        this.supportsTranslogBytesTracking = supportsTranslogBytesTracking
+        this.bytesTrackingApplicable = releasesTrackedBytesOnCommit
             && translog instanceof RemoteFsTranslog
             && translogConfig.getIndexSettings().isRemoteTranslogStoreEnabled();
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -399,10 +419,11 @@ public class InternalTranslogManager implements TranslogManager {
     }
 
     /**
-     * Returns whether byte tracking is supported by the engine and enabled for the remote translog.
+     * Returns whether translog bytes since the last commit are being tracked for this shard right now: the shard
+     * qualifies and the cluster setting is enabled. This is the only predicate callers should consult.
      */
     public boolean isTranslogBytesTrackingEnabled() {
-        return supportsTranslogBytesTracking && ((RemoteFsTranslog) translog).isTranslogBytesTrackingEnabled();
+        return bytesTrackingApplicable && ((RemoteFsTranslog) translog).isBytesTrackingSettingEnabled();
     }
 
     /**
