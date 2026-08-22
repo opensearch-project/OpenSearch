@@ -1364,6 +1364,25 @@ public class MetadataCreateIndexService {
                 }
             }
         }
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+    }
+
+    /**
+     * Stamps the dynamic cluster-level fencing default ({@code cluster.remote_store.fencing.enabled}) into the final
+     * per-index setting at creation time, for remote-store-backed indices that do not set it explicitly. The index
+     * setting is final because the fence is the primary's write witness: toggling it on a live index would leave a
+     * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
+     * in here means flipping the cluster setting only affects indices created afterwards.
+     */
+    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+        final Settings current = settingsBuilder.build();
+        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
+        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        if (IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(current)
+            && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
+            && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+        }
     }
 
     /**

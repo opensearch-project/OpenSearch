@@ -62,6 +62,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
      */
     private static final String SEAL_METHOD_NAME = "sealRemoteStoreFenceBeforeRestore";
 
+    /** {@code IndexShard}'s shared seal step, the frame present on both the recovery and the promotion seal paths. */
+    private static final String PROMOTION_SEAL_METHOD_NAME = "sealRemoteStoreFence";
+
     private Settings fencedIndexSettings(int replicaCount, Translog.Durability durability) {
         return Settings.builder()
             .put(remoteStoreIndexSettings(replicaCount, 1))
@@ -129,6 +132,82 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
     /**
      * Zero replicas: the object store is the only witness, so every acknowledged write must advance the CAS chain.
      */
+    /**
+     * The fencing gate is a <b>dynamic cluster setting</b> baked into a <b>final index setting</b> at creation time:
+     * operators can turn fencing on or off for indices created from that point on, but an existing index never
+     * switches its write witness mid-flight — toggling the fence on a live index would leave a window in which a stale
+     * primary is checked against neither the fence nor the replicas.
+     */
+    public void testClusterFencingDefaultIsBakedIntoAFinalIndexSetting() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        Settings unfencedSettings = Settings.builder()
+            .put(remoteStoreIndexSettings(0, 1))
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST.name())
+            .build();
+
+        try {
+            // Cluster default off: the index is created unfenced. The key stays absent — the final index setting
+            // resolves to false forever, so there is no explicit false to materialize.
+            String unfencedIndex = INDEX_NAME + "-default-off";
+            createIndex(unfencedIndex, unfencedSettings);
+            ensureGreen(unfencedIndex);
+            assertNull(indexSetting(unfencedIndex, IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED));
+            indexSingleDoc(unfencedIndex);
+            assertFalse(
+                "an unfenced index must not create a fence blob",
+                Files.exists(translogMetadataDirectory(unfencedIndex).resolve(FENCE_BLOB_NAME))
+            );
+
+            // Flip the cluster default on, dynamically. Only indices created afterwards are fenced.
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true))
+            );
+            String fencedIndex = INDEX_NAME + "-default-on";
+            createIndex(fencedIndex, unfencedSettings);
+            ensureGreen(fencedIndex);
+            assertEquals("true", indexSetting(fencedIndex, IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED));
+            indexSingleDoc(fencedIndex);
+            awaitFence(translogMetadataDirectory(fencedIndex).resolve(FENCE_BLOB_NAME));
+
+            // An explicit per-index value always wins over the cluster default.
+            String optedOutIndex = INDEX_NAME + "-opt-out";
+            createIndex(
+                optedOutIndex,
+                Settings.builder().put(unfencedSettings).put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false).build()
+            );
+            ensureGreen(optedOutIndex);
+            assertEquals("false", indexSetting(optedOutIndex, IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED));
+
+            // The baked-in index setting is final: the witness of a live index cannot be switched.
+            IllegalArgumentException rejection = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin()
+                    .indices()
+                    .prepareUpdateSettings(fencedIndex)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false))
+                    .get()
+            );
+            assertTrue(rejection.getMessage(), rejection.getMessage().contains(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED));
+            // And the pre-existing index did not become fenced by the cluster-level flip.
+            assertNull(indexSetting(unfencedIndex, IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED));
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey()))
+            );
+        }
+    }
+
+    private String indexSetting(String indexName, String settingKey) {
+        return client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName).get(settingKey);
+    }
+
     public void testFenceIsExercisedWithZeroReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
@@ -275,6 +354,79 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             assertNotEquals("fence ownership did not move to the promoted copy", beforeFailover.owner, afterFailover.owner);
         });
         assertEquals(nodeId(primaryNodeName(INDEX_NAME)), readFence(fenceBlob).owner);
+    }
+
+    /**
+     * Seal-on-promotion, the failover twin of {@link #testASupersededCopyFailsRecoveryAtTheSeal}. A replica being
+     * promoted to primary claims the fence before it reads its translog restore point, inside the primary term
+     * transition. A promoted copy that has been superseded — the chain is owned by another writer at a strictly higher
+     * term — must therefore fail the promotion itself, never activate, and never claim the chain. Without the seal the
+     * promotion succeeds, and the fenced translog upload in {@code postActivatePrimaryMode} is logged and swallowed,
+     * leaving a superseded copy serving as a started primary.
+     */
+    public void testASupersededReplicaFailsPromotionAtTheSeal() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        createIndex(INDEX_NAME, fencedIndexSettings(1, Translog.Durability.REQUEST));
+        ensureGreen(INDEX_NAME);
+
+        String originalPrimaryNode = primaryNodeName(INDEX_NAME);
+        Path fenceBlob = translogMetadataDirectory(INDEX_NAME).resolve(FENCE_BLOB_NAME);
+        BlobPath metadataBlobPath = translogMetadataBlobPath(INDEX_NAME);
+        ShardId shardId = getIndexShard(originalPrimaryNode, INDEX_NAME).shardId();
+
+        indexSingleDoc(INDEX_NAME);
+        Fence before = awaitFence(fenceBlob);
+        assertEquals(nodeId(originalPrimaryNode), before.owner);
+
+        // Stand in for a copy hydrated elsewhere that has already moved the shard well past this cluster's term. The
+        // gap is deliberately wider than the number of allocation retries, so neither the promotion nor any subsequent
+        // reassignment can lift the primary term above the fence.
+        String clusterManager = internalCluster().getClusterManagerName();
+        BlobStoreRepository translogRepository = (BlobStoreRepository) internalCluster().getInstance(
+            RepositoriesService.class,
+            clusterManager
+        ).repository(REPOSITORY_2_NAME);
+        BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
+        new RemoteStoreFence(fenceContainer, "superseding-node", shardId, internalCluster().getInstance(ThreadPool.class, clusterManager))
+            .validateAndAdvance(before.term + 50);
+        Fence superseding = readFence(fenceBlob);
+        assertEquals("superseding-node", superseding.owner);
+
+        // Failover: the replica is promoted in place. No write is issued against the promoted copy.
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(originalPrimaryNode));
+
+        // The promotion must abort in the seal, so the primary ends up unassigned with that failure recorded rather
+        // than a superseded copy serving as a started primary.
+        assertBusy(() -> {
+            UnassignedInfo unassignedInfo = client().admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .routingTable()
+                .index(INDEX_NAME)
+                .shard(0)
+                .primaryShard()
+                .unassignedInfo();
+            assertNotNull("primary was assigned despite being superseded", unassignedInfo);
+            assertNotNull("no allocation failure recorded yet: " + unassignedInfo, unassignedInfo.getFailure());
+            String stackTrace = ExceptionsHelper.stackTrace(unassignedInfo.getFailure());
+            assertTrue(
+                "the copy was not refused at the fence seal, but with:\n" + stackTrace,
+                stackTrace.contains(PROMOTION_SEAL_METHOD_NAME + "(")
+            );
+        }, 60, TimeUnit.SECONDS);
+
+        // The superseded copy neither claimed nor advanced the chain, so it cannot have read a restore point it would
+        // then serve from.
+        Fence after = readFence(fenceBlob);
+        assertEquals("superseded copy claimed the fence: " + after, superseding.owner, after.owner);
+        assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.term, after.term);
+        assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.seq, after.seq);
+
+        // The index is unrecoverable by construction; drop it rather than leaving a red index for the test teardown.
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
     }
 
     /**

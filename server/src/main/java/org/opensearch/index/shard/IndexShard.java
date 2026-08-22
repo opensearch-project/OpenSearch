@@ -5815,6 +5815,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
+                // On replica-to-primary promotion the operation term has already been bumped, and the previous primary
+                // may be alive behind a partition, still holding a valid fence token. Seal before reading the remote
+                // translog restore point, or that primary could keep acknowledging writes landing after it. A primary
+                // relocation target must not seal: the source is still legitimately serving at the same term, and
+                // ordering with it is enforced by the fence CAS once this copy starts uploading.
+                if (shardRouting.isRelocationTarget() == false) {
+                    sealRemoteStoreFence();
+                }
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
             newEngineReference.set(indexerFactory.createIndexer(newEngineConfig(replicationTracker)));
@@ -5931,19 +5939,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Claims the remote store fence for this copy before its translog restore point is read, so that a previous primary
-     * that is still alive but no longer in the cluster's view cannot acknowledge writes landing after that restore point.
-     * See {@link RemoteFsTranslog#sealFence}.
+     * Claims the remote store fence for this copy before its translog restore point is read during recovery, so that a
+     * previous primary that is still alive but no longer in the cluster's view cannot acknowledge writes landing after
+     * that restore point. See {@link RemoteFsTranslog#sealFence}.
      * <p>
      * Deliberately skipped for peer recovery: a primary relocation target recovers while the source is still serving at
      * the same primary term, so sealing here would fence a healthy primary mid-handoff. Relocation ordering is instead
      * enforced by the fence CAS once the target starts uploading.
      */
     private void sealRemoteStoreFenceBeforeRestore() throws IOException {
-        if (indexSettings.isRemoteStoreFencingEnabled() == false) {
+        if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER) {
             return;
         }
-        if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER) {
+        sealRemoteStoreFence();
+    }
+
+    /**
+     * Claims the remote store fence for this copy at the current operation primary term. Must run before this copy
+     * reads a translog restore point it intends to serve from — whether during recovery
+     * ({@link #sealRemoteStoreFenceBeforeRestore}) or on replica-to-primary promotion
+     * ({@link #resetEngineToGlobalCheckpoint}), where the previous primary may be alive behind a partition and its CAS
+     * token must be invalidated before this copy can acknowledge anything.
+     */
+    private void sealRemoteStoreFence() throws IOException {
+        if (indexSettings.isRemoteStoreFencingEnabled() == false) {
             return;
         }
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);

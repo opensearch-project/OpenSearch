@@ -514,6 +514,56 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
     }
 
+    /**
+     * The fatal/retryable boundary: only a genuinely lost CAS may fail the shard. A transient repository error during
+     * the fence CAS must surface as an ordinary retryable upload failure — never as {@link TranslogFencedException},
+     * which callers treat as tragic — and the next sync must recover and claim the chain.
+     */
+    public void testTransientFenceErrorIsRetryableNotFatal() throws Exception {
+        mockSuccessfulFileUploads();
+        AtomicBoolean failNextCas = new AtomicBoolean(true);
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        FsBlobContainer container = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+                throws IOException {
+                if (failNextCas.getAndSet(false)) {
+                    throw new IOException("simulated transient repository error");
+                }
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+        };
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1", shardId, threadPool);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNotNull(uploadFailure.get());
+        assertFalse(
+            "a transient fence error must not be classified as fenced: " + uploadFailure.get(),
+            uploadFailure.get() instanceof TranslogFencedException
+        );
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogUploadFailedException);
+
+        // The retry recovers: the fence bootstraps and the upload is acknowledged.
+        uploadFailure.set(null);
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNull(uploadFailure.get());
+        assertEquals(primaryTerm, fence.getTerm());
+        assertEquals(0, fence.getSeq());
+    }
+
     public void testFenceValidationRunsConcurrentlyWithMetadataUpload() throws Exception {
         mockSuccessfulFileUploads();
 
