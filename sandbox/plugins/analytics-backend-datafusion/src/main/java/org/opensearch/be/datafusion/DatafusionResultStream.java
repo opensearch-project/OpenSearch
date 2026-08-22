@@ -18,6 +18,8 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
@@ -27,7 +29,6 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -45,6 +46,8 @@ import static org.apache.arrow.c.Data.importField;
  */
 @ExperimentalApi
 public class DatafusionResultStream implements EngineResultStream, FragmentResources.MetricsCapable {
+
+    private static final Logger LOGGER = LogManager.getLogger(DatafusionResultStream.class);
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
@@ -76,7 +79,7 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         try {
             if (iteratorInstance != null) {
                 iteratorInstance.closeLastBatch();
-                iteratorInstance.reclaimDrainedStaging();
+                iteratorInstance.closeStagingAllocator();
             }
         } finally {
             try {
@@ -99,9 +102,22 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         private Boolean nextAvailable;
         private boolean batchEmitted;
         private boolean nativeStreamExhausted;
-        // Per-batch staging allocators used by {@link #importBatch}. Each is reclaimed once its batch's
-        // buffers have been released by the consumer (see {@link #reclaimDrainedStaging}).
-        private final List<BufferAllocator> stagingAllocators = new ArrayList<>();
+        /**
+         * ONE staging allocator for the whole stream, created lazily on first import (see
+         * {@link #importBatch}). Deliberately NOT per-batch: the Flight transport builds its reused stream
+         * root on {@code fieldVectors.getFirst().getAllocator()}, i.e. the FIRST batch's staging allocator
+         * ({@code FlightServerChannel#transferIntoStreamRoot}, whose comment states "The producer's
+         * allocator must be long-lived (not closed per-request)"), and then charges that same allocator for
+         * every later batch via {@code BaseFixedWidthVector#transferTo}. Closing a staging allocator
+         * per-batch therefore closed an allocator the transport was still using, and
+         * {@code BaseAllocator#close} threw {@code IllegalStateException: Memory was leaked by query}
+         * whenever a transfer landed in the window between the drained-check and the close.
+         *
+         * <p>Unboundedness is the only property the original per-batch design actually needed (so an import
+         * cannot OOM part-way through a C Data array — see {@link #importBatch}); a single unbounded child
+         * preserves that while removing the check-then-close race entirely.
+         */
+        private BufferAllocator stagingAllocator;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -159,36 +175,64 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
          * unbounded staging child can't OOM mid-array, so the release callback always fires.
          *
          * <p>The batch is returned as-is (zero-copy); its buffers are released by the existing consumer close
-         * paths, which drives the C Data reference count to zero. Each staging allocator is reclaimed once
-         * drained (see {@link #reclaimDrainedStaging}); on import failure it is closed immediately.
+         * paths, which drives the C Data reference count to zero. The staging allocator is stream-scoped and
+         * outlives every batch (see {@link #stagingAllocator}), so nothing is closed per-batch; on import
+         * failure the partially-imported root is closed by {@link #importOntoStaging} but the allocator
+         * itself stays open for subsequent batches.
          */
         private VectorSchemaRoot importBatch(ArrowArray arrowArray) {
-            reclaimDrainedStaging();
-            BufferAllocator staging = allocator.getRoot().newChildAllocator("datafusion-import-staging", 0, Long.MAX_VALUE);
-            try {
-                VectorSchemaRoot root = importOntoStaging(staging, schema, arrowArray, dictionaryProvider);
-                stagingAllocators.add(staging);
-                return root;
-            } catch (RuntimeException e) {
-                staging.close();
-                throw e;
+            if (stagingAllocator == null) {
+                stagingAllocator = allocator.getRoot().newChildAllocator("datafusion-import-staging", 0, Long.MAX_VALUE);
             }
+            return importOntoStaging(stagingAllocator, schema, arrowArray, dictionaryProvider);
         }
 
         /**
-         * Closes staging allocators whose batches have been fully released (drained to zero). A batch still
-         * in flight keeps its staging allocator open so the eventual release callback frees the small C Data
-         * bookkeeping allocation against a live allocator; that allocator is a leaf child of the root and
-         * holds no batch data once drained.
+         * Closes the stream-scoped staging allocator, if it can be closed. Called only from
+         * {@link DatafusionResultStream#close()} — never per-batch.
+         *
+         * <p>A non-zero balance here means the transport still holds buffers charged to this allocator: the
+         * Flight channel's reused stream root is freed in its own {@code close()}, which may run after ours.
+         * Closing anyway would throw {@code IllegalStateException} from {@code BaseAllocator#close} AND — worse
+         * — leave the allocator permanently half-closed, because {@code close()} sets {@code isClosed = true}
+         * BEFORE its leak check, so its bytes would never be returned to the parent and a later retry would
+         * early-return as a no-op. Leaving it open hands ownership to the root allocator, which is the same
+         * outcome the previous per-batch code produced for any still-in-flight batch.
+         *
+         * <p>The deferral is logged at DEBUG, not WARN: the transport frees its stream root asynchronously
+         * (posted to the flight executor by {@code FlightServerChannel#close}), so a non-zero balance here is
+         * the expected outcome of every streaming query, not a signal of a leak.
          */
-        private void reclaimDrainedStaging() {
-            stagingAllocators.removeIf(a -> {
-                if (a.getAllocatedMemory() == 0) {
-                    a.close();
-                    return true;
-                }
-                return false;
-            });
+        void closeStagingAllocator() {
+            if (stagingAllocator == null) {
+                return;
+            }
+            if (stagingAllocator.getAllocatedMemory() == 0) {
+                stagingAllocator.close();
+                stagingAllocator = null;
+            } else {
+                LOGGER.debug(
+                    "Deferring close of staging allocator [{}] with {} bytes outstanding; the transport still "
+                        + "holds them and frees them with its stream root",
+                    stagingAllocator.getName(),
+                    stagingAllocator.getAllocatedMemory()
+                );
+            }
+        }
+
+        /** The stream-scoped staging allocator, or null before the first import. For tests. */
+        BufferAllocator stagingAllocator() {
+            return stagingAllocator;
+        }
+
+        /**
+         * Drives the exact production {@link #importBatch} path with an explicitly supplied schema, so the
+         * staging-allocator lifetime regression test can import several batches without a native stream.
+         * {@code schema} is normally set by {@link #ensureSchema()} from the native handle.
+         */
+        VectorSchemaRoot importBatchForTest(Schema batchSchema, ArrowArray arrowArray) {
+            this.schema = batchSchema;
+            return importBatch(arrowArray);
         }
 
         /**
@@ -208,7 +252,14 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
             try {
                 Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
             } catch (RuntimeException e) {
-                root.close();
+                // Releasing a partially-imported root can itself throw (VectorSchemaRoot#close rethrows any
+                // RuntimeException from the vectors' release). Attach it rather than let it mask the import
+                // failure that is the real diagnosis.
+                try {
+                    root.close();
+                } catch (RuntimeException releaseFailure) {
+                    e.addSuppressed(releaseFailure);
+                }
                 throw e;
             }
             return root;
