@@ -9,6 +9,9 @@
 package org.opensearch.dsl.action;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -21,8 +24,9 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.client.node.NodeClient;
 
 /**
- * Intercepts all {@code _search} requests and dispatches them to {@link DslExecuteAction}
- * for execution through the Calcite pipeline. Non-search actions pass through unchanged.
+ * Intercepts all {@code _search} requests (dispatched to {@link DslExecuteAction}) and
+ * {@code _validate/query} requests (dispatched to {@link DslValidateAction}) for handling
+ * through the Calcite pipeline. Other actions pass through unchanged.
  */
 public class SearchActionFilter implements ActionFilter {
 
@@ -60,6 +64,12 @@ public class SearchActionFilter implements ActionFilter {
         if (SearchAction.NAME.equals(action)) {
             SearchRequest searchRequest = (SearchRequest) request;
             client.execute(DslExecuteAction.INSTANCE, searchRequest, (ActionListener<SearchResponse>) listener);
+        } else if (ValidateQueryAction.NAME.equals(action)) {
+            // Vanilla validate checks Lucene parseability; on this path validity means
+            // "the DSL converter accepts it" — route to Calcite-aware validation.
+            // Cast is safe: action name identifies the request/listener types.
+            ValidateQueryRequest validateRequest = (ValidateQueryRequest) request;
+            client.execute(DslValidateAction.INSTANCE, validateRequest, (ActionListener<ValidateQueryResponse>) listener);
         } else {
             chain.proceed(task, action, request, listener);
         }

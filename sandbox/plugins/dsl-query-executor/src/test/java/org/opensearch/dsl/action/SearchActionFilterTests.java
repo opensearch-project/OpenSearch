@@ -9,6 +9,8 @@
 package org.opensearch.dsl.action;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.search.SearchAction;
@@ -58,6 +60,15 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
         filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
 
         verify(client).execute(eq(DslExecuteAction.INSTANCE), eq(request), any());
+        verify(chain, never()).proceed(any(), any(), any(), any());
+    }
+
+    public void testReroutesValidateQueryAction() {
+        ValidateQueryRequest request = new ValidateQueryRequest("test-index");
+
+        filter.apply(task, ValidateQueryAction.NAME, request, metadata, listener, chain);
+
+        verify(client).execute(eq(DslValidateAction.INSTANCE), eq(request), any());
         verify(chain, never()).proceed(any(), any(), any(), any());
     }
 }

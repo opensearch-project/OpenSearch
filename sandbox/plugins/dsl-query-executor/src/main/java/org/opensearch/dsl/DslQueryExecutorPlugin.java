@@ -16,8 +16,10 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.dsl.action.DslExecuteAction;
+import org.opensearch.dsl.action.DslValidateAction;
 import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportDslExecuteAction;
+import org.opensearch.dsl.action.TransportDslValidateAction;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
@@ -65,7 +67,10 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(DslExecuteAction.INSTANCE, TransportDslExecuteAction.class));
+        return List.of(
+            new ActionHandler<>(DslExecuteAction.INSTANCE, TransportDslExecuteAction.class),
+            new ActionHandler<>(DslValidateAction.INSTANCE, TransportDslValidateAction.class)
+        );
     }
 
     @Override
