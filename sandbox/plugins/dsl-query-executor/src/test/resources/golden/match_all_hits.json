@@ -14,22 +14,65 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultFieldNames": [
+    "name",
+    "price",
+    "brand",
+    "rating",
+    "_id"
+  ],
   "mockResultRows": [
-    ["laptop", 999, "BrandA", 4.5],
-    ["phone", 699, "BrandB", 4.2]
+    [
+      "laptop",
+      999,
+      "BrandA",
+      4.5,
+      "id-1"
+    ],
+    [
+      "phone",
+      699,
+      "BrandB",
+      4.2,
+      "id-2"
+    ]
   ],
+  "mockCountRow": {
+    "_total": 2
+  },
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 2,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          },
+          "_id": "id-1"
+        },
+        {
+          "_score": null,
+          "_source": {
+            "name": "phone",
+            "price": 699,
+            "brand": "BrandB",
+            "rating": 4.2
+          },
+          "_id": "id-2"
+        }
+      ]
     }
   }
 }

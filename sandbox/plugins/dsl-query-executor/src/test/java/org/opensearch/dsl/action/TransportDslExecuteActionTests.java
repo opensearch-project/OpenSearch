@@ -25,6 +25,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -87,6 +88,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             buildEngineContext(),
             (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
+            mock(IndicesService.class),
             resolver,
             mockThreadPool()
         );
@@ -120,6 +122,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             buildEngineContext(),
             (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
+            mock(IndicesService.class),
             resolver,
             mockThreadPool()
         );

@@ -17,22 +17,40 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(>=($1, CAST(true):BOOLEAN), <=($1, CAST(true):BOOLEAN))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[AND(>=($1, CAST(true):BOOLEAN), <=($1, CAST(true):BOOLEAN))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "is_active"],
+  "mockResultFieldNames": [
+    "name",
+    "is_active",
+    "_id"
+  ],
   "mockResultRows": [
-    ["product1", true]
+    [
+      "product1",
+      true,
+      "id-1"
+    ]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 1,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "product1",
+            "is_active": true
+          },
+          "_id": "id-1"
+        }
+      ]
     }
   }
 }
