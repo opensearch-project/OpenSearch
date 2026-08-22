@@ -1135,6 +1135,18 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNodeLevelQueryFanoutRequestParameterOverridesClusterSetting() {
+        SearchRequest searchRequest = new SearchRequest();
+        assertFalse(TransportSearchAction.nodeLevelQueryFanoutEnabled(searchRequest, false));
+        assertTrue(TransportSearchAction.nodeLevelQueryFanoutEnabled(searchRequest, true));
+
+        searchRequest.nodeLevelQueryFanout(true);
+        assertTrue(TransportSearchAction.nodeLevelQueryFanoutEnabled(searchRequest, false));
+
+        searchRequest.nodeLevelQueryFanout(false);
+        assertFalse(TransportSearchAction.nodeLevelQueryFanoutEnabled(searchRequest, true));
+    }
+
     public void testShouldPreFilterSearchShardsWithReadOnly() {
         int numIndices = randomIntBetween(2, 10);
         int numReadOnly = randomIntBetween(1, numIndices);
