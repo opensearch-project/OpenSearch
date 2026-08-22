@@ -325,6 +325,29 @@ public class ArchiveTests extends PackagingTestCase {
         stopOpenSearch();
     }
 
+    public void test60CustomPathConfOverride() throws Exception {
+        // Verify that pre-setting OPENSEARCH_PATH_CONF in the shell environment causes OpenSearch to
+        // use the custom config directory instead of the default $OPENSEARCH_HOME/config.
+        Platforms.onLinux(() -> {
+            Path tempDir = createTempDir("custom-path-conf-override");
+            Path customConf = tempDir.resolve("opensearch");
+            FileUtils.copyDirectory(installation.config, customConf);
+            final String customNodeName = "custom-node-conf-override";
+            append(customConf.resolve("opensearch.yml"), "\nnode.name: " + customNodeName + "\n");
+
+            sh.getEnv().put("OPENSEARCH_PATH_CONF", customConf.toString());
+            try {
+                assertWhileRunning(() -> {
+                    final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).trim();
+                    assertThat(nodesResponse, equalTo(customNodeName));
+                });
+            } finally {
+                sh.getEnv().remove("OPENSEARCH_PATH_CONF");
+                rm(tempDir);
+            }
+        });
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {

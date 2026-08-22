@@ -369,6 +369,64 @@ public class PackageTests extends PackagingTestCase {
         stopOpenSearch();
     }
 
+    public void test85CustomPathConfViaSystemdDropIn() throws Exception {
+        // When OPENSEARCH_PATH_CONF is set as a real
+        // environment variable before the service starts (not via the env file), the
+        // env file is NOT sourced and the external value is used instead.
+        //
+        // For systemd services, sh.getEnv() does not propagate into the service process.
+        // We therefore inject the variable through a systemd drop-in override file, which
+        // is the standard mechanism for overriding environment variables in a systemd unit.
+        assumeTrue("systemd only", isSystemd());
+
+        assertPathsExist(installation.envFile);
+        stopOpenSearch();
+
+        Path tempDir = createTempDir("pkg-custom-path-conf");
+        Path customConf = tempDir.resolve("opensearch");
+        FileUtils.copyDirectory(installation.config, customConf);
+        sh.run("chown -R opensearch:opensearch " + tempDir);
+
+        final String customNodeName = "pkg-custom-path-conf-node";
+        append(customConf.resolve("opensearch.yml"), "\nnode.name: " + customNodeName + "\n");
+
+        // Drop-in file that sets OPENSEARCH_PATH_CONF before opensearch-env is sourced.
+        // This simulates a user who exports the variable system-wide (e.g., in /etc/environment
+        // or a systemd override) rather than relying on the env file.
+        Path dropInDir = Paths.get("/etc/systemd/system/opensearch.service.d");
+        Path dropInFile = dropInDir.resolve("test-path-conf-override.conf");
+        try {
+            sh.run("mkdir -p " + dropInDir);
+            Files.write(dropInFile, singletonList("[Service]\nEnvironment=OPENSEARCH_PATH_CONF=" + customConf));
+            sh.run("systemctl daemon-reload");
+
+            startOpenSearch();
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).trim();
+            assertThat(nodesResponse, equalTo(customNodeName));
+            stopOpenSearch();
+        } finally {
+            rm(dropInFile);
+            sh.run("systemctl daemon-reload");
+            rm(tempDir);
+        }
+    }
+
+    public void test86DefaultEnvFileSourcedWhenPathConfAbsent() throws Exception {
+        // Regression guard: when OPENSEARCH_PATH_CONF is NOT set externally, the env file
+        // (/etc/default/opensearch for DEB, /etc/sysconfig/opensearch for RPM) IS sourced
+        // and the package default path /etc/opensearch is used.
+        assumeTrue("packages only", distribution.isPackage());
+        assumeTrue("systemd only", isSystemd());
+
+        // Ensure no leftover drop-in from previous test could inject OPENSEARCH_PATH_CONF.
+        Path dropInFile = Paths.get("/etc/systemd/system/opensearch.service.d/test-path-conf-override.conf");
+        assertFalse("test drop-in must not exist before this test", Files.exists(dropInFile));
+
+        startOpenSearch();
+        runOpenSearchTests();
+        stopOpenSearch();
+    }
+
     public void test90DoNotCloseStderrWhenQuiet() throws Exception {
         assumeTrue(isSystemd());
 
