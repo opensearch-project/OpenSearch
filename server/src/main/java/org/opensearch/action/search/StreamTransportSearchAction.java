@@ -131,7 +131,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
                         task,
                         clusters,
                         searchRequestContext,
-                        tracer
+                        tracer,
+                        forceExecutionQueueThreshold
                     );
                     break;
                 default:
