@@ -182,15 +182,15 @@ public class ScriptScoreQuery extends Query {
                 if (subQueryExplanation.isMatch() == false) {
                     return subQueryExplanation;
                 }
+                Scorer subQueryScorer = subQueryWeight.scorer(context);
+                if (subQueryScorer == null) {
+                    // The sub-query explains this document as a match but produces no scorer for this segment.
+                    // scorerSupplier() treats that as "no matches on this segment", so explain() reports no match
+                    // as well instead of dereferencing a null scorer.
+                    return Explanation.noMatch("sub-query produced no scorer for this segment", subQueryExplanation);
+                }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
-                Scorer scorer = new ScriptScorer(
-                    this,
-                    makeScoreScript(context),
-                    subQueryWeight.scorer(context),
-                    subQueryScoreMode,
-                    1f,
-                    explanationHolder
-                );
+                Scorer scorer = new ScriptScorer(this, makeScoreScript(context), subQueryScorer, subQueryScoreMode, 1f, explanationHolder);
                 int newDoc = scorer.iterator().advance(doc);
                 assert doc == newDoc; // subquery should have already matched above
                 float score = scorer.score(); // score without boost
