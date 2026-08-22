@@ -339,6 +339,86 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
     }
 
     /**
+     * ARRAY_AGG (mvcombine) must ride the ORIGINAL field with no VARCHAR cast, so the collected
+     * array keeps the source element type, unlike list()/values() (see the test above).
+     */
+    public void testAttachFragmentOnTop_ArrayAggOverScalar_MeasureArgIsRawFieldNotVarcharCast() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        // Inner fragment: Project that outputs a single INTEGER column (the gathered reduce input).
+        OpenSearchStageInputScan innerStage = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            0,
+            rowType("c0", "c1", "c2", "c3", "c4"),
+            List.of("datafusion"),
+            List.of()
+        );
+        org.apache.calcite.rel.logical.LogicalProject innerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            innerStage,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(innerStage, 4)),
+            List.of("picked"),
+            java.util.Set.of()
+        );
+        byte[] innerBytes = convertor.convertFragment(innerProject);
+
+        // Wrapper: ARRAY_AGG(picked) with NO group-by, over a 1-column placeholder (inner output shape).
+        OpenSearchStageInputScan aggLeaf = new OpenSearchStageInputScan(
+            cluster,
+            cluster.traitSet(),
+            -1,
+            innerProject.getRowType(),
+            List.of("datafusion"),
+            List.of()
+        );
+        SqlAggFunction arrayAggOp = new SqlAggFunction(
+            "ARRAY_AGG",
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        RelDataType nullableInt = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelDataType arrayType = typeFactory.createTypeWithNullability(typeFactory.createArrayType(nullableInt, -1), true);
+        AggregateCall arrayAggCall = AggregateCall.create(
+            arrayAggOp,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(0),
+            -1,
+            null,
+            org.apache.calcite.rel.RelCollations.EMPTY,
+            0,
+            aggLeaf,
+            arrayType,
+            "a"
+        );
+        LogicalAggregate agg = LogicalAggregate.create(aggLeaf, List.of(), ImmutableBitSet.of(), null, List.of(arrayAggCall));
+
+        byte[] bytes = convertor.attachFragmentOnTop(agg, innerBytes);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+        assertTrue("root must be an AggregateRel", root.hasAggregate());
+        Expression arg = root.getAggregate().getMeasures(0).getMeasure().getArguments(0).getValue();
+        assertFalse("ARRAY_AGG(scalar) measure arg must preserve type: raw field, NOT a VARCHAR cast", arg.hasCast());
+        assertTrue("ARRAY_AGG(scalar) measure arg must be a direct field selection", arg.hasSelection());
+        assertEquals(
+            "the selection must reference the ORIGINAL input field (index 0)",
+            0,
+            arg.getSelection().getDirectReference().getStructField().getField()
+        );
+    }
+
+    /**
      * Attaching a {@link LogicalSort} on top of inner bytes yields
      * {@code SortRel(<inner>)}.
      */
