@@ -46,6 +46,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -83,19 +84,17 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
 
     public void testHealth() {
         logger.info("--> running cluster health on an index that does not exists");
+        expectThrows(IndexNotFoundException.class, () -> {
+            client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
+        });
+        logger.info("--> running cluster wide health");
         ClusterHealthResponse healthResponse = client().admin()
             .cluster()
-            .prepareHealth("test1")
-            .setWaitForYellowStatus()
-            .setTimeout("1s")
+            .prepareHealth()
+            .setWaitForGreenStatus()
+            .setTimeout("10s")
             .execute()
             .actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(true));
-        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
-
-        logger.info("--> running cluster wide health");
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
@@ -302,6 +301,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
     }
 
     public void testWaitForEventsRetriesIfOtherConditionsNotMet() {
+        createIndex("index");
         final ActionFuture<ClusterHealthResponse> healthResponseFuture = client().admin()
             .cluster()
             .prepareHealth("index")
@@ -338,7 +338,6 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         });
 
         try {
-            createIndex("index");
             assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
             // at this point the original health response should not have returned: there was never a point where the index was green AND
