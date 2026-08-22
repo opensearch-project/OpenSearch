@@ -128,6 +128,22 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertEquals(-1, remoteStoreSettings.getMaxRemoteTranslogReaders());
     }
 
+    public void testTranslogBytesTracking() {
+        assertFalse(remoteStoreSettings.isTranslogBytesTrackingEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING.getKey(), true).build()
+        );
+        assertTrue(remoteStoreSettings.isTranslogBytesTrackingEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRACK_BYTES_SINCE_LAST_COMMIT_SETTING.getKey(), false)
+                .build()
+        );
+        assertFalse(remoteStoreSettings.isTranslogBytesTrackingEnabled());
+    }
+
     public void testUploadedSegmentsCleanupThreshold() {
         // Test default value
         assertEquals(1000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());

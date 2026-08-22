@@ -73,6 +73,7 @@ public class RemoteFsTranslog extends Translog {
     protected final FileTransferTracker fileTransferTracker;
     protected final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
+    private final RemoteStoreSettings remoteStoreSettings;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -128,6 +129,7 @@ public class RemoteFsTranslog extends Translog {
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.remoteStoreSettings = remoteStoreSettings;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
@@ -793,6 +795,15 @@ public class RemoteFsTranslog extends Translog {
             return false;
         }
         return readers.size() >= maxRemoteTlogReaders;
+    }
+
+    /**
+     * Returns whether the cluster setting that enables tracking translog bytes since the last commit is on. This is only
+     * the setting; whether a given shard tracks also depends on the engine and the index, so callers outside this class
+     * should ask {@link InternalTranslogManager#isTranslogBytesTrackingEnabled()}.
+     */
+    boolean isBytesTrackingSettingEnabled() {
+        return remoteStoreSettings.isTranslogBytesTrackingEnabled();
     }
 
     private CryptoMetadata resolveCryptoMetadata() {

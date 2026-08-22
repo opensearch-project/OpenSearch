@@ -409,7 +409,8 @@ public class InternalEngine extends Engine {
             this::ensureOpen,
             engineConfig.getTranslogFactory(),
             engineConfig.getStartedPrimarySupplier(),
-            TranslogOperationHelper.create(engineConfig)
+            TranslogOperationHelper.create(engineConfig),
+            true
         );
     }
 
@@ -2190,6 +2191,18 @@ public class InternalEngine extends Engine {
      */
     protected void commitIndexWriter(final DocumentIndexWriter writer, final String translogUUID) throws IOException {
         translogManager.ensureCanFlush();
+        /*
+         * Snapshot the tracked translog bytes before the local checkpoint below is read. This commit only covers
+         * operations up to that checkpoint, so a snapshot taken any later would also claim the bytes of operations that
+         * reached the translog afterwards and are not part of this commit. Those bytes would then be dropped from the
+         * counter for good and every future flush decision would under-count the translog by that much. Snapshotting
+         * first can only leave already committed bytes counted, which merely brings the next periodic flush forward.
+         */
+        final InternalTranslogManager byteTrackingTranslogManager = translogBytesTrackingManager();
+        if (byteTrackingTranslogManager != null) {
+            byteTrackingTranslogManager.startIndexCommit();
+        }
+        boolean commitSuccessful = false;
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             writer.setLiveCommitData(() -> {
@@ -2223,6 +2236,7 @@ public class InternalEngine extends Engine {
             }
 
             writer.commit();
+            commitSuccessful = true;
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);
@@ -2246,7 +2260,22 @@ public class InternalEngine extends Engine {
             } else {
                 throw e;
             }
+        } finally {
+            if (byteTrackingTranslogManager != null) {
+                byteTrackingTranslogManager.finishIndexCommit(commitSuccessful);
+            }
         }
+    }
+
+    /**
+     * Returns the translog manager that tracks translog bytes since the last commit for this shard, or {@code null}
+     * when that tracking is not enabled.
+     */
+    private InternalTranslogManager translogBytesTrackingManager() {
+        if (translogManager instanceof InternalTranslogManager manager && manager.isTranslogBytesTrackingEnabled()) {
+            return manager;
+        }
+        return null;
     }
 
     @Override
