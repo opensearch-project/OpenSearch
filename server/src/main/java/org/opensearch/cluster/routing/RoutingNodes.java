@@ -800,7 +800,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
                 activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
             } else {
-                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
             }
         }
         if (activeReplica == null) {
