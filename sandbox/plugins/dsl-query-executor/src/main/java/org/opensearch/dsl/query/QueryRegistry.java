@@ -37,6 +37,11 @@ public class QueryRegistry {
         translators.put(translator.getQueryType(), translator);
     }
 
+    /** Returns the registered translator for the given query type, or null. */
+    public QueryTranslator get(Class<? extends QueryBuilder> type) {
+        return translators.get(type);
+    }
+
     /**
      * Converts a query using the registered translator for its type.
      * If no translator is registered, wraps the query in an {@link UnresolvedQueryCall}
@@ -48,7 +53,7 @@ public class QueryRegistry {
      * @throws ConversionException if a registered translator fails
      */
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
-        QueryTranslator translator = translators.get(query.getClass());
+        QueryTranslator translator = get(query.getClass());
         if (translator != null) {
             return translator.convert(query, ctx);
         }

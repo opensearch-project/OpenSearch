@@ -84,12 +84,20 @@ public class SearchSourceConverter {
     /**
      * Converts DSL for the given index into query plans.
      *
-     * @param searchSource the DSL query
+     * @param searchSource the DSL query; a {@code null} source (bodyless {@code _search}) is
+     *        treated as an empty match_all request
      * @param indexName target index
      * @return one or more query plans
      * @throws ConversionException if DSL conversion fails
      */
     public QueryPlans convert(SearchSourceBuilder searchSource, String indexName) throws ConversionException {
+        // A bodyless _search (null source) is an implicit match_all with the default page
+        // size. Normalize to an empty source so size()/query()/aggregations() below are safe
+        // to dereference; it then plans as a plain scan, exactly like an empty "{}" body.
+        if (searchSource == null) {
+            searchSource = new SearchSourceBuilder();
+        }
+
         RelOptTable table = catalogReader.getTable(List.of(indexName));
         if (table == null) {
             throw new IllegalArgumentException("Index not found in schema: " + indexName);
