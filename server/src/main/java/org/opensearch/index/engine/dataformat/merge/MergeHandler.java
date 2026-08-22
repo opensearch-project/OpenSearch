@@ -243,7 +243,7 @@ public class MergeHandler {
     }
 
     /**
-     * Executes the given merge operation by delegating to the {@link Merger}.
+     * Executes the given merge by delegating to the {@link Merger}.
      *
      * @param oneMerge the merge to execute
      * @return the result of the merge
@@ -253,7 +253,9 @@ public class MergeHandler {
         assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merge must have at least one segment";
         long generation = generationProvider.get();
         assert generation > 0 : "merge writer generation must be positive but was: " + generation;
+
         MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).newWriterGeneration(generation).build();
+
         MergeResult result = merger.merge(mergeInput);
         assert result != null : "merger must return a non-null MergeResult";
         assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";

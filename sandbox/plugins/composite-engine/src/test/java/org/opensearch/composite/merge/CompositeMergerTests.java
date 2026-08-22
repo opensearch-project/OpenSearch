@@ -21,6 +21,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -45,9 +46,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -645,6 +650,236 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         return snapshot;
     }
 
+    // ── Two-phase merge: prepareMerge / abortPreparedMerge / live-docs propagation ──
+
+    /** Returns a CompositeMerger built from the default primary+secondary test engines. */
+    private CompositeMerger createCompositeMerger() {
+        return new CompositeMerger(compositeEngine, compositeDataFormat);
+    }
+
+    private MergeInput mergeInputFor(Segment... segments) {
+        return MergeInput.builder().segments(List.of(segments)).newWriterGeneration(99L).build();
+    }
+
+    private Segment defaultSegment(Path tempDir, long generation, long numRows) {
+        WriterFileSet pWfs = wfs(tempDir, generation, Set.of("p" + generation + ".dat"), numRows);
+        WriterFileSet sWfs = wfs(tempDir, generation, Set.of("s" + generation + ".dat"), numRows);
+        return buildSegment(generation, primaryFormat, pWfs, secondaryFormat, sWfs);
+    }
+
+    /** prepareMerge with no secondaries reporting deletes returns ALL_ALIVE. */
+    public void testPrepareMergeReturnsAllAliveWhenSecondariesHaveNoDeletes() throws IOException {
+        when(secondaryMerger.prepareMerge(any())).thenReturn(LiveDocs.ALL_ALIVE);
+
+        CompositeMerger merger = createCompositeMerger();
+        LiveDocs result = merger.prepareMerge(mergeInputFor(defaultSegment(createTempDir(), 1L, 5)));
+
+        assertTrue(result.allAlive());
+        verify(secondaryMerger, times(1)).prepareMerge(any());
+        // The primary must never be asked to prepare — only secondaries freeze state.
+        verify(primaryMerger, never()).prepareMerge(any());
+    }
+
+    /** prepareMerge tolerates a secondary returning null (treated as all-alive). */
+    public void testPrepareMergeToleratesNullFromSecondary() throws IOException {
+        when(secondaryMerger.prepareMerge(any())).thenReturn(null);
+
+        CompositeMerger merger = createCompositeMerger();
+        LiveDocs result = merger.prepareMerge(mergeInputFor(defaultSegment(createTempDir(), 1L, 5)));
+
+        assertTrue(result.allAlive());
+    }
+
+    /** prepareMerge surfaces the first non-empty bitmap produced by a secondary. */
+    public void testPrepareMergeReturnsSecondaryBitmap() throws IOException {
+        LiveDocs frozen = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b101L }));
+        when(secondaryMerger.prepareMerge(any())).thenReturn(frozen);
+
+        CompositeMerger merger = createCompositeMerger();
+        LiveDocs result = merger.prepareMerge(mergeInputFor(defaultSegment(createTempDir(), 1L, 3)));
+
+        assertSame(frozen, result);
+    }
+
+    /** merge() forwards the frozen bitmap from the secondary's prepareMerge to every format's MergeInput. */
+    public void testMergePropagatesFrozenLiveDocsToAllFormats() throws IOException {
+        Path tempDir = createTempDir();
+        Segment segment = defaultSegment(tempDir, 1L, 3);
+
+        LiveDocs frozen = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b101L }));
+        when(secondaryMerger.prepareMerge(any())).thenReturn(frozen);
+
+        WriterFileSet mergedP = wfs(tempDir, 99L, Set.of("mp.dat"), 2);
+        WriterFileSet mergedS = wfs(tempDir, 99L, Set.of("ms.dat"), 2);
+        when(primaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(primaryFormat, mergedP), STUB_ROW_ID_MAPPING));
+        when(secondaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(secondaryFormat, mergedS)));
+
+        CompositeMerger merger = createCompositeMerger();
+        MergeResult result = merger.merge(mergeInputFor(segment));
+        assertNotNull(result);
+
+        ArgumentCaptor<MergeInput> primaryCaptor = ArgumentCaptor.forClass(MergeInput.class);
+        verify(primaryMerger).merge(primaryCaptor.capture());
+        assertSame("primary must merge with the frozen bitmap", frozen, primaryCaptor.getValue().liveDocs());
+        assertArrayEquals(new long[] { 0b101L }, primaryCaptor.getValue().getLiveDocsForSegment(1L));
+
+        ArgumentCaptor<MergeInput> secondaryCaptor = ArgumentCaptor.forClass(MergeInput.class);
+        verify(secondaryMerger).merge(secondaryCaptor.capture());
+        assertSame("secondary must merge with the same frozen bitmap", frozen, secondaryCaptor.getValue().liveDocs());
+    }
+
+    /** merge() uses ALL_ALIVE for all formats when no secondary reports deletes. */
+    public void testMergeUsesAllAliveWhenNothingFrozen() throws IOException {
+        Path tempDir = createTempDir();
+        Segment segment = defaultSegment(tempDir, 1L, 3);
+
+        when(secondaryMerger.prepareMerge(any())).thenReturn(LiveDocs.ALL_ALIVE);
+        WriterFileSet mergedP = wfs(tempDir, 99L, Set.of("mp.dat"), 3);
+        WriterFileSet mergedS = wfs(tempDir, 99L, Set.of("ms.dat"), 3);
+        when(primaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(primaryFormat, mergedP), STUB_ROW_ID_MAPPING));
+        when(secondaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(secondaryFormat, mergedS)));
+
+        CompositeMerger merger = createCompositeMerger();
+        merger.merge(mergeInputFor(segment));
+
+        ArgumentCaptor<MergeInput> captor = ArgumentCaptor.forClass(MergeInput.class);
+        verify(primaryMerger).merge(captor.capture());
+        assertTrue(captor.getValue().liveDocs().allAlive());
+    }
+
+    /** When the primary merge fails after prepare, the secondary's prepared state is aborted. */
+    public void testMergeAbortsPreparedStateOnPrimaryFailure() throws IOException {
+        Path tempDir = createTempDir();
+        Segment segment = defaultSegment(tempDir, 1L, 3);
+
+        LiveDocs frozen = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b1L }));
+        when(secondaryMerger.prepareMerge(any())).thenReturn(frozen);
+        when(primaryMerger.merge(any())).thenThrow(new IOException("primary exploded"));
+
+        CompositeMerger merger = createCompositeMerger();
+        Exception ex = expectThrows(Exception.class, () -> merger.merge(mergeInputFor(segment)));
+        assertTrue(ex.getMessage().contains("primary exploded") || ex.getCause().getMessage().contains("primary exploded"));
+
+        verify(secondaryMerger, times(1)).abortPreparedMerge(any());
+        verify(secondaryMerger, never()).merge(any());
+    }
+
+    /** A failing abort is suppressed onto the original merge failure, not thrown in its place. */
+    public void testMergeSuppressesAbortFailureOntoOriginalError() throws IOException {
+        Path tempDir = createTempDir();
+        Segment segment = defaultSegment(tempDir, 1L, 3);
+
+        when(secondaryMerger.prepareMerge(any())).thenReturn(LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b1L })));
+        when(primaryMerger.merge(any())).thenThrow(new IOException("original failure"));
+        doThrow(new IOException("abort failure")).when(secondaryMerger).abortPreparedMerge(any());
+
+        CompositeMerger merger = createCompositeMerger();
+        Exception ex = expectThrows(Exception.class, () -> merger.merge(mergeInputFor(segment)));
+
+        // The executor wraps the primary IOException in an UncheckedIOException; the abort
+        // failure is suppressed onto whatever throwable escaped the execute phase.
+        Throwable root = ex instanceof java.io.UncheckedIOException && ex.getCause() != null ? ex.getCause() : ex;
+        assertTrue("original failure must win", root.getMessage().contains("original failure"));
+        assertTrue(
+            "abort failure must be suppressed onto the original",
+            containsSuppressed(ex, "abort failure") || containsSuppressed(root, "abort failure")
+        );
+    }
+
+    private static boolean containsSuppressed(Throwable t, String message) {
+        for (Throwable suppressed : t.getSuppressed()) {
+            if (suppressed.getMessage() != null && suppressed.getMessage().contains(message)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** abortPreparedMerge fans out to every secondary and aggregates IOExceptions. */
+    public void testAbortPreparedMergeAggregatesSecondaryFailures() throws IOException {
+        DataFormat secondaryFormat2 = stubFormat("arrow");
+        Merger secondaryMerger2 = mock(Merger.class);
+
+        CompositeIndexingExecutionEngine multiEngine = mock(CompositeIndexingExecutionEngine.class);
+        when(multiEngine.statsTracker()).thenReturn(new CompositeShardStatsTracker());
+        doReturn(mockEngine(primaryFormat, primaryMerger)).when(multiEngine).getPrimaryDelegate();
+        doReturn(Set.of(mockEngine(secondaryFormat, secondaryMerger), mockEngine(secondaryFormat2, secondaryMerger2))).when(multiEngine)
+            .getSecondaryDelegates();
+
+        CompositeDataFormat multiFormat = new CompositeDataFormat(primaryFormat, List.of(primaryFormat, secondaryFormat, secondaryFormat2));
+        CompositeMerger merger = new CompositeMerger(multiEngine, multiFormat);
+
+        doThrow(new IOException("first abort failed")).when(secondaryMerger).abortPreparedMerge(any());
+        doThrow(new IOException("second abort failed")).when(secondaryMerger2).abortPreparedMerge(any());
+
+        MergeInput input = mergeInputFor(defaultSegment(createTempDir(), 1L, 3));
+        IOException ex = expectThrows(IOException.class, () -> merger.abortPreparedMerge(input));
+
+        // Both secondaries were attempted; one failure primary, the other suppressed.
+        verify(secondaryMerger, times(1)).abortPreparedMerge(any());
+        verify(secondaryMerger2, times(1)).abortPreparedMerge(any());
+        assertEquals(1, ex.getSuppressed().length);
+    }
+
+    /** The live-docs shape assertion trips when the bitmap is too small for the segment's rows. */
+    public void testMergeAssertsOnUndersizedLiveDocsBitmap() throws IOException {
+        assumeTrue("requires assertions enabled", CompositeMergerTests.class.desiredAssertionStatus());
+        Path tempDir = createTempDir();
+        // Segment claims 100 rows but the frozen bitmap covers only 64 bits (one word).
+        Segment segment = defaultSegment(tempDir, 1L, 100);
+        when(secondaryMerger.prepareMerge(any())).thenReturn(LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b1L })));
+
+        CompositeMerger merger = createCompositeMerger();
+        AssertionError err = expectThrows(AssertionError.class, () -> merger.merge(mergeInputFor(segment)));
+        assertTrue(err.getMessage(), err.getMessage().contains("live-docs"));
+    }
+
+    // ── CompositeMergeExecutor.getMerger ──
+
+    public void testExecutorGetMergerReturnsRegisteredMerger() {
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(
+            Map.of(primaryFormat, primaryMerger, secondaryFormat, secondaryMerger)
+        );
+        assertSame(primaryMerger, executor.getMerger(primaryFormat));
+        assertSame(secondaryMerger, executor.getMerger(secondaryFormat));
+        assertNull(executor.getMerger(stubFormat("unknown")));
+    }
+
+    /** The executor threads the plan's liveDocs into the MergeInput of every format it merges. */
+    public void testExecutorPassesPlanLiveDocsIntoMergeInput() throws IOException {
+        Path tempDir = createTempDir();
+        LiveDocs liveDocs = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b11L }));
+
+        WriterFileSet inputP = wfs(tempDir, 1L, Set.of("in.parquet"), 2);
+        WriterFileSet mergedP = wfs(tempDir, 10L, Set.of("out.parquet"), 2);
+        when(primaryMerger.merge(any())).thenReturn(new MergeResult(Map.of(primaryFormat, mergedP), STUB_ROW_ID_MAPPING));
+
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(Map.of(primaryFormat, primaryMerger));
+        MergePlan plan = new MergePlan(10L, primaryFormat, List.of(), Map.of(primaryFormat, List.of(inputP)), liveDocs);
+        executor.execute(plan);
+
+        ArgumentCaptor<MergeInput> captor = ArgumentCaptor.forClass(MergeInput.class);
+        verify(primaryMerger).merge(captor.capture());
+        assertSame(liveDocs, captor.getValue().liveDocs());
+    }
+
+    // ── MergePlan liveDocs propagation ──
+
+    public void testMergePlanFromCarriesLiveDocs() {
+        Path tempDir = createTempDir();
+        LiveDocs liveDocs = LiveDocs.fromPackedBits(Map.of(1L, new long[] { 0b1L }));
+        Segment segment = defaultSegment(tempDir, 1L, 3);
+        OneMerge oneMerge = new OneMerge(List.of(segment));
+
+        MergePlan plan = MergePlan.from(oneMerge, primaryFormat, List.of(secondaryFormat), 10L, liveDocs);
+
+        assertSame(liveDocs, plan.liveDocs());
+        assertEquals(10L, plan.mergedWriterGeneration());
+        assertEquals(1, plan.filesFor(primaryFormat).size());
+        assertEquals(1, plan.filesFor(secondaryFormat).size());
+        assertTrue(plan.hasSecondaries());
+    }
+
     // ── Cross-format merge verification tests ──
 
     public void testExecutorThrowsWhenSecondaryReturnsNullButPrimaryHasOutput() throws IOException {
@@ -668,7 +903,13 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
         WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
 
-        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+        MergePlan plan = new MergePlan(
+            10L,
+            primary,
+            List.of(secondary),
+            Map.of(primary, List.of(inputP), secondary, List.of(inputS)),
+            LiveDocs.ALL_ALIVE
+        );
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
         assertTrue(ex.getMessage().contains("returned null"));
@@ -695,7 +936,13 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         WriterFileSet inputP = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.parquet"), 50, 1L);
         WriterFileSet inputS = new WriterFileSet(createTempDir().toString(), 1L, Set.of("in.si"), 50, 1L);
 
-        MergePlan plan = new MergePlan(10L, primary, List.of(secondary), Map.of(primary, List.of(inputP), secondary, List.of(inputS)));
+        MergePlan plan = new MergePlan(
+            10L,
+            primary,
+            List.of(secondary),
+            Map.of(primary, List.of(inputP), secondary, List.of(inputS)),
+            LiveDocs.ALL_ALIVE
+        );
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> executor.execute(plan));
         assertTrue(ex.getMessage().contains("Row count mismatch"));
