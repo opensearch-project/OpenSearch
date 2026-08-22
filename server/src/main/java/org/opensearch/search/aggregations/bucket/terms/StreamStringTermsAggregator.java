@@ -18,11 +18,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntroSelector;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.IntArray;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
@@ -56,6 +56,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     private boolean leafCollectorCreated = false;
     private final int segmentTopN;
 
+    // Keyed on (owningBucketOrd, segmentOrdinal) so each parent bucket owns a distinct
+    // bucket ordinal for the same term. Without this, a streaming terms agg running as
+    // a sub of another terms agg would collide every parent's doc counts into the same
+    // flat array, producing identical inner bucket lists for every parent bucket.
+    private final LongKeyedBucketOrds bucketOrds;
+
     private Aggregator.BucketComparator ordinalComparator;
     private StringTerms.Bucket tempBucket1;
     private StringTerms.Bucket tempBucket2;
@@ -73,12 +79,14 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         int segmentTopN,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.resultStrategy = resultStrategy.apply(this);
         this.segmentTopN = segmentTopN;
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -95,14 +103,17 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     private void ensureOrdinalComparator() {
         if (ordinalComparator == null) {
             if (isKeyOrder(order)) {
-                // For key-based ordering, compare ordinals directly (alphabetical order)
-                // Reverse comparison for descending order
+                // For key-based ordering the callers hand us segment ordinals, and those
+                // ordinals already reflect alphabetical order in the docvalues, so compare
+                // them directly.
                 boolean ascending = InternalOrder.isKeyAsc(order);
                 ordinalComparator = (leftOrd, rightOrd) -> {
                     return ascending ? Long.compare(leftOrd, rightOrd) : Long.compare(rightOrd, leftOrd);
                 };
             } else if (partiallyBuiltBucketComparator != null) {
-                // For sub-aggregation ordering, use bucket comparator
+                // For sub-aggregation ordering, compare via the per-bucket comparator. The
+                // ordinals handed in here are composite bucket ords (already owning-bucket-
+                // scoped), so bucketDocCount reads the right value.
                 tempBucket1 = new StringTerms.Bucket(null, 0, null, false, 0, format) {
                     @Override
                     public int compareKey(StringTerms.Bucket other) {
@@ -147,20 +158,10 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         }
         this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount();
-        if (docCounts == null) {
-            this.docCounts = context.bigArrays().newLongArray(valueCount, true);
-        } else {
-            // TODO: check performance of grow vs creating a new one
-            this.docCounts = context.bigArrays().grow(docCounts, valueCount);
-        }
 
         SortedDocValues singleValues = DocValues.unwrapSingleton(sortedDocValuesPerBatch);
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
-            /*
-             * Optimize when there isn't a filter because that is very
-             * common and marginally faster.
-             */
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -168,16 +169,11 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
                         return;
                     }
                     int ordinal = singleValues.ordValue();
-                    collectExistingBucket(sub, doc, ordinal);
+                    collectInto(sub, doc, owningBucketOrd, ordinal);
                 }
             });
-
         }
         segmentsWithMultiValuedOrds++;
-        /*
-         * Optimize when there isn't a filter because that is very
-         * common and marginally faster.
-         */
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -187,10 +183,20 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
                 int count = sortedDocValuesPerBatch.docValueCount();
                 long ordinal;
                 while ((count-- > 0) && (ordinal = sortedDocValuesPerBatch.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                    collectExistingBucket(sub, doc, ordinal);
+                    collectInto(sub, doc, owningBucketOrd, ordinal);
                 }
             }
         });
+    }
+
+    private void collectInto(LeafBucketCollector sub, int doc, long owningBucketOrd, long segmentOrdinal) throws IOException {
+        long bucketOrd = bucketOrds.add(owningBucketOrd, segmentOrdinal);
+        if (bucketOrd < 0) {
+            bucketOrd = -1 - bucketOrd;
+            collectExistingBucket(sub, doc, bucketOrd);
+        } else {
+            collectBucket(sub, doc, bucketOrd);
+        }
     }
 
     /**
@@ -200,17 +206,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         implements
             Releasable {
 
-        protected IntArray reusableIndices;
-
         protected ResultStrategy() {}
-
-        void prepareIndicesArray(long valueCount) {
-            if (reusableIndices == null) {
-                reusableIndices = context.bigArrays().newIntArray(valueCount, false);
-            } else {
-                reusableIndices = context.bigArrays().grow(reusableIndices, valueCount);
-            }
-        }
 
         InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
@@ -222,18 +218,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
                 return results;
             }
 
-            // for each owning bucket, there will be list of bucket ord of this aggregation
             B[][] topBucketsPerOwningOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-
-                // processing each owning bucket
                 checkCancelled();
                 logger.debug("Cardinality post collection for ordIdx {}: {}", ordIdx, valueCount);
-                // using bucketCountThresholds since we don't do reduce across slice
-                // and send results per segment to coordinator
-                SelectionResult<B> selectionResult = selectTopBuckets(segmentTopN, bucketCountThresholds);
+                SelectionResult<B> selectionResult = selectTopBuckets(owningBucketOrds[ordIdx], segmentTopN, bucketCountThresholds);
 
                 topBucketsPerOwningOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {
@@ -261,92 +252,122 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
             }
         }
 
-        private SelectionResult<B> selectTopBuckets(int segmentSize, BucketCountThresholds thresholds) throws IOException {
-            prepareIndicesArray(valueCount);
+        /**
+         * Collect candidate bucket ords for {@code owningBucketOrd}, pick the top
+         * {@code segmentSize} according to the active ordering, and emit final buckets.
+         * Each candidate entry carries both the bucket ordinal (into docCounts) and the
+         * underlying segment ordinal (for docvalues term lookup).
+         */
+        private SelectionResult<B> selectTopBuckets(long owningBucketOrd, int segmentSize, BucketCountThresholds thresholds)
+            throws IOException {
+            long bucketsForOwner = bucketOrds.bucketsInOrd(owningBucketOrd);
+            if (bucketsForOwner == 0) {
+                return new SelectionResult<>(new ArrayList<>(), 0L);
+            }
+
+            // Pair up each candidate as (bucketOrd, segmentOrdinal). We keep them in two
+            // parallel arrays sized bucketsForOwner.
+            long[] candidateBucketOrds = new long[Math.toIntExact(bucketsForOwner)];
+            long[] candidateSegmentOrds = new long[candidateBucketOrds.length];
 
             int cnt = 0;
             long totalDocCount = 0;
-            for (int i = 0; i < valueCount; i++) {
-                long docCount = bucketDocCount(i);
+            LongKeyedBucketOrds.BucketOrdsEnum enumerator = bucketOrds.ordsEnum(owningBucketOrd);
+            while (enumerator.next()) {
+                long bucketOrd = enumerator.ord();
+                long segmentOrd = enumerator.value();
+                long docCount = bucketDocCount(bucketOrd);
                 totalDocCount += docCount;
                 if (docCount >= thresholds.getMinDocCount()) {
-                    reusableIndices.set(cnt++, i);
+                    candidateBucketOrds[cnt] = bucketOrd;
+                    candidateSegmentOrds[cnt] = segmentOrd;
+                    cnt++;
                 }
             }
 
-            segmentSize = Math.min(segmentSize, cnt);
+            int effectiveSegmentSize = Math.min(segmentSize, cnt);
 
-            if (cnt <= segmentSize) {
-                List<B> result = new ArrayList<>();
+            if (cnt <= effectiveSegmentSize) {
+                List<B> result = new ArrayList<>(cnt);
                 long selectedDocCount = 0;
                 for (int i = 0; i < cnt; i++) {
-                    long docCount = bucketDocCount(reusableIndices.get(i));
-                    result.add(buildFinalBucket(reusableIndices.get(i), docCount));
+                    long bucketOrd = candidateBucketOrds[i];
+                    long segmentOrd = candidateSegmentOrds[i];
+                    long docCount = bucketDocCount(bucketOrd);
+                    result.add(buildFinalBucket(bucketOrd, segmentOrd, docCount));
                     selectedDocCount += docCount;
                 }
                 return new SelectionResult<>(result, totalDocCount - selectedDocCount);
             }
 
+            ensureOrdinalComparator();
+            final long[] bucketOrdsRef = candidateBucketOrds;
+            final long[] segmentOrdsRef = candidateSegmentOrds;
             IntroSelector selector = new IntroSelector() {
-                int pivotOrdinal;
+                long pivotBucketOrd;
+                long pivotSegmentOrd;
 
                 @Override
                 protected void swap(int i, int j) {
-                    int temp = reusableIndices.get(i);
-                    reusableIndices.set(i, reusableIndices.get(j));
-                    reusableIndices.set(j, temp);
+                    long tmp = bucketOrdsRef[i];
+                    bucketOrdsRef[i] = bucketOrdsRef[j];
+                    bucketOrdsRef[j] = tmp;
+                    tmp = segmentOrdsRef[i];
+                    segmentOrdsRef[i] = segmentOrdsRef[j];
+                    segmentOrdsRef[j] = tmp;
                 }
 
                 @Override
                 protected void setPivot(int i) {
-                    pivotOrdinal = reusableIndices.get(i);
+                    pivotBucketOrd = bucketOrdsRef[i];
+                    pivotSegmentOrd = segmentOrdsRef[i];
                 }
 
                 @Override
                 protected int comparePivot(int j) {
-                    long leftOrd = reusableIndices.get(j);
-                    long rightOrd = pivotOrdinal;
-                    if (ordinalComparator != null) {
-                        return -ordinalComparator.compare(leftOrd, rightOrd);
+                    long left, right;
+                    if (isKeyOrder(order)) {
+                        // Compare segment ordinals (alphabetical proxy)
+                        left = segmentOrdsRef[j];
+                        right = pivotSegmentOrd;
+                    } else {
+                        // Compare bucket ordinals (so bucketDocCount reads per-owner counts)
+                        left = bucketOrdsRef[j];
+                        right = pivotBucketOrd;
                     }
-                    // Fallback to doc count for _count ordering
-                    long leftDocCount = bucketDocCount(leftOrd);
-                    long rightDocCount = bucketDocCount(rightOrd);
+                    if (ordinalComparator != null) {
+                        return -ordinalComparator.compare(left, right);
+                    }
+                    long leftDocCount = bucketDocCount(bucketOrdsRef[j]);
+                    long rightDocCount = bucketDocCount(pivotBucketOrd);
                     return Long.compare(leftDocCount, rightDocCount);
                 }
             };
 
-            ensureOrdinalComparator();
-            selector.select(0, cnt, segmentSize);
+            selector.select(0, cnt, effectiveSegmentSize);
 
-            int[] selected = new int[segmentSize];
-            for (int i = 0; i < segmentSize; i++) {
-                selected[i] = reusableIndices.get(i);
+            // Match the historical emit order (ascending by segment ordinal, i.e.
+            // alphabetical) so downstream reduce ordering assumptions hold.
+            Integer[] indices = new Integer[effectiveSegmentSize];
+            for (int i = 0; i < effectiveSegmentSize; i++) {
+                indices[i] = i;
             }
+            Arrays.sort(indices, (a, b) -> Long.compare(candidateSegmentOrds[a], candidateSegmentOrds[b]));
 
-            reusableIndices.fill(0, valueCount, 0);
-            for (int i = 0; i < segmentSize; i++) {
-                reusableIndices.set(selected[i], 1);
-            }
-
-            List<B> result = new ArrayList<>(segmentSize);
+            List<B> result = new ArrayList<>(effectiveSegmentSize);
             long selectedDocCount = 0;
-            for (int ordinal = 0; ordinal < valueCount; ordinal++) {
-                if (reusableIndices.get(ordinal) == 1) {
-                    long docCount = bucketDocCount(ordinal);
-                    result.add(buildFinalBucket(ordinal, docCount));
-                    selectedDocCount += docCount;
-                }
+            for (int idx : indices) {
+                long bucketOrd = candidateBucketOrds[idx];
+                long segmentOrd = candidateSegmentOrds[idx];
+                long docCount = bucketDocCount(bucketOrd);
+                result.add(buildFinalBucket(bucketOrd, segmentOrd, docCount));
+                selectedDocCount += docCount;
             }
-
             return new SelectionResult<>(result, totalDocCount - selectedDocCount);
         }
 
         @Override
-        public void close() {
-            Releasables.close(reusableIndices);
-            reusableIndices = null;
-        }
+        public void close() {}
 
         abstract String describe();
 
@@ -391,9 +412,11 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract R buildNoValuesResult(long owningBucketOrdinal);
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         * Build a final bucket. {@code bucketOrd} is the composite bucket ordinal
+         * (used for sub-aggregation wiring and doc count lookups); {@code segmentOrd}
+         * is the underlying segment-local ordinal used to materialize the term bytes.
          */
-        abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
+        abstract B buildFinalBucket(long bucketOrd, long segmentOrd, long docCount) throws IOException;
     }
 
     /**
@@ -462,12 +485,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         }
 
         @Override
-        StringTerms.Bucket buildFinalBucket(long ordinal, long docCount) throws IOException {
-            // Recreate DocValues as needed for concurrent segment search
-            BytesRef term = BytesRef.deepCopyOf(sortedDocValuesPerBatch.lookupOrd(ordinal));
+        StringTerms.Bucket buildFinalBucket(long bucketOrd, long segmentOrd, long docCount) throws IOException {
+            // Recreate DocValues as needed for concurrent segment search.
+            BytesRef term = BytesRef.deepCopyOf(sortedDocValuesPerBatch.lookupOrd(segmentOrd));
 
             StringTerms.Bucket result = new StringTerms.Bucket(term, docCount, null, showTermDocCountError, 0, format);
-            result.bucketOrd = ordinal;
+            result.bucketOrd = bucketOrd;
             result.setDocCountError(0);
             return result;
         }
@@ -483,6 +506,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(resultStrategy);
+        Releasables.close(resultStrategy, bucketOrds);
     }
 }
