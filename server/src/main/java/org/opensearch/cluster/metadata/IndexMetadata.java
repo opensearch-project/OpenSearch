@@ -444,6 +444,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    public static final String SETTING_REMOTE_STORE_FENCING_ENABLED = "index.remote_store.fencing.enabled";
+
+    /**
+     * Used to enable object-store-backed primary fencing for remote-store-backed indices. When enabled, every
+     * translog upload on the acknowledgement path performs a compare-and-swap on a per-shard fence blob in the
+     * translog repository, so a stale primary fails itself instead of acknowledging writes that would be lost on
+     * failover. Requires the translog repository to support conditional writes.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE_FENCING_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Used to specify if the bulk should use adaptive shard selection to select one shard.
      */

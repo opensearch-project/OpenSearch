@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -26,8 +27,10 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.RemoteStoreFence;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot;
+import org.opensearch.index.translog.transfer.TranslogFencedException;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -140,7 +143,10 @@ public class RemoteFsTranslog extends Translog {
             indexSettings().getRemoteStorePathStrategy(),
             remoteStoreSettings,
             isTranslogMetadataEnabled,
-            isServerSideEncryptionEnabled
+            isServerSideEncryptionEnabled,
+            indexSettings().isRemoteStoreFencingEnabled(),
+            config.getAllocationId(),
+            config.getNodeId()
         );
         try {
             if (config.downloadRemoteTranslogOnInit()) {
@@ -336,6 +342,36 @@ public class RemoteFsTranslog extends Translog {
         boolean isTranslogMetadataEnabled,
         boolean isServerSideEncryptionEnabled
     ) {
+        return buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker,
+            tracker,
+            pathStrategy,
+            remoteStoreSettings,
+            isTranslogMetadataEnabled,
+            isServerSideEncryptionEnabled,
+            false,
+            null,
+            null
+        );
+    }
+
+    public static TranslogTransferManager buildTranslogTransferManager(
+        BlobStoreRepository blobStoreRepository,
+        ThreadPool threadPool,
+        ShardId shardId,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker tracker,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled,
+        boolean isServerSideEncryptionEnabled,
+        boolean fencingEnabled,
+        String fenceOwnerAllocationId,
+        String fenceOwnerNodeId
+    ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
@@ -348,19 +384,24 @@ public class RemoteFsTranslog extends Translog {
             .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-        RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
-            .basePath(blobStoreRepository.basePath())
-            .indexUUID(indexUUID)
-            .shardId(shardIdStr)
-            .dataCategory(TRANSLOG)
-            .dataType(METADATA)
-            .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
-            .build();
-        BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
+        BlobPath mdPath = translogMetadataPath(blobStoreRepository, shardId, pathStrategy, remoteStoreSettings);
         BlobStoreTransferService transferService = new BlobStoreTransferService(
             blobStoreRepository.blobStore(isServerSideEncryptionEnabled),
             threadPool
         );
+        RemoteStoreFence fence = null;
+        if (fencingEnabled) {
+            fence = buildFence(
+                blobStoreRepository,
+                shardId,
+                threadPool,
+                pathStrategy,
+                remoteStoreSettings,
+                isServerSideEncryptionEnabled,
+                fenceOwnerAllocationId,
+                fenceOwnerNodeId
+            );
+        }
         return new TranslogTransferManager(
             shardId,
             transferService,
@@ -369,8 +410,91 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             tracker,
             remoteStoreSettings,
-            isTranslogMetadataEnabled
+            isTranslogMetadataEnabled,
+            fence
         );
+    }
+
+    private static BlobPath translogMetadataPath(
+        BlobStoreRepository blobStoreRepository,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        return pathStrategy.generatePath(
+            RemoteStorePathStrategy.ShardDataPathInput.builder()
+                .basePath(blobStoreRepository.basePath())
+                .indexUUID(shardId.getIndex().getUUID())
+                .shardId(String.valueOf(shardId.id()))
+                .dataCategory(TRANSLOG)
+                .dataType(METADATA)
+                .fixedPrefix(remoteStoreSettings.getTranslogPathFixedPrefix())
+                .build()
+        );
+    }
+
+    private static RemoteStoreFence buildFence(
+        BlobStoreRepository blobStoreRepository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled,
+        String fenceOwnerAllocationId,
+        String fenceOwnerNodeId
+    ) {
+        // The fence lives alongside the translog metadata files (its name does not match the metadata prefix, so
+        // metadata listings and GC never see it) and is updated only via conditional writes.
+        BlobPath mdPath = translogMetadataPath(blobStoreRepository, shardId, pathStrategy, remoteStoreSettings);
+        BlobContainer fenceContainer = blobStoreRepository.blobStore(isServerSideEncryptionEnabled).blobContainer(mdPath);
+        if (fenceContainer.isConditionalWriteSupported() == false) {
+            throw new IllegalArgumentException(
+                "Remote store fencing is enabled for " + shardId + " but the translog repository does not support conditional writes"
+            );
+        }
+        return new RemoteStoreFence(fenceContainer, fenceOwnerAllocationId, fenceOwnerNodeId, shardId, threadPool);
+    }
+
+    /**
+     * Claims the fence for this shard copy at {@code primaryTerm}, before the caller reads its translog restore point.
+     * <p>
+     * Sealing first is what makes the restore point trustworthy. A copy that read the restore point before claiming the
+     * fence would leave a window in which a previous primary — alive but no longer in the cluster's view, e.g. behind a
+     * network partition — still holds a valid CAS token and can therefore keep acknowledging writes that land after the
+     * restore point was read. Those writes would be acknowledged and then lost. Claiming the chain first invalidates
+     * the old primary's token, so its very next upload fails and it can acknowledge nothing this copy will not see.
+     * <p>
+     * This must not be called for a copy receiving a handoff from a live peer (primary relocation): the source is still
+     * legitimately serving at the same term, and sealing would fence it mid-handoff.
+     *
+     * @throws TranslogFencedException if another copy already owns the fence at a higher term
+     */
+    public static void sealFence(
+        Repository repository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled,
+        String fenceOwnerAllocationId,
+        String fenceOwnerNodeId,
+        long primaryTerm
+    ) throws IOException {
+        assert repository instanceof BlobStoreRepository : String.format(
+            Locale.ROOT,
+            "%s repository should be instance of BlobStoreRepository",
+            shardId
+        );
+        buildFence(
+            (BlobStoreRepository) repository,
+            shardId,
+            threadPool,
+            pathStrategy,
+            remoteStoreSettings,
+            isServerSideEncryptionEnabled,
+            fenceOwnerAllocationId,
+            fenceOwnerNodeId
+        ).validateAndAdvance(primaryTerm);
     }
 
     @Override
@@ -448,6 +572,11 @@ public class RemoteFsTranslog extends Translog {
             } else {
                 return upload(primaryTerm, generation, maxSeqNo);
             }
+        } catch (TranslogFencedException ex) {
+            // The tragic exception is set by upload(); close here, where the resources of the try-with-resources above
+            // (notably the read lock) have already been released - closeOnTragicEvent acquires the write lock.
+            closeOnTragicEvent(ex);
+            throw ex;
         }
     }
 
@@ -472,6 +601,12 @@ public class RemoteFsTranslog extends Translog {
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint),
                 cryptoMetadata
             );
+        } catch (TranslogFencedException ex) {
+            // Another shard copy owns the fence: this copy must never acknowledge another write. Treat as tragic so
+            // the engine fails the shard instead of retrying the upload. The translog is closed by the caller, once
+            // the read lock held around this call has been released.
+            tragedy.setTragicException(ex);
+            throw ex;
         } finally {
             syncPermit.release(SYNC_PERMIT);
         }
