@@ -1,0 +1,1083 @@
+---
+"Dual write - basic index request is mirrored to target":
+  - do:
+      indices.create:
+        index: dw_source
+        body:
+          settings:
+            index.dual_write.index_name: dw_target
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source", "_id": "1"}}
+          {"field1": "hello", "field2": "world"}
+
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      get:
+        index: dw_source
+        id: "1"
+  - match: { _source: { field1: "hello", field2: "world" }}
+
+  - do:
+      get:
+        index: dw_target
+        id: "1"
+  - match: { _source: { field1: "hello", field2: "world" }}
+
+  - do:
+      indices.delete:
+        index: dw_source,dw_target
+
+---
+"Dual write - auto-generated ID index request is mirrored":
+  - do:
+      indices.create:
+        index: dw_source_autoid
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_autoid
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_autoid
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_autoid"}}
+          {"field1": "auto"}
+
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+  - set: { items.0.index._id: auto_id_source }
+  # Mirror at items.1 — gets its own independent auto-generated ID on the target
+  - match: { items.1.index._index: dw_target_autoid }
+  - match: { items.1.index.result: created }
+  - set: { items.1.index._id: auto_id_target }
+
+  - do:
+      get:
+        index: dw_source_autoid
+        id: $auto_id_source
+  - match: { _source: { field1: auto }}
+
+  - do:
+      get:
+        index: dw_target_autoid
+        id: $auto_id_target
+  - match: { _source: { field1: auto }}
+
+  - do:
+      indices.delete:
+        index: dw_source_autoid,dw_target_autoid
+
+---
+"Dual write - multiple index requests in one bulk are all mirrored":
+  - do:
+      indices.create:
+        index: dw_source_multi
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_multi
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_multi
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_multi", "_id": "1"}}
+          {"v": 1}
+          {"index": {"_index": "dw_source_multi", "_id": "2"}}
+          {"v": 2}
+          {"index": {"_index": "dw_source_multi", "_id": "3"}}
+          {"v": 3}
+
+  - match: { errors: false }
+
+  - do:
+      count:
+        index: dw_source_multi
+  - match: { count: 3 }
+
+  - do:
+      count:
+        index: dw_target_multi
+  - match: { count: 3 }
+
+  - do:
+      get:
+        index: dw_target_multi
+        id: "2"
+  - match: { _source.v: 2 }
+
+  - do:
+      indices.delete:
+        index: dw_source_multi,dw_target_multi
+
+---
+"Dual write - op_type create, doc does not exist, mirrored":
+  - do:
+      indices.create:
+        index: dw_source_create
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_create
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_create
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"create": {"_index": "dw_source_create", "_id": "1"}}
+          {"field1": "new_doc"}
+
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+
+  - do:
+      get:
+        index: dw_target_create
+        id: "1"
+  - match: { _source: { field1: new_doc }}
+
+  - do:
+      indices.delete:
+        index: dw_source_create,dw_target_create
+
+---
+"Dual write - op_type create, doc already exists on source, NOT mirrored to target":
+  - do:
+      indices.create:
+        index: dw_source_create_conflict
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_create_conflict
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Seed doc on source before enabling dual-write so it is NOT mirrored to target
+  - do:
+      index:
+        index: dw_source_create_conflict
+        id: "1"
+        refresh: true
+        body:
+          field1: original
+
+  - do:
+      indices.put_settings:
+        index: dw_source_create_conflict
+        body:
+          index.dual_write.index_name: dw_target_create_conflict
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"create": {"_index": "dw_source_create_conflict", "_id": "1"}}
+          {"field1": "duplicate"}
+
+  # Source should fail with 409
+  - match: { errors: true }
+  - match: { items.0.create.status: 409 }
+
+  # Target should NOT have received the mirrored write (doc absent on target)
+  - do:
+      catch: missing
+      get:
+        index: dw_target_create_conflict
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_create_conflict,dw_target_create_conflict
+
+---
+"Dual write - if_seq_no/if_primary_term match, index request mirrored":
+  - do:
+      indices.create:
+        index: dw_source_cas_ok
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_cas_ok
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_cas_ok
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+  - do:
+      indices.put_settings:
+        index: dw_source_cas_ok
+        body:
+          index.dual_write.index_name: dw_target_cas_ok
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: dw_source_cas_ok
+              _id: "1"
+              if_seq_no: $seqno
+              if_primary_term: $primary_term
+          - field1: v2
+
+  - match: { errors: false }
+  - match: { items.0.index.result: updated }
+
+  - do:
+      get:
+        index: dw_target_cas_ok
+        id: "1"
+  - match: { _source: { field1: v2 }}
+
+  - do:
+      indices.delete:
+        index: dw_source_cas_ok,dw_target_cas_ok
+
+---
+"Dual write - if_seq_no mismatch, source fails, NOT mirrored to target":
+  - do:
+      indices.create:
+        index: dw_source_cas_fail
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_cas_fail
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Seed before enabling dual-write so the seed is not mirrored
+  - do:
+      index:
+        index: dw_source_cas_fail
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+  - set: { _primary_term: primary_term }
+
+  - do:
+      indices.put_settings:
+        index: dw_source_cas_fail
+        body:
+          index.dual_write.index_name: dw_target_cas_fail
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: dw_source_cas_fail
+              _id: "1"
+              if_seq_no: 99999
+              if_primary_term: $primary_term
+          - field1: v2
+
+  - match: { errors: true }
+  - match: { items.0.index.status: 409 }
+
+  # Target should not have the new value
+  - do:
+      catch: missing
+      get:
+        index: dw_target_cas_fail
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_cas_fail,dw_target_cas_fail
+
+---
+"Dual write - update doc-as-upsert, doc exists, merged source mirrored":
+  - do:
+      indices.create:
+        index: dw_source_upd_merge
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_upd_merge
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_upd_merge
+        id: "1"
+        refresh: true
+        body:
+          field1: original
+          field2: keep
+
+  - do:
+      indices.put_settings:
+        index: dw_source_upd_merge
+        body:
+          index.dual_write.index_name: dw_target_upd_merge
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update": {"_index": "dw_source_upd_merge", "_id": "1"}}
+          {"doc": {"field1": "updated"}}
+
+  - match: { errors: false }
+  - match: { items.0.index.result: updated }
+  - match: { items.1.index.result: created }
+
+  # Source has merged doc
+  - do:
+      get:
+        index: dw_source_upd_merge
+        id: "1"
+  - match: { _source: { field1: updated, field2: keep }}
+
+  # Target should have the fully merged source
+  - do:
+      get:
+        index: dw_target_upd_merge
+        id: "1"
+  - match: { _source: { field1: updated, field2: keep }}
+
+  - do:
+      indices.delete:
+        index: dw_source_upd_merge,dw_target_upd_merge
+
+---
+"Dual write - update doc-as-upsert, doc does not exist, upsert source mirrored":
+  - do:
+      indices.create:
+        index: dw_source_upsert
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_upsert
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_upsert
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update": {"_index": "dw_source_upsert", "_id": "1"}}
+          {"doc": {"field1": "upserted"}, "doc_as_upsert": true}
+
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      get:
+        index: dw_source_upsert
+        id: "1"
+  - match: { _source: { field1: upserted }}
+
+  - do:
+      get:
+        index: dw_target_upsert
+        id: "1"
+  - match: { _source: { field1: upserted }}
+
+  - do:
+      indices.delete:
+        index: dw_source_upsert,dw_target_upsert
+
+---
+"Dual write - update with explicit upsert, doc does not exist, upsert body mirrored":
+  - do:
+      indices.create:
+        index: dw_source_explicit_upsert
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_explicit_upsert
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_explicit_upsert
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update": {"_index": "dw_source_explicit_upsert", "_id": "1"}}
+          {"doc": {"field1": "partial"}, "upsert": {"field1": "full_upsert", "field2": "extra"}}
+
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      get:
+        index: dw_target_explicit_upsert
+        id: "1"
+  - match: { _source: { field1: full_upsert, field2: extra }}
+
+  - do:
+      indices.delete:
+        index: dw_source_explicit_upsert,dw_target_explicit_upsert
+
+---
+"Dual write - update CAS mismatch, source fails, NOT mirrored":
+  - do:
+      indices.create:
+        index: dw_source_upd_cas_fail
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_upd_cas_fail
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_upd_cas_fail
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+  - set: { _primary_term: primary_term }
+
+  - do:
+      indices.put_settings:
+        index: dw_source_upd_cas_fail
+        body:
+          index.dual_write.index_name: dw_target_upd_cas_fail
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - update:
+              _index: dw_source_upd_cas_fail
+              _id: "1"
+              if_seq_no: 99999
+              if_primary_term: $primary_term
+          - doc:
+              field1: v2
+
+  - match: { errors: true }
+  - match: { items.0.update.status: 409 }
+
+  - do:
+      catch: missing
+      get:
+        index: dw_target_upd_cas_fail
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_upd_cas_fail,dw_target_upd_cas_fail
+
+---
+"Dual write - delete request, soft_deletes_enabled=true, tombstone written to target":
+  - do:
+      indices.create:
+        index: dw_source_del_soft
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_del_soft
+            index.dual_write.soft_deletes_enabled: true
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_del_soft
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_del_soft", "_id": "1"}}
+          {"field1": "to_delete"}
+
+  - do:
+      delete:
+        index: dw_source_del_soft
+        id: "1"
+        refresh: true
+
+  - match: { result: deleted }
+
+  # Source doc is gone
+  - do:
+      catch: missing
+      get:
+        index: dw_source_del_soft
+        id: "1"
+
+  # Target has a tombstone document
+  - do:
+      get:
+        index: dw_target_del_soft
+        id: "1"
+  - match: { _source: { _tombstone: true } }
+
+  - do:
+      indices.delete:
+        index: dw_source_del_soft,dw_target_del_soft
+
+---
+"Dual write - delete request, soft_deletes_enabled=false, hard delete on target":
+  - do:
+      indices.create:
+        index: dw_source_del_hard
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_del_hard
+            index.dual_write.soft_deletes_enabled: false
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_del_hard
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Pre-index on both to confirm the delete propagates
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_del_hard", "_id": "1"}}
+          {"field1": "v1"}
+          {"index": {"_index": "dw_target_del_hard", "_id": "1"}}
+          {"field1": "v1"}
+
+  - do:
+      delete:
+        index: dw_source_del_hard
+        id: "1"
+        refresh: true
+
+  - match: { result: deleted }
+
+  - do:
+      catch: missing
+      get:
+        index: dw_source_del_hard
+        id: "1"
+
+  - do:
+      catch: missing
+      get:
+        index: dw_target_del_hard
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_del_hard,dw_target_del_hard
+
+---
+"Dual write - delete with if_seq_no match, mirrored":
+  - do:
+      indices.create:
+        index: dw_source_del_cas_ok
+        body:
+          settings:
+            index.dual_write.soft_deletes_enabled: false
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_del_cas_ok
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_del_cas_ok
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+  - do:
+      indices.put_settings:
+        index: dw_source_del_cas_ok
+        body:
+          index.dual_write.index_name: dw_target_del_cas_ok
+
+  # Pre-index on target too
+  - do:
+      index:
+        index: dw_target_del_cas_ok
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+
+  - do:
+      delete:
+        index: dw_source_del_cas_ok
+        id: "1"
+        refresh: true
+        if_seq_no: $seqno
+        if_primary_term: $primary_term
+
+  - match: { result: deleted }
+
+  - do:
+      catch: missing
+      get:
+        index: dw_target_del_cas_ok
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_del_cas_ok,dw_target_del_cas_ok
+
+---
+"Dual write - delete with if_seq_no mismatch, source fails, NOT mirrored":
+  - do:
+      indices.create:
+        index: dw_source_del_cas_fail
+        body:
+          settings:
+            index.dual_write.soft_deletes_enabled: false
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_del_cas_fail
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_del_cas_fail
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+  - set: { _primary_term: primary_term }
+
+  - do:
+      indices.put_settings:
+        index: dw_source_del_cas_fail
+        body:
+          index.dual_write.index_name: dw_target_del_cas_fail
+
+  - do:
+      index:
+        index: dw_target_del_cas_fail
+        id: "1"
+        refresh: true
+        body:
+          field1: v1
+
+  - do:
+      catch: conflict
+      delete:
+        index: dw_source_del_cas_fail
+        id: "1"
+        if_seq_no: 99999
+        if_primary_term: $primary_term
+
+  # Source failed with conflict — target doc must still exist
+  - do:
+      get:
+        index: dw_target_del_cas_fail
+        id: "1"
+  - match: { _source: { field1: v1 }}
+
+  - do:
+      indices.delete:
+        index: dw_source_del_cas_fail,dw_target_del_cas_fail
+
+---
+"Dual write - delete non-existent doc, noop, nothing written to target":
+  - do:
+      indices.create:
+        index: dw_source_del_noop
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_del_noop
+            index.dual_write.soft_deletes_enabled: true
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_del_noop
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      catch: missing
+      delete:
+        index: dw_source_del_noop
+        id: "nonexistent"
+        refresh: true
+
+  # No tombstone on target — nothing to mirror for a noop delete
+  - do:
+      catch: missing
+      get:
+        index: dw_target_del_noop
+        id: "nonexistent"
+
+  - do:
+      indices.delete:
+        index: dw_source_del_noop,dw_target_del_noop
+
+---
+"Dual write - mixed bulk with index, update, delete all mirrored correctly":
+  - do:
+      indices.create:
+        index: dw_source_mixed
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_mixed
+            index.dual_write.soft_deletes_enabled: true
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_mixed
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Seed doc for update and delete
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_mixed", "_id": "to_update"}}
+          {"field1": "original"}
+          {"index": {"_index": "dw_source_mixed", "_id": "to_delete"}}
+          {"field1": "will_be_deleted"}
+
+  # Mixed bulk: new index + update existing + delete existing
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_mixed", "_id": "new_doc"}}
+          {"field1": "brand_new"}
+          {"update": {"_index": "dw_source_mixed", "_id": "to_update"}}
+          {"doc": {"field1": "updated_value"}}
+          {"delete": {"_index": "dw_source_mixed", "_id": "to_delete"}}
+
+  - match: { errors: false }
+
+  # Verify target: new doc present
+  - do:
+      get:
+        index: dw_target_mixed
+        id: "new_doc"
+  - match: { _source: { field1: brand_new }}
+
+  # Verify target: updated doc has merged source
+  - do:
+      get:
+        index: dw_target_mixed
+        id: "to_update"
+  - match: { _source: { field1: updated_value }}
+
+  # Verify target: deleted doc has tombstone
+  - do:
+      get:
+        index: dw_target_mixed
+        id: "to_delete"
+  - match: { _source: { _tombstone: true } }
+
+  - do:
+      indices.delete:
+        index: dw_source_mixed,dw_target_mixed
+
+---
+"Dual write - requests to non-dual-write index are unaffected":
+  - do:
+      indices.create:
+        index: dw_source_nodw
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_other
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_nodw", "_id": "1"}}
+          {"field1": "v1"}
+          {"index": {"_index": "dw_other", "_id": "1"}}
+          {"field1": "v1"}
+
+  - match: { errors: false }
+
+  - do:
+      count:
+        index: dw_source_nodw
+  - match: { count: 1 }
+
+  - do:
+      count:
+        index: dw_other
+  - match: { count: 1 }
+
+  - do:
+      indices.delete:
+        index: dw_source_nodw,dw_other
+
+---
+"Dual write - update with noop detect, noop not mirrored":
+  - do:
+      indices.create:
+        index: dw_source_noop
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_noop
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: dw_source_noop
+        id: "1"
+        refresh: true
+        body:
+          field1: same_value
+
+  - do:
+      indices.put_settings:
+        index: dw_source_noop
+        body:
+          index.dual_write.index_name: dw_target_noop
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update": {"_index": "dw_source_noop", "_id": "1"}}
+          {"doc": {"field1": "same_value"}, "detect_noop": true}
+
+  - match: { errors: false }
+  - match: { items.0.update.result: noop }
+
+  # Target should not have received anything (noop not mirrored)
+  - do:
+      catch: missing
+      get:
+        index: dw_target_noop
+        id: "1"
+
+  - do:
+      indices.delete:
+        index: dw_source_noop,dw_target_noop
+
+---
+"Dual write - setting can be dynamically updated":
+  - do:
+      indices.create:
+        index: dw_source_dynamic
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_dynamic
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Index without dual write — no mirror
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_dynamic", "_id": "1"}}
+          {"field1": "before_dw"}
+
+  - do:
+      count:
+        index: dw_target_dynamic
+  - match: { count: 0 }
+
+  # Enable dual write dynamically
+  - do:
+      indices.put_settings:
+        index: dw_source_dynamic
+        body:
+          index.dual_write.index_name: dw_target_dynamic
+
+  # Index with dual write now enabled — should mirror
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_dynamic", "_id": "2"}}
+          {"field1": "after_dw"}
+
+  - do:
+      count:
+        index: dw_target_dynamic
+  - match: { count: 1 }
+
+  - do:
+      get:
+        index: dw_target_dynamic
+        id: "2"
+  - match: { _source: { field1: after_dw }}
+
+  - do:
+      indices.delete:
+        index: dw_source_dynamic,dw_target_dynamic
+
+---
+"Dual write - soft_deletes_enabled default is true":
+  - do:
+      indices.create:
+        index: dw_source_default_soft
+        body:
+          settings:
+            index.dual_write.index_name: dw_target_default_soft
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: dw_target_default_soft
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "dw_source_default_soft", "_id": "1"}}
+          {"field1": "v1"}
+
+  - do:
+      delete:
+        index: dw_source_default_soft
+        id: "1"
+        refresh: true
+
+  - match: { result: deleted }
+
+  # Default soft_deletes_enabled=true means tombstone on target
+  - do:
+      get:
+        index: dw_target_default_soft
+        id: "1"
+  - match: { _source: { _tombstone: true } }
+
+  - do:
+      indices.delete:
+        index: dw_source_default_soft,dw_target_default_soft
