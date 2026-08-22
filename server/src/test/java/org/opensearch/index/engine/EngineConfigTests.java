@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.codecs.Codec;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -16,6 +17,8 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
 
 public class EngineConfigTests extends OpenSearchTestCase {
 
@@ -60,6 +63,25 @@ public class EngineConfigTests extends OpenSearchTestCase {
         );
         EngineConfig engineConfig = createReadOnlyEngine(indexSettings);
         assertTrue(engineConfig.isReadOnlyReplica());
+    }
+
+    public void testInvalidCodecMessageListsAllAcceptedNames() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EngineConfig.INDEX_CODEC_SETTING.get(Settings.builder().put("index.codec", "not_a_codec").build())
+        );
+        String message = e.getMessage();
+        assertTrue(message, message.contains("lucene_default"));
+        assertTrue(message, message.contains("best_compression"));
+        for (String codec : Codec.availableCodecs()) {
+            assertTrue(message, message.contains(codec));
+        }
+    }
+
+    public void testValidCodecNamesAreAccepted() {
+        for (String codec : List.of("default", "lz4", "best_compression", "zlib", "lucene_default")) {
+            assertEquals(codec, EngineConfig.INDEX_CODEC_SETTING.get(Settings.builder().put("index.codec", codec).build()));
+        }
     }
 
     private EngineConfig createReadOnlyEngine(IndexSettings indexSettings) {
