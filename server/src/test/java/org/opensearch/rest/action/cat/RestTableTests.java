@@ -291,6 +291,167 @@ public class RestTableTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(1, 0, 2), rowOrder);
     }
 
+    public void testLimitWithoutSummarize() {
+        Table table = buildSimpleSortableTable();
+        restRequest.params().put("limit", "2");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertThat(rowOrder.size(), equalTo(2));
+        // No sort: rows returned in insertion order (0, 1).
+        assertEquals(Arrays.asList(0, 1), rowOrder);
+    }
+
+    public void testLimitWithSortReturnsTopN() {
+        Table table = buildSimpleSortableTable();
+        restRequest.params().put("s", "compare:desc");
+        restRequest.params().put("limit", "2");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        // Values are [3, 1, 2] at indices [0, 1, 2]. Descending sort: [3, 2, 1] => indices [0, 2, 1].
+        // Top-2 by sort key => indices [0, 2].
+        assertEquals(Arrays.asList(0, 2), rowOrder);
+    }
+
+    public void testLimitGreaterThanRowsReturnsAll() {
+        Table table = buildSimpleSortableTable();
+        restRequest.params().put("limit", "100");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertThat(rowOrder.size(), equalTo(3));
+    }
+
+    public void testLimitEqualToRowsReturnsAll() {
+        Table table = buildSimpleSortableTable();
+        restRequest.params().put("limit", "3");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertThat(rowOrder.size(), equalTo(3));
+    }
+
+    public void testLimitZeroOrNegativeIsIgnored() {
+        Table table = buildSimpleSortableTable();
+        // limit=0 and any negative value are treated as "no limit" (only positive values apply).
+        restRequest.params().put("limit", "0");
+        assertThat(RestTable.getRowOrder(table, restRequest).size(), equalTo(3));
+
+        restRequest.params().put("limit", "-5");
+        assertThat(RestTable.getRowOrder(table, restRequest).size(), equalTo(3));
+    }
+
+    public void testNoLimitParamReturnsAll() {
+        Table table = buildSimpleSortableTable();
+        // Regression: no limit param at all should return all rows (default behavior unchanged).
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertThat(rowOrder.size(), equalTo(3));
+    }
+
+    public void testLimitAppliesToTextOutput() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("name");
+        t.endHeaders();
+        for (String n : Arrays.asList("a", "b", "c", "d", "e")) {
+            t.startRow();
+            t.addCell(n);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN))
+        ).build();
+        req.params().put("limit", "2");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        // Two lines, each ending with newline. Body should be "a\nb\n".
+        assertThat(response.content().utf8ToString(), equalTo("a\nb\n"));
+    }
+
+    public void testLimitAppliesToJsonOutput() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("name");
+        t.endHeaders();
+        for (String n : Arrays.asList("a", "b", "c", "d", "e")) {
+            t.startRow();
+            t.addCell(n);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        req.params().put("limit", "3");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(response.content().utf8ToString(), equalTo("[{\"name\":\"a\"},{\"name\":\"b\"},{\"name\":\"c\"}]"));
+    }
+
+    public void testHeaderAggregationTriggersSummarizedJsonOutput() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // A function token in h= triggers summarization; `index` is inferred as the GROUP BY key.
+        req.params().put("h", "index,sum(docs)");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(
+            response.content().utf8ToString(),
+            equalTo("[{\"index\":\"idx-a\",\"sum(docs)\":\"300\"},{\"index\":\"idx-b\",\"sum(docs)\":\"50\"}]")
+        );
+    }
+
+    public void testHeaderWithoutAggregationIsNotSummarized() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // Bare columns only => ordinary listing, all three rows preserved (no grouping).
+        req.params().put("h", "index");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(response.content().utf8ToString(), equalTo("[{\"index\":\"idx-a\"},{\"index\":\"idx-a\"},{\"index\":\"idx-b\"}]"));
+    }
+
+    private Table buildSimpleSortableTable() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("compare");
+        table.endHeaders();
+        for (Integer v : Arrays.asList(3, 1, 2)) {
+            table.startRow();
+            table.addCell(v);
+            table.endRow();
+        }
+        return table;
+    }
+
     private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType) throws Exception {
         return assertResponseContentType(headers, mediaType, table);
     }
@@ -357,4 +518,6 @@ public class RestTableTests extends OpenSearchTestCase {
         table.addCell("epoch", "alias:t");
         table.endHeaders();
     }
+
+    // --- Summarize tests moved to TableSummarizerTests when buildSummarizedTable was extracted ---
 }
