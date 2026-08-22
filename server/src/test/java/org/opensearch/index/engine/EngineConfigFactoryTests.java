@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.unit.TimeValue;
@@ -80,6 +81,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             new InternalTranslogFactory(),
             null,
             null,
+            QueryBitSetProducer::new,
             null,
             null,
             null,
@@ -194,6 +196,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             new InternalTranslogFactory(),
             null,
             null,
+            QueryBitSetProducer::new,
             null,
             null,
             null,
