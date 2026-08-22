@@ -22,9 +22,11 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.opensearch.dsl.aggregation.AggregationMetadata;
+import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -40,6 +42,10 @@ import java.util.Properties;
  * by the analytics engine.
  */
 public class SearchSourceConverter {
+
+    /** Immutable after creation with stateless translators — shared across all requests. */
+    private static final QueryRegistry QUERY_REGISTRY = QueryRegistryFactory.create();
+    private static final AggregationRegistry AGG_REGISTRY = AggregationRegistryFactory.create();
 
     private final RelOptCluster cluster;
     private final CalciteCatalogReader catalogReader;
@@ -71,14 +77,18 @@ public class SearchSourceConverter {
             new CalciteConnectionConfigImpl(new Properties())
         );
 
-        this.filterConverter = new FilterConverter(QueryRegistryFactory.create());
+        this.filterConverter = new FilterConverter(QUERY_REGISTRY);
         this.projectConverter = new ProjectConverter();
         this.sortConverter = new SortConverter();
         this.aggConverter = new AggregateConverter();
         this.postAggConverter = new PostAggregateConverter();
 
-        var aggRegistry = AggregationRegistryFactory.create();
-        this.treeWalker = new AggregationTreeWalker(aggRegistry);
+        this.treeWalker = new AggregationTreeWalker(AGG_REGISTRY);
+    }
+
+    /** Returns the aggregation registry used by this converter. */
+    public AggregationRegistry getAggregationRegistry() {
+        return AGG_REGISTRY;
     }
 
     /**
@@ -125,7 +135,7 @@ public class SearchSourceConverter {
                 ConversionContext aggCtx = ctx.withAggregationMetadata(metadata);
                 RelNode aggs = aggConverter.convert(base, metadata);
                 aggs = postAggConverter.convert(aggs, aggCtx);
-                builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs));
+                builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs, metadata));
             }
         }
 

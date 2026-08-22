@@ -10,6 +10,7 @@ package org.opensearch.dsl.aggregation.bucket;
 
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.GroupingInfo;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -29,7 +30,7 @@ public interface BucketTranslator<T extends AggregationBuilder> extends Aggregat
      * @param agg the bucket aggregation builder
      * @return the grouping info
      */
-    GroupingInfo getGrouping(T agg);
+    GroupingInfo getGrouping(T agg) throws ConversionException;
 
     /**
      * Returns sub-aggregations to recurse into.
@@ -49,6 +50,8 @@ public interface BucketTranslator<T extends AggregationBuilder> extends Aggregat
 
     /**
      * Converts grouped bucket entries into an OpenSearch InternalAggregation for response building.
+     * Each entry carries one key per field declared in {@link #getGrouping}, in declaration order:
+     * {@code keys().get(i)} is the value of the i-th group field.
      *
      * @param agg the original aggregation builder
      * @param buckets the bucket entries with keys, doc counts, and sub-aggs

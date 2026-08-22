@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.result;
 
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -17,12 +18,18 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.dsl.aggregation.AggregationRegistry;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.golden.CalciteTestInfra;
 import org.opensearch.dsl.golden.GoldenFileLoader;
 import org.opensearch.dsl.golden.GoldenTestCase;
 import org.opensearch.search.SearchModule;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -39,13 +46,372 @@ import java.util.stream.Collectors;
 
 public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
-    public void testBuildReturnsEmptyResponse() {
-        SearchResponse response = SearchResponseBuilder.build(List.of(), 42L * 1_000_000);
+    public void testBuildWithNoResults() throws Exception {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder());
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 42L);
 
         assertNotNull(response);
         assertEquals(200, response.status().getStatus());
         assertEquals(0, response.getHits().getHits().length);
         assertEquals(42L, response.getTook().millis());
+        assertNull(response.getAggregations());
+        assertEquals(1, response.getTotalShards());
+        assertEquals(1, response.getSuccessfulShards());
+    }
+
+    public void testBuildWithEmptyRequest() throws Exception {
+        SearchRequest request = new SearchRequest();
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 100L);
+
+        assertNotNull(response);
+        assertEquals(200, response.status().getStatus());
+        assertEquals(100L, response.getTook().millis());
+        assertNull(response.getAggregations());
+    }
+
+    public void testBuildWithNullSource() throws Exception {
+        SearchRequest request = new SearchRequest();
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 50L);
+
+        assertNotNull(response);
+        assertEquals(200, response.status().getStatus());
+        assertNull(response.getAggregations());
+        assertEquals(1, response.getTotalShards());
+    }
+
+    public void testBuildWithAggregationsButNoResults() throws Exception {
+        SearchRequest request = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.avg("avg_price").field("price"));
+        request.source(source);
+
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 75L);
+
+        assertNotNull(response);
+        assertEquals(75L, response.getTook().millis());
+        assertNull(response.getAggregations());
+    }
+
+    public void testShardCountsWithNoAggregations() throws Exception {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder());
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 10L);
+
+        assertEquals(1, response.getTotalShards());
+        assertEquals(1, response.getSuccessfulShards());
+        assertEquals(0, response.getSkippedShards());
+        assertEquals(0, response.getFailedShards());
+    }
+
+    public void testTimingPreserved() throws Exception {
+        SearchRequest request = new SearchRequest();
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response1 = SearchResponseBuilder.build(List.of(), request, registry, 0L);
+        assertEquals(0L, response1.getTook().millis());
+
+        SearchResponse response2 = SearchResponseBuilder.build(List.of(), request, registry, 999L);
+        assertEquals(999L, response2.getTook().millis());
+    }
+
+    public void testEmptyHitsAlwaysReturned() throws Exception {
+        SearchRequest request = new SearchRequest();
+        AggregationRegistry registry = new AggregationRegistry();
+
+        SearchResponse response = SearchResponseBuilder.build(List.of(), request, registry, 10L);
+
+        assertNotNull(response.getHits());
+        assertEquals(0, response.getHits().getHits().length);
+        assertNotNull(response.getHits().getTotalHits());
+    }
+
+    /**
+     * Regression: granularity keys must match even when the schema's column order opposes
+     * the request's nesting order (schema declares category before brand; request nests
+     * brand → category). Before key canonicalization this returned empty aggregations.
+     */
+    public void testNestedGroupFieldsWithOpposingSchemaOrder() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("category", "VARCHAR"); // lower column index than brand — the crux
+        mapping.put("brand", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                AggregationBuilders.terms("by_brand")
+                    .field("brand")
+                    .subAggregation(
+                        AggregationBuilders.terms("by_category")
+                            .field("category")
+                            .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                    )
+            );
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals(2, aggPlans.size());
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : aggPlans) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            if (fields.contains("avg_price")) {
+                // Group columns arrive in schema order (category first) despite brand-first nesting.
+                assertEquals(List.of("category", "brand", "avg_price", "_count"), fields);
+                results.add(
+                    new ExecutionResult(
+                        plan,
+                        List.of(new Object[] { "Cat1", "BrandA", 850.0, 2L }, new Object[] { "Cat2", "BrandA", 700.0, 1L })
+                    )
+                );
+            } else {
+                assertEquals(List.of("brand", "_count"), fields);
+                results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { "BrandA", 3L })));
+            }
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        StringTerms byBrand = response.getAggregations().get("by_brand");
+        assertNotNull("by_brand must be present", byBrand);
+        assertEquals(1, byBrand.getBuckets().size());
+        assertEquals("BrandA", byBrand.getBuckets().get(0).getKeyAsString());
+        assertEquals(3L, byBrand.getBuckets().get(0).getDocCount());
+
+        StringTerms byCategory = byBrand.getBuckets().get(0).getAggregations().get("by_category");
+        assertNotNull("by_category must be present inside the brand bucket", byCategory);
+        assertEquals(2, byCategory.getBuckets().size());
+        assertEquals("Cat1", byCategory.getBuckets().get(0).getKeyAsString());
+        assertEquals(2L, byCategory.getBuckets().get(0).getDocCount());
+        InternalAvg avg1 = byCategory.getBuckets().get(0).getAggregations().get("avg_price");
+        assertEquals(850.0, avg1.getValue(), 0.0);
+        InternalAvg avg2 = byCategory.getBuckets().get(1).getAggregations().get("avg_price");
+        assertEquals(700.0, avg2.getValue(), 0.0);
+    }
+
+    /**
+     * Regression: sibling aggregation trees over the same field SET but opposite nesting order
+     * (brand→category vs category→brand) produce two distinct plans and must resolve to two
+     * distinct results. Under the old order-insensitive (sorted) granularity keys, both deep
+     * plans collapsed onto one map slot: the second plan's result silently overwrote the
+     * first's, and the losing tree's metric came back empty ({@code "value": null}) beneath
+     * correct-looking buckets.
+     */
+    public void testReversedNestingSiblingTreesDoNotCollide() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("category", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                AggregationBuilders.terms("brand_first")
+                    .field("brand")
+                    .subAggregation(
+                        AggregationBuilders.terms("by_category")
+                            .field("category")
+                            .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                    )
+            )
+            .aggregation(
+                AggregationBuilders.terms("cat_first")
+                    .field("category")
+                    .subAggregation(
+                        AggregationBuilders.terms("by_brand")
+                            .field("brand")
+                            .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
+                    )
+            );
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals(4, aggPlans.size());
+
+        // Data story: 3 docs — BrandA/Cat1/800, BrandA/Cat1/900, BrandA/Cat2/700.
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : aggPlans) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            if (fields.contains("avg_price")) {
+                // Both deep plans group by {brand, category} and emit columns in schema order —
+                // identical layouts, distinguished ONLY by the metadata's nesting order.
+                assertEquals(List.of("brand", "category", "avg_price", "_count"), fields);
+                results.add(
+                    new ExecutionResult(
+                        plan,
+                        List.of(new Object[] { "BrandA", "Cat1", 850.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                    )
+                );
+            } else if (fields.contains("sum_price")) {
+                assertEquals(List.of("brand", "category", "sum_price", "_count"), fields);
+                results.add(
+                    new ExecutionResult(
+                        plan,
+                        List.of(new Object[] { "BrandA", "Cat1", 1700.0, 2L }, new Object[] { "BrandA", "Cat2", 700.0, 1L })
+                    )
+                );
+            } else if (fields.equals(List.of("brand", "_count"))) {
+                results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[] { "BrandA", 3L })));
+            } else {
+                assertEquals(List.of("category", "_count"), fields);
+                results.add(new ExecutionResult(plan, List.of(new Object[] { "Cat1", 2L }, new Object[] { "Cat2", 1L })));
+            }
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        // brand_first → BrandA → by_category → Cat1 (avg 850), Cat2 (avg 700)
+        StringTerms brandFirst = response.getAggregations().get("brand_first");
+        assertNotNull("brand_first must be present", brandFirst);
+        assertEquals(1, brandFirst.getBuckets().size());
+        StringTerms byCategory = brandFirst.getBuckets().get(0).getAggregations().get("by_category");
+        assertEquals(2, byCategory.getBuckets().size());
+        InternalAvg avgCat1 = byCategory.getBuckets().get(0).getAggregations().get("avg_price");
+        assertEquals("brand_first's metric must not be lost to the sibling tree", 850.0, avgCat1.getValue(), 0.0);
+        InternalAvg avgCat2 = byCategory.getBuckets().get(1).getAggregations().get("avg_price");
+        assertEquals(700.0, avgCat2.getValue(), 0.0);
+
+        // cat_first → Cat1 → by_brand → BrandA (sum 1700); Cat2 → by_brand → BrandA (sum 700)
+        StringTerms catFirst = response.getAggregations().get("cat_first");
+        assertNotNull("cat_first must be present", catFirst);
+        assertEquals(2, catFirst.getBuckets().size());
+        StringTerms byBrandCat1 = catFirst.getBuckets().get(0).getAggregations().get("by_brand");
+        InternalSum sumCat1 = byBrandCat1.getBuckets().get(0).getAggregations().get("sum_price");
+        assertEquals(1700.0, sumCat1.getValue(), 0.0);
+        StringTerms byBrandCat2 = catFirst.getBuckets().get(1).getAggregations().get("by_brand");
+        InternalSum sumCat2 = byBrandCat2.getBuckets().get(0).getAggregations().get("sum_price");
+        assertEquals(700.0, sumCat2.getValue(), 0.0);
+    }
+
+    /** Terms {@code size} truncates to the top-N buckets and reports the rest as sum_other_doc_count. */
+    public void testTermsSizeTruncation() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(AggregationBuilders.terms("by_brand").field("brand").size(1));
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            assertEquals(List.of("brand", "_count"), plan.relNode().getRowType().getFieldNames());
+            results.add(new ExecutionResult(plan, List.of(new Object[] { "BrandA", 3L }, new Object[] { "BrandB", 2L })));
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        StringTerms byBrand = response.getAggregations().get("by_brand");
+        assertEquals(1, byBrand.getBuckets().size());
+        assertEquals("BrandA", byBrand.getBuckets().get(0).getKeyAsString());
+        assertEquals(3L, byBrand.getBuckets().get(0).getDocCount());
+        assertEquals(2L, byBrand.getSumOfOtherDocCounts());
+    }
+
+    /** A result table missing a requested metric's column is a broken invariant — throw, don't render {@code "value": null}. */
+    public void testMissingMetricColumnThrows() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        // Results computed for a metric named "other"
+        SearchSourceBuilder executedSource = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.avg("other").field("price"));
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(executedSource, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            int columnCount = plan.relNode().getRowType().getFieldCount();
+            results.add(new ExecutionResult(plan, List.<Object[]>of(new Object[columnCount])));
+        }
+
+        // Response requested for "avg_price" — same granularity, but no such column in the result
+        SearchRequest request = new SearchRequest("products");
+        request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.avg("avg_price").field("price")));
+
+        expectThrows(
+            ConversionException.class,
+            () -> SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L)
+        );
+    }
+
+    /**
+     * User-supplied {@code meta} on an aggregation request must be echoed back verbatim on the
+     * corresponding response aggregation — classic search parity — for both bucket and metric
+     * aggregations, through the full plan/response round trip.
+     */
+    public void testUserMetaEchoedInAggregations() throws Exception {
+        Map<String, String> mapping = new java.util.LinkedHashMap<>();
+        mapping.put("brand", "VARCHAR");
+        mapping.put("price", "INTEGER");
+        CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+
+        Map<String, Object> termsMeta = Map.of("source", "dashboard");
+        Map<String, Object> avgMeta = Map.of("owner", "pricing-team");
+
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                AggregationBuilders.terms("by_brand")
+                    .field("brand")
+                    .setMetadata(termsMeta)
+                    .subAggregation(AggregationBuilders.avg("avg_price").field("price").setMetadata(avgMeta))
+            );
+
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        QueryPlans plans = converter.convert(source, "products");
+
+        List<ExecutionResult> results = new ArrayList<>();
+        for (QueryPlans.QueryPlan plan : plans.get(QueryPlans.Type.AGGREGATION)) {
+            List<String> fields = plan.relNode().getRowType().getFieldNames();
+            Object[] row = new Object[fields.size()];
+            for (int i = 0; i < fields.size(); i++) {
+                if ("brand".equals(fields.get(i))) {
+                    row[i] = "BrandA";
+                } else if ("avg_price".equals(fields.get(i))) {
+                    row[i] = 850.0;
+                } else if ("_count".equals(fields.get(i))) {
+                    row[i] = 3L;
+                } else {
+                    fail("Unexpected column: " + fields.get(i));
+                }
+            }
+            results.add(new ExecutionResult(plan, List.<Object[]>of(row)));
+        }
+
+        SearchRequest request = new SearchRequest("products");
+        request.source(source);
+        SearchResponse response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), 1L);
+
+        StringTerms byBrand = response.getAggregations().get("by_brand");
+        assertNotNull(byBrand);
+        assertEquals(termsMeta, byBrand.getMetadata());
+
+        InternalAvg avg = byBrand.getBuckets().get(0).getAggregations().get("avg_price");
+        assertNotNull(avg);
+        assertEquals(avgMeta, avg.getMetadata());
+        assertEquals(850.0, avg.getValue(), 0.0);
     }
 
     // ---- Golden file driven SearchResponse generation tests ----
@@ -91,7 +457,14 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                 ExecutionResult result = new ExecutionResult(matchingPlans.get(0), rows);
 
                 // Build and serialize SearchResponse
-                SearchResponse response = SearchResponseBuilder.build(List.of(result), 0L);
+                SearchRequest searchRequest = new SearchRequest(tc.getIndexName());
+                searchRequest.source(searchSource);
+                SearchResponse response = SearchResponseBuilder.build(
+                    List.of(result),
+                    searchRequest,
+                    converter.getAggregationRegistry(),
+                    0L
+                );
                 String responseJson = Strings.toString(MediaTypeRegistry.JSON, response);
 
                 Map<String, Object> actualOutput = XContentHelper.convertToMap(JsonXContent.jsonXContent, responseJson, false);

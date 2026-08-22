@@ -1,19 +1,23 @@
 {
-  "testName": "terms_with_avg_aggregation",
+  "testName": "multi_terms_with_avg_aggregation",
   "indexName": "test-index",
   "indexMapping": {
     "name": "VARCHAR",
     "price": "INTEGER",
     "brand": "VARCHAR",
+    "status": "VARCHAR",
     "rating": "DOUBLE"
   },
   "planType": "AGGREGATION",
   "inputDsl": {
     "size": 0,
     "aggregations": {
-      "by_brand": {
-        "terms": {
-          "field": "brand"
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "brand" },
+            { "field": "status" }
+          ]
         },
         "aggregations": {
           "avg_price": {
@@ -26,14 +30,14 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
-    "  LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])",
+    "LogicalSort(sort0=[$3], sort1=[$0], sort2=[$1], dir0=[DESC], dir1=[ASC], dir2=[ASC])",
+    "  LogicalAggregate(group=[{2, 3}], avg_price=[AVG($1)], _count=[COUNT()])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["brand", "avg_price", "_count"],
+  "mockResultFieldNames": ["brand", "status", "avg_price", "_count"],
   "mockResultRows": [
-    ["BrandA", 850.0, 3],
-    ["BrandB", 1100.0, 2]
+    ["BrandA", "active", 850.0, 3],
+    ["BrandB", "inactive", 1100.0, 2]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -46,19 +50,21 @@
       "hits": []
     },
     "aggregations": {
-      "by_brand": {
+      "combo": {
         "doc_count_error_upper_bound": 0,
         "sum_other_doc_count": 0,
         "buckets": [
           {
-            "key": "BrandA",
+            "key": ["BrandA", "active"],
+            "key_as_string": "BrandA|active",
             "doc_count": 3,
             "avg_price": {
               "value": 850.0
             }
           },
           {
-            "key": "BrandB",
+            "key": ["BrandB", "inactive"],
+            "key_as_string": "BrandB|inactive",
             "doc_count": 2,
             "avg_price": {
               "value": 1100.0
