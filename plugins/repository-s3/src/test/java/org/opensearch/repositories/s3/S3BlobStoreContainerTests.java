@@ -655,13 +655,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
         when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
-        final StorageClass storageClass = randomFrom(StorageClass.values());
+        final StorageClass storageClass = randomBoolean() ? randomFrom(StorageClass.values()) : null;
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
-        if (cannedAccessControlList != null) {
-            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
-        }
+        when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
 
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
@@ -701,6 +699,40 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         } else {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
+    }
+
+    public void testExecuteSingleUploadOmitsUnsetAclAndStorageClass() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(0, 1024));
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(2048L);
+        when(blobStore.getStorageClass()).thenReturn(null);
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+
+        final S3Client client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final ArgumentCaptor<PutObjectRequest> putReqCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        when(client.putObject(putReqCaptor.capture(), any(RequestBody.class))).thenReturn(PutObjectResponse.builder().build());
+
+        new S3BlobContainer(new BlobPath(), blobStore).executeSingleUpload(
+            blobStore,
+            blobName,
+            new ByteArrayInputStream(payload),
+            payload.length,
+            null,
+            null
+        );
+
+        final PutObjectRequest request = putReqCaptor.getValue();
+        assertNull(request.storageClass());
+        assertNull(request.acl());
     }
 
     public void testExecuteMultipartUploadBlobSizeTooLarge() {
@@ -768,13 +800,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
         when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
-        final StorageClass storageClass = randomFrom(StorageClass.values());
+        final StorageClass storageClass = randomBoolean() ? randomFrom(StorageClass.values()) : null;
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
-        if (cannedAccessControlList != null) {
-            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
-        }
+        when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
 
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
@@ -866,6 +896,49 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             .map(CompletedPart::eTag)
             .collect(Collectors.toList());
         assertEquals(expectedEtags, actualETags);
+    }
+
+    public void testExecuteMultipartUploadOmitsUnsetAclAndStorageClass() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final long blobSize = ByteSizeUnit.MB.toBytes(6);
+        final long bufferSize = ByteSizeUnit.MB.toBytes(5);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+        when(blobStore.getStorageClass()).thenReturn(null);
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+
+        final S3Client client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final ArgumentCaptor<CreateMultipartUploadRequest> createCaptor = ArgumentCaptor.forClass(CreateMultipartUploadRequest.class);
+        when(client.createMultipartUpload(createCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId("upload-id").build()
+        );
+        when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+            UploadPartResponse.builder().eTag("etag").build()
+        );
+        when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            CompleteMultipartUploadResponse.builder().build()
+        );
+
+        new S3BlobContainer(new BlobPath(), blobStore).executeMultipartUpload(
+            blobStore,
+            blobName,
+            new ByteArrayInputStream(new byte[(int) blobSize]),
+            blobSize,
+            null,
+            null
+        );
+
+        final CreateMultipartUploadRequest request = createCaptor.getValue();
+        assertNull(request.storageClass());
+        assertNull(request.acl());
     }
 
     public void testExecuteMultipartUploadAborted() {
@@ -1016,9 +1089,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             "bucket-owner-read",
             "bucket-owner-full-control" };
 
-        // empty acl
-        assertThat(S3BlobStore.initCannedACL(null), equalTo(ObjectCannedACL.PRIVATE));
-        assertThat(S3BlobStore.initCannedACL(""), equalTo(ObjectCannedACL.PRIVATE));
+        // empty acl omits the header and lets S3 apply its default
+        assertNull(S3BlobStore.initCannedACL(null));
+        assertNull(S3BlobStore.initCannedACL(""));
 
         // it should init cannedACL correctly
         for (String aclString : aclList) {
@@ -1039,9 +1112,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testInitStorageClass() {
-        // it should default to `standard`
-        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.STANDARD));
+        // empty storage class omits the header and lets S3 apply its default
+        assertNull(S3BlobStore.initStorageClass(null));
+        assertNull(S3BlobStore.initStorageClass(""));
 
         // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
         assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
