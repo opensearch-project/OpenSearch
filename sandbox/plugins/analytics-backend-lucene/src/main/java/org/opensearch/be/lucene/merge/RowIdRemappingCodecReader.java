@@ -20,8 +20,8 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
  * <p>This ensures the merged segment's {@code ___row_id} field stores the new global row IDs
  * from the {@link RowIdMapping}, not the original per-segment local values.
  *
- * <p>The IndexSort on the writer handles document <em>ordering</em> during merge.
- * This reader handles the <em>values</em> written to the merged segment.
+ * <p>Each instance holds the {@link RowIdMapping} for its specific generation — the generation
+ * resolution has already been performed upstream by {@link RowIdRemappingOneMerge}.
  *
  * @opensearch.experimental
  */
@@ -29,19 +29,16 @@ import org.opensearch.index.engine.dataformat.RowIdMapping;
 class RowIdRemappingCodecReader extends FilterCodecReader {
 
     private final RowIdMapping rowIdMapping;
-    private final long generation;
     private final int rowIdOffset;
 
     /**
      * @param in           the source codec reader to wrap
-     * @param rowIdMapping the mapping from old to new row IDs, or null for sequential assignment
-     * @param generation   the writer generation of this segment
+     * @param rowIdMapping the mapping from old to new row IDs for this segment's generation, or null for sequential assignment
      * @param rowIdOffset  the starting row ID offset for sequential assignment
      */
-    RowIdRemappingCodecReader(CodecReader in, RowIdMapping rowIdMapping, long generation, int rowIdOffset) {
+    RowIdRemappingCodecReader(CodecReader in, RowIdMapping rowIdMapping, int rowIdOffset) {
         super(in);
         this.rowIdMapping = rowIdMapping;
-        this.generation = generation;
         this.rowIdOffset = rowIdOffset;
     }
 
@@ -51,7 +48,7 @@ class RowIdRemappingCodecReader extends FilterCodecReader {
         if (delegate == null) {
             return null;
         }
-        return new RowIdRemappingDocValuesProducer(delegate, rowIdMapping, generation, in.maxDoc(), rowIdOffset);
+        return new RowIdRemappingDocValuesProducer(delegate, rowIdMapping, in.maxDoc(), rowIdOffset);
     }
 
     @Override
