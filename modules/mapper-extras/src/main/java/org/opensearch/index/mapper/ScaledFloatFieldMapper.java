@@ -213,6 +213,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public boolean hasSkipList() {
+            return skiplist;
+        }
+
+        @Override
         public byte[] encodePoint(Number value) {
             assert value instanceof Double;
             double doubleValue = (Double) value;
