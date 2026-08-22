@@ -72,12 +72,14 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean PRIMARY_ONLY = false;
+        public static final boolean ONLY_UPGRADE_LUCENE = false;
     }
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean primaryOnly = Defaults.PRIMARY_ONLY;
+    private boolean onlyUpgradeLucene = Defaults.ONLY_UPGRADE_LUCENE;
 
     private static final Version FORCE_MERGE_UUID_VERSION = Version.V_3_0_0;
 
@@ -114,6 +116,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
                 "As of legacy version 7.7 [" + Engine.FORCE_MERGE_UUID_KEY + "] is no longer optional in force merge requests."
             );
         }
+        onlyUpgradeLucene = in.getVersion().onOrAfter(Version.V_3_7_0) ? in.readBoolean() : Defaults.ONLY_UPGRADE_LUCENE;
     }
 
     /**
@@ -189,6 +192,23 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
+     * Should the force merge only upgrade Lucene segments written by an older version to the latest Lucene version.
+     * When set to {@code true}, no actual segment merging is performed — only segments with an older Lucene version
+     * are rewritten. Defaults to {@code false}.
+     */
+    public boolean onlyUpgradeLucene() {
+        return onlyUpgradeLucene;
+    }
+
+    /**
+     * See {@link #onlyUpgradeLucene()}.
+     */
+    public ForceMergeRequest onlyUpgradeLucene(boolean onlyUpgradeLucene) {
+        this.onlyUpgradeLucene = onlyUpgradeLucene;
+        return this;
+    }
+
+    /**
      * Should this task store its result after it has finished?
      */
     public void setShouldStoreResult(boolean shouldStoreResult) {
@@ -212,6 +232,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + flush
             + "], primaryOnly["
             + primaryOnly
+            + "], onlyUpgradeLucene["
+            + onlyUpgradeLucene
             + "]";
     }
 
@@ -229,6 +251,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         } else {
             out.writeOptionalString(forceMergeUUID);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeBoolean(onlyUpgradeLucene);
+        }
     }
 
     @Override
@@ -242,6 +267,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + flush
             + ", primaryOnly="
             + primaryOnly
+            + ", onlyUpgradeLucene="
+            + onlyUpgradeLucene
             + '}';
     }
 }
