@@ -38,6 +38,7 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -382,6 +383,23 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         }
     };
 
+    /**
+     * Explicit-compression percentile (DSL executor): {@code PERCENTILE_APPROX_N(field,
+     * percent, centroids)} → {@code approx_percentile_cont}. Percent rescaling delegates to
+     * {@link #LOCAL_PERCENTILE_APPROX_OP}; the centroids literal passes through unrescaled.
+     */
+    static final LocalAggOp LOCAL_PERCENTILE_APPROX_N_OP = new LocalAggOp(
+        "approx_percentile_cont",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0.andThen(SqlTypeTransforms.FORCE_NULLABLE),
+        OperandTypes.family(SqlTypeFamily.ANY, SqlTypeFamily.ANY, SqlTypeFamily.ANY)
+    ) {
+        @Override
+        public RexNode normaliseLiteralArg(int argIndex, RexLiteral lit, RexBuilder rexBuilder, RelDataTypeFactory typeFactory) {
+            return LOCAL_PERCENTILE_APPROX_OP.normaliseLiteralArg(argIndex, lit, rexBuilder, typeFactory);
+        }
+    };
+
     /** BRAIN window stub for {@code patterns ... method=BRAIN mode=label}. */
     static final SqlAggFunction LOCAL_INTERNAL_PATTERN_WINDOW_OP = new SqlAggFunction(
         "internal_pattern",
@@ -441,6 +459,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_PERCENTILE_APPROX_OP, "approx_percentile_cont"),
+        FunctionMappings.s(LOCAL_PERCENTILE_APPROX_N_OP, "approx_percentile_cont"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern"),
         FunctionMappings.s(LOCAL_OS_COUNT_DISTINCT_OP, "os_count_distinct")
     );

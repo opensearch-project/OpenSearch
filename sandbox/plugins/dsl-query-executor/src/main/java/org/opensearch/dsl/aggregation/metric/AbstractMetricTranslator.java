@@ -13,18 +13,21 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.aggregations.AggregationBuilder;
-import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Base class for metric translators. Provides the common {@link #toAggregateCall}
- * logic — subclasses supply the SQL aggregate function, field name, and optionally
- * override the return type.
+ * Base class for simple metric translators (single value: AVG, SUM, MIN, MAX, COUNT).
+ * Provides default implementations for single-value metrics, including the shared
+ * {@code missing} handling (aggregate over {@code COALESCE(field, missing)}) and
+ * {@code format} validation.
  */
-public abstract class AbstractMetricTranslator<T extends AggregationBuilder> implements MetricTranslator<T> {
+public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
     /** Creates a metric translator. */
     protected AbstractMetricTranslator() {}
@@ -40,36 +43,84 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
      */
     protected abstract String getFieldName(T agg);
 
+    /** Whether the field must be numeric; count-like metrics override to accept any type. */
+    protected boolean requiresNumericField() {
+        return true;
+    }
+
+    /** Literal-free variant; {@code missing} needs the {@link LiteralColumnAllocator} variant. */
     @Override
-    public AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException {
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType) throws ConversionException {
+        if (agg.missing() != null) {
+            throw new ConversionException("aggregation [" + agg.getName() + "] with a missing value requires literal column support");
+        }
+        return toAggregateCalls(agg, rowType, null);
+    }
+
+    @Override
+    public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
+        MetricTranslator.validateFormat(agg.format(), agg.getName());
         String fieldName = getFieldName(agg);
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+        RelDataTypeField field;
+        if (requiresNumericField()) {
+            field = MetricTranslator.resolveNumericField(rowType, fieldName, agg.getType());
+        } else {
+            field = rowType.getField(fieldName, false, false);
+            if (field == null) {
+                throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
+            }
         }
 
         // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
-        return AggregateCall.create(
+        AggregateCall call = AggregateCall.create(
             getAggFunction(),
             false,
             false,
             false,
-            Collections.singletonList(field.getIndex()),
+            Collections.singletonList(inputColumn(agg, field, literals)),
             -1,
             RelCollations.EMPTY,
             field.getType(),
             agg.getName()
         );
+        return Collections.singletonList(call);
+    }
+
+    /**
+     * The aggregate's input column: the field, or {@code COALESCE(field, missing)} when the
+     * request sets {@code missing}. The coalesced column keeps the field's value type, so
+     * declared call types are unaffected. {@code literals} may be null only when missing is unset.
+     */
+    static int inputColumn(ValuesSourceAggregationBuilder<?> agg, RelDataTypeField field, LiteralColumnAllocator literals)
+        throws ConversionException {
+        if (agg.missing() == null) {
+            return field.getIndex();
+        }
+        return literals.coalescedColumnFor(field.getIndex(), MetricTranslator.missingValue(agg.missing(), agg.getName()));
     }
 
     @Override
-    public String getAggregateFieldName(T agg) {
-        return agg.getName();
+    public List<String> getAggregateFieldNames(T agg) {
+        return Collections.singletonList(agg.getName());
     }
 
-    // TODO: implement response conversion per metric type (InternalAvg, InternalSum, etc.)
-    @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
-        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for " + getClass().getSimpleName());
+    /** Extracts this metric's single output cell ({@code null} when the map is null or the cell is SQL NULL). */
+    protected Object singleValue(T agg, Map<String, Object> values) {
+        return values == null ? null : values.get(agg.getName());
+    }
+
+    /**
+     * Coerces an engine result cell to double. Calcite keeps the input column type (AVG over
+     * an INTEGER column returns an integral value), so the int→double widening happens here.
+     *
+     * @param value the raw cell value (must be a {@link Number})
+     */
+    protected static double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        throw new IllegalStateException(
+            "Expected numeric aggregation result but got " + (value == null ? "null" : value.getClass().getSimpleName())
+        );
     }
 }

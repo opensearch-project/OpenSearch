@@ -30,8 +30,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Rewrites PPL state-expanding aggregates (TAKE / FIRST / LAST / LIST / VALUES / PATTERN /
- * PERCENTILE_APPROX) onto local stubs the substrait emitter binds via
+ * Rewrites state-expanding aggregates (TAKE / FIRST / LAST / LIST / VALUES / PATTERN /
+ * PERCENTILE_APPROX / PERCENTILE_APPROX_N — emitted by PPL and, for the percentile ops,
+ * by the DSL query executor) onto local stubs the substrait emitter binds via
  * {@link DataFusionFragmentConvertor}'s ADDITIONAL_AGGREGATE_SIGS. Also normalises any
  * RexLiteral{SqlTypeName.SYMBOL} in upstream Projects to VARCHAR — isthmus's
  * LiteralConverter rejects unregistered Enum classes, and PPL's percentile_approx /
@@ -186,14 +187,18 @@ final class PplAggregateCallRewriter {
                 targetOp = DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP;
                 explicitReturnType = internalPatternReturnType(agg.getCluster().getTypeFactory());
             }
-            case "PERCENTILE_APPROX" -> {
-                // Trim the PPL type-flag arg; the substrait emit-time literal-arg normaliser
-                // (DataFusionFragmentConvertor#normaliseLiteralArg) rescales the percentile.
-                if (call.getArgList().size() < 3) {
+            case "PERCENTILE_APPROX", "PERCENTILE_APPROX_N" -> {
+                // PERCENTILE_APPROX: (field, percent) + optional PPL type-flag arg to trim.
+                // PERCENTILE_APPROX_N (DSL executor): (field, percent, centroids), kept whole.
+                boolean withCentroids = "PERCENTILE_APPROX_N".equals(call.getAggregation().getName());
+                int argCount = withCentroids ? 3 : 2;
+                if (call.getArgList().size() < argCount) {
                     return call;
                 }
-                targetOp = DataFusionFragmentConvertor.LOCAL_PERCENTILE_APPROX_OP;
-                List<Integer> trimmedArgList = new ArrayList<>(call.getArgList().subList(0, 2));
+                targetOp = withCentroids
+                    ? DataFusionFragmentConvertor.LOCAL_PERCENTILE_APPROX_N_OP
+                    : DataFusionFragmentConvertor.LOCAL_PERCENTILE_APPROX_OP;
+                List<Integer> trimmedArgList = new ArrayList<>(call.getArgList().subList(0, argCount));
                 RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
                 RelDataType nullableArg0 = agg.getCluster().getTypeFactory().createTypeWithNullability(arg0Type, true);
                 return AggregateCall.create(

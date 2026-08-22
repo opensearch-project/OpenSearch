@@ -1,5 +1,5 @@
 {
-  "testName": "terms_with_avg_aggregation",
+  "testName": "terms_with_percentiles_aggregation",
   "indexName": "test-index",
   "indexMapping": {
     "name": "VARCHAR",
@@ -16,9 +16,10 @@
           "field": "brand"
         },
         "aggregations": {
-          "avg_price": {
-            "avg": {
-              "field": "price"
+          "pcts": {
+            "percentiles": {
+              "field": "price",
+              "percents": [50]
             }
           }
         }
@@ -27,12 +28,13 @@
   },
   "expectedRelNodePlan": [
     "LogicalSort(sort0=[$2], sort1=[$0], dir0=[DESC], dir1=[ASC])",
-    "  LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])",
-    "    LogicalTableScan(table=[[test-index]])"
+    "  LogicalAggregate(group=[{2}], pcts_p50_0=[PERCENTILE_APPROX(APPROXIMATE $1, $4)], _count=[COUNT()])",
+    "    LogicalProject(name=[$0], price=[$1], brand=[$2], rating=[$3], _lit0=[50.0E0:DOUBLE])",
+    "      LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["brand", "avg_price", "_count"],
+  "mockResultFieldNames": ["brand", "pcts_p50_0", "_count"],
   "mockResultRows": [
-    ["BrandA", 850.0, 3],
+    ["BrandA", 700.0, 3],
     ["BrandB", 1100.0, 2]
   ],
   "expectedOutputDsl": {
@@ -53,15 +55,19 @@
           {
             "key": "BrandA",
             "doc_count": 3,
-            "avg_price": {
-              "value": 850.0
+            "pcts": {
+              "values": {
+                "50.0": 700.0
+              }
             }
           },
           {
             "key": "BrandB",
             "doc_count": 2,
-            "avg_price": {
-              "value": 1100.0
+            "pcts": {
+              "values": {
+                "50.0": 1100.0
+              }
             }
           }
         ]
