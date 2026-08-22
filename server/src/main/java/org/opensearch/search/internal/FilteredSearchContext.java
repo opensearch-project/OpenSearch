@@ -602,4 +602,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean shouldUseIntraSegmentSearch() {
         return in.shouldUseIntraSegmentSearch();
     }
+
+    @Override
+    public boolean splitAggsAndHits() {
+        return in.splitAggsAndHits();
+    }
 }
