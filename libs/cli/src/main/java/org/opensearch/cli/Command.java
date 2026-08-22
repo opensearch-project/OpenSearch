@@ -32,19 +32,21 @@
 
 package org.opensearch.cli;
 
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Arrays;
+
+import picocli.CommandLine;
+import picocli.CommandLine.Option;
 
 /**
  * An action to execute within a cli.
+ *
+ * Subclasses should annotate themselves with {@code @CommandLine.Command}
+ * and declare their own {@code @Option}/{@code @Parameters} fields.
+ * This base provides common flags (-h/--help, -s/--silent, -v/--verbose),
+ * help printing, a shutdown hook, and a stable main() entrypoint.
  */
 public abstract class Command implements Closeable {
 
@@ -53,19 +55,21 @@ public abstract class Command implements Closeable {
 
     private final Runnable beforeMain;
 
-    /** The option parser for this command. */
-    protected final OptionParser parser = new OptionParser();
+    /** Common options inherited by subclasses */
+    @Option(names = { "-h", "--help" }, usageHelp = true, description = "Show help")
+    protected boolean help;
 
-    private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
-    private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "Show minimal output");
-    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output")
-        .availableUnless(silentOption);
+    @Option(names = { "-s", "--silent" }, description = "Show minimal output")
+    protected boolean silent;
+
+    @Option(names = { "-v", "--verbose" }, description = "Show verbose output", negatable = false)
+    protected boolean verbose;
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
      *
      * @param description the command description
-     * @param beforeMain the before-main runnable
+     * @param beforeMain  the before-main runnable
      */
     public Command(final String description, final Runnable beforeMain) {
         this.description = description;
@@ -74,10 +78,9 @@ public abstract class Command implements Closeable {
 
     private Thread shutdownHookThread;
 
-    /** Parses options for this command from args and executes it. */
+    /** Parses options for this command from args and executes it with error handling. */
     public final int main(String[] args, Terminal terminal) throws Exception {
         if (addShutdownHook()) {
-
             shutdownHookThread = new Thread(() -> {
                 try {
                     this.close();
@@ -99,14 +102,15 @@ public abstract class Command implements Closeable {
 
         try {
             mainWithoutErrorHandling(args, terminal);
-        } catch (OptionException e) {
-            // print help to stderr on exceptions
-            printHelp(terminal, true);
+        } catch (CommandLine.ParameterException e) {
+            // print help to stderr on parse/validation exceptions
+            printHelp(terminal, true, e.getCommandLine());
             terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
         } catch (UserException e) {
             if (e.exitCode == ExitCodes.USAGE) {
-                printHelp(terminal, true);
+                // try to show usage on user error
+                printHelp(terminal, true, null);
             }
             if (e.getMessage() != null) {
                 terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
@@ -117,38 +121,51 @@ public abstract class Command implements Closeable {
     }
 
     /**
-     * Executes the command, but all errors are thrown.
+     * Executes the command, but lets all errors bubble up.
      */
     protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
-        final OptionSet options = parser.parse(args);
+        CommandLine cmd = new CommandLine(this);
+        // Route picocli usage to our Terminal writers
+        cmd.setOut(new PrintWriter(terminal.getWriter(), true));
+        cmd.setErr(new PrintWriter(terminal.getErrorWriter(), true));
 
-        if (options.has(helpOption)) {
-            printHelp(terminal, false);
+        // Parse the args (this populates @Option/@Parameters fields on 'this')
+        CommandLine.ParseResult result = cmd.parseArgs(args);
+
+        // If help was requested via -h/--help, print help and return
+        if (cmd.isUsageHelpRequested()) {
+            printHelp(terminal, false, cmd);
             return;
         }
 
-        if (options.has(silentOption)) {
+        // Set terminal verbosity
+        if (silent) {
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
-        } else if (options.has(verboseOption)) {
+        } else if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         } else {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         }
 
-        execute(terminal, options);
+        // Let subclasses run
+        execute(terminal);
     }
 
     /** Prints a help message for the command to the terminal. */
-    private void printHelp(Terminal terminal, boolean toStdError) throws IOException {
+    private void printHelp(Terminal terminal, boolean toStdError, CommandLine cmd) throws IOException {
         if (toStdError) {
             terminal.errorPrintln(description);
             terminal.errorPrintln("");
-            parser.printHelpOn(terminal.getErrorWriter());
+            if (cmd != null) {
+                cmd.usage(new PrintWriter(terminal.getErrorWriter(), true));
+            }
         } else {
             terminal.println(description);
             terminal.println("");
             printAdditionalHelp(terminal);
-            parser.printHelpOn(terminal.getWriter());
+            if (cmd != null) {
+                cmd.usage(new PrintWriter(terminal.getWriter(), true));
+            }
         }
     }
 
@@ -162,9 +179,10 @@ public abstract class Command implements Closeable {
 
     /**
      * Executes this command.
-     * <p>
-     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
-    protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+     *
+     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}.
+     */
+    protected abstract void execute(Terminal terminal) throws Exception;
 
     /**
      * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test
@@ -183,7 +201,6 @@ public abstract class Command implements Closeable {
 
     @Override
     public void close() throws IOException {
-
+        // default no-op
     }
-
 }
