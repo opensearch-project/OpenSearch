@@ -176,6 +176,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Float> boost = Parameter.boostParam();
 
+        /**
+         * The shared {@code multi_value} arity parameter (see {@link Parameter#multiValueParam()}).
+         * Lucene is inherently multi-valued, so the flag matters only to consumers projecting a fixed
+         * schema — e.g. a pluggable format whose column type is fixed per file (Parquet stores a
+         * declared field as {@code LIST<element>}). Not updateable: arity is baked into written data.
+         */
+        private final Parameter<Boolean> multiValue = Parameter.multiValueParam();
+
         private final IndexAnalyzers indexAnalyzers;
         private final boolean canConsumeRawValueForSource;
 
@@ -236,7 +244,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     normalizer,
                     splitQueriesOnWhitespace,
                     boost,
-                    meta
+                    meta,
+                    multiValue
                 )
             );
             parameters.addAll(pluginMappingParameters());
@@ -359,6 +368,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             setIndexAnalyzer(normalizer);
             setBoost(builder.boost.getValue());
+            setMultiValued(builder.multiValue.getValue());
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.useSimilarity = builder.useSimilarity.getValue();
@@ -846,6 +856,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
+    private final boolean multiValued;
     private final KeywordFieldType rawKeywordValueFieldType;
 
     private final IndexAnalyzers indexAnalyzers;
@@ -874,6 +885,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
+        this.multiValued = builder.multiValue.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.canConsumeRawValueForSource = builder.canConsumeRawValueForSource;
         this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
@@ -911,7 +923,18 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     private KeywordFieldType buildRawKeywordValueFieldType() {
         if (isIneligibleForGeneratingSource() && canConsumeRawValueForSource) {
-            return new KeywordFieldType("_ignored_source." + fieldType().name(), false, true, false, false, fieldType().meta());
+            KeywordFieldType rawValueType = new KeywordFieldType(
+                "_ignored_source." + fieldType().name(),
+                false,
+                true,
+                false,
+                false,
+                fieldType().meta()
+            );
+            // The companion carries the pre-normalization values for derived source, so it must
+            // mirror the parent's cardinality or source reconstruction would lose values.
+            rawValueType.setMultiValued(multiValued);
+            return rawValueType;
         }
         return null;
     }

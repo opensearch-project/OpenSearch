@@ -300,12 +300,15 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
 
     private Schema buildSchema() {
         List<Field> fields = new ArrayList<>();
+        // Build every column through toArrowField rather than from name + FieldType: a nested column
+        // (flat_object, whose type is a MAP) is not fully described by its FieldType alone, and a MAP
+        // without its `entries` child fails Arrow's vector allocation outright.
         for (MappedFieldType ft : List.of(NAME_FIELD, AGE_FIELD)) {
             ParquetField pf = ArrowFieldRegistry.getParquetField(ft.typeName());
-            fields.add(new Field(ft.name(), pf.getFieldType(), null));
+            fields.add(pf.toArrowField(ft.name(), false));
         }
         for (Map.Entry<String, ParquetField> dataField : new CoreDataFieldPlugin().getParquetFields().entrySet()) {
-            fields.add(new Field(dataField.getKey() + "_field", dataField.getValue().getFieldType(), null));
+            fields.add(dataField.getValue().toArrowField(dataField.getKey() + "_field", false));
         }
         fields.addAll(metadataFields());
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, FieldType.notNullable(new ArrowType.Int(64, true)), null));

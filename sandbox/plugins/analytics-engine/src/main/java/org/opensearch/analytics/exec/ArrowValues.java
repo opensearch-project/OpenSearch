@@ -13,6 +13,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -68,8 +69,9 @@ public final class ArrowValues {
 
     /**
      * Reads an Arrow cell as a JSON-friendly scalar: numerics coerced to
-     * {@code long}/{@code double}, timestamps rendered as ISO-8601 UTC strings. Binary and
-     * complex (list/struct/decimal) types are not yet supported and return {@code null}.
+     * {@code long}/{@code double}, timestamps rendered as ISO-8601 UTC strings, list columns as a
+     * {@code List} of converted elements. Binary and remaining complex (struct/decimal) types are
+     * not yet supported and return {@code null}.
      */
     public static Object toSourceValue(FieldVector vec, int idx) {
         if (vec == null || vec.isNull(idx)) return null;
@@ -83,6 +85,27 @@ public final class ArrowValues {
                 return null;
             default:
                 break;
+        }
+        // flat_object fields are MAP columns. Emit them as a JSON object so they survive into
+        // _source; without this branch a MapVector falls through to the scalar switch below,
+        // returns null, and toSourceMap drops the field entirely — the attribute bag would be
+        // silently missing from every get-by-id response. Must precede the LIST branch, since
+        // MapVector extends ListVector.
+        if (vec instanceof MapVector mapVector) {
+            return mapToSource(mapVector, idx);
+        }
+        // Multi-valued fields are LIST columns; _source is reconstructed from these columns (there
+        // are no Lucene stored fields on this path), so dropping them would silently lose the
+        // field from every get-by-id response. MapVector extends ListVector, so exclude maps.
+        if (vec instanceof ListVector listVector && vec instanceof MapVector == false) {
+            FieldVector data = listVector.getDataVector();
+            int start = listVector.getOffsetBuffer().getInt((long) idx * ListVector.OFFSET_WIDTH);
+            int end = listVector.getOffsetBuffer().getInt((long) (idx + 1) * ListVector.OFFSET_WIDTH);
+            List<Object> values = new ArrayList<>(Math.max(0, end - start));
+            for (int i = start; i < end; i++) {
+                values.add(toSourceValue(data, i));
+            }
+            return values;
         }
         Object raw = vec.getObject(idx);
         switch (id) {
@@ -106,6 +129,50 @@ public final class ArrowValues {
                 // TODO type coverage (list, struct, decimal)
                 return null;
         }
+    }
+
+    /**
+     * Rebuilds one {@code MAP<utf8, utf8>} cell as a JSON object for {@code _source}.
+     * <p>
+     * Keys are emitted <b>verbatim</b> — a leaf that arrived as {@code {"k8s":{"pod":"x"}}} was
+     * already flattened to the key {@code k8s.pod} on the way in, so it reads back as
+     * {@code {"k8s.pod":"x"}}. That is flat_object's own model (its Lucene {@code _valueAndPath}
+     * terms use the same dotted form), and it avoids having to guess whether a dotted key was
+     * originally nested — an ambiguity no un-flattening convention can resolve.
+     * <p>
+     * A Parquet MAP is a repeated group, so a key can legitimately repeat when the source had an
+     * array ({@code {"tag":["a","b"]}} → two {@code tag} entries). Repeats are grouped back into a
+     * list rather than overwritten, so the array survives the round trip.
+     */
+    private static Object mapToSource(MapVector mapVector, int idx) {
+        int start = mapVector.getOffsetBuffer().getInt((long) idx * MapVector.OFFSET_WIDTH);
+        int end = mapVector.getOffsetBuffer().getInt((long) (idx + 1) * MapVector.OFFSET_WIDTH);
+        StructVector entries = (StructVector) mapVector.getDataVector();
+        FieldVector keys = entries.getChild(MapVector.KEY_NAME);
+        FieldVector values = entries.getChild(MapVector.VALUE_NAME);
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (int i = start; i < end; i++) {
+            Object key = toSourceValue(keys, i);
+            if (key == null) {
+                continue;
+            }
+            Object value = toSourceValue(values, i);
+            Object existing = out.putIfAbsent(key.toString(), value);
+            if (existing != null) {
+                // Second and later occurrences of the same key: promote to a list, preserving order.
+                if (existing instanceof List<?> list) {
+                    List<Object> merged = new ArrayList<>(list);
+                    merged.add(value);
+                    out.put(key.toString(), merged);
+                } else {
+                    List<Object> merged = new ArrayList<>(2);
+                    merged.add(existing);
+                    merged.add(value);
+                    out.put(key.toString(), merged);
+                }
+            }
+        }
+        return out;
     }
 
     private static Instant toInstant(long v, TimeUnit unit) {

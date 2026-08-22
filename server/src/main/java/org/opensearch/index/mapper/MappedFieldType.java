@@ -97,6 +97,8 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+    private boolean multiValued;
+    private String correlationGroup;
 
     /**
      * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
@@ -476,6 +478,58 @@ public abstract class MappedFieldType {
 
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /**
+     * Whether this field is declared to hold multiple values per document in columnar data
+     * formats ({@code multi_value} mapping parameter). Lucene is inherently multi-valued, so
+     * this flag only matters to pluggable formats whose column type is fixed per file (e.g.
+     * Parquet, where a declared field is stored as {@code LIST<element>}).
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public boolean isMultiValued() {
+        return multiValued;
+    }
+
+    /**
+     * Declares this field multi-valued for columnar data formats. Set during mapping build by
+     * mappers exposing the {@code multi_value} parameter.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public void setMultiValued(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
+
+    /**
+     * The full path of the enclosing object declared {@code correlated: true}, or {@code null} when
+     * this field belongs to no correlated group.
+     *
+     * <p>Fields sharing a group are parallel arrays whose values are paired by position: index
+     * {@code i} of each describes the same element. Columnar formats store each as an independent
+     * column, so nothing in the storage layer couples them — the group name lets the write path
+     * enforce that the arrays agree in length, without which position {@code i} of one column could
+     * describe a different element than position {@code i} of its sibling.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public String correlationGroup() {
+        return correlationGroup;
+    }
+
+    /**
+     * Assigns this field to a correlated group. Set during mapping build by {@link ObjectMapper}
+     * for the children of an object declared {@code correlated: true}.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public void setCorrelationGroup(String correlationGroup) {
+        this.correlationGroup = correlationGroup;
     }
 
     @ExperimentalApi

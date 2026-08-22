@@ -55,6 +55,8 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -197,6 +199,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
+        // Not updateable: the column type is baked into every parquet file the index has written.
+        checker.registerConflictCheck("multi_value", b -> b.field("multi_value", true));
 
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((KeywordFieldMapper) m).ignoreAbove()));
@@ -281,6 +285,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertTrue(fields[0].fieldType().stored());
+    }
+
+    public void testMultiValueParameter() throws IOException {
+        // Default is single-valued and, being the default, is not serialized.
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        FieldMapper defaultField = (FieldMapper) defaultMapper.mappers().getMapper("field");
+        assertFalse(defaultField.fieldType().isMultiValued());
+        assertFalse(Strings.toString(MediaTypeRegistry.JSON, defaultField).contains("multi_value"));
+
+        // multi_value: true reaches the field type and round-trips through serialization.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("multi_value", true)));
+        FieldMapper field = (FieldMapper) mapper.mappers().getMapper("field");
+        assertTrue(field.fieldType().isMultiValued());
+        assertTrue(Strings.toString(MediaTypeRegistry.JSON, field).contains("\"multi_value\":true"));
     }
 
     public void testDisableIndex() throws IOException {

@@ -9,6 +9,9 @@
 package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -21,6 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetBaseTests;
@@ -28,13 +32,18 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.FlatObjectParquetField;
+import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 
 public class VSRManagerTests extends ParquetBaseTests {
@@ -570,6 +579,263 @@ public class VSRManagerTests extends ParquetBaseTests {
         } finally {
             manager.close();
         }
+    }
+
+    public void testMultiValueFieldWritesListColumn() throws Exception {
+        String filePath = createTempDir().resolve("multi-value.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            // Mapping update introduces a keyword field declared multi-valued, so it arrives as a
+            // LIST<Utf8> rather than a flat Utf8 column.
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+
+            KeywordFieldMapper.KeywordFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+            tags.setMultiValued(true);
+            assignTestCapabilities(tags, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // Row 0: three values including a duplicate. Row 1: field absent entirely.
+            // Row 2: a single value. Covers the three cardinalities in one file.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(tags, "b");
+            doc0.addField(tags, "a");
+            doc0.addField(tags, "b");
+            manager.addDocument(doc0);
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
+            doc2.addField(valField, 3);
+            doc2.addField(tags, "solo");
+            manager.addDocument(doc2);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertEquals(List.of("b", "a", "b"), listElements(listVector, 0));
+            assertTrue("absent field must read back as a null list", listVector.isNull(1));
+            assertEquals(List.of("solo"), listElements(listVector, 2));
+
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(3, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testMultiValueFieldWritesEmptyListDistinctFromAbsent() throws Exception {
+        String filePath = createTempDir().resolve("multi-value-empty.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // An explicit "tags": [] parses to zero addField calls, so the writer never sees the
+            // field and the row is null — same as absent. Documented here so the distinction
+            // between [] and absent is a deliberate, tested choice rather than an accident.
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc.addField(valField, 1);
+            manager.addDocument(doc);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertTrue(listVector.isNull(0));
+            assertEquals(1, manager.flush().numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testFlatObjectFieldWritesMapColumnThroughNativeWriter() throws Exception {
+        String filePath = createTempDir().resolve("flat-object-map.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            // Mapping update introduces a flat_object field, which arrives as a MAP<Utf8, Utf8>
+            // column rather than a flat column.
+            List<Field> fields = new ArrayList<>(schema.getFields());
+            fields.addAll(metadataFields());
+            fields.add(new FlatObjectParquetField().toArrowField("attrs", false));
+            manager.reconcileSchema(new Schema(fields));
+
+            FlatObjectFieldMapper.FlatObjectFieldType attrs = new FlatObjectFieldMapper.FlatObjectFieldType("attrs", null, true, true);
+            assignTestCapabilities(attrs, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
+
+            // Row 0: two entries plus a duplicate key. Row 1: field absent. Row 2: empty object.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(attrs, List.of(Map.entry("http.status", "500"), Map.entry("pod", "web-1"), Map.entry("pod", "web-2")));
+            manager.addDocument(doc0);
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
+            doc2.addField(valField, 3);
+            doc2.addField(attrs, List.of());
+            manager.addDocument(doc2);
+
+            MapVector mapVector = (MapVector) manager.getActiveManagedVSR().getVector("attrs");
+            assertFalse(mapVector.isNull(0));
+            assertTrue("absent field must read back as a null map", mapVector.isNull(1));
+            assertFalse("empty object must read back as a non-null map", mapVector.isNull(2));
+            int row0Start = mapVector.getOffsetBuffer().getInt(0);
+            int row0End = mapVector.getOffsetBuffer().getInt(4);
+            assertEquals(3, row0End - row0Start);
+
+            // The flush is the real assertion: the C Data Interface export and the native arrow-rs
+            // writer must both accept the MAP column.
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(3, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * A multi_value flat_object writes {@code LIST<MAP>}, one map per array element — the OTel
+     * {@code Events.Attributes} shape. The flush is the real assertion: a malformed element type (a MAP
+     * described without its {@code entries} struct) survives allocation but fails at export, so only a
+     * completed native write proves the schema is well-formed.
+     */
+    public void testFlatObjectMultiValueWritesListOfMapThroughNativeWriter() throws Exception {
+        String filePath = createTempDir().resolve("flat-object-list-map.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            List<Field> fields = new ArrayList<>(schema.getFields());
+            fields.addAll(metadataFields());
+            fields.add(new FlatObjectParquetField().toArrowField("Events.Attributes", true));
+            manager.reconcileSchema(new Schema(fields));
+
+            FlatObjectFieldMapper.FlatObjectFieldType attrs = new FlatObjectFieldMapper.FlatObjectFieldType(
+                "Events.Attributes",
+                null,
+                true,
+                true
+            );
+            attrs.setMultiValued(true);
+            assignTestCapabilities(attrs, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = createNumberField("val", NumberFieldMapper.NumberType.INTEGER);
+
+            // Row 0: two events, each contributing its own attribute set via a separate addField call,
+            // exactly as the document parser hands over the elements of an array.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(attrs, List.of(Map.entry("exception.type", "IOError")));
+            doc0.addField(attrs, List.of(Map.entry("http.method", "GET"), Map.entry("retry", "1")));
+            manager.addDocument(doc0);
+
+            // Row 1: no events at all.
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("Events.Attributes");
+            assertTrue("the element vector must be a MapVector", listVector.getDataVector() instanceof MapVector);
+            assertFalse(listVector.isNull(0));
+            assertTrue("a document with no events must read back as a null list", listVector.isNull(1));
+
+            MapVector maps = (MapVector) listVector.getDataVector();
+            int start = listVector.getOffsetBuffer().getInt(0);
+            int end = listVector.getOffsetBuffer().getInt(ListVector.OFFSET_WIDTH);
+            assertEquals("two events", 2, end - start);
+            // Element 0 has one attribute, element 1 has two: the counts stay separate per event.
+            assertEquals(
+                1,
+                maps.getOffsetBuffer().getInt((long) (start + 1) * MapVector.OFFSET_WIDTH) - maps.getOffsetBuffer()
+                    .getInt((long) start * MapVector.OFFSET_WIDTH)
+            );
+            assertEquals(
+                2,
+                maps.getOffsetBuffer().getInt((long) (start + 2) * MapVector.OFFSET_WIDTH) - maps.getOffsetBuffer()
+                    .getInt((long) (start + 1) * MapVector.OFFSET_WIDTH)
+            );
+
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(2, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testReconcileSchemaPreservesListChildren() throws Exception {
+        String filePath = createTempDir().resolve("reconcile-children.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            assertTrue(manager.reconcileSchema(schemaWithMultiValue("tags")));
+
+            // reconcileSchema used to rebuild each Field from name + FieldType, dropping children
+            // and leaving a ListVector with no element vector to write into.
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertNotNull(listVector);
+            // A dropped child would leave the data vector as an uninitialized ZeroVector.
+            assertTrue(
+                "list vector must have a typed element vector, got " + listVector.getDataVector().getClass().getSimpleName(),
+                listVector.getDataVector() instanceof VarCharVector
+            );
+
+            // Assert on the VSR *schema* rather than the vector's own field: Arrow Java renames a
+            // list vector's child to "$data$" internally, but the schema — which is what
+            // exportSchema hands to the native writer, and therefore what determines the Parquet
+            // leaf path "tags.list.element" — keeps the declared name.
+            Field tagsField = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("tags"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals(ArrowType.List.INSTANCE, tagsField.getType());
+            assertEquals(1, tagsField.getChildren().size());
+            assertEquals(ParquetField.LIST_ELEMENT_NAME, tagsField.getChildren().get(0).getName());
+            assertEquals(new ArrowType.Utf8(), tagsField.getChildren().get(0).getType());
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** Reads back the elements of one row of a list vector. */
+    private static List<String> listElements(ListVector listVector, int row) {
+        int start = listVector.getOffsetBuffer().getInt((long) row * 4);
+        int end = listVector.getOffsetBuffer().getInt((long) (row + 1) * 4);
+        VarCharVector data = (VarCharVector) listVector.getDataVector();
+        List<String> values = new ArrayList<>(end - start);
+        for (int i = start; i < end; i++) {
+            values.add(new String(data.get(i), StandardCharsets.UTF_8));
+        }
+        return values;
+    }
+
+    /** Test schema plus metadata fields plus a keyword field declared multi-valued. */
+    private Schema schemaWithMultiValue(String name) {
+        List<Field> fields = new ArrayList<>(schema.getFields());
+        fields.addAll(metadataFields());
+        fields.add(new KeywordParquetField().toArrowField(name, true));
+        return new Schema(fields);
     }
 
     /** Returns a copy of the test schema with one extra field appended (alongside metadata fields). */
