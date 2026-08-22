@@ -35,10 +35,14 @@ package org.opensearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -66,10 +70,40 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
+    /** Optional setting to override the unicast hosts file location. Relative paths resolve against the config directory. */
+    public static final Setting<String> UNICAST_HOSTS_FILE_PATH_SETTING = Setting.simpleString(
+        "discovery.file.hosts_path",
+        "",
+        value -> {
+            if (value.isEmpty() == false) {
+                try {
+                    // validate that the value is a parseable path
+                    java.nio.file.FileSystems.getDefault().getPath(value);
+                } catch (InvalidPathException e) {
+                    throw new IllegalArgumentException(
+                        "invalid path for [discovery.file.hosts_path]: [" + value + "]",
+                        e
+                    );
+                }
+            }
+        },
+        Property.NodeScope
+    );
+
     private final Path unicastHostsFilePath;
 
+    public FileBasedSeedHostsProvider(Path configFile, Settings settings) {
+        final String customPath = UNICAST_HOSTS_FILE_PATH_SETTING.get(settings);
+        if (customPath.isEmpty()) {
+            this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
+        } else {
+            final Path p = configFile.getFileSystem().getPath(customPath);
+            this.unicastHostsFilePath = p.isAbsolute() ? p.normalize() : configFile.resolve(p).normalize();
+        }
+    }
+
     public FileBasedSeedHostsProvider(Path configFile) {
-        this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
+        this(configFile, Settings.EMPTY);
     }
 
     private List<String> getHostsList() {
