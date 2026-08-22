@@ -115,8 +115,29 @@ public final class AnalyticsQuerySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of leaf predicates allowed in a single filter condition. A leaf predicate is
+     * any comparison or function call that is not a boolean connective (AND/OR/NOT). Queries
+     * exceeding this limit are rejected with HTTP 400 during planning.
+     *
+     * <p>Default 200. Set to 0 to disable the guard.
+     */
+    public static final Setting<Integer> MAX_FILTER_PREDICATE_COUNT = Setting.intSetting(
+        "analytics.query.max_filter_predicate_count",
+        200,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> all() {
-        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, PRE_FILTER_SHARD_SIZE, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(
+            DELEGATION_BLOCKED_PREDICATES,
+            MAX_SHARDS_PER_QUERY,
+            PRE_FILTER_SHARD_SIZE,
+            MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+            MAX_FILTER_PREDICATE_COUNT
+        );
     }
 
     private AnalyticsQuerySettings() {}
