@@ -64,7 +64,7 @@ import static org.junit.Assert.fail;
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-public class RestClientBuilderIntegTests extends RestClientTestCase implements RestClientFipsAwareTestCase {
+public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;
 
@@ -117,9 +117,11 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    @Override
-    public SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception {
-        SSLContext sslContext;
+    protected SSLContext getSslContext(boolean server) throws Exception {
+        return getSslContext(server, "JKS", new SecureRandom(), ".jks");
+    }
+
+    protected SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception {
         char[] password = "password".toCharArray();
 
         try (
@@ -142,10 +144,8 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
                 sslContextBuilder.loadKeyMaterial(keyStore, password);
             }
             sslContextBuilder.loadTrustMaterial(trustStore, null);
-            sslContext = sslContextBuilder.build();
-
+            return sslContextBuilder.build();
         }
-        return sslContext;
     }
 
     /**
