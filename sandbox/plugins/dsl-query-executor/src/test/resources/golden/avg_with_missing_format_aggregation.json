@@ -1,0 +1,52 @@
+{
+  "testName": "avg_with_missing_format_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "avg_rating": {
+        "avg": {
+          "field": "rating",
+          "missing": 0,
+          "format": "0.00"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], avg_rating=[AVG($4)])",
+    "  LogicalProject(name=[$0], price=[$1], brand=[$2], rating=[$3], _missing0=[COALESCE($3, 0.0E0:DOUBLE)])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["avg_rating"],
+  "mockResultRows": [
+    [3.625]
+  ],
+  "mockCountRow": {
+    "_total": 8
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 8,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "avg_rating": {
+        "value": 3.625,
+        "value_as_string": "3.62"
+      }
+    }
+  }
+}
