@@ -1402,6 +1402,15 @@ public class MetadataCreateIndexService {
     }
 
     public static void validateStoreTypeSettings(Settings settings) {
+        // Reject explicitly set empty store type (GH#22550)
+        if (IndexModule.INDEX_STORE_TYPE_SETTING.exists(settings)) {
+            String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(settings);
+            if (storeType.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Failed to parse value for setting [" + IndexModule.INDEX_STORE_TYPE_SETTING.getKey() + "] must not be empty"
+                );
+            }
+        }
         // deprecate simplefs store type:
         if (IndexModule.Type.SIMPLEFS.match(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings))) {
             DEPRECATION_LOGGER.deprecate(
