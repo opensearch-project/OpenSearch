@@ -1282,13 +1282,16 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     private Map<String, String> jvmOptionExpansions() {
+        return jvmOptionExpansions(confPathLogs);
+    }
+
+    static Map<String, String> jvmOptionExpansions(Path logPath) {
         Map<String, String> expansions = new HashMap<>();
-        Version version = getVersion();
         String heapDumpOrigin = "-XX:HeapDumpPath=data";
-        Path relativeLogPath = workingDir.relativize(confPathLogs);
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogPath);
-        expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
-        expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log"));
+        Path absoluteLogPath = logPath.toAbsolutePath();
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + absoluteLogPath);
+        expansions.put("logs/gc.log", absoluteLogPath.resolve("gc.log").toString());
+        expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + absoluteLogPath.resolve("hs_err_pid%p.log"));
         return expansions;
     }
 
