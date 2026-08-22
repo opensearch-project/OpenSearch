@@ -917,8 +917,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                     }, convertingListener::onFailure)
                 );
             } catch (Exception e) {
+                statsCollector.recordPlanningFailure();
                 convertingListener.onFailure(e);
             } catch (AssertionError e) {
+                statsCollector.recordPlanningFailure();
                 convertingListener.onFailure(
                     new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
                 );
