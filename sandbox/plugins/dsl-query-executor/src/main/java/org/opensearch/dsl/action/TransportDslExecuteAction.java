@@ -18,8 +18,6 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -31,7 +29,6 @@ import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.dsl.result.SearchResponseBuilder;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -40,7 +37,6 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -94,39 +90,42 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             final long startNanos = System.nanoTime();
+            final String indexName;
+            try {
+                indexName = resolveToSingleIndex(request);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+
+            // One MapperService per request for response key typing and formats: created on
+            // first use with the index mapping merged in (a freshly created MapperService is
+            // empty and resolves no fields), closed when the request completes either way.
+            // A failed resolution degrades to the translator's sampling fallback.
+            // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
+            final RequestScopedMapperService mapperServiceHolder = new RequestScopedMapperService(
+                indexName,
+                clusterService::state,
+                indicesService::createIndexMapperService
+            );
+            final ActionListener<SearchResponse> requestListener = ActionListener.runAfter(listener, mapperServiceHolder::close);
+
             final QueryPlans plans;
             final SearchSourceConverter converter;
             try {
-                String indexName = resolveToSingleIndex(request);
-
-                // Lazily resolves the target index's MapperService for response key typing and
-                // formats; a failed resolution degrades to the translator's sampling fallback.
-                // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
-                Supplier<MapperService> mapperServiceSupplier = () -> {
-                    try {
-                        ClusterState state = clusterService.state();
-                        IndexMetadata indexMetadata = state.metadata().index(indexName);
-                        return indicesService.createIndexMapperService(indexMetadata);
-                    } catch (Exception e) {
-                        logger.warn("Failed to resolve MapperService for index [{}]", indexName, e);
-                        return null;
-                    }
-                };
-
-                converter = new SearchSourceConverter(contextProvider.getContext().schema(), mapperServiceSupplier);
-
+                converter = new SearchSourceConverter(contextProvider.getContext().schema(), mapperServiceHolder);
                 plans = converter.convert(request.source(), indexName);
             } catch (ConversionException e) {
                 // The request carries a shape or parameter this path cannot honor — a client
                 // error (400), matching classic search's rejection of unsupported parameters.
                 logger.debug("DSL conversion rejected the request", e);
-                listener.onFailure(new IllegalArgumentException(e.getMessage(), e));
+                requestListener.onFailure(new IllegalArgumentException(e.getMessage(), e));
                 return;
             } catch (Exception e) {
-                listener.onFailure(e);
+                requestListener.onFailure(e);
                 return;
             }
-            executePlans(plans, request, converter, startNanos, listener);
+            executePlans(plans, request, converter, startNanos, requestListener);
         });
     }
 
