@@ -137,28 +137,36 @@ public class GetService implements Closeable {
 
         @Override
         public List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long seqNoFloor) throws IOException {
-            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
-            List<Map<String, Object>> all = new ArrayList<>();
-            for (WriterFileSet parquetSet : fileSets) {
-                String parquetDir = parquetSet.directory();
-                String parquetFile = parquetSet.files().iterator().next();
-                MonoFileWriterSet writerSet = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null, List.of(), List.of())) {
-                    long readerPtr = readerHandle.getPointer();
-                    // Internal-search seq-no scan: the native side ignores Substrait and builds a
-                    // DataFrame plan filtering `_seq_no > seqNoFloor`, projecting only the version
-                    // metadata columns, with pushdown enabled.
-                    long streamPtr = executeInternalSearch(
-                        readerPtr,
-                        runtimePtr,
-                        NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
-                        seqNoFloor,
-                        "DataFusion range query failed"
-                    );
-                    all.addAll(readAllRows(streamPtr));
-                }
+            if (fileSets.isEmpty()) {
+                return List.of();
             }
-            return all;
+            String parquetDir = fileSets.get(0).directory();
+            List<MonoFileWriterSet> segments = new ArrayList<>(fileSets.size());
+            for (WriterFileSet parquetSet : fileSets) {
+                if (parquetDir.equals(parquetSet.directory()) == false) {
+                    throw new IllegalArgumentException(
+                        "Segments read together must share a directory, but generation "
+                            + parquetSet.writerGeneration()
+                            + " is in ["
+                            + parquetSet.directory()
+                            + "] not ["
+                            + parquetDir
+                            + "]"
+                    );
+                }
+                segments.add(MonoFileWriterSet.from(parquetSet));
+            }
+            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
+            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, segments, null, List.of(), List.of())) {
+                long streamPtr = executeInternalSearch(
+                    readerHandle.getPointer(),
+                    runtimePtr,
+                    NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
+                    seqNoFloor,
+                    "DataFusion range query failed"
+                );
+                return readAllRows(streamPtr);
+            }
         }
 
         private List<Map<String, Object>> readAllRows(long streamPtr) {

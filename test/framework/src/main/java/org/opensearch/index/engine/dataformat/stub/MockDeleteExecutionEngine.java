@@ -17,12 +17,13 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.LongFunction;
 
 /**
  * A mock {@link DeleteExecutionEngine} for testing purposes.
@@ -31,9 +32,27 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
 
     private final DataFormat dataFormat;
     private final Map<Long, Deleter> deleters = new ConcurrentHashMap<>();
+    private final List<String> deletedIds = Collections.synchronizedList(new ArrayList<>());
+    private final List<Long> checkedOutGenerations = Collections.synchronizedList(new ArrayList<>());
+    private volatile boolean deletesAppliedOnCheckout = false;
+
+    /** If true, {@link #onWriterCheckedOut} reports that buffered deletes were applied. */
+    public void setDeletesAppliedOnCheckout(boolean applied) {
+        this.deletesAppliedOnCheckout = applied;
+    }
 
     public MockDeleteExecutionEngine(DataFormat dataFormat) {
         this.dataFormat = dataFormat;
+    }
+
+    /** Ids passed to {@link #deleteDocument}, in call order; retained after {@link #close()}. */
+    public List<String> deletedIds() {
+        return deletedIds;
+    }
+
+    /** Generations passed to {@link #onWriterCheckedOut}, in call order, including repeats. */
+    public List<Long> checkedOutGenerations() {
+        return checkedOutGenerations;
     }
 
     @Override
@@ -54,17 +73,19 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
     }
 
     @Override
-    public void recordWrite(String id, long generation) {
+    public void recordWrite(String id, long generation, long rowId) {
 
     }
 
     @Override
     public boolean onWriterCheckedOut(long generation) throws IOException {
-        return false;
+        checkedOutGenerations.add(generation);
+        return deletesAppliedOnCheckout;
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
+    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
+        deletedIds.add(deleteInput.id());
         Deleter deleter = deleters.get(deleteInput.generation());
         if (deleter != null) {
             return deleter.deleteDoc(deleteInput);

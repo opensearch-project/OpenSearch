@@ -31,6 +31,7 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -209,6 +210,11 @@ public class FailableParquetDataFormatPlugin extends ParquetOnlyDataFormatPlugin
         @Override
         public WriterState state() {
             return delegate.state();
+        }
+
+        @Override
+        public Optional<Writer<?>> getWriterForFormat(String formatName) {
+            return delegate.getWriterForFormat(formatName);
         }
 
         @Override
