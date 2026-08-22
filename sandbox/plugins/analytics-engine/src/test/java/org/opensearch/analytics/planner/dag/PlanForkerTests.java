@@ -80,7 +80,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(logicalPlan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         LOGGER.info("QueryDAG after forking:\n{}", dag);
         return dag;
@@ -331,7 +331,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         var context = buildContextWithExplicitStorage(shardCount, duplicatedIntFields(), List.of(unionCapableDf, luceneScan));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO RelNode:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         return dag;
     }

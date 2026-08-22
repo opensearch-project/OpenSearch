@@ -61,7 +61,8 @@ public class OpenSearchTableScanRule extends RelOptRule {
         IndexResolution resolution = IndexResolution.resolve(
             tableName,
             context.getClusterState(),
-            context.getIndexNameExpressionResolver()
+            context.getIndexNameExpressionResolver(),
+            context.getIndicesOptions()
         );
         // Field storage is the union across all backing concrete indices. An index pattern or
         // alias can resolve to indices with differing field sets (e.g. test* where one index has
@@ -172,7 +173,8 @@ public class OpenSearchTableScanRule extends RelOptRule {
                 viableBackends,
                 fieldStorage,
                 resolution.totalShardCount(),
-                context.getDistributionTraitDef()
+                context.getDistributionTraitDef(),
+                resolution
             )
         );
     }

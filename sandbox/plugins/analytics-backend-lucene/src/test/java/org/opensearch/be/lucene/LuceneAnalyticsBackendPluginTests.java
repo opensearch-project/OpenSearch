@@ -58,7 +58,6 @@ import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -67,7 +66,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -94,9 +92,6 @@ import static org.mockito.Mockito.when;
  * {@link LuceneAnalyticsBackendPlugin} serializer, producing valid MatchQueryBuilder bytes.
  */
 public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
-
-    /** Default resolver for DAGBuilder in tests; production injects core's resolver. */
-    private static final IndexNameExpressionResolver TEST_RESOLVER = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
         "MATCH",
@@ -146,7 +141,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         }, condition);
 
         RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         // Mirror DefaultPlanExecutor.executeInternal: forker → adapter → selector → convertor.
         // preferMetadataDriver=false drops the Lucene alternative and forces the DataFusion
         // peer; the surviving plan exercises the DF→Lucene filter delegation path, which is

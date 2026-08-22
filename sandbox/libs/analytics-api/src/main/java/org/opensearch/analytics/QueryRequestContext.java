@@ -9,6 +9,7 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.tasks.Task;
 
@@ -28,13 +29,18 @@ import org.opensearch.tasks.Task;
  *
  * @opensearch.internal
  */
-public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask) {
+public record QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask,
+    IndicesOptions indicesOptions) {
+
+    public QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource, Task parentTask) {
+        this(clusterState, schema, querySource, parentTask, IndicesOptions.lenientExpandOpen());
+    }
 
     public QueryRequestContext(ClusterState clusterState, SchemaPlus schema, String querySource) {
-        this(clusterState, schema, querySource, null);
+        this(clusterState, schema, querySource, null, IndicesOptions.lenientExpandOpen());
     }
 
     public QueryRequestContext(ClusterState clusterState, SchemaPlus schema) {
-        this(clusterState, schema, null, null);
+        this(clusterState, schema, null, null, IndicesOptions.lenientExpandOpen());
     }
 }

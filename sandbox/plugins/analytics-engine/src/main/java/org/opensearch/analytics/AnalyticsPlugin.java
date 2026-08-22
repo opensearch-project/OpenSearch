@@ -15,6 +15,7 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.exec.AnalyticsFragmentSlowLog;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
 import org.opensearch.analytics.exec.AnalyticsSearchSlowLog;
@@ -413,6 +414,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         public QueryRequestContext getContext(ClusterState clusterState) {
             SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver);
             return new QueryRequestContext(clusterState, schema);
+        }
+
+        @Override
+        public QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions) {
+            SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, indexNameExpressionResolver, indicesOptions);
+            return new QueryRequestContext(clusterState, schema, null, null, indicesOptions);
         }
 
         @Override

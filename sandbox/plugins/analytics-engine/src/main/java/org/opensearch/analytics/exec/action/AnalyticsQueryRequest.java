@@ -94,6 +94,14 @@ public class AnalyticsQueryRequest extends ActionRequest implements IndicesReque
 
     @Override
     public IndicesOptions indicesOptions() {
+        // Honour the user's options from the carried QueryRequestContext so the security plugin
+        // resolves index expressions with the same semantics as the coordinator (ignore_unavailable,
+        // allow_no_indices, expand_wildcards). Falls back to strictExpandOpen() for the deserialized
+        // case where queryCtx is absent (local-dispatch-only, so the fallback covers only tests and
+        // hypothetical future wire paths).
+        if (queryCtx != null && queryCtx.indicesOptions() != null) {
+            return queryCtx.indicesOptions();
+        }
         return IndicesOptions.strictExpandOpen();
     }
 

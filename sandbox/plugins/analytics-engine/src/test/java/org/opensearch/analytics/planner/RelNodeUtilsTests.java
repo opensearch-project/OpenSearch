@@ -9,6 +9,11 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalFilter;
@@ -22,9 +27,24 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
+import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
 import static org.opensearch.analytics.planner.RelNodeUtils.MAX_EXTRACT_INDICES_DEPTH;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link RelNodeUtils#extractIndices(RelNode)}.
@@ -217,6 +237,143 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
         schema.add(tableName, new MockTable());
         return RelBuilder.create(Frameworks.newConfigBuilder().defaultSchema(schema).build());
+    }
+
+    // ===== carriedResolution propagation tests =====
+    // These exist because dropping the field breaks shard targeting at execution time:
+    // ShardTargetResolver throws IllegalStateException when carriedResolution is null.
+
+    /**
+     * copyToCluster rebuilds every node in a new RelOptCluster; the resulting OpenSearchTableScan
+     * must carry the same IndexResolution instance as the original.
+     */
+    public void testCopyToClusterPreservesCarriedResolution() {
+        JavaTypeFactoryImpl typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        RelOptCluster originalCluster = RelOptCluster.create(new HepPlanner(new HepProgramBuilder().build()), rexBuilder);
+        RelOptCluster newCluster = RelOptCluster.create(new HepPlanner(new HepProgramBuilder().build()), rexBuilder);
+
+        IndexResolution resolution = stubResolution("my_alias", List.of(mockIndexMetadata("idx_a", "uuid-a")));
+
+        RelDataType rowType = typeFactory.builder().add("v", typeFactory.createSqlType(SqlTypeName.INTEGER)).build();
+        RelOptTable table = mock(RelOptTable.class);
+        when(table.getQualifiedName()).thenReturn(List.of("my_alias"));
+        when(table.getRowType()).thenReturn(rowType);
+
+        OpenSearchTableScan scan = new OpenSearchTableScan(
+            originalCluster,
+            originalCluster.traitSet(),
+            table,
+            List.of("datafusion"),
+            List.of(),
+            null,
+            resolution
+        );
+
+        OpenSearchDistributionTraitDef distTraitDef = mock(OpenSearchDistributionTraitDef.class);
+        RelNode copied = RelNodeUtils.copyToCluster(scan, newCluster, distTraitDef);
+
+        assertTrue("copyToCluster must return OpenSearchTableScan", copied instanceof OpenSearchTableScan);
+        OpenSearchTableScan copiedScan = (OpenSearchTableScan) copied;
+        assertSame("copyToCluster must preserve the carried IndexResolution instance", resolution, copiedScan.getCarriedResolution());
+        assertSame("copied scan must belong to the new cluster", newCluster, copiedScan.getCluster());
+    }
+
+    /**
+     * The QTF (late materialization) narrowed-scan path constructs a new OpenSearchTableScan
+     * with an overrideRowType and forwards origScan.getCarriedResolution(). This test verifies
+     * the 7-arg constructor (the path buildNarrowedScan uses) preserves the resolution when an
+     * override rowType is provided.
+     */
+    public void testNarrowedScanPreservesCarriedResolution() {
+        JavaTypeFactoryImpl typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        RelOptCluster cluster = RelOptCluster.create(new HepPlanner(new HepProgramBuilder().build()), rexBuilder);
+
+        IndexResolution resolution = stubResolution(
+            "test_alias",
+            List.of(mockIndexMetadata("backing_a", "uuid-a"), mockIndexMetadata("backing_b", "uuid-b"))
+        );
+
+        RelDataType fullRowType = typeFactory.builder()
+            .add("col_a", typeFactory.createSqlType(SqlTypeName.INTEGER))
+            .add("col_b", typeFactory.createSqlType(SqlTypeName.VARCHAR))
+            .build();
+        RelOptTable table = mock(RelOptTable.class);
+        when(table.getQualifiedName()).thenReturn(List.of("test_alias"));
+        when(table.getRowType()).thenReturn(fullRowType);
+
+        // Narrowed rowType — fewer columns, simulating the QTF narrowing that retains only
+        // sort/filter columns plus ___row_id.
+        RelDataType narrowedRowType = typeFactory.builder()
+            .add("col_a", typeFactory.createSqlType(SqlTypeName.INTEGER))
+            .add("___row_id", typeFactory.createSqlType(SqlTypeName.BIGINT))
+            .build();
+
+        List<FieldStorageInfo> narrowedStorage = List.of(
+            FieldStorageInfo.derivedColumn("col_a", SqlTypeName.INTEGER),
+            FieldStorageInfo.derivedColumn("___row_id", SqlTypeName.BIGINT)
+        );
+
+        OpenSearchTableScan narrowedScan = new OpenSearchTableScan(
+            cluster,
+            cluster.traitSet(),
+            table,
+            List.of("datafusion"),
+            narrowedStorage,
+            narrowedRowType,
+            resolution
+        );
+
+        assertSame(
+            "Narrowed scan (override rowType path) must preserve the carried IndexResolution",
+            resolution,
+            narrowedScan.getCarriedResolution()
+        );
+        assertEquals("Narrowed scan must use the override rowType", 2, narrowedScan.getRowType().getFieldCount());
+        assertEquals("___row_id", narrowedScan.getRowType().getFieldList().get(1).getName());
+    }
+
+    // ---- Helpers for carriedResolution tests ----
+
+    private IndexResolution stubResolution(String requestedName, List<IndexMetadata> indices) {
+        ClusterState state = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(state.metadata()).thenReturn(metadata);
+
+        if (indices.size() == 1) {
+            IndexMetadata imd = indices.get(0);
+            IndexAbstraction abstraction = mock(IndexAbstraction.class);
+            when(abstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+            when(abstraction.getIndices()).thenReturn(List.of(imd));
+            when(imd.getState()).thenReturn(IndexMetadata.State.OPEN);
+            TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+            lookup.put(requestedName, abstraction);
+            when(metadata.getIndicesLookup()).thenReturn(lookup);
+        } else {
+            for (IndexMetadata imd : indices) {
+                when(imd.getState()).thenReturn(IndexMetadata.State.OPEN);
+                AliasMetadata aliasMd = mock(AliasMetadata.class);
+                when(aliasMd.filteringRequired()).thenReturn(false);
+                when(imd.getAliases()).thenReturn(Map.of(requestedName, aliasMd));
+            }
+            IndexAbstraction aliasAbstraction = mock(IndexAbstraction.class);
+            when(aliasAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
+            when(aliasAbstraction.getIndices()).thenReturn(indices);
+            TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+            lookup.put(requestedName, aliasAbstraction);
+            when(metadata.getIndicesLookup()).thenReturn(lookup);
+        }
+
+        return IndexResolution.resolve(requestedName, state);
+    }
+
+    private IndexMetadata mockIndexMetadata(String name, String uuid) {
+        IndexMetadata imd = mock(IndexMetadata.class);
+        when(imd.getIndex()).thenReturn(new Index(name, uuid));
+        when(imd.getNumberOfShards()).thenReturn(1);
+        when(imd.getState()).thenReturn(IndexMetadata.State.OPEN);
+        return imd;
     }
 
     /** Minimal table implementation for RelBuilder schema registration. */

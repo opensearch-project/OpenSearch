@@ -95,6 +95,22 @@ public final class IndexResolution {
      * resolved members.
      */
     public static IndexResolution resolve(String name, ClusterState clusterState, IndexNameExpressionResolver resolver) {
+        return resolve(name, clusterState, resolver, IndicesOptions.lenientExpandOpen());
+    }
+
+    /**
+     * Resolves {@code name} against the cluster state using the supplied {@code options} for
+     * wildcard and comma-expression resolution. Literal concrete indices and aliases are resolved
+     * directly (with filter-alias rejection and cross-member schema validation).
+     *
+     * @param options controls ignore_unavailable, allow_no_indices, and wildcard expansion semantics
+     */
+    public static IndexResolution resolve(
+        String name,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        IndicesOptions options
+    ) {
         SortedMap<String, IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
         IndexAbstraction abstraction = lookup == null ? null : lookup.get(name);
         if (abstraction != null) {
@@ -119,7 +135,7 @@ public final class IndexResolution {
                 // expand to its backings — the resolver excludes data streams from wildcard
                 // expansion otherwise. Literal data stream names take the abstraction short-circuit
                 // above (resolveDataStream) and skip the resolver entirely.
-                concrete = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), true, expressions);
+                concrete = resolver.concreteIndexNames(clusterState, options, true, expressions);
             } catch (IndexNotFoundException e) {
                 throw new IllegalArgumentException("Index or alias [" + name + "] not found in cluster state", e);
             }

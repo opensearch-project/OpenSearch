@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner;
 
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.settings.DelegationBlockList;
 import org.opensearch.analytics.settings.PlannerSettings;
@@ -47,6 +48,7 @@ public class PlannerContext {
     private final OpenSearchDistributionTraitDef distributionTraitDef;
     private final boolean profilingEnabled;
     private final boolean preferMetadataDriver;
+    private final IndicesOptions indicesOptions;
     private int annotationIdCounter;
     private RuleProfilingListener.PlannerProfile lastProfile;
     // Cluster settings the planner consults at planning time (oversampling factor + delegation
@@ -60,19 +62,46 @@ public class PlannerContext {
     private boolean broadcastEligible = true;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
-        this(capabilityRegistry, clusterState, null, false, true, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS);
+        this(
+            capabilityRegistry,
+            clusterState,
+            null,
+            false,
+            true,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS,
+            IndicesOptions.lenientExpandOpen()
+        );
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, null, profilingEnabled, true, Settings.EMPTY, DEFAULT_TABLE_ROW_COUNTS);
+        this(
+            capabilityRegistry,
+            clusterState,
+            null,
+            profilingEnabled,
+            true,
+            Settings.EMPTY,
+            DEFAULT_TABLE_ROW_COUNTS,
+            IndicesOptions.lenientExpandOpen()
+        );
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings) {
-        this(capabilityRegistry, clusterState, null, false, true, settings, DEFAULT_TABLE_ROW_COUNTS);
+        this(capabilityRegistry, clusterState, null, false, true, settings, DEFAULT_TABLE_ROW_COUNTS, IndicesOptions.lenientExpandOpen());
     }
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, Settings settings, boolean profilingEnabled) {
-        this(capabilityRegistry, clusterState, null, profilingEnabled, true, settings, DEFAULT_TABLE_ROW_COUNTS);
+        this(
+            capabilityRegistry,
+            clusterState,
+            null,
+            profilingEnabled,
+            true,
+            settings,
+            DEFAULT_TABLE_ROW_COUNTS,
+            IndicesOptions.lenientExpandOpen()
+        );
     }
 
     public PlannerContext(
@@ -88,7 +117,8 @@ public class PlannerContext {
             profilingEnabled,
             true,
             Settings.EMPTY,
-            DEFAULT_TABLE_ROW_COUNTS
+            DEFAULT_TABLE_ROW_COUNTS,
+            IndicesOptions.lenientExpandOpen()
         );
     }
 
@@ -106,7 +136,8 @@ public class PlannerContext {
             profilingEnabled,
             preferMetadataDriver,
             Settings.EMPTY,
-            DEFAULT_TABLE_ROW_COUNTS
+            DEFAULT_TABLE_ROW_COUNTS,
+            IndicesOptions.lenientExpandOpen()
         );
     }
 
@@ -117,7 +148,7 @@ public class PlannerContext {
         ToLongFunction<String> tableRowCounts,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, null, profilingEnabled, true, settings, tableRowCounts);
+        this(capabilityRegistry, clusterState, null, profilingEnabled, true, settings, tableRowCounts, IndicesOptions.lenientExpandOpen());
     }
 
     public PlannerContext(
@@ -128,13 +159,23 @@ public class PlannerContext {
         @Nullable IndexNameExpressionResolver indexNameExpressionResolver,
         boolean profilingEnabled
     ) {
-        this(capabilityRegistry, clusterState, indexNameExpressionResolver, profilingEnabled, true, settings, tableRowCounts);
+        this(
+            capabilityRegistry,
+            clusterState,
+            indexNameExpressionResolver,
+            profilingEnabled,
+            true,
+            settings,
+            tableRowCounts,
+            IndicesOptions.lenientExpandOpen()
+        );
     }
 
     // Canonical constructor. Parameters that exist on upstream's PlannerContext
     // (indexNameExpressionResolver, profilingEnabled, preferMetadataDriver) come first, in
     // upstream's order; our feature-branch additions (settings, tableRowCounts) are appended last
     // so a future upstream merge that extends this constructor doesn't collide with our params.
+    // IndicesOptions is the final parameter — the per-query index resolution mode.
     public PlannerContext(
         CapabilityRegistry capabilityRegistry,
         ClusterState clusterState,
@@ -142,7 +183,8 @@ public class PlannerContext {
         boolean profilingEnabled,
         boolean preferMetadataDriver,
         Settings settings,
-        ToLongFunction<String> tableRowCounts
+        ToLongFunction<String> tableRowCounts,
+        IndicesOptions indicesOptions
     ) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
@@ -152,6 +194,7 @@ public class PlannerContext {
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
         this.profilingEnabled = profilingEnabled;
         this.preferMetadataDriver = preferMetadataDriver;
+        this.indicesOptions = indicesOptions;
         this.annotationIdCounter = 0;
     }
 
@@ -247,5 +290,10 @@ public class PlannerContext {
      */
     public boolean preferMetadataDriver() {
         return preferMetadataDriver;
+    }
+
+    /** Per-query index resolution options. Defaults to {@link IndicesOptions#lenientExpandOpen()}. */
+    public IndicesOptions getIndicesOptions() {
+        return indicesOptions;
     }
 }

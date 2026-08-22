@@ -9,6 +9,7 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterState;
 
@@ -41,6 +42,18 @@ public interface EngineContextProvider {
     default QueryRequestContext getContext(ClusterState clusterState) {
         return new QueryRequestContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
     }
+
+    /**
+     * Options-aware context: builds the schema with the supplied {@code IndicesOptions} so the lazy
+     * table-resolution closure honours the caller's wildcard and index-state preferences.
+     *
+     * <p>Deliberately abstract rather than defaulted: a default that dropped the options would
+     * silently yield a {@code lenientExpandOpen} schema whose row type disagrees with the indices
+     * the planner targets — the exact mismatch this overload exists to remove. An implementation
+     * that cannot honour the options should pass {@code IndicesOptions.lenientExpandOpen()}
+     * explicitly so the choice is visible at the call site.
+     */
+    QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions);
 
     QueryRequestContext getContext();
 

@@ -748,7 +748,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
         // And the DAG still promotes two join worker tiers (the un-wireable agg-shuffle bug would have left
         // the PARTIAL stage consuming an un-promoted shuffle).
-        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
         GeneralShuffleDAGRewriter.Structure structure = GeneralShuffleDAGRewriter.rewriteStructure(
@@ -985,7 +985,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             /* minRows */ 1L,
             /* shuffleAggregateEnabled */ true
         );
-        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
         assertTrue("enforced DAG has a distributed join to promote", GeneralShuffleDAGRewriter.hasDistributedJoin(dag));
@@ -1062,7 +1062,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         RelNode logical = LogicalJoin.create(l, r, List.of(), cond, Set.of(), JoinRelType.INNER);
         RelNode cbo = runPlanner(logical, context);
         RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
-        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
 
@@ -1190,7 +1190,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
         RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
-        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService());
 
         // Find the stage whose fragment contains an OpenSearchBroadcastScan AND a shard TableScan — the
         // broadcast-probe-that-is-also-a-shuffle-producer. There must be at least one (the enforced plan

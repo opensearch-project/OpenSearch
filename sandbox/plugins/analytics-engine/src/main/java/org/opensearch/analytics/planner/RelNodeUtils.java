@@ -76,7 +76,15 @@ public class RelNodeUtils {
         RelTraitSet newTraits = rebuildTraits(node, newCluster, distTraitDef);
 
         if (node instanceof OpenSearchTableScan scan) {
-            return new OpenSearchTableScan(newCluster, newTraits, scan.getTable(), scan.getViableBackends(), scan.getOutputFieldStorage());
+            return new OpenSearchTableScan(
+                newCluster,
+                newTraits,
+                scan.getTable(),
+                scan.getViableBackends(),
+                scan.getOutputFieldStorage(),
+                null,
+                scan.getCarriedResolution()
+            );
         } else if (node instanceof OpenSearchFilter filter) {
             return new OpenSearchFilter(newCluster, newTraits, newInputs.getFirst(), filter.getCondition(), filter.getViableBackends());
         } else if (node instanceof OpenSearchAggregate aggregate) {

@@ -112,7 +112,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         var context = buildContext("parquet", shardCount, intFields(), List.of(df));
         RelNode cboOutput = runPlanner(logicalPlan, context);
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         LOGGER.info("QueryDAG after conversion:\n{}", dag);
@@ -370,7 +370,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode logical = buildUnionOverSortedAggArms();
         RelNode cboOutput = runPlanner(logical, context);
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
 
@@ -731,7 +731,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", fieldNames, fieldTypes)), condition);
         RelNode cboOutput = runPlanner(filter, context);
         LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return dag;
@@ -1002,7 +1002,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1062,7 +1062,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1123,7 +1123,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1175,7 +1175,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1228,7 +1228,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1293,7 +1293,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1384,7 +1384,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -1501,7 +1501,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LogicalAggregate aggregate = makeAggregate(where, ImmutableBitSet.of(0), countStarCall(where));
         LogicalFilter having = LogicalFilter.create(aggregate, makeEquals(1, SqlTypeName.BIGINT, 1));
         RelNode cboOutput = runPlanner(having, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         return leafStage(dag).getPlanAlternatives().getFirst();
@@ -2021,7 +2021,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             makeFullTextCall(MATCH_PHRASE_FUNCTION, 0, "hello world")
         );
         RelNode marked = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -2067,7 +2067,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
@@ -2114,7 +2114,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             condition
         );
         RelNode cboOutput = runPlanner(filter, context);
-        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();

@@ -25,7 +25,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 
 import java.util.ArrayList;
@@ -55,12 +54,7 @@ public class DAGBuilder {
 
     private DAGBuilder() {}
 
-    public static QueryDAG build(
-        RelNode cboOutput,
-        CapabilityRegistry registry,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+    public static QueryDAG build(RelNode cboOutput, CapabilityRegistry registry, ClusterService clusterService) {
         int[] counter = { 0 };
         List<Stage> childStages = new ArrayList<>();
 
@@ -69,16 +63,16 @@ public class DAGBuilder {
             // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
-            rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService);
         } else if (cboOutput instanceof OpenSearchLateMaterialization lm) {
             // LM at root, no above-ops (e.g. `source = t | where ... | sort col | head N`):
             // promote the LM stage to rootStage and skip the synthetic post-LM stage that would
             // wrap a bare StageInputScan placeholder.
-            cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            cutAtLateMaterialization(lm, counter, childStages, registry, clusterService);
             assert childStages.size() == 1 : "cutAtLateMaterialization must add exactly one child (the LM stage)";
             return new QueryDAG(newQueryId(), childStages.getFirst());
         } else {
-            rootFragment = sever(cboOutput, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
         }
 
         // Sink provider is needed whenever the root stage runs a backend plan locally —
@@ -100,9 +94,7 @@ public class DAGBuilder {
         // OpenSearchValues (literal-row source) and other coord-only leaves have no scan
         // and run as LOCAL_COMPUTE on the coordinator.
         boolean needsShardResolver = childStages.isEmpty() && RelNodeUtils.findNode(rootFragment, OpenSearchTableScan.class) != null;
-        TargetResolver rootTargetResolver = needsShardResolver
-            ? new ShardTargetResolver(rootFragment, clusterService, indexNameExpressionResolver)
-            : null;
+        TargetResolver rootTargetResolver = needsShardResolver ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
         return new QueryDAG(newQueryId(), rootStage);
@@ -122,25 +114,22 @@ public class DAGBuilder {
         int[] counter,
         List<Stage> childStages,
         CapabilityRegistry registry,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ClusterService clusterService
     ) {
         List<RelNode> newInputs = new ArrayList<>();
         List<RelNode> rawInputs = node.getInputs();
         for (int inputIndex = 0; inputIndex < rawInputs.size(); inputIndex++) {
             RelNode input = rawInputs.get(inputIndex);
             if (input instanceof OpenSearchExchangeReducer reducer) {
-                newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
-                newInputs.add(
-                    cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex, indexNameExpressionResolver)
-                );
+                newInputs.add(cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex));
             } else if (input instanceof OpenSearchBroadcastExchange broadcast) {
-                newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService));
             } else if (input instanceof OpenSearchLateMaterialization lm) {
-                newInputs.add(cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(cutAtLateMaterialization(lm, counter, childStages, registry, clusterService));
             } else {
-                newInputs.add(sever(input, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
         }
         if (node.getInputs().isEmpty()) return node;
@@ -184,12 +173,11 @@ public class DAGBuilder {
         int[] counter,
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ClusterService clusterService
     ) {
         // 1. Reduce child — Sort+Limit reduce above shard scans. Multi-shard QTF only.
         List<Stage> reduceChildren = new ArrayList<>();
-        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService);
         if (reduceChildren.isEmpty()) {
             throw new IllegalStateException(
                 "QTF rewriter fired but the wrapper's input has no ExchangeReducer below it — "
@@ -269,14 +257,13 @@ public class DAGBuilder {
         int[] counter,
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ClusterService clusterService
     ) {
         // Recurse into the child fragment with full sever() so any nested ExchangeReducers
         // (e.g. a Join below a top-level gather Reducer) are also cut into their own child
         // stages rather than being left intact inside the shard-local fragment.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
         // Stage execution location is decided by the fragment's contents, not the grandchild
@@ -286,9 +273,7 @@ public class DAGBuilder {
         // fragment without a TableScan runs at the coordinator and consumes grandchildren via
         // an ExchangeSinkProvider.
         boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
-        TargetResolver targetResolver = fragmentHasShardScan
-            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
-            : null;
+        TargetResolver targetResolver = fragmentHasShardScan ? new ShardTargetResolver(childFragment, clusterService) : null;
         ExchangeSinkProvider childSinkProvider = null;
         if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, reducer.getViableBackends());
@@ -354,15 +339,14 @@ public class DAGBuilder {
         CapabilityRegistry registry,
         ClusterService clusterService,
         RelNode parent,
-        int parentInputIndex,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        int parentInputIndex
     ) {
         // Recurse into the shuffle's input with full sever() so any nested exchanges below the
         // shuffle (e.g. a partial-aggregate that itself reduces) are also cut into their own
         // stages. M2 today only composes shuffle over a shard scan, but the recursion makes the
         // cutter robust to future plan shapes.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
         // Decide the producer's locality by whether its fragment has a shard scan — NOT by child-stage
@@ -375,9 +359,7 @@ public class DAGBuilder {
         // ("expected at least one child"). A fragment with no shard scan genuinely runs at the coordinator
         // and consumes its grandchildren via an ExchangeSinkProvider.
         boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
-        TargetResolver targetResolver = fragmentHasShardScan
-            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
-            : null;
+        TargetResolver targetResolver = fragmentHasShardScan ? new ShardTargetResolver(childFragment, clusterService) : null;
         ExchangeSinkProvider childSinkProvider = null;
         if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, shuffle.getViableBackends());
@@ -462,16 +444,13 @@ public class DAGBuilder {
         int[] counter,
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ClusterService clusterService
     ) {
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(broadcast.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = sever(broadcast.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
-        TargetResolver targetResolver = grandchildren.isEmpty()
-            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
-            : null;
+        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
         ExchangeSinkProvider childSinkProvider = null;
         if (!grandchildren.isEmpty()) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, broadcast.getViableBackends());

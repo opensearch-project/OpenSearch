@@ -178,7 +178,7 @@ public class MppStrategyObservationTests extends BasePlannerRulesTests {
                 /* shuffleAggregateEnabled */ true
             );
         }
-        return DAGBuilder.build(plan, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        return DAGBuilder.build(plan, context.getCapabilityRegistry(), mockClusterService());
     }
 
     private RelNode makeInnerEquiJoin(String leftIdx, String rightIdx) {
