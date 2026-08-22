@@ -97,4 +97,43 @@ public class NativeMemoryRebalancerIT extends OpenSearchIntegTestCase {
             buf.close();
         }
     }
+
+    /**
+     * The query pool is registered as a special, unmanaged, unbounded pool on a real node: its limit
+     * is Long.MAX_VALUE regardless of native.allocator.pool.query.max, it reports as unmanaged, and
+     * it is excluded from the rebalancer's managed set — so the running rebalancer never resizes it.
+     */
+    public void testQueryPoolIsUnmanagedAndUnbounded() throws Exception {
+        ArrowNativeAllocator allocator = internalCluster().getInstance(ArrowNativeAllocator.class);
+
+        assertTrue(
+            "query pool must be registered as unmanaged",
+            allocator.isUnmanagedPool(NativeAllocatorPoolConfig.POOL_QUERY)
+        );
+        assertEquals(
+            "query pool must be unbounded (Long.MAX_VALUE), ignoring the query.max setting",
+            Long.MAX_VALUE,
+            allocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).getLimit()
+        );
+        assertFalse(
+            "query pool must be excluded from the rebalancer's managed set",
+            allocator.getManagedPoolNames().contains(NativeAllocatorPoolConfig.POOL_QUERY)
+        );
+
+        // Pressure a managed pool so the (1s-interval) rebalancer actively runs, then confirm the
+        // query pool's limit is still untouched after several ticks.
+        BufferAllocator ingestPool = allocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+        ArrowBuf buf = ingestPool.buffer((long) (ingestPool.getLimit() * 0.8));
+        try {
+            assertBusy(() -> {
+                assertEquals(
+                    "rebalancer must never resize the unmanaged query pool",
+                    Long.MAX_VALUE,
+                    allocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).getLimit()
+                );
+            });
+        } finally {
+            buf.close();
+        }
+    }
 }

@@ -10,6 +10,7 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -147,6 +148,28 @@ public class NativeMemoryRebalancerTests extends OpenSearchTestCase {
             assertTrue("Sum of limits (" + sumLimits + ") should not exceed budget (" + BUDGET + ")", sumLimits <= BUDGET);
         } finally {
             bufs.forEach(ArrowBuf::close);
+        }
+    }
+
+    public void testUnmanagedPoolUntouchedByRebalance() {
+        // A pressured managed pool that would normally receive freed capacity...
+        allocator.getOrCreatePool("pressured", 5 * MB, 20 * MB, PoolGroup.INDEXING);
+        // ...and the special unbounded query pool, which is idle (0 allocated).
+        allocator.registerUnmanagedPool("query", PoolGroup.SEARCH);
+
+        BufferAllocator pressuredPool = allocator.getPoolAllocator("pressured");
+        ArrowBuf buf = pressuredPool.buffer((long) (20 * MB * 0.9)); // >75% → pressured
+        try {
+            long queryLimitBefore = allocator.getPoolAllocator("query").getLimit();
+            rebalancer.rebalance();
+            long queryLimitAfter = allocator.getPoolAllocator("query").getLimit();
+
+            // The unmanaged pool's limit is unchanged (still Long.MAX_VALUE) — it was neither
+            // shrunk as an "idle" pool nor otherwise touched.
+            assertEquals("unmanaged pool must not be resized by the rebalancer", queryLimitBefore, queryLimitAfter);
+            assertEquals(Long.MAX_VALUE, queryLimitAfter);
+        } finally {
+            buf.close();
         }
     }
 }
