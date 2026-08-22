@@ -384,6 +384,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    /**
+     * Set once this copy has claimed the remote store fence ({@link #sealRemoteStoreFence()}); consulted only by
+     * {@link #assertRemoteStoreFenceSealedBeforeRestore()} to assert seal-before-restore ordering.
+     */
+    private volatile boolean remoteStoreFenceSealed;
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
@@ -510,8 +515,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, seedRemote);
         final String aId = shardRouting.allocationId().getId();
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, aId, seedRemote);
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
@@ -5934,6 +5939,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void syncRemoteTranslogAndUpdateGlobalCheckpoint() throws IOException {
+        assert assertRemoteStoreFenceSealedBeforeRestore();
         syncTranslogFilesFromRemoteTranslog();
         loadGlobalCheckpointToReplicationTracker();
     }
@@ -5974,12 +5980,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
             RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
+            shardRouting.allocationId().getId(),
             translogConfig.getNodeId(),
             // Deliberately the operation term rather than the pending term: uploads advance the fence at the operation
             // term, and the pending term can transiently lead it. Sealing above the term we will upload at would make
             // the shard fence itself; sealing at or below is safe, since bootstrap seals over at a term >= the fence's.
             getOperationPrimaryTerm()
         );
+        remoteStoreFenceSealed = true;
+    }
+
+    /**
+     * Invariant I3 of {@link org.opensearch.index.translog.transfer.RemoteStoreFence}: a fencing-enabled primary must
+     * have claimed the fence before it reads the remote translog restore point it will serve from, with one exception —
+     * a primary relocation target, whose source is still legitimately serving at the same term and for which ordering
+     * is enforced by the fence CAS once the target starts uploading. Asserted at the read choke point so that any new
+     * code path reaching the remote translog without sealing fails loudly in tests rather than silently reopening the
+     * acked-write-loss window.
+     */
+    private boolean assertRemoteStoreFenceSealedBeforeRestore() {
+        assert indexSettings.isRemoteStoreFencingEnabled() == false || remoteStoreFenceSealed || shardRouting.isRelocationTarget()
+            : "remote translog restore point read without sealing the fence for " + shardRouting;
+        return true;
     }
 
     public void deleteTranslogFilesFromRemoteTranslog() throws IOException {

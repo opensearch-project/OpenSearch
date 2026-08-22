@@ -21,6 +21,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -53,8 +54,13 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
+    /** Allocation ids in these tests are derived from the node id so both identities stay legible in assertions. */
+    private static String allocationIdOf(String ownerNodeId) {
+        return ownerNodeId + "-alloc";
+    }
+
     private RemoteStoreFence newFence(String ownerNodeId) {
-        return new RemoteStoreFence(blobContainer, ownerNodeId, shardId, threadPool);
+        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool);
     }
 
     public void testBootstrapCreatesFence() throws IOException {
@@ -183,7 +189,8 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
             blobContainer.readBlobWithVersion(RemoteStoreFence.FENCE_BLOB_NAME).content()
         );
         assertEquals(1, finalState.term);
-        assertTrue(finalState.owner.startsWith("node-"));
+        assertTrue(finalState.nodeId.startsWith("node-"));
+        assertEquals(allocationIdOf(finalState.nodeId), finalState.allocationId);
     }
 
     public void testFenceBlobIsSelfDescribing() throws IOException {
@@ -193,40 +200,77 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
             blobContainer.readBlobWithVersion(RemoteStoreFence.FENCE_BLOB_NAME).content()
         );
         assertEquals(9, state.term);
-        assertEquals("node-1", state.owner);
+        assertEquals(allocationIdOf("node-1"), state.allocationId);
+        assertEquals("node-1", state.nodeId);
         assertEquals(0, state.seq);
+        // The blob records the shard identity it belongs to (invariant I7)
+        assertEquals(shardId.getIndex().getUUID(), state.indexUUID);
+        assertEquals(shardId.id(), state.shardId);
     }
 
     public void testFenceStateCodecRoundTrip() throws IOException {
-        RemoteStoreFence.FenceState state = new RemoteStoreFence.FenceState(7, "node-a", 42);
+        RemoteStoreFence.FenceState state = new RemoteStoreFence.FenceState("uuid", 3, 7, "alloc-a", "node-a", 42);
         RemoteStoreFence.FenceState parsed = RemoteStoreFence.FenceState.parse(state.toBytes());
+        assertEquals("uuid", parsed.indexUUID);
+        assertEquals(3, parsed.shardId);
         assertEquals(7, parsed.term);
-        assertEquals("node-a", parsed.owner);
+        assertEquals("alloc-a", parsed.allocationId);
+        assertEquals("node-a", parsed.nodeId);
         assertEquals(42, parsed.seq);
     }
 
     public void testFenceStateCodecRejectsGarbage() {
         expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("garbage".getBytes(StandardCharsets.UTF_8)));
         // Wrong codec version
-        expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("v2|1|node-1|0".getBytes(StandardCharsets.UTF_8)));
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v2|uuid|0|1|alloc-1|node-1|0".getBytes(StandardCharsets.UTF_8))
+        );
         // Non-numeric term
-        expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("v1|x|node-1|0".getBytes(StandardCharsets.UTF_8)));
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v1|uuid|0|x|alloc-1|node-1|0".getBytes(StandardCharsets.UTF_8))
+        );
+        // Non-numeric shard id
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v1|uuid|x|1|alloc-1|node-1|0".getBytes(StandardCharsets.UTF_8))
+        );
         // Truncated
-        expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("v1|1|node-1".getBytes(StandardCharsets.UTF_8)));
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v1|uuid|0|1|alloc-1|node-1".getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     /**
-     * The separator is unescaped, so an owner containing it would encode a blob that {@code parse} rejects - which
-     * would fence a healthy primary. Node ids are base64 UUIDs so this cannot happen today; reject it at the source
-     * rather than rely on that.
+     * The separator is unescaped, so a string field containing it would encode a blob that {@code parse} rejects -
+     * which would fence a healthy primary. Index UUIDs, allocation ids and node ids are base64 UUIDs so this cannot
+     * happen today; reject it at the source rather than rely on that.
      */
-    public void testFenceStateRejectsOwnerContainingTheSeparator() {
-        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState(1, "node|1", 0));
-        // and the encoding of a well-formed owner still round-trips
-        RemoteStoreFence.FenceState roundTripped = expectSuccess(new RemoteStoreFence.FenceState(7, "node-1", 3));
+    public void testFenceStateRejectsFieldsContainingTheSeparator() {
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc-1", "node|1", 0));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc|1", "node-1", 0));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uu|id", 0, 1, "alloc-1", "node-1", 0));
+        // and the encoding of well-formed fields still round-trips
+        RemoteStoreFence.FenceState roundTripped = expectSuccess(new RemoteStoreFence.FenceState("uuid", 0, 7, "alloc-1", "node-1", 3));
         assertEquals(7, roundTripped.term);
-        assertEquals("node-1", roundTripped.owner);
+        assertEquals("alloc-1", roundTripped.allocationId);
+        assertEquals("node-1", roundTripped.nodeId);
         assertEquals(3, roundTripped.seq);
+    }
+
+    /**
+     * Invariant I7: a fence blob describing a different shard at this key means two shards resolved the same path.
+     * That must surface as a loud repository error - never as a fencing verdict on a chain that is not ours.
+     */
+    public void testFenceBlobForAnotherShardFailsLoudly() throws IOException {
+        byte[] foreign = new RemoteStoreFence.FenceState("other-uuid", 3, 1, "alloc-x", "node-x", 0).toBytes();
+        blobContainer.writeBlobConditionally(RemoteStoreFence.FENCE_BLOB_NAME, new ByteArrayInputStream(foreign), foreign.length, null);
+        RemoteStoreFence fence = newFence("node-1");
+        IOException e = expectThrows(IOException.class, () -> fence.validateAndAdvance(5));
+        assertFalse("a shard identity mismatch must not be classified as fenced", e instanceof TranslogFencedException);
+        assertTrue(e.getMessage(), e.getMessage().contains("different shard"));
     }
 
     private static RemoteStoreFence.FenceState expectSuccess(RemoteStoreFence.FenceState state) {
@@ -241,7 +285,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         // The BlobContainer defaults must be inert: no silent non-atomic fallback for repositories that cannot CAS
         BlobContainer unsupported = mock(BlobContainer.class, CALLS_REAL_METHODS);
         assertFalse(unsupported.isConditionalWriteSupported());
-        RemoteStoreFence fence = new RemoteStoreFence(unsupported, "node-1", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(unsupported, allocationIdOf("node-1"), "node-1", shardId, threadPool);
         expectThrows(UnsupportedOperationException.class, () -> fence.validateAndAdvance(1));
     }
 }

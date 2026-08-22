@@ -93,14 +93,21 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
     /**
      * Parses the fence blob independently of {@link RemoteStoreFence}, so that the on-disk layout documented as
-     * {@code v1|<term>|<ownerNodeId>|<seq>} is asserted rather than assumed.
+     * {@code v1|<indexUUID>|<shardId>|<term>|<allocationId>|<nodeId>|<seq>} is asserted rather than assumed.
      */
     private static Fence readFence(Path fenceBlob) throws IOException {
         String raw = new String(Files.readAllBytes(fenceBlob), StandardCharsets.UTF_8);
         String[] tokens = raw.split("\\|");
-        assertEquals("unexpected fence blob layout [" + raw + "]", 4, tokens.length);
+        assertEquals("unexpected fence blob layout [" + raw + "]", 7, tokens.length);
         assertEquals("unexpected fence codec version [" + raw + "]", "v1", tokens[0]);
-        return new Fence(Long.parseLong(tokens[1]), tokens[2], Long.parseLong(tokens[3]));
+        return new Fence(
+            tokens[1],
+            Integer.parseInt(tokens[2]),
+            Long.parseLong(tokens[3]),
+            tokens[4],
+            tokens[5],
+            Long.parseLong(tokens[6])
+        );
     }
 
     private static Fence awaitFence(Path fenceBlob) throws Exception {
@@ -109,19 +116,34 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private static final class Fence {
+        private final String indexUUID;
+        private final int shardId;
         private final long term;
-        private final String owner;
+        private final String allocationId;
+        private final String nodeId;
         private final long seq;
 
-        private Fence(long term, String owner, long seq) {
+        private Fence(String indexUUID, int shardId, long term, String allocationId, String nodeId, long seq) {
+            this.indexUUID = indexUUID;
+            this.shardId = shardId;
             this.term = term;
-            this.owner = owner;
+            this.allocationId = allocationId;
+            this.nodeId = nodeId;
             this.seq = seq;
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "term [%d] owner [%s] seq [%d]", term, owner, seq);
+            return String.format(
+                Locale.ROOT,
+                "index [%s] shard [%d] term [%d] allocation [%s] node [%s] seq [%d]",
+                indexUUID,
+                shardId,
+                term,
+                allocationId,
+                nodeId,
+                seq
+            );
         }
     }
 
@@ -129,9 +151,6 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
     }
 
-    /**
-     * Zero replicas: the object store is the only witness, so every acknowledged write must advance the CAS chain.
-     */
     /**
      * The fencing gate is a <b>dynamic cluster setting</b> baked into a <b>final index setting</b> at creation time:
      * operators can turn fencing on or off for indices created from that point on, but an existing index never
@@ -208,6 +227,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         return client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName).get(settingKey);
     }
 
+    /**
+     * Zero replicas: the object store is the only witness, so every acknowledged write must advance the CAS chain.
+     */
     public void testFenceIsExercisedWithZeroReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
@@ -219,7 +241,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         indexSingleDoc(INDEX_NAME);
         Fence bootstrapped = awaitFence(fenceBlob);
-        assertEquals("fence owner should be the primary's node", nodeId(dataNode), bootstrapped.owner);
+        assertEquals("fence owner should be the primary's node", nodeId(dataNode), bootstrapped.nodeId);
         assertEquals("fence term should be the primary term", primary.getOperationPrimaryTerm(), bootstrapped.term);
         assertThat(bootstrapped.seq, greaterThanOrEqualTo(0L));
 
@@ -230,7 +252,8 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             indexSingleDoc(INDEX_NAME);
             Fence current = readFence(fenceBlob);
             assertThat("fence did not advance after an acknowledged write", current.seq, greaterThan(previous.seq));
-            assertEquals(previous.owner, current.owner);
+            assertEquals(previous.nodeId, current.nodeId);
+            assertEquals(previous.allocationId, current.allocationId);
             assertEquals(previous.term, current.term);
             previous = current;
         }
@@ -296,7 +319,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             indexSingleDoc(INDEX_NAME);
         }
         Fence fence = awaitFence(fenceBlob);
-        assertEquals("fence owner should be the primary's node", nodeId(primaryNode), fence.owner);
+        assertEquals("fence owner should be the primary's node", nodeId(primaryNode), fence.nodeId);
         assertEquals("fence term should be the primary term", primary.getOperationPrimaryTerm(), fence.term);
 
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
@@ -338,7 +361,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         indexSingleDoc(INDEX_NAME);
         Fence beforeFailover = awaitFence(fenceBlob);
-        assertEquals(nodeId(originalPrimaryNode), beforeFailover.owner);
+        assertEquals(nodeId(originalPrimaryNode), beforeFailover.nodeId);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(originalPrimaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -351,9 +374,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
                 afterFailover.term,
                 greaterThan(beforeFailover.term)
             );
-            assertNotEquals("fence ownership did not move to the promoted copy", beforeFailover.owner, afterFailover.owner);
+            assertNotEquals("fence ownership did not move to the promoted copy", beforeFailover.nodeId, afterFailover.nodeId);
         });
-        assertEquals(nodeId(primaryNodeName(INDEX_NAME)), readFence(fenceBlob).owner);
+        assertEquals(nodeId(primaryNodeName(INDEX_NAME)), readFence(fenceBlob).nodeId);
     }
 
     /**
@@ -377,7 +400,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         indexSingleDoc(INDEX_NAME);
         Fence before = awaitFence(fenceBlob);
-        assertEquals(nodeId(originalPrimaryNode), before.owner);
+        assertEquals(nodeId(originalPrimaryNode), before.nodeId);
 
         // Stand in for a copy hydrated elsewhere that has already moved the shard well past this cluster's term. The
         // gap is deliberately wider than the number of allocation retries, so neither the promotion nor any subsequent
@@ -388,10 +411,15 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             clusterManager
         ).repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(fenceContainer, "superseding-node", shardId, internalCluster().getInstance(ThreadPool.class, clusterManager))
-            .validateAndAdvance(before.term + 50);
+        new RemoteStoreFence(
+            fenceContainer,
+            "superseding-allocation",
+            "superseding-node",
+            shardId,
+            internalCluster().getInstance(ThreadPool.class, clusterManager)
+        ).validateAndAdvance(before.term + 50);
         Fence superseding = readFence(fenceBlob);
-        assertEquals("superseding-node", superseding.owner);
+        assertEquals("superseding-node", superseding.nodeId);
 
         // Failover: the replica is promoted in place. No write is issued against the promoted copy.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(originalPrimaryNode));
@@ -421,7 +449,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         // The superseded copy neither claimed nor advanced the chain, so it cannot have read a restore point it would
         // then serve from.
         Fence after = readFence(fenceBlob);
-        assertEquals("superseded copy claimed the fence: " + after, superseding.owner, after.owner);
+        assertEquals("superseded copy claimed the fence: " + after, superseding.nodeId, after.nodeId);
         assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.term, after.term);
         assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.seq, after.seq);
 
@@ -453,7 +481,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         indexSingleDoc(INDEX_NAME);
         Fence before = awaitFence(fenceBlob);
-        assertEquals(nodeId(dataNode), before.owner);
+        assertEquals(nodeId(dataNode), before.nodeId);
 
         // Stand in for a copy hydrated elsewhere that has already moved the shard well past this node's term. The gap
         // is deliberately wider than the number of allocation retries, so no reassignment can lift this node's primary
@@ -464,10 +492,15 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             clusterManager
         ).repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(fenceContainer, "superseding-node", shardId, internalCluster().getInstance(ThreadPool.class, clusterManager))
-            .validateAndAdvance(before.term + 50);
+        new RemoteStoreFence(
+            fenceContainer,
+            "superseding-allocation",
+            "superseding-node",
+            shardId,
+            internalCluster().getInstance(ThreadPool.class, clusterManager)
+        ).validateAndAdvance(before.term + 50);
         Fence superseding = readFence(fenceBlob);
-        assertEquals("superseding-node", superseding.owner);
+        assertEquals("superseding-node", superseding.nodeId);
 
         internalCluster().restartNode(dataNode);
 
@@ -493,7 +526,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         // The superseded copy neither claimed nor advanced the chain, so it cannot have read a restore point it would
         // then serve from.
         Fence after = readFence(fenceBlob);
-        assertEquals("superseded copy claimed the fence: " + after, superseding.owner, after.owner);
+        assertEquals("superseded copy claimed the fence: " + after, superseding.nodeId, after.nodeId);
         assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.term, after.term);
         assertEquals("superseded copy advanced the fence: " + superseding + " -> " + after, superseding.seq, after.seq);
 
@@ -518,16 +551,21 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         indexSingleDoc(INDEX_NAME);
         Fence incumbent = awaitFence(fenceBlob);
-        assertEquals(nodeId(dataNode), incumbent.owner);
+        assertEquals(nodeId(dataNode), incumbent.nodeId);
 
         // Stand in for a copy hydrated on another node: take ownership of the chain at a higher term, out of band.
         BlobStoreRepository translogRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNode)
             .repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(fenceContainer, "competing-node", primary.shardId(), internalCluster().getInstance(ThreadPool.class, dataNode))
-            .validateAndAdvance(incumbent.term + 1);
+        new RemoteStoreFence(
+            fenceContainer,
+            "competing-allocation",
+            "competing-node",
+            primary.shardId(),
+            internalCluster().getInstance(ThreadPool.class, dataNode)
+        ).validateAndAdvance(incumbent.term + 1);
         Fence competing = readFence(fenceBlob);
-        assertEquals("competing-node", competing.owner);
+        assertEquals("competing-node", competing.nodeId);
 
         // The incumbent holds a stale token, so its next upload loses the CAS and the write is never acknowledged.
         Exception failure = expectThrows(Exception.class, () -> indexSingleDoc(INDEX_NAME));
@@ -541,7 +579,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         indexSingleDoc(INDEX_NAME);
         assertBusy(() -> {
             Fence reclaimed = readFence(fenceBlob);
-            assertEquals("fence was not reclaimed by the new incarnation", nodeId(dataNode), reclaimed.owner);
+            assertEquals("fence was not reclaimed by the new incarnation", nodeId(dataNode), reclaimed.nodeId);
             assertThat(reclaimed.term, greaterThanOrEqualTo(competing.term));
         });
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));

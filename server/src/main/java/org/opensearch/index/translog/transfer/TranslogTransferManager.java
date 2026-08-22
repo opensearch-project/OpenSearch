@@ -241,10 +241,11 @@ public class TranslogTransferManager {
                 throw exception;
             }
             if (exceptionList.isEmpty()) {
-                // The fence CAS runs concurrently with the metadata upload so fencing stays off the latency path;
-                // the upload is acknowledged only when BOTH succeed. A fenced writer may therefore publish one
-                // orphan metadata file — never acknowledged, term-scoped, and ignored by readers that follow the
-                // highest-term lineage.
+                // Invariant I1 (see RemoteStoreFence): the chain gates the ack. The fence CAS runs concurrently with
+                // the metadata upload so fencing stays off the latency path; the upload is acknowledged only when
+                // BOTH succeed (awaitFenceValidation below joins the CAS before onUploadComplete). A fenced writer
+                // may therefore publish one orphan metadata file — never acknowledged, term-scoped, and ignored by
+                // readers that follow the highest-term lineage.
                 final CountDownLatch fenceLatch = new CountDownLatch(fence == null ? 0 : 1);
                 final SetOnce<Exception> fenceException = new SetOnce<>();
                 if (fence != null) {

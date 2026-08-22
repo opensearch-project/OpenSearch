@@ -426,7 +426,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     public void testTransferSnapshotAdvancesFence() throws Exception {
         mockSuccessfulFileUploads();
-        RemoteStoreFence fence = new RemoteStoreFence(fenceContainer(), "node-1", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(fenceContainer(), "node-1-alloc", "node-1", shardId, threadPool);
         TranslogTransferManager manager = fencedTransferManager(fence, tracker);
 
         AtomicInteger uploadComplete = new AtomicInteger();
@@ -458,7 +458,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     public void testTransferSnapshotFencedByNewOwnerAtSameTerm() throws Exception {
         mockSuccessfulFileUploads();
         FsBlobContainer container = fenceContainer();
-        RemoteStoreFence fence = new RemoteStoreFence(container, "node-source", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-source-alloc", "node-source", shardId, threadPool);
         TranslogTransferManager manager = fencedTransferManager(fence, tracker);
 
         AtomicInteger uploadComplete = new AtomicInteger();
@@ -478,7 +478,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
 
         // Relocation target (or a new primary) takes over the fence out of band
-        new RemoteStoreFence(container, "node-target", shardId, threadPool).validateAndAdvance(primaryTerm);
+        new RemoteStoreFence(container, "node-target-alloc", "node-target", shardId, threadPool).validateAndAdvance(primaryTerm);
 
         assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
         assertEquals(1, uploadComplete.get());
@@ -492,9 +492,9 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         mockSuccessfulFileUploads();
         FsBlobContainer container = fenceContainer();
         // A higher-term primary already owns the fence
-        new RemoteStoreFence(container, "node-new", shardId, threadPool).validateAndAdvance(primaryTerm + 1);
+        new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId, threadPool).validateAndAdvance(primaryTerm + 1);
 
-        RemoteStoreFence stalePrimaryFence = new RemoteStoreFence(container, "node-old", shardId, threadPool);
+        RemoteStoreFence stalePrimaryFence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId, threadPool);
         TranslogTransferManager manager = fencedTransferManager(stalePrimaryFence, tracker);
 
         AtomicReference<Exception> uploadFailure = new AtomicReference<>();
@@ -534,7 +534,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
             }
         };
-        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId, threadPool);
         TranslogTransferManager manager = fencedTransferManager(fence, tracker);
 
         AtomicReference<Exception> uploadFailure = new AtomicReference<>();
@@ -597,7 +597,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             return null;
         }).when(transferService).uploadBlob(any(TransferFileSnapshot.class), any(BlobPath.class), any(WritePriority.class), any());
 
-        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId, threadPool);
         TranslogTransferManager manager = fencedTransferManager(fence, tracker);
 
         assertTrue(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {

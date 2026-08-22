@@ -256,7 +256,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // To simulate that the node is remote backed
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, nodeId, false);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, nodeId, allocationIdOf(nodeId), false);
+    }
+
+    /** Allocation ids in these tests are derived from the node id so both identities stay legible in assertions. */
+    private static String allocationIdOf(String nodeId) {
+        return nodeId.isEmpty() ? "" : nodeId + "-alloc";
     }
 
     private BlobStoreRepository createRepository() {
@@ -1963,7 +1968,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             assertTrue(fenceContainer.listBlobs().containsKey(RemoteStoreFence.FENCE_BLOB_NAME));
             VersionedBlob afterFirst = fenceContainer.readBlobWithVersion(RemoteStoreFence.FENCE_BLOB_NAME);
             String afterFirstContent = new String(afterFirst.content(), StandardCharsets.UTF_8);
-            assertTrue(afterFirstContent, afterFirstContent.contains("|" + primaryTerm.get() + "|node-1|"));
+            assertTrue(
+                afterFirstContent,
+                afterFirstContent.contains("|" + primaryTerm.get() + "|" + allocationIdOf("node-1") + "|node-1|")
+            );
 
             fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
             fenced.sync();
@@ -1983,7 +1991,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
             // A new primary at a higher term seals the fence out of band
             BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
-            new RemoteStoreFence(fenceContainer, "node-new", shardId, threadPool).validateAndAdvance(primaryTerm.get() + 1);
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId, threadPool).validateAndAdvance(
+                primaryTerm.get() + 1
+            );
 
             fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
             expectThrows(TranslogFencedException.class, fenced::sync);
@@ -2018,6 +2028,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
+                allocationIdOf("node-new"),
                 "node-new",
                 primaryTerm.get() + 1
             );
@@ -2027,7 +2038,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 fenceContainer.readBlobWithVersion(RemoteStoreFence.FENCE_BLOB_NAME).content(),
                 StandardCharsets.UTF_8
             );
-            assertTrue(sealed, sealed.contains("|" + (primaryTerm.get() + 1) + "|node-new|"));
+            assertTrue(sealed, sealed.contains("|" + (primaryTerm.get() + 1) + "|" + allocationIdOf("node-new") + "|node-new|"));
 
             // The incumbent now holds a stale token and cannot acknowledge another write
             incumbent.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
@@ -2057,6 +2068,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                     new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
                     DefaultRemoteStoreSettings.INSTANCE,
                     false,
+                    allocationIdOf("node-stale"),
                     "node-stale",
                     primaryTerm.get() - 1
                 )
@@ -2086,6 +2098,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 false,
                 false,
                 true,
+                allocationIdOf("node-1"),
                 "node-1"
             )
         );

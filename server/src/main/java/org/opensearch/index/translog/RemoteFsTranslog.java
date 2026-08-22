@@ -145,6 +145,7 @@ public class RemoteFsTranslog extends Translog {
             isTranslogMetadataEnabled,
             isServerSideEncryptionEnabled,
             indexSettings().isRemoteStoreFencingEnabled(),
+            config.getAllocationId(),
             config.getNodeId()
         );
         try {
@@ -352,6 +353,7 @@ public class RemoteFsTranslog extends Translog {
             isTranslogMetadataEnabled,
             isServerSideEncryptionEnabled,
             false,
+            null,
             null
         );
     }
@@ -367,6 +369,7 @@ public class RemoteFsTranslog extends Translog {
         boolean isTranslogMetadataEnabled,
         boolean isServerSideEncryptionEnabled,
         boolean fencingEnabled,
+        String fenceOwnerAllocationId,
         String fenceOwnerNodeId
     ) {
         assert Objects.nonNull(pathStrategy);
@@ -395,6 +398,7 @@ public class RemoteFsTranslog extends Translog {
                 pathStrategy,
                 remoteStoreSettings,
                 isServerSideEncryptionEnabled,
+                fenceOwnerAllocationId,
                 fenceOwnerNodeId
             );
         }
@@ -436,6 +440,7 @@ public class RemoteFsTranslog extends Translog {
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         boolean isServerSideEncryptionEnabled,
+        String fenceOwnerAllocationId,
         String fenceOwnerNodeId
     ) {
         // The fence lives alongside the translog metadata files (its name does not match the metadata prefix, so
@@ -447,7 +452,7 @@ public class RemoteFsTranslog extends Translog {
                 "Remote store fencing is enabled for " + shardId + " but the translog repository does not support conditional writes"
             );
         }
-        return new RemoteStoreFence(fenceContainer, fenceOwnerNodeId, shardId, threadPool);
+        return new RemoteStoreFence(fenceContainer, fenceOwnerAllocationId, fenceOwnerNodeId, shardId, threadPool);
     }
 
     /**
@@ -471,6 +476,7 @@ public class RemoteFsTranslog extends Translog {
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         boolean isServerSideEncryptionEnabled,
+        String fenceOwnerAllocationId,
         String fenceOwnerNodeId,
         long primaryTerm
     ) throws IOException {
@@ -486,6 +492,7 @@ public class RemoteFsTranslog extends Translog {
             pathStrategy,
             remoteStoreSettings,
             isServerSideEncryptionEnabled,
+            fenceOwnerAllocationId,
             fenceOwnerNodeId
         ).validateAndAdvance(primaryTerm);
     }
