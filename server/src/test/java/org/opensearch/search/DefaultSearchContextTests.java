@@ -65,10 +65,12 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -88,6 +90,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -110,6 +113,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettings.INDEX_SEARCH_THROTTLED;
+import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
@@ -1268,6 +1272,44 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             );
             context.evaluateRequestShouldUseConcurrentSearch();
             assertFalse(context.shouldUseConcurrentSearch());
+
+            // Case11: star-tree query must not disable concurrent segment search
+            when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(true);
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "all")
+                    .put(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "balanced")
+                    .build()
+            );
+            CompositeDataCubeFieldType compositeFieldType = mock(CompositeDataCubeFieldType.class);
+            when(compositeFieldType.name()).thenReturn("st");
+            when(compositeFieldType.getCompositeIndexType()).thenReturn(STAR_TREE);
+            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(compositeFieldType, new MatchAllQueryBuilder(), -1);
+            when(queryShardContext.getStarTreeQueryContext()).thenReturn(starTreeQueryContext);
+
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null,
+                Collections.emptyList()
+            );
+            context.aggregations(mockAggregations);
+            context.evaluateRequestShouldUseConcurrentSearch();
+            if (executor == null) {
+                assertFalse(context.shouldUseConcurrentSearch());
+            } else {
+                assertTrue(context.shouldUseConcurrentSearch());
+            }
 
             // shutdown the threadpool
             threadPool.shutdown();
