@@ -96,9 +96,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -114,14 +116,30 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
     static final String EXTRACTION_COMPLETE = "complete";
+    /**
+     * The query's extraction is complete provided the percolated document contains at most one
+     * value for every field listed in {@link #EXTRACTION_RANGE_FIELDS_FIELD_NAME}: the only
+     * obstacle to full verification was range extraction, which is exact for single-valued
+     * fields. Whether the MemoryIndex verification can be skipped is decided per percolate
+     * request by inspecting the document (see {@code PercolatorFieldType#percolateQuery}).
+     */
+    static final String EXTRACTION_COMPLETE_SINGLE_VALUED = "complete_single_valued";
     static final String EXTRACTION_PARTIAL = "partial";
     static final String EXTRACTION_FAILED = "failed";
 
     static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     static final String EXTRACTION_RESULT_FIELD_NAME = "extraction_result";
+    static final String EXTRACTION_RANGE_FIELDS_FIELD_NAME = "extraction_range_fields";
     static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
     static final String RANGE_FIELD_NAME = "range_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
+
+    /**
+     * Indices created on or after this version encode range-only-unverified queries as
+     * {@link #EXTRACTION_COMPLETE_SINGLE_VALUED} (plus the ranged field names in
+     * {@link #EXTRACTION_RANGE_FIELDS_FIELD_NAME}) instead of {@link #EXTRACTION_PARTIAL}.
+     */
+    static final Version SINGLE_VALUED_VERIFICATION_INDEX_VERSION = Version.V_3_8_0;
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
@@ -159,6 +177,8 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             fieldType.queryTermsField = extractedTermsField.fieldType();
             KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
             fieldType.extractionResultField = extractionResultField.fieldType();
+            KeywordFieldMapper extractionRangeFieldsField = createExtractQueryFieldBuilder(EXTRACTION_RANGE_FIELDS_FIELD_NAME, context);
+            fieldType.extractionRangeFieldsField = extractionRangeFieldsField.fieldType();
             BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
             fieldType.queryBuilderField = queryBuilderField.fieldType();
             // Range field is of type ip, because that matches closest with BinaryRange field. Otherwise we would
@@ -178,6 +198,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
                 queryShardContext,
                 extractedTermsField,
                 extractionResultField,
+                extractionRangeFieldsField,
                 queryBuilderField,
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
@@ -237,6 +258,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
         MappedFieldType queryTermsField;
         MappedFieldType extractionResultField;
+        MappedFieldType extractionRangeFieldsField;
         MappedFieldType queryBuilderField;
         MappedFieldType minimumShouldMatchField;
 
@@ -282,7 +304,31 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             // not know to which document the terms belong too and for certain queries we incorrectly emit candidate
             // matches as actual match.
             if (canUseMinimumShouldMatchField && indexReader.maxDoc() == 1) {
-                verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
+                BooleanQuery.Builder verifiedMatches = new BooleanQuery.Builder();
+                verifiedMatches.setMinimumNumberShouldMatch(1);
+                verifiedMatches.add(new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE)), BooleanClause.Occur.SHOULD);
+                // Queries whose only obstacle to full verification was range extraction
+                // (extraction_result: complete_single_valued) are verified as well, unless the
+                // document is multi-valued on one of the fields their ranges target: for those
+                // fields the candidate check packs the document's values into one [min, max]
+                // interval, which can intersect a stored range that contains none of the actual
+                // values. For single-valued fields the intersection check is exact.
+                BooleanQuery.Builder singleValuedMatches = new BooleanQuery.Builder();
+                singleValuedMatches.add(
+                    new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE_SINGLE_VALUED)),
+                    BooleanClause.Occur.FILTER
+                );
+                // Plain term queries (instead of a TermInSetQuery, which would require a rewrite
+                // before PercolateQuery creates the weight); a document has few multi-valued
+                // point fields at most.
+                for (BytesRef multiValuedPointField : multiValuedPointFields(indexReader)) {
+                    singleValuedMatches.add(
+                        new TermQuery(new Term(extractionRangeFieldsField.name(), multiValuedPointField)),
+                        BooleanClause.Occur.MUST_NOT
+                    );
+                }
+                verifiedMatches.add(singleValuedMatches.build(), BooleanClause.Occur.SHOULD);
+                verifiedMatchesQuery = verifiedMatches.build();
             } else {
                 verifiedMatchesQuery = new MatchNoDocsQuery("multiple or nested docs or CoveringQuery could not be used");
             }
@@ -331,6 +377,26 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             return new Tuple<>(candidateQuery.build(), canUseMinimumShouldMatchField);
         }
 
+        /**
+         * Names of single-dimension point fields that carry more than one value in the percolated
+         * document. Only meaningful when the reader holds a single document (callers gate on
+         * {@code maxDoc() == 1}); range extractions on these fields cannot be trusted without
+         * MemoryIndex verification.
+         */
+        static List<BytesRef> multiValuedPointFields(IndexReader indexReader) throws IOException {
+            List<BytesRef> fields = new ArrayList<>();
+            LeafReader reader = indexReader.leaves().get(0).reader();
+            for (FieldInfo info : reader.getFieldInfos()) {
+                if (info.getPointIndexDimensionCount() == 1) {
+                    PointValues values = reader.getPointValues(info.name);
+                    if (values != null && values.size() > 1) {
+                        fields.add(new BytesRef(info.name));
+                    }
+                }
+            }
+            return fields;
+        }
+
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
         Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
@@ -367,6 +433,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
     private final Supplier<QueryShardContext> queryShardContext;
     private final KeywordFieldMapper queryTermsField;
     private final KeywordFieldMapper extractionResultField;
+    private final KeywordFieldMapper extractionRangeFieldsField;
     private final BinaryFieldMapper queryBuilderField;
     private final NumberFieldMapper minimumShouldMatchFieldMapper;
     private final RangeFieldMapper rangeFieldMapper;
@@ -380,6 +447,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         Supplier<QueryShardContext> queryShardContext,
         KeywordFieldMapper queryTermsField,
         KeywordFieldMapper extractionResultField,
+        KeywordFieldMapper extractionRangeFieldsField,
         BinaryFieldMapper queryBuilderField,
         RangeFieldMapper rangeFieldMapper,
         NumberFieldMapper minimumShouldMatchFieldMapper,
@@ -389,6 +457,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
+        this.extractionRangeFieldsField = extractionRangeFieldsField;
         this.queryBuilderField = queryBuilderField;
         this.minimumShouldMatchFieldMapper = minimumShouldMatchFieldMapper;
         this.rangeFieldMapper = rangeFieldMapper;
@@ -447,7 +516,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         ParseContext.Document doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         result = QueryAnalyzer.analyze(query, indexVersion);
         if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
@@ -474,6 +543,18 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
         } else if (result.verified) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE, INDEXED_KEYWORD));
+        } else if (result.verifiedIfSingleValued && indexVersion.onOrAfter(SINGLE_VALUED_VERIFICATION_INDEX_VERSION)) {
+            // The only obstacle to full verification was range extraction, which is exact for
+            // single-valued fields. Record the ranged field names so that the percolate query can
+            // check them against the percolated document and skip the MemoryIndex verification
+            // when the document is single-valued on all of them.
+            doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE_SINGLE_VALUED, INDEXED_KEYWORD));
+            Set<String> rangeFieldNames = new HashSet<>();
+            for (QueryAnalyzer.QueryExtraction extraction : result.extractions) {
+                if (extraction.range != null && rangeFieldNames.add(extraction.range.fieldName)) {
+                    doc.add(new Field(extractionRangeFieldsField.name(), new BytesRef(extraction.range.fieldName), INDEXED_KEYWORD));
+                }
+            }
         } else {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, INDEXED_KEYWORD));
         }
@@ -512,6 +593,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         return Arrays.<Mapper>asList(
             queryTermsField,
             extractionResultField,
+            extractionRangeFieldsField,
             queryBuilderField,
             minimumShouldMatchFieldMapper,
             rangeFieldMapper
