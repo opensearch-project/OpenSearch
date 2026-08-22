@@ -19,6 +19,8 @@ import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -614,6 +616,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
         String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
         String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
+        int purgeListLimit = translogTransferManager.getTranslogPurgeListLimit();
         doAnswer(invocation -> {
             ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(4);
             List<BlobMetadata> bmList = new LinkedList<>();
@@ -636,7 +639,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 eq(ThreadPool.Names.REMOTE_PURGE),
                 any(BlobPath.class),
                 eq(TranslogTransferMetadata.METADATA_PREFIX),
-                eq(Integer.MAX_VALUE),
+                eq(purgeListLimit),
                 any()
             );
             verify(transferService).deleteBlobsAsync(
@@ -646,6 +649,105 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 any(ActionListener.class)
             );
         });
+    }
+
+    public void testDeleteStaleTranslogMetadataBatchedPurge() throws Exception {
+        Settings settings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_PURGE_BATCH_SIZE_SETTING.getKey(), 2)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE_SETTING.getKey(), 2)
+            .build();
+        RemoteStoreSettings purgeSettings = new RemoteStoreSettings(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        TranslogTransferManager batchedPurgeManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            purgeSettings,
+            isTranslogMetadataEnabled
+        );
+        int purgeListLimit = batchedPurgeManager.getTranslogPurgeListLimit();
+        assertEquals(5, purgeListLimit);
+
+        List<String> metadataFiles = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            metadataFiles.add(new TranslogTransferMetadata(1, i + 1L, 1, 2).getFileName());
+        }
+        doAnswer(invocation -> {
+            ActionListener<List<BlobMetadata>> actionListener = invocation.getArgument(4);
+            List<BlobMetadata> bmList = metadataFiles.stream().map(name -> new PlainBlobMetadata(name, 1)).collect(Collectors.toList());
+            actionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrderAsync(
+                eq(ThreadPool.Names.REMOTE_PURGE),
+                any(BlobPath.class),
+                eq(TranslogTransferMetadata.METADATA_PREFIX),
+                eq(purgeListLimit),
+                any(ActionListener.class)
+            );
+
+        AtomicInteger deleteInvocationCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            deleteInvocationCount.incrementAndGet();
+            @SuppressWarnings("unchecked")
+            ActionListener<Void> listener = invocation.getArgument(3);
+            listener.onResponse(null);
+            return null;
+        }).when(transferService).deleteBlobsAsync(any(), any(BlobPath.class), any(), any(ActionListener.class));
+
+        AtomicBoolean purgeCompleted = new AtomicBoolean(false);
+        batchedPurgeManager.deleteStaleTranslogMetadataFilesAsync(() -> purgeCompleted.set(true));
+        assertBusy(() -> assertTrue(purgeCompleted.get()));
+        assertEquals(2, deleteInvocationCount.get());
+        verify(transferService).deleteBlobsAsync(
+            eq(ThreadPool.Names.REMOTE_PURGE),
+            any(BlobPath.class),
+            eq(metadataFiles.subList(1, 3)),
+            any(ActionListener.class)
+        );
+        verify(transferService).deleteBlobsAsync(
+            eq(ThreadPool.Names.REMOTE_PURGE),
+            any(BlobPath.class),
+            eq(metadataFiles.subList(3, 4)),
+            any(ActionListener.class)
+        );
+    }
+
+    public void testDeleteGenerationAsyncBatched() throws Exception {
+        Settings settings = Settings.builder()
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_PURGE_BATCH_SIZE_SETTING.getKey(), 1)
+            .build();
+        RemoteStoreSettings purgeSettings = new RemoteStoreSettings(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        BlobStore blobStore = mock(BlobStore.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
+        TranslogTransferManager batchedDeleteManager = new TranslogTransferManager(
+            shardId,
+            blobStoreTransferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            purgeSettings,
+            isTranslogMetadataEnabled
+        );
+        tracker.add("translog-18.tlog", true);
+        tracker.add("translog-18.ckp", true);
+        tracker.add("translog-19.tlog", true);
+        tracker.add("translog-19.ckp", true);
+        batchedDeleteManager.deleteGenerationAsync(primaryTerm, Set.of(18L, 19L), () -> {});
+        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(List.of("translog-18.ckp", "translog-18.tlog")));
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(List.of("translog-19.ckp", "translog-19.tlog")));
     }
 
     public void testDeleteTranslogFailure() throws Exception {

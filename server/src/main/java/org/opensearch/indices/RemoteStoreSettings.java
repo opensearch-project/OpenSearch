@@ -29,6 +29,12 @@ public class RemoteStoreSettings {
     private static final int MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100;
     private static final int MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100000;
     private static final int DEFAULT_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 1000;
+    static final int DEFAULT_TRANSLOG_PURGE_BATCH_SIZE = 500;
+    static final int DEFAULT_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE = 2;
+    private static final int MIN_TRANSLOG_PURGE_BATCH_SIZE = 1;
+    private static final int MAX_TRANSLOG_PURGE_BATCH_SIZE = 10000;
+    private static final int MIN_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE = 1;
+    private static final int MAX_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE = 100;
 
     /**
      * Used to specify the default translog buffer interval for remote store backed indexes.
@@ -67,6 +73,31 @@ public class RemoteStoreSettings {
         "cluster.remote_store.translog.transfer_timeout",
         TimeValue.timeValueSeconds(30),
         TimeValue.timeValueSeconds(30),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Maximum number of remote translog metadata or data files deleted per remote purge batch.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_TRANSLOG_PURGE_BATCH_SIZE_SETTING = Setting.intSetting(
+        "cluster.remote_store.translog.purge_batch_size",
+        DEFAULT_TRANSLOG_PURGE_BATCH_SIZE,
+        MIN_TRANSLOG_PURGE_BATCH_SIZE,
+        MAX_TRANSLOG_PURGE_BATCH_SIZE,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Maximum number of remote translog purge batches executed per purge cycle. When a large metadata backlog is
+     * detected, purge automatically reduces this to one batch per cycle to limit resource usage on small nodes.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE_SETTING = Setting.intSetting(
+        "cluster.remote_store.translog.purge_max_batches_per_cycle",
+        DEFAULT_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE,
+        MIN_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE,
+        MAX_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -235,6 +266,8 @@ public class RemoteStoreSettings {
     private final String translogPathFixedPrefix;
     private final String segmentsPathFixedPrefix;
     private volatile int uploadedSegmentsCleanupThreshold;
+    private volatile int translogPurgeBatchSize;
+    private volatile int translogPurgeMaxBatchesPerCycle;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -287,6 +320,15 @@ public class RemoteStoreSettings {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING,
             this::setUploadedSegmentsCleanupThreshold
+        );
+
+        translogPurgeBatchSize = CLUSTER_REMOTE_TRANSLOG_PURGE_BATCH_SIZE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_PURGE_BATCH_SIZE_SETTING, this::setTranslogPurgeBatchSize);
+
+        translogPurgeMaxBatchesPerCycle = CLUSTER_REMOTE_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_TRANSLOG_PURGE_MAX_BATCHES_PER_CYCLE_SETTING,
+            this::setTranslogPurgeMaxBatchesPerCycle
         );
     }
 
@@ -395,5 +437,21 @@ public class RemoteStoreSettings {
 
     private void setUploadedSegmentsCleanupThreshold(int uploadedSegmentsCleanupThreshold) {
         this.uploadedSegmentsCleanupThreshold = uploadedSegmentsCleanupThreshold;
+    }
+
+    public int getTranslogPurgeBatchSize() {
+        return translogPurgeBatchSize;
+    }
+
+    private void setTranslogPurgeBatchSize(int translogPurgeBatchSize) {
+        this.translogPurgeBatchSize = translogPurgeBatchSize;
+    }
+
+    public int getTranslogPurgeMaxBatchesPerCycle() {
+        return translogPurgeMaxBatchesPerCycle;
+    }
+
+    private void setTranslogPurgeMaxBatchesPerCycle(int translogPurgeMaxBatchesPerCycle) {
+        this.translogPurgeMaxBatchesPerCycle = translogPurgeMaxBatchesPerCycle;
     }
 }
