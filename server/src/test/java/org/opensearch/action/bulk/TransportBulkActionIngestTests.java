@@ -617,7 +617,8 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
             eq(Names.WRITE)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
-        assertEquals(indexRequest2.getPipeline(), "default_pipeline");
+        // doc_as_upsert marks NOOP at coordinating node; real pipelines run after prepare on primary (#10864)
+        assertEquals(indexRequest2.getPipeline(), IngestService.NOOP_PIPELINE_NAME);
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
         assertEquals(indexRequestForNormalUpdate.getPipeline(), IngestService.NOOP_PIPELINE_NAME);
         assertEquals(indexRequestDocForNormalUpsert.getPipeline(), IngestService.NOOP_PIPELINE_NAME);
@@ -627,12 +628,13 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
 
         // Verify for different Update cases, we call the correct resolve
         // An update request has two child update requests, DOC and UPSERT
-        // 1. DOC will only have system pipeline resolved. Exception is if docAsUpsert is true, DOC will have all pipelines resolved
+        // 1. DOC will only have system pipeline resolved. Exception: docAsUpsert defers ALL pipeline
+        // resolution to TransportShardBulkAction after prepare (see #10864).
         // 2. UPSERT will have ALL pipelines resolved
         verify(ingestService, times(1)).resolvePipelines(eq(upsertRequest), eq(indexRequest1), any());
         verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest1), any());
 
-        verify(ingestService, times(1)).resolvePipelines(eq(docAsUpsertRequest), eq(indexRequest2), any());
+        verify(ingestService, never()).resolvePipelines(eq(docAsUpsertRequest), eq(indexRequest2), any());
         verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest2), any());
 
         verify(ingestService, times(1)).resolvePipelines(eq(scriptedUpsert), eq(indexRequest3), any());
@@ -653,7 +655,7 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
 
         // now check success of the transport bulk action
         indexRequest1.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // deferred doc_as_upsert already NOOP at coordinating node
         indexRequest3.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequestForNormalUpdate.setPipeline(IngestService.NOOP_PIPELINE_NAME);
         indexRequestDocForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME);
