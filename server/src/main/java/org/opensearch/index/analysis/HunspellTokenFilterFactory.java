@@ -34,6 +34,7 @@ package org.opensearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.analysis.HunspellService;
@@ -71,6 +72,8 @@ import java.util.regex.Pattern;
  */
 public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final Setting<String> REF_PATH_SETTING = Setting.relativePathSetting("ref_path");
+
     private final Dictionary dictionary;
     private final boolean dedup;
     private final boolean longestOnly;
@@ -83,7 +86,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         super(indexSettings, name, settings);
 
         // Get both ref_path and locale parameters
-        String refPath = settings.get("ref_path");
+        String refPath = REF_PATH_SETTING.exists(settings) ? REF_PATH_SETTING.get(settings) : null;
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
 
         // Check for updateable flag
