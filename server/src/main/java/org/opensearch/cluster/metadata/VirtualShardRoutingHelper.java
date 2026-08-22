@@ -10,14 +10,13 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.cluster.routing.Murmur3HashFunction;
 
 import java.util.Map;
 
 /**
  * Resolves virtual shard routing to physical shard IDs.
  */
-@PublicApi(since = "3.6.0")
 public final class VirtualShardRoutingHelper {
 
     private VirtualShardRoutingHelper() {}
@@ -28,6 +27,26 @@ public final class VirtualShardRoutingHelper {
      * Custom Metadata key for storing virtual shard routing overrides.
      */
     public static final String VIRTUAL_SHARDS_CUSTOM_METADATA_KEY = "virtual_shards_routing";
+
+    /**
+     * Computes the virtual shard id for a document given its id and optional routing.
+     * Replicates the hash chain used by {@code OperationRouting.generateShardId},
+     * including partition offset for routing-partitioned indices.
+     *
+     * @throws IllegalStateException if virtual shards are not enabled on the index
+     */
+    public static int computeVirtualShardId(IndexMetadata indexMetadata, String id, String routing) {
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        if (numVirtualShards <= 0) {
+            throw new IllegalStateException("virtual shards are not enabled on index [" + indexMetadata.getIndex() + "]");
+        }
+        String effectiveRouting = (routing != null) ? routing : id;
+        int partitionOffset = indexMetadata.isRoutingPartitionedIndex()
+            ? Math.floorMod(Murmur3HashFunction.hash(id), indexMetadata.getRoutingPartitionSize())
+            : 0;
+        int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
+        return Math.floorMod(hash, numVirtualShards);
+    }
 
     /**
      * Resolves the physical shard for a virtual shard id.
