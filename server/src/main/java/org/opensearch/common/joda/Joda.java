@@ -105,183 +105,200 @@ public class Joda {
             );
         }
 
+        // Use the already-resolved FormatNames enum value with an O(1) switch lookup
+        // instead of re-scanning a linear if-else chain that performed up to 120
+        // String.equals() comparisons per call on the date-format hot path.
+        if (formatName != null) {
+            switch (formatName) {
+                case BASIC_DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.basicDate());
+                case BASIC_DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.basicDateTime());
+                case BASIC_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.basicDateTimeNoMillis());
+                case BASIC_ORDINAL_DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.basicOrdinalDate());
+                case BASIC_ORDINAL_DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.basicOrdinalDateTime());
+                case BASIC_ORDINAL_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.basicOrdinalDateTimeNoMillis());
+                case BASIC_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.basicTime());
+                case BASIC_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.basicTimeNoMillis());
+                case BASIC_T_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.basicTTime());
+                case BASIC_T_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.basicTTimeNoMillis());
+                case BASIC_WEEK_DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.basicWeekDate());
+                case BASIC_WEEK_DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.basicWeekDateTime());
+                case BASIC_WEEK_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.basicWeekDateTimeNoMillis());
+                case DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.date());
+                case DATE_HOUR:
+                    return jodaFormatter(input, ISODateTimeFormat.dateHour());
+                case DATE_HOUR_MINUTE:
+                    return jodaFormatter(input, ISODateTimeFormat.dateHourMinute());
+                case DATE_HOUR_MINUTE_SECOND:
+                    return jodaFormatter(input, ISODateTimeFormat.dateHourMinuteSecond());
+                case DATE_HOUR_MINUTE_SECOND_FRACTION:
+                    return jodaFormatter(input, ISODateTimeFormat.dateHourMinuteSecondFraction());
+                case DATE_HOUR_MINUTE_SECOND_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.dateHourMinuteSecondMillis());
+                case DATE_OPTIONAL_TIME:
+                    // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
+                    // this sucks we should use the root local by default and not be dependent on the node
+                    return new JodaDateFormatter(
+                        input,
+                        ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
+                        ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970)
+                    );
+                case DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.dateTime());
+                case DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.dateTimeNoMillis());
+                case HOUR:
+                    return jodaFormatter(input, ISODateTimeFormat.hour());
+                case HOUR_MINUTE:
+                    return jodaFormatter(input, ISODateTimeFormat.hourMinute());
+                case HOUR_MINUTE_SECOND:
+                    return jodaFormatter(input, ISODateTimeFormat.hourMinuteSecond());
+                case HOUR_MINUTE_SECOND_FRACTION:
+                    return jodaFormatter(input, ISODateTimeFormat.hourMinuteSecondFraction());
+                case HOUR_MINUTE_SECOND_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.hourMinuteSecondMillis());
+                case ORDINAL_DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.ordinalDate());
+                case ORDINAL_DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.ordinalDateTime());
+                case ORDINAL_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.ordinalDateTimeNoMillis());
+                case TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.time());
+                case TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.timeNoMillis());
+                case T_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.tTime());
+                case T_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.tTimeNoMillis());
+                case WEEK_DATE:
+                    return jodaFormatter(input, ISODateTimeFormat.weekDate());
+                case WEEK_DATE_TIME:
+                    return jodaFormatter(input, ISODateTimeFormat.weekDateTime());
+                case WEEK_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, ISODateTimeFormat.weekDateTimeNoMillis());
+                case WEEKYEAR:
+                    getDeprecationLogger().deprecate(
+                        "week_year_format_name",
+                        "Format name \"week_year\" is deprecated and will be removed in a future version. "
+                            + "Use \"weekyear\" format instead"
+                    );
+                    return jodaFormatter(input, ISODateTimeFormat.weekyear());
+                case WEEK_YEAR:
+                    return jodaFormatter(input, ISODateTimeFormat.weekyear());
+                case WEEK_YEAR_WEEK:
+                    return jodaFormatter(input, ISODateTimeFormat.weekyearWeek());
+                case WEEKYEAR_WEEK_DAY:
+                    return jodaFormatter(input, ISODateTimeFormat.weekyearWeekDay());
+                case YEAR:
+                    return jodaFormatter(input, ISODateTimeFormat.year());
+                case YEAR_MONTH:
+                    return jodaFormatter(input, ISODateTimeFormat.yearMonth());
+                case YEAR_MONTH_DAY:
+                    return jodaFormatter(input, ISODateTimeFormat.yearMonthDay());
+                case EPOCH_SECOND:
+                    return jodaFormatter(
+                        input,
+                        new DateTimeFormatterBuilder().append(new EpochTimePrinter(false), new EpochTimeParser(false)).toFormatter()
+                    );
+                case EPOCH_MILLIS:
+                    return jodaFormatter(
+                        input,
+                        new DateTimeFormatterBuilder().append(new EpochTimePrinter(true), new EpochTimeParser(true)).toFormatter()
+                    );
+                // strict date formats here, must be at least 4 digits for year and two for months and two for day
+                case STRICT_BASIC_WEEK_DATE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.basicWeekDate());
+                case STRICT_BASIC_WEEK_DATE_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.basicWeekDateTime());
+                case STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.basicWeekDateTimeNoMillis());
+                case STRICT_DATE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.date());
+                case STRICT_DATE_HOUR:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateHour());
+                case STRICT_DATE_HOUR_MINUTE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateHourMinute());
+                case STRICT_DATE_HOUR_MINUTE_SECOND:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateHourMinuteSecond());
+                case STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateHourMinuteSecondFraction());
+                case STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateHourMinuteSecondMillis());
+                case STRICT_DATE_OPTIONAL_TIME:
+                    // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
+                    // this sucks we should use the root local by default and not be dependent on the node
+                    return new JodaDateFormatter(
+                        input,
+                        StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
+                        StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970)
+                    );
+                case STRICT_DATE_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateTime());
+                case STRICT_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.dateTimeNoMillis());
+                case STRICT_HOUR:
+                    return jodaFormatter(input, StrictISODateTimeFormat.hour());
+                case STRICT_HOUR_MINUTE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.hourMinute());
+                case STRICT_HOUR_MINUTE_SECOND:
+                    return jodaFormatter(input, StrictISODateTimeFormat.hourMinuteSecond());
+                case STRICT_HOUR_MINUTE_SECOND_FRACTION:
+                    return jodaFormatter(input, StrictISODateTimeFormat.hourMinuteSecondFraction());
+                case STRICT_HOUR_MINUTE_SECOND_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.hourMinuteSecondMillis());
+                case STRICT_ORDINAL_DATE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.ordinalDate());
+                case STRICT_ORDINAL_DATE_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.ordinalDateTime());
+                case STRICT_ORDINAL_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.ordinalDateTimeNoMillis());
+                case STRICT_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.time());
+                case STRICT_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.timeNoMillis());
+                case STRICT_T_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.tTime());
+                case STRICT_T_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.tTimeNoMillis());
+                case STRICT_WEEK_DATE:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekDate());
+                case STRICT_WEEK_DATE_TIME:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekDateTime());
+                case STRICT_WEEK_DATE_TIME_NO_MILLIS:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekDateTimeNoMillis());
+                case STRICT_WEEKYEAR:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekyear());
+                case STRICT_WEEKYEAR_WEEK:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekyearWeek());
+                case STRICT_WEEKYEAR_WEEK_DAY:
+                    return jodaFormatter(input, StrictISODateTimeFormat.weekyearWeekDay());
+                case STRICT_YEAR:
+                    return jodaFormatter(input, StrictISODateTimeFormat.year());
+                case STRICT_YEAR_MONTH:
+                    return jodaFormatter(input, StrictISODateTimeFormat.yearMonth());
+                case STRICT_YEAR_MONTH_DAY:
+                    return jodaFormatter(input, StrictISODateTimeFormat.yearMonthDay());
+                default:
+                    break;
+            }
+        }
+
         DateTimeFormatter formatter;
-        if (FormatNames.BASIC_DATE.matches(input)) {
-            formatter = ISODateTimeFormat.basicDate();
-        } else if (FormatNames.BASIC_DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.basicDateTime();
-        } else if (FormatNames.BASIC_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.basicDateTimeNoMillis();
-        } else if (FormatNames.BASIC_ORDINAL_DATE.matches(input)) {
-            formatter = ISODateTimeFormat.basicOrdinalDate();
-        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.basicOrdinalDateTime();
-        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.basicOrdinalDateTimeNoMillis();
-        } else if (FormatNames.BASIC_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.basicTime();
-        } else if (FormatNames.BASIC_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.basicTimeNoMillis();
-        } else if (FormatNames.BASIC_T_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.basicTTime();
-        } else if (FormatNames.BASIC_T_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.basicTTimeNoMillis();
-        } else if (FormatNames.BASIC_WEEK_DATE.matches(input)) {
-            formatter = ISODateTimeFormat.basicWeekDate();
-        } else if (FormatNames.BASIC_WEEK_DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.basicWeekDateTime();
-        } else if (FormatNames.BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.basicWeekDateTimeNoMillis();
-        } else if (FormatNames.DATE.matches(input)) {
-            formatter = ISODateTimeFormat.date();
-        } else if (FormatNames.DATE_HOUR.matches(input)) {
-            formatter = ISODateTimeFormat.dateHour();
-        } else if (FormatNames.DATE_HOUR_MINUTE.matches(input)) {
-            formatter = ISODateTimeFormat.dateHourMinute();
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND.matches(input)) {
-            formatter = ISODateTimeFormat.dateHourMinuteSecond();
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            formatter = ISODateTimeFormat.dateHourMinuteSecondFraction();
-        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.dateHourMinuteSecondMillis();
-        } else if (FormatNames.DATE_OPTIONAL_TIME.matches(input)) {
-            // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
-            // this sucks we should use the root local by default and not be dependent on the node
-            return new JodaDateFormatter(
-                input,
-                ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
-                ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970)
-            );
-        } else if (FormatNames.DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.dateTime();
-        } else if (FormatNames.DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.dateTimeNoMillis();
-        } else if (FormatNames.HOUR.matches(input)) {
-            formatter = ISODateTimeFormat.hour();
-        } else if (FormatNames.HOUR_MINUTE.matches(input)) {
-            formatter = ISODateTimeFormat.hourMinute();
-        } else if (FormatNames.HOUR_MINUTE_SECOND.matches(input)) {
-            formatter = ISODateTimeFormat.hourMinuteSecond();
-        } else if (FormatNames.HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            formatter = ISODateTimeFormat.hourMinuteSecondFraction();
-        } else if (FormatNames.HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.hourMinuteSecondMillis();
-        } else if (FormatNames.ORDINAL_DATE.matches(input)) {
-            formatter = ISODateTimeFormat.ordinalDate();
-        } else if (FormatNames.ORDINAL_DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.ordinalDateTime();
-        } else if (FormatNames.ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.ordinalDateTimeNoMillis();
-        } else if (FormatNames.TIME.matches(input)) {
-            formatter = ISODateTimeFormat.time();
-        } else if (FormatNames.TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.timeNoMillis();
-        } else if (FormatNames.T_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.tTime();
-        } else if (FormatNames.T_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.tTimeNoMillis();
-        } else if (FormatNames.WEEK_DATE.matches(input)) {
-            formatter = ISODateTimeFormat.weekDate();
-        } else if (FormatNames.WEEK_DATE_TIME.matches(input)) {
-            formatter = ISODateTimeFormat.weekDateTime();
-        } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = ISODateTimeFormat.weekDateTimeNoMillis();
-        } else if (FormatNames.WEEKYEAR.matches(input)) {
-            getDeprecationLogger().deprecate(
-                "week_year_format_name",
-                "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
-            );
-            formatter = ISODateTimeFormat.weekyear();
-        } else if (FormatNames.WEEK_YEAR.matches(input)) {
-            formatter = ISODateTimeFormat.weekyear();
-        } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
-            formatter = ISODateTimeFormat.weekyearWeek();
-        } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {
-            formatter = ISODateTimeFormat.weekyearWeekDay();
-        } else if (FormatNames.YEAR.matches(input)) {
-            formatter = ISODateTimeFormat.year();
-        } else if (FormatNames.YEAR_MONTH.matches(input)) {
-            formatter = ISODateTimeFormat.yearMonth();
-        } else if (FormatNames.YEAR_MONTH_DAY.matches(input)) {
-            formatter = ISODateTimeFormat.yearMonthDay();
-        } else if (FormatNames.EPOCH_SECOND.matches(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(false), new EpochTimeParser(false)).toFormatter();
-        } else if (FormatNames.EPOCH_MILLIS.matches(input)) {
-            formatter = new DateTimeFormatterBuilder().append(new EpochTimePrinter(true), new EpochTimeParser(true)).toFormatter();
-            // strict date formats here, must be at least 4 digits for year and two for months and two for day
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE.matches(input)) {
-            formatter = StrictISODateTimeFormat.basicWeekDate();
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.basicWeekDateTime();
-        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.basicWeekDateTimeNoMillis();
-        } else if (FormatNames.STRICT_DATE.matches(input)) {
-            formatter = StrictISODateTimeFormat.date();
-        } else if (FormatNames.STRICT_DATE_HOUR.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateHour();
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateHourMinute();
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateHourMinuteSecond();
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateHourMinuteSecondFraction();
-        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateHourMinuteSecondMillis();
-        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME.matches(input)) {
-            // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
-            // this sucks we should use the root local by default and not be dependent on the node
-            return new JodaDateFormatter(
-                input,
-                StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
-                StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970)
-            );
-        } else if (FormatNames.STRICT_DATE_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateTime();
-        } else if (FormatNames.STRICT_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.dateTimeNoMillis();
-        } else if (FormatNames.STRICT_HOUR.matches(input)) {
-            formatter = StrictISODateTimeFormat.hour();
-        } else if (FormatNames.STRICT_HOUR_MINUTE.matches(input)) {
-            formatter = StrictISODateTimeFormat.hourMinute();
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND.matches(input)) {
-            formatter = StrictISODateTimeFormat.hourMinuteSecond();
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
-            formatter = StrictISODateTimeFormat.hourMinuteSecondFraction();
-        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.hourMinuteSecondMillis();
-        } else if (FormatNames.STRICT_ORDINAL_DATE.matches(input)) {
-            formatter = StrictISODateTimeFormat.ordinalDate();
-        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.ordinalDateTime();
-        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.ordinalDateTimeNoMillis();
-        } else if (FormatNames.STRICT_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.time();
-        } else if (FormatNames.STRICT_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.timeNoMillis();
-        } else if (FormatNames.STRICT_T_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.tTime();
-        } else if (FormatNames.STRICT_T_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.tTimeNoMillis();
-        } else if (FormatNames.STRICT_WEEK_DATE.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekDate();
-        } else if (FormatNames.STRICT_WEEK_DATE_TIME.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekDateTime();
-        } else if (FormatNames.STRICT_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekDateTimeNoMillis();
-        } else if (FormatNames.STRICT_WEEKYEAR.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekyear();
-        } else if (FormatNames.STRICT_WEEKYEAR_WEEK.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekyearWeek();
-        } else if (FormatNames.STRICT_WEEKYEAR_WEEK_DAY.matches(input)) {
-            formatter = StrictISODateTimeFormat.weekyearWeekDay();
-        } else if (FormatNames.STRICT_YEAR.matches(input)) {
-            formatter = StrictISODateTimeFormat.year();
-        } else if (FormatNames.STRICT_YEAR_MONTH.matches(input)) {
-            formatter = StrictISODateTimeFormat.yearMonth();
-        } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
-            formatter = StrictISODateTimeFormat.yearMonthDay();
-        } else if (Strings.hasLength(input) && input.contains("||")) {
+        if (Strings.hasLength(input) && input.contains("||")) {
             String[] formats = Strings.delimitedListToStringArray(input, "||");
             DateTimeParser[] parsers = new DateTimeParser[formats.length];
 
@@ -314,6 +331,13 @@ public class Joda {
         }
 
         formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
+        return new JodaDateFormatter(input, formatter, formatter);
+    }
+
+    private static JodaDateFormatter jodaFormatter(String input, DateTimeFormatter formatter) {
+        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
+        return new JodaDateFormatter(input, formatter, formatter);
+    }
         return new JodaDateFormatter(input, formatter, formatter);
     }
 
