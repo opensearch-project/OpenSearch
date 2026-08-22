@@ -1,0 +1,5 @@
+# Standalone provider workspace. Pinned to 1.91 because vendored liquid-cache
+# deps (fastlanes 0.5.x) declare an MSRV of 1.91. The shared dataformat-native
+# workspace and the engine remain on the default toolchain.
+[toolchain]
+channel = "1.91"
