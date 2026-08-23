@@ -26,11 +26,12 @@ import java.util.List;
 
 /**
  * Builds a {@link StringTerms} response. Handles keyword, ip, text, and any field type whose
- * bucket keys are naturally string-representable; also the fallback for unmapped types.
+ * bucket keys are naturally string-representable; also the default for unregistered type names.
  *
- * <p>Keys render through the resolved {@link DocValueFormat}: for ip fields the mapping's
- * format produces the address string; for keywords it is the identity. Binary keys arriving
- * without a mapping-resolved format fall back to address-string rendering.
+ * <p>Bucket terms follow the classic StringTerms contract: binary keys (ip columns) are stored
+ * as their encoded bytes and the mapping's {@link DocValueFormat} renders them at serialization;
+ * string keys are stored as their UTF-8 bytes. A binary key without a mapping-resolved format
+ * (RAW) renders as a deterministic Base64 string.
  */
 public final class StringTermsStrategy implements TermsResponseStrategy {
 
@@ -43,7 +44,7 @@ public final class StringTermsStrategy implements TermsResponseStrategy {
     public InternalAggregation build(TermsAggregationBuilder agg, List<BucketEntry> entries, long otherDocCount, DocValueFormat format) {
         List<StringTerms.Bucket> termBuckets = new ArrayList<>(entries.size());
         for (BucketEntry entry : entries) {
-            BytesRef term = new BytesRef(formatKey(entry.keys().get(0), format));
+            BytesRef term = termBytes(entry.keys().get(0), format);
             termBuckets.add(new StringTerms.Bucket(term, entry.docCount(), entry.subAggs(), false, 0, format));
         }
         BucketOrder order = agg.order();
@@ -63,18 +64,19 @@ public final class StringTermsStrategy implements TermsResponseStrategy {
     }
 
     /**
-     * Renders a key through the resolved {@link DocValueFormat}. Binary keys (ip columns)
-     * format through the mapping when one was resolved; with the RAW fallback they render as
-     * the address string directly, or Base64 when not a 4/16-byte address.
+     * Converts a key into the bucket's term bytes. Binary keys (ip columns) keep their encoded
+     * bytes so the mapping-resolved {@link DocValueFormat} renders them at serialization — the
+     * classic StringTerms contract; under RAW they are pre-rendered (address string or Base64)
+     * since RAW would otherwise print raw bytes. String keys become their UTF-8 bytes.
      */
-    private static String formatKey(Object key, DocValueFormat format) {
+    private static BytesRef termBytes(Object key, DocValueFormat format) {
         if (key instanceof BytesRef ref) {
-            return format == DocValueFormat.RAW ? binaryKeyString(ref.bytes) : format.format(ref).toString();
+            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(ref.bytes)) : ref;
         }
         if (key instanceof byte[] bytes) {
-            return format == DocValueFormat.RAW ? binaryKeyString(bytes) : format.format(new BytesRef(bytes)).toString();
+            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(bytes)) : new BytesRef(bytes);
         }
-        return key.toString();
+        return new BytesRef(key.toString());
     }
 
     /** Binary keys are ip columns: render the address string like classic ip terms. */

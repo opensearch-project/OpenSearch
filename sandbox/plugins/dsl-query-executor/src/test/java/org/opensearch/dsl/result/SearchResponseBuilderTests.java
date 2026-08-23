@@ -26,6 +26,8 @@ import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.golden.CalciteTestInfra;
 import org.opensearch.dsl.golden.GoldenFileLoader;
 import org.opensearch.dsl.golden.GoldenTestCase;
+import org.opensearch.dsl.golden.TestMapperServices;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -43,6 +45,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class SearchResponseBuilderTests extends OpenSearchTestCase {
@@ -160,7 +163,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                     )
             );
 
-        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema(), TestMapperServices.fromSqlMapping(mapping));
         QueryPlans plans = converter.convert(source, "products");
         List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
         assertEquals(2, aggPlans.size());
@@ -222,6 +225,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         mapping.put("category", "VARCHAR");
         mapping.put("price", "INTEGER");
         CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping("products", mapping);
+        Supplier<MapperService> mappers = TestMapperServices.fromSqlMapping(mapping);
 
         SearchSourceBuilder source = new SearchSourceBuilder().size(0)
             .aggregation(
@@ -243,7 +247,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                     )
             );
 
-        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema(), mappers);
         QueryPlans plans = converter.convert(source, "products");
         List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
         assertEquals(4, aggPlans.size());
@@ -331,7 +335,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder().size(0)
             .aggregation(AggregationBuilders.terms("by_brand").field("brand").size(1));
 
-        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema(), TestMapperServices.fromSqlMapping(mapping));
         QueryPlans plans = converter.convert(source, "products");
 
         List<ExecutionResult> results = new ArrayList<>();
@@ -404,7 +408,7 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
                     .subAggregation(AggregationBuilders.avg("avg_price").field("price").setMetadata(avgMeta))
             );
 
-        SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+        SearchSourceConverter converter = new SearchSourceConverter(infra.schema(), TestMapperServices.fromSqlMapping(mapping));
         QueryPlans plans = converter.convert(source, "products");
 
         List<ExecutionResult> results = new ArrayList<>();
@@ -522,7 +526,10 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
                 // Build QueryPlan via forward path (needed to construct ExecutionResult)
                 SearchSourceBuilder searchSource = parseSearchSource(tc.getInputDsl());
-                SearchSourceConverter converter = new SearchSourceConverter(infra.schema());
+                SearchSourceConverter converter = new SearchSourceConverter(
+                    infra.schema(),
+                    TestMapperServices.fromSqlMapping(tc.getIndexMapping())
+                );
                 QueryPlans plans = converter.convert(searchSource, tc.getIndexName());
 
                 QueryPlans.Type expectedType = QueryPlans.Type.valueOf(tc.getPlanType());

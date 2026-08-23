@@ -29,7 +29,7 @@ public class AggregationRegistryFactory {
      *
      * @param mapperServiceSupplier supplies the MapperService for the current request's target
      *        index — evaluated lazily when the terms translator resolves key types and formats.
-     *        May supply null, in which case key typing falls back to value sampling.
+     *        Supplying null skips mapping-dependent validation and fails terms rendering.
      */
     public static AggregationRegistry create(Supplier<MapperService> mapperServiceSupplier) {
         AggregationRegistry registry = new AggregationRegistry();
@@ -42,7 +42,7 @@ public class AggregationRegistryFactory {
         return registry;
     }
 
-    /** Creates a registry without mapping resolution — key typing falls back to value sampling. */
+    /** Creates a registry without mapping resolution — conversion-only use; terms rendering fails without a MapperService. */
     public static AggregationRegistry create() {
         return create(() -> null);
     }

@@ -12,6 +12,7 @@ import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.DocValueFormat;
@@ -31,10 +32,10 @@ import java.util.function.Supplier;
  * Translates a {@link TermsAggregationBuilder} — single-field GROUP BY.
  * {@code {"aggs": {"by_brand": {"terms": {"field": "brand"}}}}} becomes {@code GROUP BY brand}.
  *
- * <p>Response typing is handled by the {@link TermsResponseStrategy} registry: the field's
- * mapping-resolved type name selects the strategy that builds the correct {@code InternalTerms}
- * subclass, with the mapping's {@link DocValueFormat} rendering the keys. When no mapping is
- * resolvable, typing falls back to sampling the first bucket key's Java type with RAW formats.
+ * <p>Response typing is mapping-resolved: the field's {@code MappedFieldType.typeName()} selects
+ * the {@link TermsResponseStrategy} that builds the correct {@code InternalTerms} subclass, and
+ * the mapping's {@link DocValueFormat} renders the keys. A field whose mapping cannot be
+ * resolved at render time fails the request.
  */
 public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggregationBuilder> {
 
@@ -44,7 +45,8 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
      * Creates a terms bucket translator.
      *
      * @param mapperServiceSupplier supplies the target index's MapperService for key type and
-     *        format resolution; may supply null, which selects the sampling fallback
+     *        format resolution; supplying null skips {@link #validate} mapping checks and fails
+     *        rendering
      */
     public TermsBucketTranslator(Supplier<MapperService> mapperServiceSupplier) {
         this.mapperServiceSupplier = mapperServiceSupplier;
@@ -73,9 +75,9 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
     }
 
     /**
-     * Rejects {@code include}/{@code exclude}, {@code script}, and {@code min_doc_count: 0}:
-     * the translation implements none of them, and each would change the bucket set relative
-     * to classic search if ignored.
+     * Rejects {@code include}/{@code exclude}, {@code script}, {@code min_doc_count: 0}, and
+     * date-mapped fields: the translation implements none of them, and each would change the
+     * bucket set or key rendering relative to classic search if ignored.
      */
     @Override
     public void validate(TermsAggregationBuilder agg) throws ConversionException {
@@ -95,6 +97,18 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
                     + agg.getName()
                     + "] is not supported by the DSL execution path — zero-count buckets require enumerating the index term "
                     + "dictionary, which a GROUP BY over matching documents cannot produce"
+            );
+        }
+        MappedFieldType fieldType = resolveFieldType(agg.field());
+        if (fieldType != null
+            && (DateFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
+                || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(fieldType.typeName()))) {
+            throw new ConversionException(
+                "terms aggregation ["
+                    + agg.getName()
+                    + "] on date field ["
+                    + agg.field()
+                    + "] is not supported by the DSL execution path — date bucket keys cannot yet be rendered with mapping formats"
             );
         }
     }
@@ -147,43 +161,41 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
 
     /**
      * Builds the terms response: the field's mapping selects the {@link TermsResponseStrategy}
-     * and the {@link DocValueFormat} for key rendering; without a resolvable mapping, both are
-     * inferred from the first bucket key's Java type. {@code eligibleDocCount} supplies the
+     * and the {@link DocValueFormat} for key rendering. {@code eligibleDocCount} supplies the
      * total {@code sum_other_doc_count} is subtracted from (see {@link #sumOtherDocCount}).
      */
     private InternalAggregation render(TermsAggregationBuilder agg, List<BucketEntry> kept, long eligibleDocCount) {
         long otherDocCount = sumOtherDocCount(kept, eligibleDocCount);
-        MappedFieldType fieldType = resolveFieldType(agg.field());
-        if (fieldType != null) {
-            TermsResponseStrategy strategy = TermsResponseStrategy.forType(fieldType.typeName());
-            return strategy.build(agg, kept, otherDocCount, fieldType.docValueFormat(null, null));
-        }
-        return sampledStrategy(kept).build(agg, kept, otherDocCount, DocValueFormat.RAW);
+        MappedFieldType fieldType = requireFieldType(agg);
+        TermsResponseStrategy strategy = TermsResponseStrategy.forType(fieldType.typeName());
+        return strategy.build(agg, kept, otherDocCount, fieldType.docValueFormat(null, null));
     }
 
-    /** Resolves the group field's mapping, or null when no MapperService is available. */
+    /** Resolves the group field's mapping, or null when the MapperService or field mapping is unavailable. */
     private MappedFieldType resolveFieldType(String field) {
         MapperService mapperService = mapperServiceSupplier.get();
         return mapperService == null ? null : mapperService.fieldType(field);
     }
 
-    /**
-     * Mapping-less fallback: infers the strategy from the first bucket key's Java type —
-     * booleans and integral numbers → LongTerms, floating point → DoubleTerms, anything
-     * else (including binary ip keys) → StringTerms.
-     */
-    private static TermsResponseStrategy sampledStrategy(List<BucketEntry> kept) {
-        Object sample = kept.isEmpty() ? null : kept.get(0).keys().get(0);
-        if (sample instanceof Boolean) {
-            return TermsResponseStrategy.forType("boolean");
+    /** Resolves the group field's mapping for rendering, failing loudly when it cannot be resolved. */
+    private MappedFieldType requireFieldType(TermsAggregationBuilder agg) {
+        MapperService mapperService = mapperServiceSupplier.get();
+        if (mapperService == null) {
+            throw new IllegalStateException(
+                "index mapping unavailable for terms aggregation ["
+                    + agg.getName()
+                    + "] — cannot resolve the key type for field ["
+                    + agg.field()
+                    + "]"
+            );
         }
-        if (sample instanceof Double || sample instanceof Float) {
-            return TermsResponseStrategy.forType("double");
+        MappedFieldType fieldType = mapperService.fieldType(agg.field());
+        if (fieldType == null) {
+            throw new IllegalStateException(
+                "field [" + agg.field() + "] of terms aggregation [" + agg.getName() + "] is not present in the index mapping"
+            );
         }
-        if (sample instanceof Number) {
-            return TermsResponseStrategy.forType("long");
-        }
-        return TermsResponseStrategy.DEFAULT;
+        return fieldType;
     }
 
     /**

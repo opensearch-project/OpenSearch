@@ -75,8 +75,8 @@ public class SearchSourceConverter {
     private final AggregationTreeWalker treeWalker;
 
     /**
-     * Initializes planning infrastructure without mapping resolution — response key typing
-     * falls back to value sampling. Intended for tests.
+     * Initializes planning infrastructure without mapping resolution — conversion-only use;
+     * terms rendering fails without a MapperService. Intended for tests.
      *
      * @param schema Calcite schema with index tables from the analytics engine
      */
@@ -89,7 +89,8 @@ public class SearchSourceConverter {
      *
      * @param schema Calcite schema with index tables from the analytics engine
      * @param mapperServiceSupplier supplies the target index's MapperService for response key
-     *        type and format resolution; evaluated lazily, may supply null
+     *        type and format resolution; evaluated lazily. Supplying null skips
+     *        mapping-dependent validation and fails terms rendering.
      */
     public SearchSourceConverter(SchemaPlus schema, Supplier<MapperService> mapperServiceSupplier) {
         // TODO: Once Analytics plugin starts providing the RelOptTable, use it directly —

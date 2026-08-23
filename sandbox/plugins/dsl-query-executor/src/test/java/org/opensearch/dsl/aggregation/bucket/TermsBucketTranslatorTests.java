@@ -8,7 +8,15 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
+import org.opensearch.index.mapper.BooleanFieldMapper;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.IpFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -23,10 +31,37 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
 
-    private final TermsBucketTranslator translator = new TermsBucketTranslator(() -> null);
+    /** Field types the mapped translator resolves, mirroring a real index mapping. */
+    private static final Map<String, MappedFieldType> FIELD_TYPES = Map.of(
+        "brand",
+        new KeywordFieldMapper.KeywordFieldType("brand"),
+        "price",
+        new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG),
+        "rating",
+        new NumberFieldMapper.NumberFieldType("rating", NumberFieldMapper.NumberType.DOUBLE),
+        "flag",
+        new BooleanFieldMapper.BooleanFieldType("flag"),
+        "ip",
+        new IpFieldMapper.IpFieldType("ip"),
+        "created",
+        new DateFieldMapper.DateFieldType("created")
+    );
+
+    private final TermsBucketTranslator translator = new TermsBucketTranslator(TermsBucketTranslatorTests::mappedService);
+    private final TermsBucketTranslator unmappedTranslator = new TermsBucketTranslator(() -> null);
     private final TermsAggregationBuilder brandAgg = new TermsAggregationBuilder("by_brand").field("brand");
+
+    private static MapperService mappedService() {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(anyString())).thenAnswer(invocation -> FIELD_TYPES.get(invocation.<String>getArgument(0)));
+        return mapperService;
+    }
 
     public void testGetGrouping() {
         assertEquals(List.of("brand"), translator.getGrouping(brandAgg).getFieldNames());
@@ -137,6 +172,16 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertTrue(((StringTerms) agg).getBuckets().isEmpty());
     }
 
+    /** An empty result renders through the mapping too — a numeric field yields empty LongTerms, not StringTerms. */
+    public void testEmptyBucketsAreTypedByMapping() {
+        TermsAggregationBuilder priceAgg = new TermsAggregationBuilder("by_price").field("price");
+
+        InternalAggregation agg = translator.toBucketAggregation(priceAgg, List.of());
+
+        assertTrue(agg instanceof LongTerms);
+        assertTrue(((LongTerms) agg).getBuckets().isEmpty());
+    }
+
     // Ordering, min_doc_count, and truncation are plan contracts (SORT, HAVING, and LIMIT baked
     // into every plan) — the translator renders entries in received order and never re-filters,
     // re-sorts, or truncates.
@@ -212,10 +257,15 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals("false", terms.getBuckets().get(1).getKeyAsString());
     }
 
+    /** ip keys arrive as 16-byte encoded addresses and render through the mapping's IP format. */
     public void testBinaryKeysDecodeToIpAddressStrings() {
         TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
         List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of(new byte[] { 10, 0, 0, 1 }), 3, InternalAggregations.EMPTY),
+            new BucketEntry(
+                List.of(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 10, 0, 0, 1 }),
+                3,
+                InternalAggregations.EMPTY
+            ),
             new BucketEntry(
                 List.of(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 10, 0, 0, 2 }),
                 2,
@@ -229,13 +279,73 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals("10.0.0.2", terms.getBuckets().get(1).getKeyAsString());
     }
 
+    /** Binary keys under a RAW-formatted (keyword) mapping render as address strings or Base64. */
     public void testUndecodableBinaryKeyFallsBackToBase64() {
-        TermsAggregationBuilder ipAgg = new TermsAggregationBuilder("by_ip").field("ip");
         List<BucketEntry> entries = List.of(new BucketEntry(List.of(new byte[] { 1, 2, 3 }), 1, InternalAggregations.EMPTY));
 
-        StringTerms terms = (StringTerms) translator.toBucketAggregation(ipAgg, entries, 1L);
+        StringTerms terms = (StringTerms) translator.toBucketAggregation(brandAgg, entries, 1L);
 
         assertEquals("AQID", terms.getBuckets().get(0).getKeyAsString());
+    }
+
+    // ---- Mapping resolution is required for rendering ----
+
+    /** Without a MapperService the key type cannot be resolved — rendering fails loudly. */
+    public void testRenderWithoutMapperServiceFailsLoudly() {
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA"), 3, InternalAggregations.EMPTY));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> unmappedTranslator.toBucketAggregation(brandAgg, entries, 5L)
+        );
+
+        assertTrue(e.getMessage().contains("index mapping unavailable"));
+    }
+
+    /** A field the mapping does not know cannot be typed — rendering fails loudly. */
+    public void testRenderOfUnmappedFieldFailsLoudly() {
+        TermsAggregationBuilder unknownAgg = new TermsAggregationBuilder("by_unknown").field("unknown");
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of("x"), 1, InternalAggregations.EMPTY));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> translator.toBucketAggregation(unknownAgg, entries, 1L));
+
+        assertTrue(e.getMessage().contains("not present in the index mapping"));
+    }
+
+    // ---- validate(): date fields are rejected at conversion time ----
+
+    /** The engine returns date group keys as strings — reject at conversion with a clear 400. */
+    public void testValidateRejectsDateField() {
+        TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created");
+
+        ConversionException e = expectThrows(ConversionException.class, () -> translator.validate(dateAgg));
+
+        assertTrue(e.getMessage().contains("date field [created]"));
+    }
+
+    public void testValidateRejectsDateNanosField() {
+        MappedFieldType nanosType = mock(MappedFieldType.class);
+        when(nanosType.typeName()).thenReturn(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType("created_nanos")).thenReturn(nanosType);
+        TermsBucketTranslator nanosTranslator = new TermsBucketTranslator(() -> mapperService);
+
+        TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created_nanos");
+
+        ConversionException e = expectThrows(ConversionException.class, () -> nanosTranslator.validate(dateAgg));
+
+        assertTrue(e.getMessage().contains("date field [created_nanos]"));
+    }
+
+    /** Mapping-dependent validation is skipped when no MapperService is supplied (conversion-only use). */
+    public void testValidateSkipsMappingChecksWithoutMapperService() throws Exception {
+        TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created");
+
+        unmappedTranslator.validate(dateAgg); // must not throw
+    }
+
+    public void testValidateAcceptsNonDateMappedField() throws Exception {
+        translator.validate(brandAgg); // must not throw
     }
 
     // ---- Pushdown mode: totals-derived sum_other_doc_count ----
