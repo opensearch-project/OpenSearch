@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data.number;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -24,7 +25,12 @@ public class ByteParquetField extends NumericParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((TinyIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), ((Number) parseValue).byteValue());
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((TinyIntVector) vector).setSafe(index, ((Number) parseValue).byteValue());
     }
 
     @Override

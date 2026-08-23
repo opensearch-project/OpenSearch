@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet;
 
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
@@ -119,7 +120,16 @@ public class OtelTracesParquetGeneratorTests extends ParquetBaseTests {
     }
 
     private MappedFieldType dateNanos(String name) {
+        return dateNanos(name, false, null);
+    }
+
+    /** A date_nanos column, optionally multi_value and stamped into a correlated group. */
+    private MappedFieldType dateNanos(String name, boolean multiValue, String group) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(name, DateFieldMapper.Resolution.NANOSECONDS);
+        if (multiValue) {
+            ft.setMultiValued(true);
+            ft.setCorrelationGroup(group);
+        }
         assignTestCapabilities(ft, PARQUET_DATA_FORMAT);
         return ft;
     }
@@ -170,6 +180,7 @@ public class OtelTracesParquetGeneratorTests extends ParquetBaseTests {
         MappedFieldType duration = lng("Duration");
         MappedFieldType resourceAttrs = flat("ResourceAttributes", false, null);
         MappedFieldType spanAttrs = flat("SpanAttributes", false, null);
+        MappedFieldType eventsTimestamp = dateNanos("Events.Timestamp", true, "Events");
         MappedFieldType eventsName = kwList("Events.Name", "Events");
         MappedFieldType eventsAttrs = flat("Events.Attributes", true, "Events");
         MappedFieldType linksTraceId = kwList("Links.TraceId", "Links");
@@ -188,6 +199,7 @@ public class OtelTracesParquetGeneratorTests extends ParquetBaseTests {
             duration,
             resourceAttrs,
             spanAttrs,
+            eventsTimestamp,
             eventsName,
             eventsAttrs,
             linksTraceId,
@@ -232,11 +244,14 @@ public class OtelTracesParquetGeneratorTests extends ParquetBaseTests {
                 // Two events per errored span, one otherwise. Each addField call is one element, which
                 // is how the document parser hands over the elements of a JSON array.
                 if (errored) {
+                    doc.addField(eventsTimestamp, base + row * 1_000_000_000L + 1L);
                     doc.addField(eventsName, "exception");
                     doc.addField(eventsAttrs, attrs("exception.type", "IOError", "exception.message", "disk full"));
+                    doc.addField(eventsTimestamp, base + row * 1_000_000_000L + 2L);
                     doc.addField(eventsName, "retry");
                     doc.addField(eventsAttrs, attrs("retry.count", "3"));
                 } else {
+                    doc.addField(eventsTimestamp, base + row * 1_000_000_000L + 1L);
                     doc.addField(eventsName, "cache.hit");
                     doc.addField(eventsAttrs, attrs("cache.key", "k" + row));
                 }
@@ -263,18 +278,17 @@ public class OtelTracesParquetGeneratorTests extends ParquetBaseTests {
     }
 
     /**
-     * {@code Events.Timestamp} as {@code date_nanos, multi_value: true} is rejected: only
-     * {@code KeywordParquetField} and {@code FlatObjectParquetField} override
-     * {@link ParquetField#supportsMultiValue()}. This pins the gap that keeps the generated file from
-     * matching the ClickHouse column list exactly.
+     * {@code Events.Timestamp} as {@code date_nanos, multi_value: true} is a {@code LIST<int64>} of
+     * nanos, so the generated file now matches the ClickHouse column list for the whole group.
      */
-    public void testEventsTimestampMultiValueStillUnsupported() {
+    public void testEventsTimestampSupportsMultiValue() {
         ParquetField dateNanosField = ArrowFieldRegistry.getParquetField(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
-        assertFalse(dateNanosField.supportsMultiValue());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> dateNanosField.toArrowField("Events.Timestamp", true)
+        assertTrue(dateNanosField.supportsMultiValue());
+        Field arrowField = dateNanosField.toArrowField("Events.Timestamp", true);
+        assertEquals(ArrowType.List.INSTANCE, arrowField.getType());
+        assertEquals(
+            new ArrowType.Timestamp(org.apache.arrow.vector.types.TimeUnit.NANOSECOND, null),
+            arrowField.getChildren().get(0).getType()
         );
-        assertTrue(e.getMessage().contains("Events.Timestamp"));
     }
 }

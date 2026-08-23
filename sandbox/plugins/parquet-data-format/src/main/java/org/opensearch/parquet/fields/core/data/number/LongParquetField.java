@@ -9,6 +9,7 @@
 package org.opensearch.parquet.fields.core.data.number;
 
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -32,7 +33,12 @@ public class LongParquetField extends NumericParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((BigIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Long) parseValue);
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((BigIntVector) vector).setSafe(index, (Long) parseValue);
     }
 
     @Override

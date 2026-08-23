@@ -94,9 +94,16 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
             this.hasDocValues.setValue(hasDocValues);
         }
 
+        /**
+         * The shared {@code multi_value} arity parameter (see {@link Parameter#multiValueParam()}).
+         * Columnar formats need a field's arity declared up front because the column type is fixed per
+         * file; Lucene is inherently multi-valued and ignores it.
+         */
+        private final Parameter<Boolean> multiValue = Parameter.multiValueParam();
+
         @Override
         public List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, stored, hasDocValues);
+            return Arrays.asList(meta, stored, hasDocValues, multiValue);
         }
 
         @Override
@@ -107,6 +114,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 hasDocValues.getValue(),
                 meta.getValue()
             );
+            bft.setMultiValued(multiValue.getValue());
             return new BinaryFieldMapper(name, bft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }

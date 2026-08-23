@@ -9,6 +9,7 @@
 package org.opensearch.parquet.fields.core.data;
 
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -28,7 +29,17 @@ public class BooleanParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((BitVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Boolean) parseValue ? 1 : 0);
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((BitVector) vector).setSafe(index, (Boolean) parseValue ? 1 : 0);
+    }
+
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
     }
 
     @Override

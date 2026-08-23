@@ -18,6 +18,12 @@ import java.util.Set;
  */
 public abstract class NumericParquetField extends ParquetField {
 
+    /** Every numeric field writes a fixed-width slot, so all of them implement {@link #addToVector}. */
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
+    }
+
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
         return Set.of(
