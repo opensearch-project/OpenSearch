@@ -36,21 +36,28 @@ writer — so the artifact is what an index with this mapping actually produces.
 Both properties are read by the **forked test JVM**, hence `-Dtests.jvm.argline`; a bare `-D` on the
 Gradle command line does not reach it.
 
-The mapping under test, restricted to what is accepted today:
+The mapping under test:
 
 ```json
 "Events": {
   "type": "nested", "correlated": true,
   "properties": {
+    "Timestamp":  { "type": "date_nanos",  "multi_value": true },
     "Name":       { "type": "keyword",     "multi_value": true },
     "Attributes": { "type": "flat_object", "multi_value": true }
   }
 }
 ```
 
-`Events.Timestamp` as `date_nanos` + `multi_value` is **rejected** — only `KeywordParquetField` and
-`FlatObjectParquetField` override `supportsMultiValue()`. The second test in the class pins that, so it
-starts failing when the remaining type overrides land.
+All three member types are expressible: `Timestamp` writes as `LIST<int64>` nanos, `Name` as
+`LIST<utf8>`, `Attributes` as `LIST<MAP<utf8,utf8>>` — the full ClickHouse `Events` column set. The
+second test in the class asserts `date_nanos` supports list storage, so a regression that reverts it
+fails here.
+
+Note the latency figures below were measured **before** `Events.Timestamp` was added, so the benchmark
+file carried two members per group rather than three. Re-running the generator now produces a third
+column; the JSON side gains a corresponding field, and the ratios should be re-derived rather than
+assumed to carry over.
 
 Data shape: 3 spans per trace; every 4th span errored; errored spans carry two events (`exception` then
 `retry`), others one (`cache.hit`); every third span carries one link. Attribute cardinality is
