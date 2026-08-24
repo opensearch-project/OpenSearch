@@ -18,6 +18,8 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -90,22 +92,21 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             final long startNanos = System.nanoTime();
-            final String indexName;
+            final IndexMetadata indexMetadata;
             try {
-                indexName = resolveToSingleIndex(request);
+                indexMetadata = resolveToSingleIndex(request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
+            final String indexName = indexMetadata.getIndex().getName();
 
-            // One MapperService per request for response key typing and formats: created on
-            // first use with the index mapping merged in (a freshly created MapperService is
-            // empty and resolves no fields), closed when the request completes either way.
-            // A failed resolution degrades to the translator's sampling fallback.
+            // Response typing works off the mapping pinned at request start: one immutable
+            // snapshot for conversion and response building, created lazily, and closed when
+            // the request completes whether it succeeded or failed.
             // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
             final RequestScopedMapperService mapperServiceHolder = new RequestScopedMapperService(
-                indexName,
-                clusterService::state,
+                indexMetadata,
                 indicesService::createIndexMapperService
             );
             final ActionListener<SearchResponse> requestListener = ActionListener.runAfter(listener, mapperServiceHolder::close);
@@ -209,16 +210,18 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
     // so this plugin doesn't need its own resolution logic.
     /**
-     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.
-     * Throws if the resolution yields zero or more than one concrete index.
+     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete
+     * index, returning its metadata from the same cluster state snapshot. Throws if the
+     * resolution yields zero or more than one concrete index.
      */
-    private String resolveToSingleIndex(SearchRequest request) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
+    private IndexMetadata resolveToSingleIndex(SearchRequest request) {
+        ClusterState state = clusterService.state();
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices.length != 1) {
             throw new IllegalArgumentException(
                 "DSL execution currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
             );
         }
-        return concreteIndices[0].getName();
+        return state.metadata().getIndexSafe(concreteIndices[0]);
     }
 }
