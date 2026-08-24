@@ -26,12 +26,14 @@ import java.util.TreeMap;
  *   {
  *     "hits": {
  *       "total": 3,
- *       "sources": [ { ... _source ... }, ... ]   // order-independent
+ *       "sources": [ { ... _source ... }, ... ]   // hit ordering ignored; array values within a _source are not
  *     }
  *   }
  * </pre>
  * {@code total} is compared against {@code hits.total.value}; {@code sources} is compared against each
- * hit's {@code _source} as an unordered multiset with numeric tolerance. A {@code total} of 0 with an
+ * hit's {@code _source} with numeric tolerance. The {@code sources} list itself is order-independent
+ * (hit ordering is ignored), but values <i>within</i> a {@code _source} — including array fields such as
+ * {@code tags} — are compared in order, so a reordered array is a mismatch. A {@code total} of 0 with an
  * empty (or absent) {@code sources} is a perfectly valid golden — e.g. an aggregation-only query or a
  * query that legitimately matches nothing.
  *
@@ -150,16 +152,15 @@ public final class DslResponseValidator {
             return Math.abs(((Number) expected).doubleValue() - ((Number) actual).doubleValue()) < NUMERIC_TOLERANCE;
         }
         if (expected instanceof List && actual instanceof List) {
-            List<Object> e = new ArrayList<>((List<Object>) expected);
-            List<Object> a = new ArrayList<>((List<Object>) actual);
-            if (e.size() != a.size()) {
+            List<Object> expectedList = (List<Object>) expected;
+            List<Object> actualList = (List<Object>) actual;
+            if (expectedList.size() != actualList.size()) {
                 return false;
             }
-            Comparator<Object> byStr = Comparator.comparing(o -> o == null ? "" : o.toString());
-            e.sort(byStr);
-            a.sort(byStr);
-            for (int i = 0; i < e.size(); i++) {
-                if (!valuesEqual(e.get(i), a.get(i))) {
+            // _source array order is significant — unlike hit ordering, an array field such as `tags`
+            // must match element-for-element in the same order. Compare positionally; do not sort.
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (!valuesEqual(expectedList.get(i), actualList.get(i))) {
                     return false;
                 }
             }
@@ -253,7 +254,8 @@ public final class DslResponseValidator {
             for (Object e : (List<Object>) o) {
                 parts.add(canonical(e));
             }
-            parts.sort(Comparator.naturalOrder());
+            // Preserve element order so that array-order differences yield distinct canonical keys and
+            // are not collapsed during hit pairing. Hit *list* ordering is still ignored — see compare().
             return "[" + String.join(",", parts) + "]";
         }
         if (o instanceof String) {

@@ -55,6 +55,11 @@ public final class DslQueryTypeCatalog {
             // ── term-level ──
             e("term", "term-level"),
 
+            // ── general keyword dataset (people: 5 docs; keyword/int/double/text fields) ──
+            // Exercises term queries returning multiple docs, a single doc, and no docs against a
+            // plain (non-tags) keyword dataset. Golden answers are the true Lucene results.
+            e("people", "term-level"),
+
             // ── compound ──
             e("bool", "compound"),
 

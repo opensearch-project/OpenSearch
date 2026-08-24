@@ -50,7 +50,7 @@ DatasetQueryRunner.java   ← auto-discovers dsl/q*.json
 DslQueryTypeCatalog.java  ← one entry per type: type, family, Dataset
 DslQueryTypesIT.java      ← provisions each type + runs its query, validates against the expected answer
 DslResponseValidator.java ← compares a response against the committed expected answer
-DslTermQueryIT.java       ← focused term-query correctness test (dataset: people)
+DslSearchBehaviorIT.java  ← behavioral checks the golden sweep can't express (e.g. randomized-preference stability)
 ```
 
 ## What is asserted
