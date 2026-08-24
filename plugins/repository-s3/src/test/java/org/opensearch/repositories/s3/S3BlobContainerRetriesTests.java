@@ -121,7 +121,7 @@ import static org.hamcrest.Matchers.is;
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
-@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
+@ThreadLeakFilters(filters = { EventLoopThreadFilter.class, ResponseInputStreamTimeoutThreadFilter.class })
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
