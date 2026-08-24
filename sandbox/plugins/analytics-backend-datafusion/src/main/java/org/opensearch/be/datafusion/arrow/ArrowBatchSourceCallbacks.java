@@ -340,19 +340,32 @@ public final class ArrowBatchSourceCallbacks {
             return factoryClosed ? finalMetrics : Map.copyOf(factory.metrics());
         }
 
-        private void tryFinishClose() {
-            if (closing && factoryClosed == false && activeCallbacks == 0 && sources.isEmpty()) {
+        private synchronized void tryFinishClose() {
+            if (closing == false || factoryClosed || activeCallbacks != 0) {
+                return;
+            }
+            // Native stream teardown normally releases each source, but an output stream can be
+            // closed before its provider is polled. Registration owns final cleanup and must not
+            // wait for a native release callback that may never arrive.
+            List<SourceEntry> remainingSources = List.copyOf(sources.values());
+            sources.clear();
+            for (SourceEntry source : remainingSources) {
                 try {
-                    finalMetrics = Map.copyOf(factory.metrics());
+                    source.close();
                 } catch (Throwable throwable) {
-                    LOGGER.warn("Failed to collect final Arrow batch source metrics for binding {}", bindingId, throwable);
+                    LOGGER.warn("Failed to close Arrow batch source while closing binding {}", bindingId, throwable);
                 }
-                factoryClosed = true;
-                try {
-                    factory.close();
-                } finally {
-                    BINDINGS.remove(bindingId, this);
-                }
+            }
+            try {
+                finalMetrics = Map.copyOf(factory.metrics());
+            } catch (Throwable throwable) {
+                LOGGER.warn("Failed to collect final Arrow batch source metrics for binding {}", bindingId, throwable);
+            }
+            factoryClosed = true;
+            try {
+                factory.close();
+            } finally {
+                BINDINGS.remove(bindingId, this);
             }
         }
 

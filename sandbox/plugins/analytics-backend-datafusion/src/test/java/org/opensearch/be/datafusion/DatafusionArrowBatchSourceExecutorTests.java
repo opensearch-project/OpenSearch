@@ -43,7 +43,9 @@ import org.opensearch.analytics.spi.ArrowBatchSourceFactory.ColumnKind;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.be.lucene.DocValuesBatchSourceFactory;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -51,6 +53,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.substrait.extension.DefaultExtensionCatalog;
@@ -90,6 +93,83 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
             expectThrows(IllegalStateException.class, () -> executor.execute(allocator, plan, factory, null, null));
         }
         assertEquals(1, closes.get());
+    }
+
+    public void testCancelledBeforeSetupClosesTransferredFactory() {
+        AtomicInteger closes = new AtomicInteger();
+        ArrowBatchSourceFactory factory = new ArrowBatchSourceFactory() {
+            @Override
+            public ArrowBatchSource open(int[] projection) {
+                throw new AssertionError("source must not open after cancellation");
+            }
+
+            @Override
+            public void close() {
+                closes.incrementAndGet();
+            }
+        };
+        CancellableTask task = new CancellableTask(98_002L, "test", "arrow-source", "cancelled", TaskId.EMPTY_TASK_ID, Map.of()) {
+            @Override
+            public boolean shouldCancelChildrenOnCancellation() {
+                return false;
+            }
+        };
+        task.cancel("test cancellation");
+        ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan("input-0", new byte[] { 1 }, List.of(new InputColumn("x", ColumnKind.LONG)));
+        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(DataFusionService.builder().build());
+
+        try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
+            expectThrows(TaskCancelledException.class, () -> executor.execute(allocator, plan, factory, task, null));
+        }
+        assertEquals(1, closes.get());
+    }
+
+    public void testEarlyResultStreamCloseReleasesLuceneFactory() throws Exception {
+        Path spillDirectory = createTempDir("arrow-source-early-close-spill");
+        DataFusionService service = DataFusionService.builder()
+            .memoryPoolLimit(64L * 1024L * 1024L)
+            .spillMemoryLimit(32L * 1024L * 1024L)
+            .spillDirectory(spillDirectory.toString())
+            .cpuThreads(2)
+            .build();
+        service.start();
+        DataFusionPlugin plugin = org.mockito.Mockito.mock(DataFusionPlugin.class);
+        org.mockito.Mockito.when(plugin.getSubstraitExtensions()).thenReturn(DefaultExtensionCatalog.DEFAULT_COLLECTION);
+        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(service, plugin);
+
+        try (
+            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+            ByteBuffersDirectory directory = new ByteBuffersDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+            addDocument(writer, 11L, "a");
+            writer.commit();
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                int initialRefCount = reader.getRefCount();
+                DocValuesBatchSourceFactory factory = new DocValuesBatchSourceFactory(
+                    new IndexSearcher(reader),
+                    new MatchAllDocsQuery(),
+                    List.of(new InputColumn("x", ColumnKind.LONG)),
+                    allocator,
+                    null
+                );
+                ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan(
+                    "input-0",
+                    executor.compile(inputScan("input-0"), false),
+                    List.of(new InputColumn("x", ColumnKind.LONG))
+                );
+                EngineResultStream stream = executor.execute(allocator, plan, factory, null, null);
+                assertTrue("factory and native source hold reader references", reader.getRefCount() > initialRefCount);
+
+                stream.close();
+                stream.close();
+
+                assertBusy(() -> assertEquals(initialRefCount, reader.getRefCount()));
+                expectThrows(IllegalStateException.class, () -> factory.open(new int[] { 0 }));
+            }
+        } finally {
+            service.close();
+        }
     }
 
     public void testExecutesLuceneDocValuesThroughDataFusion() throws Exception {

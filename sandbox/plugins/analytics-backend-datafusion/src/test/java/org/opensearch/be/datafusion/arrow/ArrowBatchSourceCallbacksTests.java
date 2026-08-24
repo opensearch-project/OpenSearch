@@ -313,7 +313,8 @@ public class ArrowBatchSourceCallbacksTests extends OpenSearchTestCase {
             registration.close();
             assertEquals(ArrowBatchSourceCallbacks.CANCELLED, (long) next.get(10L, TimeUnit.SECONDS));
             assertEquals(1, factory.sourceCancelCount.get());
-            assertEquals(0, factory.closeCount.get());
+            assertEquals(1, factory.sourceCloseCount.get());
+            assertEquals(1, factory.closeCount.get());
             ArrowBatchSourceCallbacks.releaseSource(registration.bindingId(), key);
             assertEquals(1, factory.closeCount.get());
         } finally {
@@ -472,6 +473,7 @@ public class ArrowBatchSourceCallbacksTests extends OpenSearchTestCase {
         private final CountDownLatch entered = new CountDownLatch(1);
         private final CountDownLatch cancelled = new CountDownLatch(1);
         private final AtomicInteger sourceCancelCount = new AtomicInteger();
+        private final AtomicInteger sourceCloseCount = new AtomicInteger();
         private final AtomicInteger closeCount = new AtomicInteger();
 
         private CooperativeBlockingFactory(BufferAllocator allocator) {
@@ -500,7 +502,9 @@ public class ArrowBatchSourceCallbacksTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    sourceCloseCount.incrementAndGet();
+                }
             };
         }
 
