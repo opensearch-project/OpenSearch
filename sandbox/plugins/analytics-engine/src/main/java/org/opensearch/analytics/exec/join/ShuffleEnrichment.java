@@ -17,6 +17,8 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.GeneralShuffleDAGRewriter;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
+import org.opensearch.analytics.planner.rel.AggregateMode;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
@@ -158,9 +160,14 @@ public final class ShuffleEnrichment {
             // the parent join's keys, not its (gathered) input's.
             Map<String, Integer> expectedBySlot = new LinkedHashMap<>();
             Map<String, Integer> producerStageIdBySlot = new LinkedHashMap<>();
+            Map<String, byte[]> producerPlanBytesBySlot = new LinkedHashMap<>();
             for (WorkerInput input : level.inputs()) {
                 expectedBySlot.put(input.slot(), expectedSendersFor(input.producer(), partitionCount, clusterService));
                 producerStageIdBySlot.put(input.slot(), input.producer().getStageId());
+                byte[] partialPlanBytes = partialAggregatePlanBytes(input.producer());
+                if (partialPlanBytes != null) {
+                    producerPlanBytesBySlot.put(input.slot(), partialPlanBytes);
+                }
                 enrichProducerAlternatives(
                     input.producer(),
                     input.hashKeys(),
@@ -185,7 +192,15 @@ public final class ShuffleEnrichment {
             // placeholder and appends per-(partition,slot) scans; a producer instruction (added above when
             // this worker also feeds a higher level) stays AFTER the scans because enrichProducerAlternatives
             // appended it to the worker's own alternatives.
-            enrichWorkerAlternatives(worker, partitionCount, expectedBySlot, ctx.queryId(), producerStageIdBySlot, preferHashJoin);
+            enrichWorkerAlternatives(
+                worker,
+                partitionCount,
+                expectedBySlot,
+                ctx.queryId(),
+                producerStageIdBySlot,
+                preferHashJoin,
+                producerPlanBytesBySlot
+            );
 
             LOGGER.debug(
                 "[ShuffleEnrichment] level worker={} producers={} partitions={} expectedSenders={} "
@@ -302,6 +317,41 @@ public final class ShuffleEnrichment {
         Map<String, Integer> producerStageIdBySlot,
         boolean preferHashJoin
     ) {
+        enrichWorkerAlternatives(
+            workerStage,
+            partitionCount,
+            expectedSendersBySlot,
+            queryId,
+            producerStageIdBySlot,
+            preferHashJoin,
+            Map.of()
+        );
+    }
+
+    /**
+     * {@link #enrichWorkerAlternatives(Stage, int, Map, String, Map, boolean)} plus, per slot, the producer's
+     * converted PARTIAL-aggregate plan bytes.
+     *
+     * <p>Only an AGGREGATE consumer needs them. A PARTIAL aggregate producer ships physical batches whose
+     * state columns are named {@code <alias>[<state>]} (e.g. {@code total[sum]}), while the consumer FINAL's
+     * Substrait {@code base_schema} declares Calcite's LOGICAL names ({@code total}); DataFusion's Substrait
+     * consumer binds base_schema to the registered provider BY NAME, so registering the raw-IPC (physical)
+     * schema fails the FINAL with {@code No field named total}. Given these bytes, {@code ShuffleScanHandler}
+     * registers via {@code registerPartitionStreamOnSessionContextFromPartialPlan}, which re-lowers the
+     * producer's plan to recover the logical names; the physically-named batches still feed in positionally.
+     *
+     * <p>A slot absent from the map gets {@code null}, which keeps the raw-IPC path — correct for a JOIN
+     * producer, whose rows are raw and whose names already match the consumer.
+     */
+    public static void enrichWorkerAlternatives(
+        Stage workerStage,
+        int partitionCount,
+        Map<String, Integer> expectedSendersBySlot,
+        String queryId,
+        Map<String, Integer> producerStageIdBySlot,
+        boolean preferHashJoin,
+        Map<String, byte[]> producerPlanBytesBySlot
+    ) {
         if (!expectedSendersBySlot.keySet().equals(producerStageIdBySlot.keySet())) {
             throw new IllegalArgumentException(
                 "ShuffleEnrichment: expectedSenders slots "
@@ -336,7 +386,8 @@ public final class ShuffleEnrichment {
                             expectedSendersBySlot.get(slot),
                             queryId,
                             workerStageId,
-                            slot
+                            slot,
+                            producerPlanBytesBySlot.get(slot)
                         )
                     );
                 }
@@ -344,6 +395,44 @@ public final class ShuffleEnrichment {
             enriched.add(sp.withInstructions(merged));
         }
         workerStage.setPlanAlternatives(enriched);
+    }
+
+    /**
+     * The producer's converted plan bytes when it ships PARTIAL AGGREGATE state, else {@code null}.
+     *
+     * <p>Gated on the producer's fragment actually containing a {@code PARTIAL} {@link OpenSearchAggregate}:
+     * that is what makes its output columns state-named ({@code total[sum]}) and so requires the consumer to
+     * register by the re-lowered LOGICAL schema. A join producer ships raw rows and must keep the raw-IPC
+     * path, so it returns {@code null}.
+     *
+     * <p>Returns {@code null} when the producer has no converted bytes yet (an un-forked stage in a unit
+     * test), which degrades to the existing behaviour rather than failing enrichment.
+     */
+    private static byte[] partialAggregatePlanBytes(Stage producer) {
+        if (!containsPartialAggregate(producer.getFragment())) {
+            return null;
+        }
+        if (producer.getPlanAlternatives().isEmpty()) {
+            return null;
+        }
+        return producer.getPlanAlternatives().getFirst().convertedBytes();
+    }
+
+    /** True when {@code node}'s subtree contains a {@code PARTIAL} aggregate. */
+    private static boolean containsPartialAggregate(RelNode node) {
+        if (node == null) {
+            return false;
+        }
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        if (unwrapped instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
+            return true;
+        }
+        for (RelNode input : unwrapped.getInputs()) {
+            if (containsPartialAggregate(input)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Canonical {@code "input-<producerStageId>"} name the fragment convertor emits when it rewrites the

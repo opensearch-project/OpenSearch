@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -62,17 +61,7 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
      * Hero test: a high-cardinality bare {@code GROUP BY}. With the toggle on the PARTIAL→FINAL exchange must
      * become a SHUFFLE, and every row must match the toggle-off run.
      */
-    @AwaitsFix(
-        bugUrl = "Two-phase group-key aggregation forms the right plan but does not EXECUTE yet: a "
-            + "shuffle-fed worker FINAL reads the PARTIAL state column verbatim and fails with "
-            + "'Schema error: No field named total. Valid fields are \"input-0\".user_id, "
-            + "\"input-0\".\"total[sum]\"'. The worker fragment is FINAL(SHUFFLE(StageInputScan)) and runs "
-            + "through DatafusionSearchExecEngine.execute; a COORDINATOR FINAL instead runs through the "
-            + "COORDINATOR_REDUCE sink, which registers the buffered child batches itself. Which layer drops the "
-            + "state-column name is NOT yet established — establish it by dumping the worker fragment's "
-            + "converted plan and the registered input-0 schema, rather than by inspection."
-    )
-    public void testHighCardinalityGroupBy_shufflesPartialToFinalAndKeepsResults() throws Exception {
+        public void testHighCardinalityGroupBy_shufflesPartialToFinalAndKeepsResults() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + HIGH_INDEX + " | stats sum(amount) as total by user_id | sort user_id";
 
@@ -105,17 +94,7 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
      * but it must never be WRONG. Asserts result parity and that the 4 groups are each merged exactly once
      * (a group split across partitions would surface as duplicate group keys).
      */
-    @AwaitsFix(
-        bugUrl = "Two-phase group-key aggregation forms the right plan but does not EXECUTE yet: a "
-            + "shuffle-fed worker FINAL reads the PARTIAL state column verbatim and fails with "
-            + "'Schema error: No field named total. Valid fields are \"input-0\".user_id, "
-            + "\"input-0\".\"total[sum]\"'. The worker fragment is FINAL(SHUFFLE(StageInputScan)) and runs "
-            + "through DatafusionSearchExecEngine.execute; a COORDINATOR FINAL instead runs through the "
-            + "COORDINATOR_REDUCE sink, which registers the buffered child batches itself. Which layer drops the "
-            + "state-column name is NOT yet established — establish it by dumping the worker fragment's "
-            + "converted plan and the registered input-0 schema, rather than by inspection."
-    )
-    public void testLowCardinalityGroupBy_resultsUnchanged() throws Exception {
+        public void testLowCardinalityGroupBy_resultsUnchanged() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + LOW_INDEX + " | stats sum(amount) as total, count() as cnt by category | sort category";
 
@@ -153,17 +132,7 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
     }
 
     /** MPP off is the correctness oracle: the toggle must not change what a non-MPP run returns. */
-    @AwaitsFix(
-        bugUrl = "Two-phase group-key aggregation forms the right plan but does not EXECUTE yet: a "
-            + "shuffle-fed worker FINAL reads the PARTIAL state column verbatim and fails with "
-            + "'Schema error: No field named total. Valid fields are \"input-0\".user_id, "
-            + "\"input-0\".\"total[sum]\"'. The worker fragment is FINAL(SHUFFLE(StageInputScan)) and runs "
-            + "through DatafusionSearchExecEngine.execute; a COORDINATOR FINAL instead runs through the "
-            + "COORDINATOR_REDUCE sink, which registers the buffered child batches itself. Which layer drops the "
-            + "state-column name is NOT yet established — establish it by dumping the worker fragment's "
-            + "converted plan and the registered input-0 schema, rather than by inspection."
-    )
-    public void testMatchesNonMppBaseline() throws Exception {
+        public void testMatchesNonMppBaseline() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + HIGH_INDEX + " | stats sum(amount) as total by user_id | sort user_id";
 
