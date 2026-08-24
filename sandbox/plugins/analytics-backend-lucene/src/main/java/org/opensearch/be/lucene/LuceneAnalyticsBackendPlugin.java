@@ -32,12 +32,20 @@ import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
+import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -264,6 +272,35 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneAnalyticsBackendPlugin.class);
 
+    /**
+     * Standard Lucene shards expose an {@link Engine.Searcher}, not the pluggable-format reader
+     * implemented by composite engines. Adapt that searcher to the shared reader contract so the
+     * same Lucene execution code can consume both index types.
+     */
+    @Override
+    public GatedCloseable<IndexReaderProvider.Reader> acquireReader(IndexShard shard) throws IOException {
+        IndexReaderProvider readerProvider = shard.getReaderProvider();
+        if (!(readerProvider instanceof EngineBackedIndexer indexer)) {
+            return readerProvider.acquireReader();
+        }
+
+        Engine.Searcher searcher = shard.acquireSearcher("analytics-lucene");
+        GatedCloseable<CatalogSnapshot> snapshotRef;
+        try {
+            snapshotRef = indexer.acquireSnapshot();
+        } catch (RuntimeException | Error e) {
+            searcher.close();
+            throw e;
+        }
+        try {
+            EngineBackedLuceneReader reader = new EngineBackedLuceneReader(searcher, snapshotRef, plugin.getDataFormat());
+            return new GatedCloseable<>(reader, reader::close);
+        } catch (RuntimeException | Error e) {
+            IOUtils.closeWhileHandlingException(searcher, snapshotRef);
+            throw e;
+        }
+    }
+
     @Override
     public FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
@@ -285,6 +322,49 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             shardCtx.getNamedWriteableRegistry(),
             isCancelled
         );
+    }
+
+    private static final class EngineBackedLuceneReader implements IndexReaderProvider.Reader {
+        private final Engine.Searcher searcher;
+        private final GatedCloseable<CatalogSnapshot> snapshotRef;
+        private final DataFormat luceneFormat;
+        private final LuceneReader luceneReader;
+
+        private EngineBackedLuceneReader(Engine.Searcher searcher, GatedCloseable<CatalogSnapshot> snapshotRef, DataFormat luceneFormat) {
+            this.searcher = searcher;
+            this.snapshotRef = snapshotRef;
+            this.luceneFormat = luceneFormat;
+            this.luceneReader = new LuceneReader(searcher.getDirectoryReader(), Map.of());
+        }
+
+        @Override
+        public CatalogSnapshot catalogSnapshot() {
+            return snapshotRef.get();
+        }
+
+        @Override
+        public Object reader(DataFormat format) {
+            return luceneFormat.equals(format) ? luceneReader : null;
+        }
+
+        @Override
+        public <R> R getReader(DataFormat format, Class<R> readerType) {
+            Object reader = reader(format);
+            if (reader == null) {
+                return null;
+            }
+            if (readerType.isInstance(reader) == false) {
+                throw new IllegalArgumentException(
+                    "Reader for format [" + format.name() + "] is " + reader.getClass().getName() + ", expected " + readerType.getName()
+                );
+            }
+            return readerType.cast(reader);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(searcher, snapshotRef);
+        }
     }
 
     // ── Lucene-as-driver execution path (count fast path) ──

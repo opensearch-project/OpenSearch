@@ -12,9 +12,11 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +93,23 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         throw new UnsupportedOperationException("getInstructionHandlerFactory not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Acquires the point-in-time shard reader used by this backend. Pluggable-format backends use
+     * the shard's {@link org.opensearch.index.engine.exec.IndexReaderProvider} directly. A backend
+     * that also supports a standard engine can override this method to adapt that engine's native
+     * searcher into the shared {@link Reader} contract.
+     */
+    default GatedCloseable<Reader> acquireReader(IndexShard shard) throws IOException {
+        try {
+            return shard.getReaderProvider().acquireReader();
+        } catch (UnsupportedOperationException e) {
+            throw new UnsupportedOperationException(
+                "Backend [" + name() + "] cannot acquire a reader from " + shard.getReaderProvider().getClass().getName(),
+                e
+            );
+        }
     }
 
     /**
