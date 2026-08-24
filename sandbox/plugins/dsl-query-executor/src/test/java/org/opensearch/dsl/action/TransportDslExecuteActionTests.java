@@ -151,7 +151,17 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
     private EngineContextProvider buildEngineContext() {
         QueryRequestContext ctx = new QueryRequestContext(null, buildSchema());
-        return () -> ctx;
+        return new EngineContextProvider() {
+            @Override
+            public QueryRequestContext getContext(ClusterState clusterState) {
+                return ctx;
+            }
+
+            @Override
+            public QueryRequestContext getContext() {
+                return ctx;
+            }
+        };
     }
 
     private SchemaPlus buildSchema() {

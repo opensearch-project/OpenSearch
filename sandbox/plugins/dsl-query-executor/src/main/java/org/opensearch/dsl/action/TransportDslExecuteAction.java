@@ -92,9 +92,12 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             final long startNanos = System.nanoTime();
+            // One snapshot per request: index resolution, the engine schema, and response
+            // typing all derive from the same immutable cluster state.
+            final ClusterState state = clusterService.state();
             final IndexMetadata indexMetadata;
             try {
-                indexMetadata = resolveToSingleIndex(request);
+                indexMetadata = resolveToSingleIndex(state, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -114,7 +117,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             final QueryPlans plans;
             final SearchSourceConverter converter;
             try {
-                converter = new SearchSourceConverter(contextProvider.getContext().schema(), mapperServiceHolder);
+                converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperServiceHolder);
                 plans = converter.convert(request.source(), indexName);
             } catch (ConversionException e) {
                 // The request carries a shape or parameter this path cannot honor — a client
@@ -214,8 +217,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
      * index, returning its metadata from the same cluster state snapshot. Throws if the
      * resolution yields zero or more than one concrete index.
      */
-    private IndexMetadata resolveToSingleIndex(SearchRequest request) {
-        ClusterState state = clusterService.state();
+    private IndexMetadata resolveToSingleIndex(ClusterState state, SearchRequest request) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices.length != 1) {
             throw new IllegalArgumentException(
