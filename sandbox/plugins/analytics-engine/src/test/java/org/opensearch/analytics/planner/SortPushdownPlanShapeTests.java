@@ -60,7 +60,7 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
                       OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -119,7 +119,7 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchLateMaterialization(aboveAnchorPhysicalFields=[[status, size]], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[10], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[10], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -147,7 +147,7 @@ public class SortPushdownPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchSort(fetch=[10], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[10], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,

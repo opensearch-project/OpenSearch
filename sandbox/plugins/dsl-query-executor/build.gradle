@@ -40,9 +40,15 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson_databind}"
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 
   internalClusterTestImplementation project(':server')
   internalClusterTestImplementation project(':test:framework')
+}
+
+tasks.withType(JavaCompile).configureEach {
+  // Calcite's TimestampString references Jackson @JsonProperty not on compile classpath — suppress classfile warning
+  options.compilerArgs -= '-Xlint:classfile'
 }
