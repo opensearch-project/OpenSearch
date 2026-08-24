@@ -1,0 +1,32 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.spi;
+
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
+
+/**
+ * Pull source for one sequential Arrow input stream.
+ *
+ * <p>Implementations return ownership of every non-null batch to the caller. A null
+ * batch signals EOF. Sources are single-consumer and close must be idempotent.
+ *
+ * @opensearch.internal
+ */
+public interface ArrowBatchSource extends AutoCloseable {
+
+    /** Allocator that owns returned batches and exported Arrow C Data buffers. */
+    BufferAllocator allocator();
+
+    /** Returns the next owned batch, or {@code null} at EOF. */
+    VectorSchemaRoot nextBatch() throws Exception;
+
+    @Override
+    void close();
+}

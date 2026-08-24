@@ -32,6 +32,7 @@ configurations {
 configurations.all {
     resolutionStrategy {
         force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+        force "org.slf4j:slf4j-api:${versions.slf4j}"
     }
 }
 sourceSets.main.compileClasspath += configurations.calciteCompile
@@ -82,6 +83,7 @@ dependencies {
     // schema descends from com.google.flatbuffers.Table. arrow-format / flatbuffers are
     // provided at runtime by analytics-engine in production but not on the unit-test JVM.
     testRuntimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+    testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
     testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
     // Calcite annotation compatibility
@@ -90,6 +92,8 @@ dependencies {
 
 test {
     systemProperty 'tests.security.manager', 'false'
+    jvmArgs += ['--add-opens', 'java.base/java.nio=ALL-UNNAMED']
+    jvmArgs += ['--enable-native-access=ALL-UNNAMED']
 }
 
 tasks.withType(JavaCompile).configureEach {
