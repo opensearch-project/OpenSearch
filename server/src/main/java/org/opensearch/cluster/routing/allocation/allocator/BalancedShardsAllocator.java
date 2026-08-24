@@ -175,6 +175,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> RELOCATE_BLOCKING_REPLICA_FOR_PRIMARY_REBALANCE = Setting.boolSetting(
+        "cluster.routing.allocation.rebalance.primary.relocate_blocking_replica.enable",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> IGNORE_THROTTLE_FOR_REMOTE_RESTORE = Setting.boolSetting(
         "cluster.routing.allocation.remote_primary.ignore_throttle",
         true,
@@ -238,6 +245,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private volatile boolean preferPrimaryShardBalance;
     private volatile boolean preferPrimaryShardRebalance;
+    private volatile boolean relocateBlockingReplicaEnabled;
     private volatile float preferPrimaryShardRebalanceBuffer;
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
@@ -266,6 +274,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setPrimaryConstraintThresholdSetting(PRIMARY_CONSTRAINT_THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
+        setRelocateBlockingReplicaEnabled(RELOCATE_BLOCKING_REPLICA_FOR_PRIMARY_REBALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
         setAllocatorTimeout(ALLOCATOR_TIMEOUT_SETTING.get(settings));
         setFollowUpRerouteTaskPriority(FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(settings));
@@ -276,6 +285,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
+        clusterSettings.addSettingsUpdateConsumer(RELOCATE_BLOCKING_REPLICA_FOR_PRIMARY_REBALANCE, this::setRelocateBlockingReplicaEnabled);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_CONSTRAINT_THRESHOLD_SETTING, this::setPrimaryConstraintThresholdSetting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
@@ -368,6 +378,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.weightFunction.updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, preferPrimaryShardRebalance);
     }
 
+    private void setRelocateBlockingReplicaEnabled(boolean relocateBlockingReplicaEnabled) {
+        this.relocateBlockingReplicaEnabled = relocateBlockingReplicaEnabled;
+    }
+
     private void setThreshold(float threshold) {
         this.threshold = threshold;
     }
@@ -409,6 +423,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
+            relocateBlockingReplicaEnabled,
             ignoreThrottleInRestore,
             this::allocatorTimedOut
         );
@@ -435,6 +450,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
+            relocateBlockingReplicaEnabled,
             ignoreThrottleInRestore,
             () -> false // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
         );
@@ -795,7 +811,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, () -> false);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, false, () -> false);
         }
     }
 
