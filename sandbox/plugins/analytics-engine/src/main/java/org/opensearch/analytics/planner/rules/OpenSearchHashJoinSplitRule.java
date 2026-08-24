@@ -19,6 +19,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -87,6 +88,22 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         }
         if (joinAlreadyResolvedAsHash(join)) {
             return false;
+        }
+        // Size floor (analytics.mpp.distribute.min_rows): distributing costs a shuffle round-trip that only
+        // pays off at scale, and the cost model CANNOT express that on its own — it has no per-STAGE term, so
+        // the parallelism divisor makes the distributed plan win at EVERY row count (measured: neutralizing
+        // the floor distributes a 1,000-row join). The floor therefore has to be a veto, and it lives HERE as
+        // well as in the pass so formation and enforcement agree on one answer.
+        //
+        // A subtree with no reachable scan estimates 0, which means UNKNOWN, not small — gating on it would
+        // suppress every distributed alternative during early Volcano exploration. So an unknown estimate does
+        // not veto.
+        long minRows = AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(context.getSettings());
+        if (minRows > 0) {
+            long estimated = Math.max(RelNodeUtils.subtreeMaxScanRows(join.getLeft()), RelNodeUtils.subtreeMaxScanRows(join.getRight()));
+            if (estimated > 0 && estimated < minRows) {
+                return false;
+            }
         }
         // Both inputs must be vanilla SHARD-distributed scans. Without this gate the rule fires
         // on shapes like Join(Scan, Values) — Values has no shard distribution, so the resulting

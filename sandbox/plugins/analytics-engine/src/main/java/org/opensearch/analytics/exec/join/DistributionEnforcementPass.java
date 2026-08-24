@@ -879,15 +879,8 @@ public final class DistributionEnforcementPass {
     }
 
     /** Largest {@link OpenSearchTableScan} row count in {@code node}'s subtree (0 when no scan / unknown). */
+    /** Delegates to the shared estimator so this pass and the split rules cannot drift apart. */
     private static long subtreeMaxScanRows(RelNode node) {
-        RelNode n = RelNodeUtils.unwrapHep(node);
-        if (n instanceof OpenSearchTableScan scan) {
-            return Math.max(0L, (long) scan.getTable().getRowCount());
-        }
-        long max = 0L;
-        for (RelNode input : n.getInputs()) {
-            max = Math.max(max, subtreeMaxScanRows(input));
-        }
-        return max;
+        return RelNodeUtils.subtreeMaxScanRows(node);
     }
 }
