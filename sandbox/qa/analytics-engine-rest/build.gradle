@@ -142,7 +142,15 @@ integTest {
     // Source resources dir, so -Dplan.generate writes goldens to the source tree (not build/).
     systemProperty 'plan.resourcesDir', file('src/test/resources').absolutePath
     testLogging {
+        // Print each test as it starts/finishes so failures name the specific test in the
+        // console log (CI otherwise only shows "Task ... integTest FAILED" with no test name).
+        // The OpenSearchTestBasePlugin's ErrorReportingTestListener additionally prints a
+        // "Tests with failures:" summary at the end of the run.
+        events "started", "passed", "skipped", "failed"
         exceptionFormat = 'full'
+        showStandardStreams = false
+        // Show the full test path (class + method) rather than just the method name.
+        displayGranularity = 2
     }
     exclude '**/CoordinatorReduceMemtableIT.class'
     exclude '**/StreamingCoordinatorReduceIT.class'

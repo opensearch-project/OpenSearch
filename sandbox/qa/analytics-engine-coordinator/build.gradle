@@ -146,6 +146,13 @@ configurations.all {
 // Arrow/Flight requires these JVM flags. DataFusion backend requires the native lib
 // path so JNI can locate libopensearch_native.dylib built by dataformat-native.
 internalClusterTest {
+  // Name each test in the console as it runs so CI failures identify the specific test
+  // rather than only showing "Task ... internalClusterTest FAILED".
+  testLogging {
+    events "started", "passed", "skipped", "failed"
+    exceptionFormat = 'full'
+    displayGranularity = 2
+  }
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
