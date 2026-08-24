@@ -58,6 +58,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
+import org.opensearch.analytics.planner.rules.OpenSearchWindowProjectGatherRule;
 
 import java.util.List;
 import java.util.Optional;
@@ -551,6 +552,11 @@ public class PlannerImpl {
         volcanoPlanner.addRule(new OpenSearchBroadcastJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchHashJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
+        // A window project marked over partitioned input is infinite-cost, and an ER above it cannot fix
+        // that (the ER's input is the infinite project) — the gather has to go BELOW. passThroughTraits
+        // expresses that, but Calcite only offers a passThrough depending on group-optimization order, so
+        // this rule registers the gathered alternative unconditionally.
+        volcanoPlanner.addRule(new OpenSearchWindowProjectGatherRule(context));
         // STILL REQUIRED alongside Convention.enforce: the split rules materialize their alternatives by
         // calling RelOptRule.convert(input, traits), which registers an AbstractConverter that only this
         // rule expands. Convention.enforce serves the top-down passThrough/derive path; it does not
