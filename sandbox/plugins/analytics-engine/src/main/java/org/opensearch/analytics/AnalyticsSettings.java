@@ -250,6 +250,33 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Run a distributed aggregate's FINAL phase on a WORKER TIER, fed by a shuffle on the group keys,
+     * instead of gathering every PARTIAL state to the coordinator.
+     *
+     * <p>Today a split aggregate is {@code FINAL( ER(SINGLETON)( PARTIAL(input) ) )}: every shard's partial
+     * state crosses to the coordinator, which merges them all. For a HIGH-CARDINALITY grouping that gather is
+     * the whole cost — it is what trips
+     * {@code ReduceSizeExceededException: Coordinator-reduce buffer exceeded the per-query memory budget}
+     * on the shared Arrow {@code POOL_QUERY} pool (TPC-H sf=10 q16-q21). With {@code true} the pass instead
+     * emits {@code FINAL( SHUFFLE(hash groupKeys)( PARTIAL(input) ) )}: each partition receives every partial
+     * for its groups, merges them locally, and the coordinator only CONCATENATES one row per group.
+     *
+     * <p>Correct because {@code PARTIAL} fronts its group keys to output positions {@code [0..groupCount)},
+     * so hashing on those places every partial of a group in ONE partition — the per-partition merge is
+     * therefore complete, and no cross-partition FINAL is needed. An EMPTY group set has no key to hash on
+     * and always keeps the coordinator gather.
+     *
+     * <p>Default {@code false}: it trades the coordinator gather for a shuffle round-trip, which is a loss
+     * when the grouping is low-cardinality (few partials, cheap to gather). Enable and measure per workload.
+     */
+    public static final Setting<Boolean> MPP_AGGREGATE_GROUP_KEY_SHUFFLE = Setting.boolSetting(
+        "analytics.mpp.aggregate.group_key_shuffle",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
@@ -394,6 +421,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_COLLAPSE_COPARTITIONED_TIERS,
+        MPP_AGGREGATE_GROUP_KEY_SHUFFLE,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,

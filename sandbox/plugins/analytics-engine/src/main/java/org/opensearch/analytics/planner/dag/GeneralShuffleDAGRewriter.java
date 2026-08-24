@@ -17,6 +17,7 @@ import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerLevel;
 import org.opensearch.analytics.exec.join.UnifiedDispatch;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
@@ -258,10 +259,14 @@ public final class GeneralShuffleDAGRewriter {
      * a worker.
      */
     private static JoinShuffleInfo analyze(Stage stage) {
-        OpenSearchJoin join = findJoinOverShuffles(stage.getFragment());
-        if (join == null) {
-            throw new IllegalStateException("GeneralShuffleDAGRewriter: stage " + stage.getStageId() + " has no join over shuffles");
+        RelNode consumer = findShuffleConsumer(stage.getFragment());
+        if (consumer == null) {
+            throw new IllegalStateException("GeneralShuffleDAGRewriter: stage " + stage.getStageId() + " has no shuffle consumer");
         }
+        if (consumer instanceof OpenSearchAggregate agg) {
+            return analyzeAggregate(stage, agg);
+        }
+        OpenSearchJoin join = (OpenSearchJoin) consumer;
         // Collect the shuffle leaves of this stage's join TREE, left-to-right. A binary join contributes
         // two; a collapsed N-way tree (Join(Shuffle, Join(Shuffle, Shuffle)) in one fragment) contributes
         // one per leaf, each becoming its own worker slot.
@@ -326,6 +331,42 @@ public final class GeneralShuffleDAGRewriter {
         return new JoinShuffleInfo(inputs, partitionCount);
     }
 
+    /**
+     * The arity-1 counterpart of {@link #analyze}: a FINAL aggregate over a single group-key shuffle becomes a
+     * one-slot worker tier. The shuffle MUST be partitioned on exactly the group keys at their PARTIAL-output
+     * positions {@code [0..groupCount)} — a per-partition merge is only complete when every partial of a group
+     * lands in one partition, and unlike the join case there is no second input whose keys could disambiguate.
+     * An empty group set has no key to hash on and can never reach here.
+     */
+    private static JoinShuffleInfo analyzeAggregate(Stage stage, OpenSearchAggregate agg) {
+        OpenSearchShuffleExchange shuffle = aggregateShuffleInput(agg);
+        int groupCount = agg.getGroupSet().cardinality();
+        if (groupCount == 0) {
+            throw new IllegalStateException(
+                "GeneralShuffleDAGRewriter: stage "
+                    + stage.getStageId()
+                    + " aggregate over a shuffle has an EMPTY group set — there is no key to partition on, so a"
+                    + " per-partition merge would split the single group across workers"
+            );
+        }
+        List<Integer> expectedKeys = new ArrayList<>(groupCount);
+        for (int i = 0; i < groupCount; i++) {
+            expectedKeys.add(i);
+        }
+        if (!expectedKeys.equals(shuffle.getHashKeys())) {
+            throw new IllegalStateException(
+                "GeneralShuffleDAGRewriter: stage "
+                    + stage.getStageId()
+                    + " aggregate expects its shuffle keyed on the fronted group keys "
+                    + expectedKeys
+                    + " but it is keyed on "
+                    + shuffle.getHashKeys()
+                    + " — a per-partition merge requires every partial of a group in one partition"
+            );
+        }
+        return new JoinShuffleInfo(List.of(new ShuffleInput(childStageId(shuffle), shuffle.getHashKeys())), shuffle.getPartitionCount());
+    }
+
     private static OpenSearchShuffleExchange asShuffle(RelNode input, int stageId, String side) {
         RelNode n = RelNodeUtils.unwrapHep(input);
         if (n instanceof OpenSearchShuffleExchange shuffle) {
@@ -378,7 +419,7 @@ public final class GeneralShuffleDAGRewriter {
         if (stage == null) {
             return;
         }
-        if (findJoinOverShuffles(stage.getFragment()) != null) {
+        if (findShuffleConsumer(stage.getFragment()) != null) {
             out.add(stage);
         }
         for (Stage child : stage.getChildStages()) {
@@ -398,25 +439,47 @@ public final class GeneralShuffleDAGRewriter {
      * (lower tiers are separate stages), so a fragment has at most one such tree in the enforced DAG;
      * the uniqueness guard rejects a malformed multi-tree fragment rather than promoting one arbitrarily.
      */
-    private static OpenSearchJoin findJoinOverShuffles(RelNode fragment) {
+    private static RelNode findShuffleConsumer(RelNode fragment) {
         if (fragment == null) {
             return null;
         }
-        Set<OpenSearchJoin> found = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<RelNode> found = Collections.newSetFromMap(new IdentityHashMap<>());
         collect(RelNodeUtils.unwrapHep(fragment), found);
         return found.size() == 1 ? found.iterator().next() : null;
     }
 
-    private static void collect(RelNode node, Set<OpenSearchJoin> out) {
+    private static void collect(RelNode node, Set<RelNode> out) {
         if (node instanceof OpenSearchJoin join && allLeavesAreShuffles(join)) {
             out.add(join);
             // Do NOT descend: a nested join below belongs to THIS tree (one worker fragment), and the
             // shuffle leaves' own inputs are StageInputScans whose lower tiers are separate child stages.
             return;
         }
+        if (node instanceof OpenSearchAggregate agg && aggregateShuffleInput(agg) != null) {
+            out.add(agg);
+            return;
+        }
         for (RelNode input : node.getInputs()) {
             collect(RelNodeUtils.unwrapHep(input), out);
         }
+    }
+
+    /**
+     * The shuffle feeding {@code agg} directly, or {@code null} if its input is anything else. This is the
+     * single-input shuffle edge that {@code analytics.mpp.aggregate.group_key_shuffle} produces: a FINAL
+     * aggregate whose PARTIAL was shuffled on the group keys. Requiring a DIRECT shuffle input mirrors the
+     * join case, whose leaves must be shuffles rather than shuffles-under-a-Project.
+     *
+     * <p>An aggregate ABOVE a join-over-shuffles is NOT one of these — its input is the join, so the walk
+     * descends past it and promotes the join instead, leaving the aggregate riding that worker (the q5/q10
+     * PARTIAL-on-the-join-worker shape).
+     */
+    private static OpenSearchShuffleExchange aggregateShuffleInput(OpenSearchAggregate agg) {
+        if (agg.getInputs().size() != 1) {
+            return null;
+        }
+        RelNode input = RelNodeUtils.unwrapHep(agg.getInput(0));
+        return input instanceof OpenSearchShuffleExchange shuffle ? shuffle : null;
     }
 
     /** True if every leaf of {@code join}'s tree (recursing through nested joins) is a shuffle exchange. */

@@ -354,6 +354,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS)
             )
+            // Same for the group-key-shuffle toggle: it moves a split aggregate's FINAL onto a worker tier,
+            // so without this overlay a dynamic enable is silently a no-op (the pass keeps reading the
+            // node-bootstrap false and the plan never changes — measured against a live cluster).
+            .put(
+                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE)
+            )
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
@@ -436,7 +443,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 shufflePartitions,
                 AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings),
-                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.get(perQuerySettings)
+                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.get(perQuerySettings),
+                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.get(perQuerySettings)
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;

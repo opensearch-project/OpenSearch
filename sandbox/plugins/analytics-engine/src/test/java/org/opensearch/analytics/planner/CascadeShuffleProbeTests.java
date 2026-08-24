@@ -979,6 +979,132 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
     /** Enforce + cut + fork/select + promote, returning the GeneralShuffleDAGRewriter structure. Mirrors the
      *  cascade-probe pipeline (no convertAll — the mock backend has no fragment convertor). */
+    /**
+     * TWO-PHASE GROUP-KEY AGGREGATION ({@code analytics.mpp.aggregate.group_key_shuffle=true}): a split
+     * aggregate's FINAL runs on its OWN worker tier behind a shuffle on the group keys, instead of gathering
+     * every PARTIAL state to the coordinator. This is the shape that removes the coordinator-gather cost
+     * behind {@code ReduceSizeExceededException} for high-cardinality groupings.
+     *
+     * <p>Asserts the exchange between PARTIAL and FINAL is a SHUFFLE keyed on the group keys at their
+     * PARTIAL-OUTPUT positions ({@code [0..groupCount)} — Calcite fronts group keys), not an
+     * {@link OpenSearchExchangeReducer}.
+     */
+    public void testEnforcementPass_groupKeyShuffleRunsFinalOnAWorker() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true,
+            /* collapseCoPartitionedTiers */ false,
+            /* groupKeyShuffleEnabled */ true
+        );
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = aggs.stream()
+            .filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no FINAL aggregate: " + org.apache.calcite.plan.RelOptUtil.toString(enforced)));
+
+        RelNode belowFinal = unwrap(finalAgg.getInput(0));
+        assertTrue(
+            "PARTIAL→FINAL exchange must be a SHUFFLE, not a coordinator gather: " + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            belowFinal instanceof OpenSearchShuffleExchange
+        );
+        List<Integer> frontedGroupKeys = new java.util.ArrayList<>();
+        for (int i = 0; i < finalAgg.getGroupSet().cardinality(); i++) {
+            frontedGroupKeys.add(i);
+        }
+        assertEquals(
+            "shuffle is keyed on the group keys at their PARTIAL-output positions",
+            frontedGroupKeys,
+            ((OpenSearchShuffleExchange) belowFinal).getHashKeys()
+        );
+    }
+
+    /** Default ({@code group_key_shuffle=false}) keeps the validated coordinator-gather shape. */
+    public void testEnforcementPass_groupKeyShuffleOffKeepsCoordinatorGather() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            1L,
+            true,
+            false,
+            /* groupKeyShuffleEnabled */ false
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        ).stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL).findFirst().orElseThrow();
+        assertTrue(
+            "default must keep the coordinator gather between PARTIAL and FINAL",
+            unwrap(finalAgg.getInput(0)) instanceof OpenSearchExchangeReducer
+        );
+    }
+
+    /** Bare high-cardinality GROUP BY over one scan; CBO pre-splits this to FINAL(ER(PARTIAL(scan))). */
+    private RelNode makeBareGroupBy(PlannerContext context) {
+        RelNode scan = stubScan(mockTable("a_idx", "status", "size"));
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        return LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+    }
+
+    /**
+     * The CBO-SPLIT case of two-phase group-key aggregation. A bare {@code GROUP BY} never reaches
+     * {@code splitAggregate} — CBO's {@code OpenSearchAggregateSplitRule} already rewrote it to
+     * {@code FINAL(ER(PARTIAL(scan)))} — so the toggle has to be honored in the pass's FINAL-over-reducer
+     * branch too. This is the shape {@code TwoPhaseGroupKeyAggregateIT} exercises on a real cluster.
+     */
+    public void testEnforcementPass_groupKeyShuffleAppliesToCboSplitAggregate() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE);
+        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+
+        RelNode cbo = runPlanner(makeBareGroupBy(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            1L,
+            true,
+            false,
+            /* groupKeyShuffleEnabled */ true
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchAggregate finalAgg = findAll(
+            enforced,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        ).stream()
+            .filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.FINAL)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no FINAL aggregate:\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced)));
+        assertTrue(
+            "a CBO-split FINAL must also get its group-key shuffle:\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            unwrap(finalAgg.getInput(0)) instanceof OpenSearchShuffleExchange
+        );
+    }
+
     private GeneralShuffleDAGRewriter.Structure enforceAndPromote(RelNode logical, PlannerContext context) {
         return enforceAndPromote(logical, context, /* collapseCoPartitionedTiers */ false);
     }

@@ -88,6 +88,7 @@ public final class DistributionEnforcementPass {
     private final long minRows;
     private final boolean shuffleAggregateEnabled;
     private final boolean collapseCoPartitionedTiers;
+    private final boolean groupKeyShuffleEnabled;
 
     public DistributionEnforcementPass(
         OpenSearchDistributionTraitDef traitDef,
@@ -105,11 +106,23 @@ public final class DistributionEnforcementPass {
         boolean shuffleAggregateEnabled,
         boolean collapseCoPartitionedTiers
     ) {
+        this(traitDef, partitionCount, minRows, shuffleAggregateEnabled, collapseCoPartitionedTiers, false);
+    }
+
+    public DistributionEnforcementPass(
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers,
+        boolean groupKeyShuffleEnabled
+    ) {
         this.traitDef = traitDef;
         this.partitionCount = partitionCount;
         this.minRows = minRows;
         this.shuffleAggregateEnabled = shuffleAggregateEnabled;
         this.collapseCoPartitionedTiers = collapseCoPartitionedTiers;
+        this.groupKeyShuffleEnabled = groupKeyShuffleEnabled;
     }
 
     /** Result of visiting a node: the (possibly rewritten) rel and the distribution it actually outputs. */
@@ -157,6 +170,27 @@ public final class DistributionEnforcementPass {
         boolean shuffleAggregateEnabled,
         boolean collapseCoPartitionedTiers
     ) {
+        return enforce(plan, traitDef, partitionCount, minRows, shuffleAggregateEnabled, collapseCoPartitionedTiers, false);
+    }
+
+    /**
+     * {@link #enforce(RelNode, OpenSearchDistributionTraitDef, int, long, boolean, boolean)} with the
+     * group-key-shuffle toggle.
+     *
+     * @param groupKeyShuffleEnabled {@code analytics.mpp.aggregate.group_key_shuffle}: when {@code true}, a
+     *                       split aggregate's FINAL phase runs on a WORKER tier behind a shuffle on the group
+     *                       keys instead of gathering every PARTIAL state to the coordinator. See the
+     *                       setting's javadoc for the trade.
+     */
+    public static RelNode enforce(
+        RelNode plan,
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers,
+        boolean groupKeyShuffleEnabled
+    ) {
         if (partitionCount <= 1) {
             return plan;
         }
@@ -165,7 +199,8 @@ public final class DistributionEnforcementPass {
             partitionCount,
             minRows,
             shuffleAggregateEnabled,
-            collapseCoPartitionedTiers
+            collapseCoPartitionedTiers,
+            groupKeyShuffleEnabled
         );
         // Root demand is SINGLETON — the query result must land on the coordinator. This seeds the
         // top-down demand-flow; a transparent op directly under the root passes it through so its child
@@ -271,6 +306,31 @@ public final class DistributionEnforcementPass {
             }
             if (cboAgg.getMode() == AggregateMode.FINAL && RelNodeUtils.unwrapHep(n.getInput(0)) instanceof OpenSearchExchangeReducer) {
                 Visited child = visit(n.getInput(0), null);
+                // analytics.mpp.aggregate.group_key_shuffle: replace CBO's coordinator gather between PARTIAL
+                // and FINAL with a shuffle on the group keys, so the FINAL runs per-partition on a worker tier
+                // and the coordinator only concatenates one row per group. This is the SAME rewrite
+                // splitAggregate does for a pass-driven split — it has to be here too because CBO's
+                // OpenSearchAggregateSplitRule usually gets there first (the aggregate arrives already
+                // FINAL(ER(PARTIAL))), in which case splitAggregate never runs.
+                //
+                // A FINAL's groupSet is already FRONTED to [0..groupCount) (frontGroupSetForFinal), which is
+                // exactly where PARTIAL puts its group keys — so those are the hash keys, and every partial of
+                // a group lands in one partition, making each partition's merge complete. An EMPTY group set
+                // has no key to hash on and keeps the gather.
+                if (groupKeyShuffleEnabled
+                    && !cboAgg.getGroupSet().isEmpty()
+                    && partitionCount > 1
+                    && isShippable(child.actualDistribution)) {
+                    OpenSearchDistribution groupHash = traitDef.hash(cboAgg.getGroupSet().asList(), partitionCount);
+                    RelNode shuffled = traitDef.buildShuffleExchange(child.rel, groupHash);
+                    RelNode onWorker = copyWithInputs(n, List.of(shuffled));
+                    LOGGER.debug(
+                        "enforce: CBO-split FINAL {} → worker tier, shuffled by group keys {}",
+                        cboAgg.getId(),
+                        cboAgg.getGroupSet()
+                    );
+                    return new Visited(onWorker.copy(onWorker.getTraitSet().replace(groupHash), onWorker.getInputs()), groupHash);
+                }
                 RelNode gatheredPartial = gatherIfNeeded(child.rel, child.actualDistribution);
                 RelNode rebuilt = copyWithInputs(n, List.of(gatheredPartial));
                 return new Visited(rebuilt, traitDef.coordSingleton());
@@ -548,11 +608,32 @@ public final class DistributionEnforcementPass {
             agg.getViableBackends(),
             agg.getCallAnnotations()
         );
-        // Force the ER between PARTIAL and FINAL. buildReducer (not buildEnforcer): the PARTIAL was built
-        // over partialInput, whose traitSet may carry a stale coordSingleton (a join the pass distributed),
-        // so the satisfies()-gated buildEnforcer would skip the gather and collapse PARTIAL+FINAL into one
-        // stage — DAGBuilder then never cuts the worker boundary.
-        RelNode gathered = traitDef.buildReducer(partial);
+        // The exchange between PARTIAL and FINAL. Two shapes:
+        //
+        // (a) default — gather to the coordinator, which merges every partial. buildReducer (not
+        // buildEnforcer): the PARTIAL was built over partialInput, whose traitSet may carry a stale
+        // coordSingleton (a join the pass distributed), so the satisfies()-gated buildEnforcer would skip the
+        // gather and collapse PARTIAL+FINAL into one stage — DAGBuilder then never cuts the worker boundary.
+        //
+        // (b) analytics.mpp.aggregate.group_key_shuffle — shuffle on the GROUP KEYS so the FINAL runs
+        // per-partition on a worker tier and the coordinator only concatenates one row per group. Safe
+        // because PARTIAL fronts its group keys to output positions [0..groupCount), so hashing on those puts
+        // every partial of a group in ONE partition, making each partition's merge complete. buildShuffle
+        // Exchange (not buildEnforcer) for the same stale-trait reason as (a). An EMPTY group set has no key
+        // to hash on, so it always takes (a).
+        //
+        // This targets the coordinator-gather cost that trips ReduceSizeExceededException on the shared
+        // POOL_QUERY pool for high-cardinality groupings; it is a LOSS for low-cardinality ones (a shuffle
+        // round-trip to move few partials), hence off by default.
+        boolean groupKeyShuffle = groupKeyShuffleEnabled && !agg.getGroupSet().isEmpty() && partitionCount > 1;
+        List<Integer> partialOutputKeys = new ArrayList<>(agg.getGroupSet().cardinality());
+        for (int i = 0; i < agg.getGroupSet().cardinality(); i++) {
+            partialOutputKeys.add(i);
+        }
+        OpenSearchDistribution finalDistribution = groupKeyShuffle
+            ? traitDef.hash(partialOutputKeys, partitionCount)
+            : traitDef.coordSingleton();
+        RelNode gathered = groupKeyShuffle ? traitDef.buildShuffleExchange(partial, finalDistribution) : traitDef.buildReducer(partial);
 
         Map<Integer, List<RexLiteral>> finalExtraLiterals = OpenSearchAggregateSplitRule.captureLiteralArgsForFinal(
             agg.getAggCallList(),
@@ -568,7 +649,7 @@ public final class DistributionEnforcementPass {
         );
         OpenSearchAggregate finalAgg = new OpenSearchAggregate(
             agg.getCluster(),
-            gathered.getTraitSet().replace(traitDef.coordSingleton()),
+            gathered.getTraitSet().replace(finalDistribution),
             gathered,
             agg.getGroupSet(),
             agg.getGroupSets(),
@@ -580,8 +661,17 @@ public final class DistributionEnforcementPass {
             intermediateFields
         );
         RelNode result = OpenSearchAggregateSplitRule.wrapWithCastIfNeeded(finalAgg, agg);
-        LOGGER.debug("enforce: split SINGLE aggregate {} → PARTIAL/FINAL", agg.getId());
-        return new Visited(result, traitDef.coordSingleton());
+        // The FINAL's own output distribution: coordinator SINGLETON in shape (a), or — in (b) — WORKER+HASH
+        // on the group keys, which stay at output positions [0..groupCount) through wrapWithCastIfNeeded's
+        // cast Project. Reporting (b) accurately is REQUIRED: the caller stamps this on the rebuilt node, and
+        // claiming coordSingleton would let the satisfies-gated root gather be skipped, returning ungathered
+        // per-partition rows.
+        LOGGER.debug(
+            "enforce: split SINGLE aggregate {} → PARTIAL/FINAL ({})",
+            agg.getId(),
+            groupKeyShuffle ? "FINAL on worker, shuffled by group keys" : "FINAL on coordinator"
+        );
+        return new Visited(result, finalDistribution);
     }
 
     /**
@@ -705,6 +795,17 @@ public final class DistributionEnforcementPass {
      * than gathering — so a parent join can hash-ship it from the shards via a SHARD-FRAGMENT producer. (The
      * q3 fix: a filtered scan feeding a join must remain a shard producer, not become a coordinator reduce.)
      */
+    /**
+     * Whether a fragment with this distribution can SHIP a shuffle partition. Only a data-node fragment can
+     * (the shard and worker paths call {@code resolveProducerSink}); a gathered {@code COORDINATOR+SINGLETON}
+     * sub-stage becomes a reduce stage, which has no partitioned-shipping path, so shuffling out of one leaves
+     * the consumer waiting on a producer that never fires. This is the step-3d rule, reused for the
+     * PARTIAL→FINAL group-key shuffle.
+     */
+    private static boolean isShippable(OpenSearchDistribution dist) {
+        return isPartitioned(dist) || isShardLocal(dist);
+    }
+
     private static boolean isShardLocal(OpenSearchDistribution dist) {
         return dist != null && dist.getLocality() == OpenSearchDistribution.Locality.SHARD;
     }
