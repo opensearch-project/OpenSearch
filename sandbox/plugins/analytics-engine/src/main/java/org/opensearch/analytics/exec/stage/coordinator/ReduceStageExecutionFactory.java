@@ -163,7 +163,10 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
         if (backendSink instanceof ReducingExchangeSink reducing) {
-            return new ReduceStageExecution(stage, config, reducing, downstream);
+            // When this stage produces, it OWNS the partitioned sink and must close it so the senders signal
+            // isLast; pass it explicitly rather than relying on the reduce sink, which feeds downstream but
+            // documents that it does not close it.
+            return new ReduceStageExecution(stage, config, reducing, downstream, downstream == sink ? null : downstream);
         }
         throw new IllegalStateException(
             "Backend exchange sink for COORDINATOR_REDUCE stage "

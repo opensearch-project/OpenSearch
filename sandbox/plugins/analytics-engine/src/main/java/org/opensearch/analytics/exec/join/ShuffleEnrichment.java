@@ -16,6 +16,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.GeneralShuffleDAGRewriter;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -223,6 +224,16 @@ public final class ShuffleEnrichment {
      * to the worker's own {@code partitionCount} when the producer has no resolver.
      */
     private static int expectedSendersFor(Stage producer, int fallbackPartitionCount, ClusterService clusterService) {
+        // A COORDINATOR-LOCAL producer runs exactly ONE task, so it contributes exactly ONE sender per
+        // partition — regardless of the cluster's node count. The fallback below assumes a data-node producer
+        // (one sender per shard/target); applying it to a reduce stage makes the consumer wait for N senders
+        // when only 1 will ever signal isLast, and awaitReady then times out with
+        // "timed out waiting for shuffle producers to finish for input-N" even though the producer ran,
+        // completed and closed its sink. (Measured on the step-5 reduce-producer path.)
+        if (producer.getExecutionType() == StageExecutionType.COORDINATOR_REDUCE
+            || producer.getExecutionType() == StageExecutionType.LOCAL_COMPUTE) {
+            return 1;
+        }
         if (producer.getTargetResolver() == null) {
             return Math.max(fallbackPartitionCount, 1);
         }

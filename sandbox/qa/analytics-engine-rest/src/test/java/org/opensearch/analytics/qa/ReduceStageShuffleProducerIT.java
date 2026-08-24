@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -75,19 +74,7 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
     }
 
     /** The ANTI counterpart ({@code not in [...]}), the TPC-H q22 shape. */
-    @AwaitsFix(
-        bugUrl = "Reduce-stage shuffle production does not deliver yet. Instrumented: the stage IS a "
-            + "COORDINATOR_REDUCE carrying SHUFFLE_PRODUCER, its instruction handler factory is present, the "
-            + "chain runs, and ReduceStageExecutionFactory DOES build the partitioned sink "
-            + "(REDUCE-DIAG backendContext=ShuffleProducerOutputState isProducer=true) — yet the consumer "
-            + "fails with 'ShuffleScanHandler: timed out waiting for shuffle producers to finish for "
-            + "input-N'. So the gap is DOWNSTREAM of sink construction: nothing signals isLast. Two leads, "
-            + "both unverified: ExchangeSinkContext documents that the BACKEND owns downstream's lifecycle "
-            + "and must close it, while ReduceStageExecution closes only backendSink; and "
-            + "ReduceStageExecution.getSource() requires downstream instanceof ExchangeSource, which a "
-            + "partitioned sink is not. Verify by instrumenting the reducing sink's drain, not by inspection."
-    )
-    public void testNotInSubquery_matchesBaselineWithReduceStageProducer() throws Exception {
+        public void testNotInSubquery_matchesBaselineWithReduceStageProducer() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + ORDERS + " | where order_id not in [ source = " + ITEMS + " | fields item_order ] "
             + "| stats count() as c by priority | sort priority";
@@ -106,19 +93,7 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
      * about which path it exercises — a JVM version of this test silently passed for the wrong reason until the
      * cap was set (the top join came back with an {@code OpenSearchBroadcastExchange}).
      */
-    @AwaitsFix(
-        bugUrl = "Reduce-stage shuffle production does not deliver yet. Instrumented: the stage IS a "
-            + "COORDINATOR_REDUCE carrying SHUFFLE_PRODUCER, its instruction handler factory is present, the "
-            + "chain runs, and ReduceStageExecutionFactory DOES build the partitioned sink "
-            + "(REDUCE-DIAG backendContext=ShuffleProducerOutputState isProducer=true) — yet the consumer "
-            + "fails with 'ShuffleScanHandler: timed out waiting for shuffle producers to finish for "
-            + "input-N'. So the gap is DOWNSTREAM of sink construction: nothing signals isLast. Two leads, "
-            + "both unverified: ExchangeSinkContext documents that the BACKEND owns downstream's lifecycle "
-            + "and must close it, while ReduceStageExecution closes only backendSink; and "
-            + "ReduceStageExecution.getSource() requires downstream instanceof ExchangeSource, which a "
-            + "partitioned sink is not. Verify by instrumenting the reducing sink's drain, not by inspection."
-    )
-    public void testShuffleForcedWhenBroadcastIneligible() throws Exception {
+        public void testShuffleForcedWhenBroadcastIneligible() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + ORDERS + " | where exists [ source = " + ITEMS + " | where item_order = order_id ] "
             + "| stats count() as c by priority | sort priority";
