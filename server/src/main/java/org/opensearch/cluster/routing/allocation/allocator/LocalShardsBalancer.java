@@ -1168,6 +1168,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
             maxNode.getNodeId(),
             minNode.getNodeId()
         );
+
+        if (preferPrimaryBalance == false && preferPrimaryRebalance == false) {
+            logger.trace(
+                "Skipping blocking replica relocation for primary [{}]: neither preferPrimaryBalance nor preferPrimaryRebalance is enabled",
+                primary
+            );
+            return;
+        }
+
         if (blockingReplicaRelocated) {
             logger.trace("Skipping blocking replica relocation for primary [{}]: already relocated in this rebalance", primary);
             return;
