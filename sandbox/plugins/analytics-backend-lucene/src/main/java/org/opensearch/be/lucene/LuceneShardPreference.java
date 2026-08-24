@@ -9,6 +9,7 @@
 package org.opensearch.be.lucene;
 
 import org.apache.calcite.rel.RelNode;
+import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
 import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.ShardPreferenceContext;
 
@@ -34,12 +35,18 @@ final class LuceneShardPreference implements BackendShardPreference {
      *  Lucene alternative just because it appeared first in PlanForker order. */
     private static final int NOT_DRIVABLE_SCORE = -1;
 
+    /** Prefer supported doc-values plans over generic storage alternatives. */
+    private static final int ARROW_SOURCE_SCORE = 50;
+
     @Override
     public OptionalInt scoreFor(RelNode fragment, ShardPreferenceContext ctx) {
         if (ctx.preferMetadataDriver() == false) return OptionalInt.empty();
-        if (LuceneFragmentConvertor.isCountFastPath(fragment) == false) {
-            return OptionalInt.of(NOT_DRIVABLE_SCORE);
+        if (LuceneFragmentConvertor.isCountFastPath(fragment)) {
+            return OptionalInt.of(COUNT_FAST_PATH_SCORE);
         }
-        return OptionalInt.of(COUNT_FAST_PATH_SCORE);
+        if (ArrowBatchSourceExecutorHolder.isAvailable() && LuceneFragmentConvertor.extractArrowSourceShape(fragment) != null) {
+            return OptionalInt.of(ARROW_SOURCE_SCORE);
+        }
+        return OptionalInt.of(NOT_DRIVABLE_SCORE);
     }
 }

@@ -59,7 +59,14 @@ public class OpenSearchSortRule extends RelOptRule {
         List<String> viableBackends = childViableBackends.stream().filter(sortCapable::contains).toList();
 
         if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend supports SORT capability among " + childViableBackends);
+            // A coordinator sort above an exchange is scan-free. It can run on any
+            // sort-capable sink backend even when Lucene drove the shard scan.
+            viableBackends = sortCapable.stream()
+                .filter(backend -> context.getCapabilityRegistry().getBackend(backend).getExchangeSinkProvider() != null)
+                .toList();
+        }
+        if (viableBackends.isEmpty()) {
+            throw new IllegalStateException("No registered backend supports SORT for " + childViableBackends);
         }
 
         // plus(): Calcite's Sort constructor asserts the trait set contains the collation.

@@ -10,10 +10,14 @@ package org.opensearch.be.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.ArrowBatchSourceFactory.ColumnKind;
+import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
@@ -63,12 +67,13 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
         IndexSearcher searcher = luceneReader.searcher(shardCtx.getQueryCache(), shardCtx.getQueryCachingPolicy());
         Decoded decoded = decodeFragmentBytes(shardCtx, searcher);
         LOGGER.debug(
-            "[lucene-count] shardId={} filterQuery={} columnNames={}",
+            "[lucene-scan] shardId={} filterQuery={} columnNames={} arrowSourcePlan={}",
             shardCtx.getShardId(),
             decoded.filterQuery,
-            decoded.columnNames
+            decoded.columnNames,
+            decoded.arrowSourcePlan != null
         );
-        return new LuceneSearcherState(searcher, decoded.filterQuery, decoded.columnNames);
+        return new LuceneSearcherState(searcher, decoded.filterQuery, decoded.columnNames, decoded.arrowSourcePlan);
     }
 
     /**
@@ -80,29 +85,56 @@ final class LuceneScanInstructionHandler implements FragmentInstructionHandler<S
     private Decoded decodeFragmentBytes(ShardScanExecutionContext shardCtx, IndexSearcher searcher) {
         byte[] bytes = shardCtx.getFragmentBytes();
         if (bytes == null || bytes.length == 0) {
-            return new Decoded(new MatchAllDocsQuery(), java.util.List.of());
+            return new Decoded(new MatchAllDocsQuery(), java.util.List.of(), null);
         }
         try (StreamInput rawInput = StreamInput.wrap(bytes)) {
             StreamInput input = new NamedWriteableAwareStreamInput(rawInput, shardCtx.getNamedWriteableRegistry());
             java.util.List<String> columnNames = input.readStringList();
+            boolean arrowSource = columnNames.isEmpty() == false
+                && LuceneFragmentConvertor.ARROW_SOURCE_PLAN_MARKER.equals(columnNames.getFirst());
             boolean hasFilter = input.readBoolean();
             Query filterQuery;
             if (hasFilter) {
                 QueryShardContext qsc = LuceneAnalyticsBackendPlugin.buildMinimalQueryShardContext(shardCtx, searcher);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                // Rewrite FieldExistsQuery → postings-only equivalent for the doc-values-less
-                // lucene-secondary segment (same reason as the filter-delegation path). This covers
-                // the Lucene-driver scan path (count + non-count) executed by LuceneSearchExecEngine.
-                filterQuery = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(queryBuilder.toQuery(qsc));
+                Query compiledQuery = queryBuilder.toQuery(qsc);
+                filterQuery = LuceneQueryConversionUtils.rewriteFieldExistsForSecondary(
+                    compiledQuery,
+                    field -> searcher.getIndexReader().leaves().stream().anyMatch(leaf -> {
+                        var fieldInfo = leaf.reader().getFieldInfos().fieldInfo(field);
+                        return fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.NONE;
+                    })
+                );
             } else {
                 filterQuery = new MatchAllDocsQuery();
             }
-            return new Decoded(filterQuery, columnNames);
+            if (arrowSource) {
+                int position = 1;
+                byte[] planBytes = java.util.Base64.getDecoder().decode(columnNames.get(position++));
+                String inputId = columnNames.get(position++);
+                int inputCount = Integer.parseInt(columnNames.get(position++));
+                java.util.List<InputColumn> inputColumns = new java.util.ArrayList<>(inputCount);
+                for (int i = 0; i < inputCount; i++) {
+                    String name = columnNames.get(position++);
+                    ColumnKind kind = ColumnKind.valueOf(columnNames.get(position++));
+                    inputColumns.add(new InputColumn(name, kind));
+                }
+                int outputCount = Integer.parseInt(columnNames.get(position++));
+                java.util.List<String> outputNames = new java.util.ArrayList<>(outputCount);
+                for (int i = 0; i < outputCount; i++) {
+                    outputNames.add(columnNames.get(position++));
+                }
+                if (position != columnNames.size()) {
+                    throw new IllegalStateException("Unexpected trailing Arrow source plan metadata");
+                }
+                return new Decoded(filterQuery, outputNames, new ArrowBatchSourcePlan(inputId, planBytes, inputColumns));
+            }
+            return new Decoded(filterQuery, columnNames, null);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to deserialize Lucene-driver fragment bytes", e);
         }
     }
 
-    private record Decoded(Query filterQuery, java.util.List<String> columnNames) {
+    private record Decoded(Query filterQuery, java.util.List<String> columnNames, ArrowBatchSourcePlan arrowSourcePlan) {
     }
 }

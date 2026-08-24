@@ -37,6 +37,7 @@ import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
@@ -45,6 +46,8 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
+import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegationType;
@@ -73,6 +76,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -85,19 +89,19 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link PlanAlternativeSelector} executed against the real {@link LuceneAnalyticsBackendPlugin}.
  *
- * <p>Lives in the lucene module (rather than analytics-engine) so the production capability surface
- * — {@code Index} scan + standard filter + COUNT aggregate, declared only for keyword/text
- * types — is consulted directly. If someone widens or narrows {@code STANDARD_TYPES} in the
- * production plugin, these tests catch the change without any mock to update.
+ * <p>Lives in the Lucene module so the production count and doc-values capability surface is
+ * consulted directly. If the supported field or operator sets change, these tests catch the
+ * change without a capability mock to update.
  *
- * <p>Pipeline executed: {@code PlanForker} → {@code PlanAlternativeSelector} (no convertor —
- * selection happens before conversion, mirroring {@code DefaultPlanExecutor.executeInternal}).
+ * <p>Pipeline executed: {@code PlanForker} → {@code PlanAlternativeSelector}; the source-plan
+ * test also runs {@code FragmentConversionDriver} to verify the normal serialized envelope.
  */
 public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
@@ -183,6 +187,93 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
         assertEquals(1, alternatives.size());
         assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
+    public void testSumOverLongSelectsLuceneArrowSource() {
+        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
+        when(executor.compile(any(RelNode.class), anyBoolean())).thenReturn(new byte[] { 1, 2, 3 });
+        ArrowBatchSourceExecutorHolder.install(executor);
+        try {
+            TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+            AggregateCall sum = AggregateCall.create(
+                SqlStdOperatorTable.SUM,
+                false,
+                List.of(0),
+                -1,
+                scan,
+                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+                "sum_metric"
+            );
+
+            QueryDAG dag = forkAndSelect(aggregate(scan, sum), longMappings(), true, "lucene", true);
+
+            List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+            assertEquals(1, alternatives.size());
+            assertNotNull(
+                org.apache.calcite.plan.RelOptUtil.toString(alternatives.getFirst().resolvedFragment()),
+                LuceneFragmentConvertor.extractArrowSourceShape(alternatives.getFirst().resolvedFragment())
+            );
+            assertEquals("lucene", alternatives.getFirst().backendId());
+            try (StreamInput input = StreamInput.wrap(alternatives.getFirst().convertedBytes())) {
+                assertEquals(LuceneFragmentConvertor.ARROW_SOURCE_PLAN_MARKER, input.readStringList().getFirst());
+            }
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        } finally {
+            ArrowBatchSourceExecutorHolder.remove(executor);
+        }
+    }
+
+    public void testSumOverLongIgnoresUnsupportedUnreferencedField() {
+        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
+        ArrowBatchSourceExecutorHolder.install(executor);
+        try {
+            TableScan scan = scanOver(List.of("metric", "unsupported"), List.of(SqlTypeName.BIGINT, SqlTypeName.INTEGER));
+            AggregateCall sum = AggregateCall.create(
+                SqlStdOperatorTable.SUM,
+                false,
+                List.of(0),
+                -1,
+                scan,
+                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+                "sum_metric"
+            );
+            Map<String, Map<String, Object>> mappings = Map.of("metric", Map.of("type", "long"), "unsupported", Map.of("type", "integer"));
+
+            QueryDAG dag = forkAndSelect(aggregate(scan, sum), mappings, true, "lucene");
+
+            assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
+        } finally {
+            ArrowBatchSourceExecutorHolder.remove(executor);
+        }
+    }
+
+    public void testFilteredSumOverLongSelectsLuceneArrowSource() {
+        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
+        ArrowBatchSourceExecutorHolder.install(executor);
+        try {
+            TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+            RexNode condition = rexBuilder.makeCall(
+                SqlStdOperatorTable.GREATER_THAN,
+                rexBuilder.makeInputRef(scan, 0),
+                rexBuilder.makeBigintLiteral(java.math.BigDecimal.TEN)
+            );
+            AggregateCall sum = AggregateCall.create(
+                SqlStdOperatorTable.SUM,
+                false,
+                List.of(0),
+                -1,
+                scan,
+                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+                "sum_metric"
+            );
+
+            QueryDAG dag = forkAndSelect(aggregate(LogicalFilter.create(scan, condition), sum), longMappings(), true, "lucene");
+
+            assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
+        } finally {
+            ArrowBatchSourceExecutorHolder.remove(executor);
+        }
     }
 
     /**
@@ -284,15 +375,37 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     // ---- Plan-execution helpers ----
 
     private QueryDAG forkAndSelect(RelNode plan, Map<String, Map<String, Object>> fieldMappings, boolean preferMetadataDriver) {
+        return forkAndSelect(plan, fieldMappings, preferMetadataDriver, "parquet");
+    }
+
+    private QueryDAG forkAndSelect(
+        RelNode plan,
+        Map<String, Map<String, Object>> fieldMappings,
+        boolean preferMetadataDriver,
+        String primaryFormat
+    ) {
+        return forkAndSelect(plan, fieldMappings, preferMetadataDriver, primaryFormat, false);
+    }
+
+    private QueryDAG forkAndSelect(
+        RelNode plan,
+        Map<String, Map<String, Object>> fieldMappings,
+        boolean preferMetadataDriver,
+        String primaryFormat,
+        boolean convert
+    ) {
         AnalyticsSearchBackendPlugin dfBackend = new StubDfBackend();
         AnalyticsSearchBackendPlugin luceneBackend = new LuceneAnalyticsBackendPlugin(null);
 
-        PlannerContext context = buildContext(fieldMappings, List.of(dfBackend, luceneBackend), preferMetadataDriver);
+        PlannerContext context = buildContext(fieldMappings, List.of(dfBackend, luceneBackend), preferMetadataDriver, primaryFormat);
         RelNode marked = PlannerImpl.runAllOptimizations(plan, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), preferMetadataDriver);
+        if (convert) {
+            FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        }
         return dag;
     }
 
@@ -307,8 +420,14 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     // ---- Calcite helpers ----
 
     private TableScan scanOver(String fieldName, SqlTypeName type) {
+        return scanOver(List.of(fieldName), List.of(type));
+    }
+
+    private TableScan scanOver(List<String> fieldNames, List<SqlTypeName> types) {
         RelDataTypeFactory.Builder builder = typeFactory.builder();
-        builder.add(fieldName, typeFactory.createSqlType(type));
+        for (int i = 0; i < fieldNames.size(); i++) {
+            builder.add(fieldNames.get(i), typeFactory.createSqlType(types.get(i)));
+        }
         RelDataType rowType = builder.build();
         RelOptTable table = mock(RelOptTable.class);
         when(table.getQualifiedName()).thenReturn(List.of("test_index"));
@@ -384,6 +503,10 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         return Map.of("status", Map.of("type", "integer"));
     }
 
+    private static Map<String, Map<String, Object>> longMappings() {
+        return Map.of("metric", Map.of("type", "long"));
+    }
+
     private static Map<String, Map<String, Object>> nonIndexedTextMappings() {
         return Map.of("status", Map.of("type", "text", "index", false));
     }
@@ -407,7 +530,8 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     private PlannerContext buildContext(
         Map<String, Map<String, Object>> fieldMappings,
         List<AnalyticsSearchBackendPlugin> backends,
-        boolean preferMetadataDriver
+        boolean preferMetadataDriver,
+        String primaryFormat
     ) {
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", fieldMappings));
@@ -416,7 +540,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
         when(indexMetadata.getSettings()).thenReturn(
             Settings.builder()
-                .put("index.composite.primary_data_format", "parquet")
+                .put("index.composite.primary_data_format", primaryFormat)
                 .putList("index.composite.secondary_data_formats", "lucene")
                 .build()
         );

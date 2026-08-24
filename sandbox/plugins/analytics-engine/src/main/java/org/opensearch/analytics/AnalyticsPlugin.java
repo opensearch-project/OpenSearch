@@ -120,17 +120,18 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     );
 
     /**
-     * Controls the metadata-only driver vs. value-producing peer choice when both are viable
-     * for a stage:
+     * Controls the Lucene driver vs. value-producing peer choice when both are viable for a
+     * stage:
      *
      * <ul>
-     *   <li>{@code true} (default) — collapse to the metadata-only alternative (e.g. Lucene)
-     *       whenever it can run the stage end-to-end (today: count fast path). Stage ships
-     *       exactly one {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor
-     *       runs once per stage; data node skips per-request alternative selection.</li>
-     *   <li>{@code false} — force the value-producing backend (DataFusion). All metadata-only
-     *       alternatives are dropped from every stage. A/B comparison knob and regression
-     *       escape hatch.</li>
+     *   <li>{@code true} (default) — collapse to the Lucene alternative whenever it can run
+     *       the stage end-to-end through either the count fast path or the supported doc-values
+     *       Arrow source. Stage ships exactly one
+     *       {@link org.opensearch.analytics.planner.dag.StagePlan}; convertor runs once per
+     *       stage; data node skips per-request alternative selection.</li>
+     *   <li>{@code false} — force the value-producing backend (DataFusion). Lucene alternatives
+     *       are dropped from every stage. This is an A/B comparison knob and regression escape
+     *       hatch.</li>
      * </ul>
      */
     public static final Setting<Boolean> PREFER_METADATA_DRIVER = Setting.boolSetting(

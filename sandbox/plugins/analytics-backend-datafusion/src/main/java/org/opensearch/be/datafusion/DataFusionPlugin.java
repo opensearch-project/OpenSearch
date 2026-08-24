@@ -697,7 +697,7 @@ public class DataFusionPlugin extends Plugin
             );
         }
 
-        arrowBatchSourceExecutor = new DatafusionArrowBatchSourceExecutor(dataFusionService);
+        arrowBatchSourceExecutor = new DatafusionArrowBatchSourceExecutor(dataFusionService, this);
         ArrowBatchSourceExecutorHolder.install(arrowBatchSourceExecutor);
         return Collections.singletonList(dataFusionService);
     }

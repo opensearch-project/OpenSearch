@@ -8,10 +8,13 @@
 package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.FragmentResources;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
@@ -31,9 +34,47 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class DatafusionArrowBatchSourceExecutor implements ArrowBatchSourceExecutor {
 
     private final DataFusionService service;
+    private final DataFusionPlugin plugin;
 
     DatafusionArrowBatchSourceExecutor(DataFusionService service) {
+        this(service, null);
+    }
+
+    DatafusionArrowBatchSourceExecutor(DataFusionService service, DataFusionPlugin plugin) {
         this.service = Objects.requireNonNull(service, "service");
+        this.plugin = plugin;
+    }
+
+    @Override
+    public byte[] compile(RelNode fragment, boolean partialAggregate) {
+        Objects.requireNonNull(fragment, "fragment");
+        if (plugin == null) {
+            throw new IllegalStateException("DataFusion plugin is required for Arrow source plan compilation");
+        }
+        DataFusionAnalyticsBackendPlugin backend = new DataFusionAnalyticsBackendPlugin(plugin);
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, backend.getCapabilityProvider());
+        DataFusionFragmentConvertor convertor = new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+        if (partialAggregate == false) {
+            return convertor.convertFragment(adapted);
+        }
+        if (adapted instanceof Aggregate == false) {
+            throw new IllegalArgumentException("partial Arrow source plan must be rooted at an Aggregate");
+        }
+        Aggregate aggregate = (Aggregate) adapted;
+        byte[] innerPlan = convertor.convertFragment(aggregate.getInput());
+        return convertor.attachPartialAggOnTop(aggregate, innerPlan);
+    }
+
+    @Override
+    public byte[] attachFragment(RelNode fragment, byte[] innerPlanBytes) {
+        Objects.requireNonNull(fragment, "fragment");
+        Objects.requireNonNull(innerPlanBytes, "innerPlanBytes");
+        if (plugin == null) {
+            throw new IllegalStateException("DataFusion plugin is required for Arrow source plan composition");
+        }
+        DataFusionAnalyticsBackendPlugin backend = new DataFusionAnalyticsBackendPlugin(plugin);
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, backend.getCapabilityProvider());
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions()).attachFragmentOnTop(adapted, innerPlanBytes);
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
@@ -117,6 +118,9 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     private static final Set<FieldType> KEYWORD_ONLY = Set.of(FieldType.KEYWORD);
 
+    /** Field types whose values the Arrow source reader can expose without type coercion. */
+    private static final Set<FieldType> DOC_VALUES_TYPES = Set.of(FieldType.LONG, FieldType.DATE, FieldType.KEYWORD);
+
     private static final Set<FilterCapability> FILTER_CAPS;
     static {
         Set<FilterCapability> caps = new HashSet<>();
@@ -125,6 +129,7 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
                 caps.add(new FilterCapability.Standard(op, KEYWORD_ONLY, LUCENE_FORMATS));
             } else {
                 caps.add(new FilterCapability.Standard(op, STANDARD_TYPES, LUCENE_FORMATS));
+                caps.add(new FilterCapability.Standard(op, DOC_VALUES_TYPES, LUCENE_FORMATS));
             }
         }
         for (ScalarFunction op : FULL_TEXT_OPS) {
@@ -135,26 +140,69 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         FILTER_CAPS = caps;
     }
 
+    private static final Set<FieldType> NUMERIC_DOC_VALUES_TYPES = Set.of(FieldType.LONG);
+
+    /** Scalar expressions evaluated by DataFusion after Lucene supplies doc-values batches. */
+    private static final Set<ProjectCapability> PROJECT_CAPS;
+    static {
+        Set<FieldType> returnTypes = new HashSet<>(DOC_VALUES_TYPES);
+        returnTypes.add(FieldType.DOUBLE);
+        returnTypes.add(FieldType.FLOAT);
+        returnTypes.add(FieldType.BOOLEAN);
+        Set<ProjectCapability> capabilities = new HashSet<>();
+        for (ScalarFunction function : List.of(
+            ScalarFunction.PLUS,
+            ScalarFunction.MINUS,
+            ScalarFunction.TIMES,
+            ScalarFunction.DIVIDE,
+            ScalarFunction.MOD,
+            ScalarFunction.CAST,
+            ScalarFunction.EXTRACT,
+            ScalarFunction.DATE_FORMAT,
+            ScalarFunction.REGEXP_REPLACE,
+            ScalarFunction.CASE,
+            ScalarFunction.AND,
+            ScalarFunction.OR,
+            ScalarFunction.NOT,
+            ScalarFunction.EQUALS,
+            ScalarFunction.NOT_EQUALS,
+            ScalarFunction.GREATER_THAN,
+            ScalarFunction.GREATER_THAN_OR_EQUAL,
+            ScalarFunction.LESS_THAN,
+            ScalarFunction.LESS_THAN_OR_EQUAL
+        )) {
+            capabilities.add(new ProjectCapability.Scalar(function, returnTypes, LUCENE_FORMATS, true));
+        }
+        capabilities.add(new ProjectCapability.Scalar(ScalarFunction.CHAR_LENGTH, Set.of(FieldType.LONG), LUCENE_FORMATS, true));
+        PROJECT_CAPS = Set.copyOf(capabilities);
+    }
+
     /**
      * Lucene-secondary indexes the term dictionary (inverted index) for the same field
      * types it accepts filters on — keyword / text / match_only_text. The Index
      * scan capability lets the planner mark Lucene viable as a driver for metadata-only
-     * operations (count today, group-by-count and top-K terms in future) over scans whose
-     * fields are listed here. It does NOT imply Lucene can deliver row values; consumers
-     * needing values (Project, Sort) consult value-producing scan capabilities separately
-     * and self-restrict, which the chain-agreement filter at PlanForker enforces.
+     * operations over scans whose fields are listed here. The separate DocValues capability
+     * covers supported value-producing plans; shape validation rejects unsupported referenced
+     * columns before selection.
      */
-    private static final Set<ScanCapability> SCAN_CAPS = Set.of(new ScanCapability.Index(LUCENE_FORMATS, STANDARD_TYPES));
-
-    /**
-     * Lucene drives count(*) and (in a follow-up) count(col) over fields it indexes.
-     * Coupled with the Index scan capability above, this lets PlanForker emit a
-     * Lucene-driver StagePlan alternative for count-shaped fragments without bypassing
-     * the existing engine path.
-     */
-    private static final Set<AggregateCapability> AGGREGATE_CAPS = Set.of(
-        AggregateCapability.simple(AggregateFunction.COUNT, STANDARD_TYPES, LUCENE_FORMATS)
+    private static final Set<ScanCapability> SCAN_CAPS = Set.of(
+        new ScanCapability.Index(LUCENE_FORMATS, STANDARD_TYPES),
+        new ScanCapability.DocValues(LUCENE_FORMATS, DOC_VALUES_TYPES)
     );
+
+    /** Aggregate shapes supported by either the count fast path or the Arrow source plan. */
+    private static final Set<AggregateCapability> AGGREGATE_CAPS;
+    static {
+        Set<AggregateCapability> capabilities = new HashSet<>();
+        capabilities.add(AggregateCapability.simple(AggregateFunction.COUNT, STANDARD_TYPES, LUCENE_FORMATS));
+        for (AggregateFunction function : List.of(AggregateFunction.SUM, AggregateFunction.SUM0, AggregateFunction.AVG)) {
+            capabilities.add(AggregateCapability.simple(function, NUMERIC_DOC_VALUES_TYPES, LUCENE_FORMATS));
+        }
+        for (AggregateFunction function : List.of(AggregateFunction.COUNT, AggregateFunction.MIN, AggregateFunction.MAX)) {
+            capabilities.add(AggregateCapability.simple(function, DOC_VALUES_TYPES, LUCENE_FORMATS));
+        }
+        AGGREGATE_CAPS = Set.copyOf(capabilities);
+    }
 
     private final LucenePlugin plugin;
 
@@ -188,6 +236,11 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             @Override
             public Set<AggregateCapability> aggregateCapabilities() {
                 return AGGREGATE_CAPS;
+            }
+
+            @Override
+            public Set<ProjectCapability> projectCapabilities() {
+                return PROJECT_CAPS;
             }
 
             @Override

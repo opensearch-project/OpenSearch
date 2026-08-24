@@ -35,8 +35,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Pins {@link LuceneFragmentConvertor#isCountFastPath}: drivable iff top is an Aggregate
- * with empty group-set and every call is {@code SqlKind.COUNT}. Read by
- * {@link LuceneShardPreference} to score this fragment for the count-fast-path. Guards
+ * with empty group-set and every call is {@code COUNT(*)}. Read by
+ * {@link LuceneShardPreference} to score this fragment for the count fast path. Guards
  * capability-declaration drift — PlanForker already narrows by declared caps, this is the
  * second line.
  */
@@ -58,8 +58,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         assertTrue("COUNT(*) with empty group-set is the canonical Lucene-driver shape", LuceneFragmentConvertor.isCountFastPath(agg));
     }
 
-    public void testCountFieldOverEmptyGroupSet_drivable() {
-        // count(field) — same SqlKind.COUNT, just with a field arg.
+    public void testCountFieldOverEmptyGroupSet_notFastPath() {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         AggregateCall countField = AggregateCall.create(
             SqlStdOperatorTable.COUNT,
@@ -70,8 +69,8 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt_status"
         );
-        assertTrue(
-            "count(field) is also drivable — same SqlKind.COUNT",
+        assertFalse(
+            "COUNT(field) needs doc values to preserve null semantics",
             LuceneFragmentConvertor.isCountFastPath(aggregate(scan, ImmutableBitSet.of(), countField))
         );
     }

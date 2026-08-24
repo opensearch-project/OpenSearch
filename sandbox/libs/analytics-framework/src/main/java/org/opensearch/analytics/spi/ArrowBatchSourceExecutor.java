@@ -8,6 +8,7 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.tasks.Task;
 
@@ -22,6 +23,20 @@ import org.opensearch.tasks.Task;
  * @opensearch.internal
  */
 public interface ArrowBatchSourceExecutor {
+
+    /**
+     * Compiles a fragment rebased onto the named Arrow input in its
+     * {@link ArrowBatchSourcePlan}. Partial aggregates must emit intermediate state for the
+     * coordinator merge rather than finalized values.
+     */
+    default byte[] compile(RelNode fragment, boolean partialAggregate) {
+        throw new UnsupportedOperationException("Arrow batch source plan compilation is not supported");
+    }
+
+    /** Attaches one output operator to an already compiled Arrow source plan. */
+    default byte[] attachFragment(RelNode fragment, byte[] innerPlanBytes) {
+        throw new UnsupportedOperationException("Arrow batch source plan composition is not supported");
+    }
 
     EngineResultStream execute(
         BufferAllocator resultAllocator,
