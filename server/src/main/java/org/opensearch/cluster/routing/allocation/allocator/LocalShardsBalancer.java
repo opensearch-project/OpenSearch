@@ -85,6 +85,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
+        boolean preferPrimaryFilterAware,
         boolean ignoreThrottleInRestore,
         Supplier<Boolean> timedOutFunc
     ) {
@@ -94,9 +95,20 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
-        avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
-            .mapToInt(IndexMetadata::getNumberOfShards)
-            .sum()) / routingNodes.size();
+        int primarySum = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
+        int nodeCount = routingNodes.size();
+        if (preferPrimaryFilterAware) {
+            int eligible = 0;
+            for (RoutingNode rn : routingNodes) {
+                if (allocation.deciders().canAllocateAnyShardToNode(rn, allocation).type() != Decision.Type.NO) {
+                    eligible++;
+                }
+            }
+            if (eligible > 0) {
+                nodeCount = eligible;
+            }
+        }
+        avgPrimaryShardsPerNode = ((float) primarySum) / nodeCount;
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
