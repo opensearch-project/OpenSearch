@@ -367,6 +367,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER)
             )
+            // Sub-plan reuse changes how DAGBuilder cuts the plan, so a static node-bootstrap read would make a
+            // dynamic enable/disable a silent no-op — which is the whole point of keeping it as a kill switch.
+            .put(
+                AnalyticsSettings.SUBPLAN_REUSE_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.SUBPLAN_REUSE_ENABLED)
+            )
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
@@ -455,7 +461,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
+        // Deliberately NOT gated on MPP_ENABLED: a plan that computes the same aggregate twice returns the wrong
+        // answer coordinator-centric too (TPC-H q15), so the sharing has to apply either way.
+        QueryDAG dag = DAGBuilder.build(
+            plan,
+            capabilityRegistry,
+            clusterService,
+            indexNameExpressionResolver,
+            AnalyticsSettings.SUBPLAN_REUSE_ENABLED.get(perQuerySettings)
+        );
 
         // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
         // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and

@@ -361,18 +361,22 @@ public final class UnifiedDispatch {
     private static void injectBroadcastsInPlace(Stage stage, Map<Integer, byte[]> capturedByBuildId) {
         if (stage.getFragment() != null) {
             List<OpenSearchBroadcastScan> scans = RelNodeUtils.findNodes(stage.getFragment(), OpenSearchBroadcastScan.class);
-            List<Map.Entry<Integer, byte[]>> toInject = new ArrayList<>();
+            // Keyed by build id, so SEVERAL scans on the SAME build inject once. That happens under CSE
+            // (SharedSubplanCse), where every consumer of a shared sub-plan points at one build id and must
+            // resolve the one registered table — duplicating the instruction would re-register the same
+            // namedInputId and ship the payload twice.
+            Map<Integer, byte[]> toInject = new LinkedHashMap<>();
             for (OpenSearchBroadcastScan scan : scans) {
                 byte[] ipc = capturedByBuildId.get(scan.getBuildStageId());
                 if (ipc != null) {
-                    toInject.add(Map.entry(scan.getBuildStageId(), ipc));
+                    toInject.putIfAbsent(scan.getBuildStageId(), ipc);
                 }
             }
             if (!toInject.isEmpty()) {
                 List<StagePlan> enriched = new ArrayList<>(stage.getPlanAlternatives().size());
                 for (StagePlan sp : stage.getPlanAlternatives()) {
                     List<InstructionNode> merged = new ArrayList<>(sp.instructions());
-                    for (Map.Entry<Integer, byte[]> e : toInject) {
+                    for (Map.Entry<Integer, byte[]> e : toInject.entrySet()) {
                         // buildSideIndex 0: informational only — the NamedScan resolves by name on the data node.
                         merged.add(new BroadcastInjectionInstructionNode("broadcast-" + e.getKey(), 0, e.getValue()));
                     }

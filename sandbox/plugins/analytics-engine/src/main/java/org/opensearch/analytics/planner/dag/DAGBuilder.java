@@ -9,6 +9,8 @@
 package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.OrdinalAppendingSink;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
@@ -53,6 +55,8 @@ import java.util.UUID;
  */
 public class DAGBuilder {
 
+    private static final Logger LOGGER = LogManager.getLogger(DAGBuilder.class);
+
     private DAGBuilder() {}
 
     public static QueryDAG build(
@@ -60,6 +64,68 @@ public class DAGBuilder {
         CapabilityRegistry registry,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        return build(cboOutput, registry, clusterService, indexNameExpressionResolver, /* subplanReuseEnabled */ false);
+    }
+
+    /**
+     * {@code subplanReuseEnabled} shares a sub-plan this plan computes more than once instead of computing it twice —
+     * see {@link SharedSubplanReuse}, which explains why that is a correctness fix (TPC-H q15) and not only a
+     * saving. Applies to the plan reached through {@code sever}; a root that is itself an exchange or a
+     * late-materialization wrapper is cut before {@code sever} runs and is left alone.
+     */
+    public static QueryDAG build(
+        RelNode cboOutput,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
+    ) {
+        if (subplanReuseEnabled) {
+            QueryDAG shared = buildInternal(cboOutput, registry, clusterService, indexNameExpressionResolver, true);
+            // Sharing is only sound while the consumer BUFFERS its inputs. The memtable reduce sink is selected
+            // on inputCount > 1, so a stage whose ONLY child is the shared one read twice would get the streaming
+            // sink and see an empty second read. Rather than ship that footgun, detect the shape and rebuild
+            // without sub-plan reuse — a missed reuse is slower, a once-consumable double read is wrong.
+            if (sharedInputsAreBuffered(shared.rootStage())) {
+                return shared;
+            }
+            LOGGER.debug("Rebuilding the DAG without sub-plan sharing: the consumer would not buffer the shared input");
+        }
+        return buildInternal(cboOutput, registry, clusterService, indexNameExpressionResolver, false);
+    }
+
+    /**
+     * True when no stage reads a single child stage more than once, which is the only shape the streaming
+     * (once-consumable) reduce sink cannot serve. See {@link #cutShared}.
+     */
+    private static boolean sharedInputsAreBuffered(Stage stage) {
+        if (stage.getFragment() != null && stage.getChildStages().size() == 1) {
+            int childId = stage.getChildStages().getFirst().getStageId();
+            int refs = 0;
+            for (OpenSearchStageInputScan scan : RelNodeUtils.findNodes(stage.getFragment(), OpenSearchStageInputScan.class)) {
+                if (scan.getChildStageId() == childId) {
+                    refs++;
+                }
+            }
+            if (refs > 1) {
+                return false;
+            }
+        }
+        for (Stage child : stage.getChildStages()) {
+            if (!sharedInputsAreBuffered(child)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static QueryDAG buildInternal(
+        RelNode cboOutput,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
     ) {
         int[] counter = { 0 };
         List<Stage> childStages = new ArrayList<>();
@@ -69,16 +135,38 @@ public class DAGBuilder {
             // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
-            rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            rootFragment = cutAtExchange(
+                reducer,
+                counter,
+                childStages,
+                registry,
+                clusterService,
+                indexNameExpressionResolver,
+                subplanReuseEnabled
+            );
         } else if (cboOutput instanceof OpenSearchLateMaterialization lm) {
             // LM at root, no above-ops (e.g. `source = t | where ... | sort col | head N`):
             // promote the LM stage to rootStage and skip the synthetic post-LM stage that would
             // wrap a bare StageInputScan placeholder.
-            cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver, subplanReuseEnabled);
             assert childStages.size() == 1 : "cutAtLateMaterialization must add exactly one child (the LM stage)";
             return new QueryDAG(newQueryId(), childStages.getFirst());
         } else {
-            rootFragment = sever(cboOutput, counter, childStages, registry, clusterService, indexNameExpressionResolver);
+            SharedSubplanReuse reuse = null;
+            if (subplanReuseEnabled) {
+                SharedSubplanReuse detected = SharedSubplanReuse.detect(cboOutput);
+                reuse = detected.isEmpty() ? null : detected;
+            }
+            rootFragment = sever(
+                cboOutput,
+                counter,
+                childStages,
+                registry,
+                clusterService,
+                indexNameExpressionResolver,
+                reuse,
+                subplanReuseEnabled
+            );
         }
 
         // Sink provider is needed whenever the root stage runs a backend plan locally —
@@ -117,6 +205,31 @@ public class DAGBuilder {
         return UUID.randomUUID().toString();
     }
 
+    /**
+     * Severs a fragment root, giving it its OWN sub-plan-reuse scope when reuse is on.
+     *
+     * <p>Scoping per FRAGMENT is a correctness requirement, not tidiness: {@link #cutShared} makes the shared
+     * sub-plan a child stage of the fragment being severed, and the consumer resolves it by the named table
+     * {@code input-<childStageId>} that only ITS stage registers. Sharing across two fragments would leave one
+     * of them scanning an input that is not among its child stages — {@code No table named 'input-N'}.
+     */
+    private static RelNode severFragment(
+        RelNode fragmentRoot,
+        int[] counter,
+        List<Stage> childStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
+    ) {
+        SharedSubplanReuse reuse = null;
+        if (subplanReuseEnabled) {
+            SharedSubplanReuse detected = SharedSubplanReuse.detect(fragmentRoot);
+            reuse = detected.isEmpty() ? null : detected;
+        }
+        return sever(fragmentRoot, counter, childStages, registry, clusterService, indexNameExpressionResolver, reuse, subplanReuseEnabled);
+    }
+
     private static RelNode sever(
         RelNode node,
         int[] counter,
@@ -125,22 +238,92 @@ public class DAGBuilder {
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
+        return sever(node, counter, childStages, registry, clusterService, indexNameExpressionResolver, null, false);
+    }
+
+    /**
+     * {@code reuse} non-null enables sub-plan sharing: a sub-plan that this plan computes more than
+     * once is cut ONCE into a build stage, and later occurrences become an {@code OpenSearchBroadcastScan} on
+     * that same build id so every consumer reads one materialized copy. See {@link SharedSubplanReuse} for why
+     * that is a correctness fix, not just an optimization. Only threaded through {@code sever}'s own recursion —
+     * the {@code cut*} helpers below sever their children WITHOUT it, so a repeat hidden under a shuffle or
+     * broadcast boundary is simply not shared (a missed reuse, which is the pre-existing behaviour).
+     */
+    private static RelNode sever(
+        RelNode node,
+        int[] counter,
+        List<Stage> childStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SharedSubplanReuse reuse,
+        boolean subplanReuseEnabled
+    ) {
         List<RelNode> newInputs = new ArrayList<>();
         List<RelNode> rawInputs = node.getInputs();
         for (int inputIndex = 0; inputIndex < rawInputs.size(); inputIndex++) {
             RelNode input = rawInputs.get(inputIndex);
-            if (input instanceof OpenSearchExchangeReducer reducer) {
-                newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+            String sharedDigest = reuse == null ? null : reuse.sharedDigestOf(input);
+            if (sharedDigest != null) {
+                newInputs.add(
+                    cutShared(
+                        input,
+                        sharedDigest,
+                        counter,
+                        childStages,
+                        registry,
+                        clusterService,
+                        indexNameExpressionResolver,
+                        reuse,
+                        subplanReuseEnabled
+                    )
+                );
+            } else if (input instanceof OpenSearchExchangeReducer reducer) {
+                newInputs.add(
+                    cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver, subplanReuseEnabled)
+                );
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
                 newInputs.add(
-                    cutShuffle(shuffle, counter, childStages, registry, clusterService, node, inputIndex, indexNameExpressionResolver)
+                    cutShuffle(
+                        shuffle,
+                        counter,
+                        childStages,
+                        registry,
+                        clusterService,
+                        node,
+                        inputIndex,
+                        indexNameExpressionResolver,
+                        subplanReuseEnabled
+                    )
                 );
             } else if (input instanceof OpenSearchBroadcastExchange broadcast) {
-                newInputs.add(cutBroadcast(broadcast, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(
+                    cutBroadcast(
+                        broadcast,
+                        counter,
+                        childStages,
+                        registry,
+                        clusterService,
+                        indexNameExpressionResolver,
+                        subplanReuseEnabled
+                    )
+                );
             } else if (input instanceof OpenSearchLateMaterialization lm) {
-                newInputs.add(cutAtLateMaterialization(lm, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(
+                    cutAtLateMaterialization(
+                        lm,
+                        counter,
+                        childStages,
+                        registry,
+                        clusterService,
+                        indexNameExpressionResolver,
+                        subplanReuseEnabled
+                    )
+                );
             } else {
-                newInputs.add(sever(input, counter, childStages, registry, clusterService, indexNameExpressionResolver));
+                newInputs.add(
+                    sever(input, counter, childStages, registry, clusterService, indexNameExpressionResolver, reuse, subplanReuseEnabled)
+                );
             }
         }
         if (node.getInputs().isEmpty()) return node;
@@ -185,11 +368,20 @@ public class DAGBuilder {
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
     ) {
         // 1. Reduce child — Sort+Limit reduce above shard scans. Multi-shard QTF only.
         List<Stage> reduceChildren = new ArrayList<>();
-        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode reduceFragment = severFragment(
+            lm.getInput(),
+            counter,
+            reduceChildren,
+            registry,
+            clusterService,
+            indexNameExpressionResolver,
+            subplanReuseEnabled
+        );
         if (reduceChildren.isEmpty()) {
             throw new IllegalStateException(
                 "QTF rewriter fired but the wrapper's input has no ExchangeReducer below it — "
@@ -270,13 +462,22 @@ public class DAGBuilder {
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
     ) {
         // Recurse into the child fragment with full sever() so any nested ExchangeReducers
         // (e.g. a Join below a top-level gather Reducer) are also cut into their own child
         // stages rather than being left intact inside the shard-local fragment.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = severFragment(
+            reducer.getInput(),
+            counter,
+            grandchildren,
+            registry,
+            clusterService,
+            indexNameExpressionResolver,
+            subplanReuseEnabled
+        );
 
         int childStageId = counter[0]++;
         // Stage execution location is decided by the fragment's contents, not the grandchild
@@ -355,14 +556,23 @@ public class DAGBuilder {
         ClusterService clusterService,
         RelNode parent,
         int parentInputIndex,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
     ) {
         // Recurse into the shuffle's input with full sever() so any nested exchanges below the
         // shuffle (e.g. a partial-aggregate that itself reduces) are also cut into their own
         // stages. M2 today only composes shuffle over a shard scan, but the recursion makes the
         // cutter robust to future plan shapes.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = severFragment(
+            shuffle.getInput(),
+            counter,
+            grandchildren,
+            registry,
+            clusterService,
+            indexNameExpressionResolver,
+            subplanReuseEnabled
+        );
 
         int childStageId = counter[0]++;
         // Decide the producer's locality by whether its fragment has a shard scan — NOT by child-stage
@@ -457,16 +667,110 @@ public class DAGBuilder {
      * the empty-grandchildren branch would need to gain a sink provider just like the other
      * cutters. For now the build always reduces to a leaf shard fragment.
      */
+    /**
+     * Cuts a SHARED sub-plan (see {@link SharedSubplanReuse}) into ONE ordinary child stage the first time it is
+     * seen, and returns an {@link OpenSearchStageInputScan} on it. Later occurrences scan that SAME child stage
+     * id, so the consumer's fragment references the one named table {@code input-<childStageId>} more than once —
+     * which is what makes two exact-equality consumers read identical rows.
+     *
+     * <p><b>Why an ordinary child stage and not a broadcast build.</b> The consumer registers each child input as
+     * a re-readable {@code MemTable}: a multi-input coordinator stage is routed to
+     * {@code DatafusionMemtableReduceSink}, which buffers each input and hands it across in one
+     * {@code registerMemtable} call, so two reads of one input resolve to the same materialized batches with no
+     * extra machinery. Routing through {@code BROADCAST_BUILD} instead would need the broadcast-injection
+     * handler, which requires a DataFusion session created by a prior SHARD-SCAN handler — a coordinator reduce
+     * stage has none, and it fails with {@code BroadcastInjectionHandler: expected DataFusionSessionState … got
+     * null} (measured).
+     *
+     * <p><b>Depends on the consumer buffering its inputs.</b> The streaming reduce sink registers each input as a
+     * bounded {@code StreamingTable}, consumable ONCE, so a second read would come back empty. The memtable sink
+     * is selected on {@code inputCount > 1}, so sharing is only safe while the consumer keeps another input
+     * besides the shared one.
+     */
+    private static RelNode cutShared(
+        RelNode shared,
+        String digest,
+        int[] counter,
+        List<Stage> parentChildStages,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SharedSubplanReuse reuse,
+        boolean subplanReuseEnabled
+    ) {
+        List<String> viableBackends = ((OpenSearchRelNode) shared).getViableBackends();
+        Integer existing = reuse.alreadyCutStageId(digest);
+        if (existing == null) {
+            List<Stage> grandchildren = new ArrayList<>();
+            RelNode childFragment = severFragment(
+                shared,
+                counter,
+                grandchildren,
+                registry,
+                clusterService,
+                indexNameExpressionResolver,
+                subplanReuseEnabled
+            );
+
+            int childStageId = counter[0]++;
+            // Same locality rule as cutAtExchange: a fragment containing a TableScan runs on shards even when it
+            // also has grandchildren; a coordinator-side fragment consumes its grandchildren through a sink.
+            boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
+            TargetResolver targetResolver = fragmentHasShardScan
+                ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
+                : null;
+            ExchangeSinkProvider childSinkProvider = null;
+            if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
+                List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, viableBackends);
+                childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+            }
+            Stage sharedStage = new Stage(
+                childStageId,
+                childFragment,
+                grandchildren,
+                ExchangeInfo.singleton(),
+                childSinkProvider,
+                targetResolver
+            );
+            parentChildStages.add(sharedStage);
+            reuse.recordCut(digest, childStageId);
+            existing = childStageId;
+            LOGGER.debug("Sharing a repeated sub-plan: cut into child stage {}", childStageId);
+        } else {
+            LOGGER.debug("Sharing a repeated sub-plan: reusing child stage {}", existing);
+        }
+        // Per-column storage comes from the node this scan stands in for — a leaf that reports a short
+        // getOutputFieldStorage() truncates the storage union and fails conversion with
+        // "RexInputRef[N] has no matching FieldStorageInfo entry".
+        return new OpenSearchStageInputScan(
+            shared.getCluster(),
+            shared.getTraitSet(),
+            existing,
+            shared.getRowType(),
+            viableBackends,
+            ((OpenSearchRelNode) shared).getOutputFieldStorage()
+        );
+    }
+
     private static RelNode cutBroadcast(
         OpenSearchBroadcastExchange broadcast,
         int[] counter,
         List<Stage> parentChildStages,
         CapabilityRegistry registry,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean subplanReuseEnabled
     ) {
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = sever(broadcast.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
+        RelNode childFragment = severFragment(
+            broadcast.getInput(),
+            counter,
+            grandchildren,
+            registry,
+            clusterService,
+            indexNameExpressionResolver,
+            subplanReuseEnabled
+        );
 
         int childStageId = counter[0]++;
         TargetResolver targetResolver = grandchildren.isEmpty()
