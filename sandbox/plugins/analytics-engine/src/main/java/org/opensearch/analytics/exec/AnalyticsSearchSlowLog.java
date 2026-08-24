@@ -18,6 +18,7 @@ import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Coordinator-level slow log for analytics engine queries. Logs at {@code onQueryComplete}
@@ -95,7 +96,7 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         return new QuerySlowLogListener(querySource);
     }
 
-    private void logAtLevel(java.util.function.Supplier<String> message, long tookInNanos) {
+    private void logAtLevel(Supplier<String> message, long tookInNanos) {
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
             queryLogger.warn(message.get());
         } else if (infoThreshold >= 0 && tookInNanos > infoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
@@ -115,7 +116,7 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
         private final String querySource;
         private volatile String opaqueId;
         private volatile String requestId;
-        private volatile java.util.function.Supplier<String> planSupplier;
+        private volatile Supplier<String> planSupplier;
         private long planningTimeMs;
         private final StringBuilder stageTook = new StringBuilder();
 
@@ -135,7 +136,7 @@ public class AnalyticsSearchSlowLog implements AnalyticsOperationListener {
          * plan text (which contains filter literals, column names, and index topology) out of both
          * CPU cost and log sinks for queries that don't qualify as slow.
          */
-        void setPlanSupplier(java.util.function.Supplier<String> planSupplier) {
+        void setPlanSupplier(Supplier<String> planSupplier) {
             this.planSupplier = planSupplier;
         }
 
