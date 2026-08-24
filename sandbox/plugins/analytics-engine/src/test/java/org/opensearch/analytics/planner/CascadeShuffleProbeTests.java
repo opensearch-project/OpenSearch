@@ -169,6 +169,53 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
+     * The agg sub-toggle lives in {@code OpenSearchAggregateSplitRule} (removal-sequence step 3b-i), and it must
+     * suppress ONLY the PARTIAL/FINAL split — never the rule itself.
+     *
+     * <p>Regression guard for a real outage: gating the rule's {@code matches()} on the toggle removed the
+     * {@code singleOnSingleton} alternative too, leaving only the SINGLE aggregate that marking placed over
+     * RANDOM input. {@code OpenSearchAggregate.computeSelfCost} prices that at INFINITY, so no legal plan
+     * remained and planning died with {@code CannotPlanException: … the cost is still infinite} — for ANY
+     * multi-shard aggregate query, not just the shapes the toggle targets. This test plans with the toggle OFF
+     * and asserts a plan comes out at all, plus that it is the coordinator-centric shape the toggle promises.
+     */
+    public void testAggSubToggleOffStillPlans_coordCentricNotCannotPlan() {
+        PlannerContext context = buildMppContextWithAggSubToggle(
+            Map.of("a_idx", 3),
+            Map.of("a_idx", LARGE),
+            /* shuffleAggregateEnabled */ false
+        );
+
+        // A SINGLE aggregate directly over a MULTI-SHARD scan is the shape that needs this rule: nothing below
+        // gathers, so without the rule's alternative the aggregate sits over RANDOM(SHARD) at infinite cost.
+        // (An aggregate over a JOIN does NOT reproduce it — CBO gathers the join first, so the aggregate's input
+        // is already SINGLETON and the plan is legal without the rule.)
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            aScan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        RelNode aggregateOverScan = LogicalAggregate.create(aScan, List.of(), ImmutableBitSet.of(0), null, List.of(sum));
+
+        // Planning must SUCCEED. Before the fix this threw CannotPlanException.
+        RelNode cbo = runPlanner(aggregateOverScan, context);
+        assertNotNull("planning must succeed with the aggregate sub-toggle off", cbo);
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            cbo,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        long partials = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL).count();
+        assertEquals("sub-toggle off: the rule must NOT offer a PARTIAL/FINAL split", 0, partials);
+        assertFalse("some aggregate must survive", aggs.isEmpty());
+    }
+
+    /**
      * Per-strategy sub-toggle ({@code analytics.mpp.shuffle.aggregate.enabled=false}): the SAME
      * agg-over-3-way shape as {@link #testEnforcementPass_aggOverThreeWayJoinSplitsAndCascades}, but with
      * the aggregate sub-toggle OFF. The pass must NOT split the aggregate (no PARTIAL/FINAL) — it stays a
@@ -1683,6 +1730,24 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      *     (which legitimately fires for a small filtered build) doesn't take the plan. {@code < 0} leaves
      *     the production default (64 MiB).
      */
+    /** MPP context with {@code analytics.mpp.shuffle.aggregate.enabled} explicitly set. */
+    private PlannerContext buildMppContextWithAggSubToggle(
+        Map<String, Integer> shardCounts,
+        Map<String, Long> rowCounts,
+        boolean shuffleAggregateEnabled
+    ) {
+        ClusterState state = mockClusterStateWithDataNodes(shardCounts);
+        Settings settings = Settings.builder()
+            .put("analytics.mpp.enabled", true)
+            .put("analytics.mpp.shuffle.aggregate.enabled", shuffleAggregateEnabled)
+            .build();
+        ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
+        AnalyticsSearchBackendPlugin shuffleAware = new ShuffleAwareDataFusionBackend(CLUSTER_DATA_NODES);
+        CapabilityRegistry registry = new CapabilityRegistry(List.of(shuffleAware, LUCENE), fieldStorageFactory);
+        return new PlannerContext(registry, state, settings, rowCountLookup, /* profiling */ false);
+    }
+
     private PlannerContext buildMppContext(Map<String, Integer> shardCounts, Map<String, Long> rowCounts, long maxBroadcastBytes) {
         ClusterState state = mockClusterStateWithDataNodes(shardCounts);
         Settings.Builder settingsBuilder = Settings.builder().put("analytics.mpp.enabled", true);

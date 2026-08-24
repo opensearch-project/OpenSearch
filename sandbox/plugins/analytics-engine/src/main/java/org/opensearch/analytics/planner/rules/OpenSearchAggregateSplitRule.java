@@ -56,17 +56,41 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         this.context = context;
     }
 
+    /**
+     * Matches any SINGLE-mode aggregate.
+     *
+     * <p><b>Do NOT gate this on {@code analytics.mpp.shuffle.aggregate.enabled}.</b> {@link #onMatch}
+     * registers the PARTIAL/FINAL split AND the {@code singleOnSingleton} gather-then-aggregate plan, so
+     * suppressing the whole rule also removes the ONLY coordinator-centric alternative, leaving just the
+     * SINGLE aggregate the marking phase placed over RANDOM input.
+     * {@link OpenSearchAggregate#computeSelfCost} prices that at infinity (correctly — per-shard partials
+     * would never merge), so no legal plan remains and the query dies with
+     * {@code CannotPlanException: … the cost is still infinite} instead of routing coord-centric. It took out
+     * unrelated shapes too: any multi-shard windowed or joined query planned while the toggle was off. The
+     * sub-toggle is honoured in {@link #splitSuppressedBySubToggle} instead, which suppresses only the SPLIT.
+     */
     @Override
     public boolean matches(RelOptRuleCall call) {
         OpenSearchAggregate aggregate = call.rel(0);
-        if (aggregate.getMode() != AggregateMode.SINGLE) {
-            return false;
-        }
-        // Per-strategy sub-toggle (analytics.mpp.shuffle.aggregate.enabled): when off, do not offer the
-        // PARTIAL/FINAL alternative — the aggregate runs coordinator-centric while a join BELOW it still
-        // distributes. A rule matches() is the natural home, matching how OpenSearchHashJoinSplitRule
-        // gates on MPP_ENABLED. (The size floor deliberately stays in the pass — see its comment there.)
-        return AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(context.getSettings());
+        return aggregate.getMode() == AggregateMode.SINGLE;
+    }
+
+    /**
+     * Per-strategy sub-toggle {@code analytics.mpp.shuffle.aggregate.enabled}: when off, the aggregate runs
+     * coordinator-centric (gather, then one SINGLE aggregate) while a join BELOW it still distributes.
+     *
+     * <p>Owned by the RULE rather than the post-CBO pass so that distributed-aggregate FORMATION is decided in
+     * one place — a prerequisite for retiring the pass's {@code splitAggregate}. It suppresses only the
+     * PARTIAL/FINAL alternative; {@link #onMatch} still registers {@code singleOnSingleton}, which is what
+     * makes this safe where gating {@link #matches} was not.
+     *
+     * <p>Scoped to MPP being on, per this setting's own contract ("only has effect when MPP is on"): with MPP
+     * off the PARTIAL/FINAL split is just the ordinary shard-partial / coordinator-final path and must keep
+     * working, so the sub-toggle must not degrade it into gathering whole indices to the coordinator.
+     */
+    private boolean splitSuppressedBySubToggle() {
+        return AnalyticsSettings.MPP_ENABLED.get(context.getSettings())
+            && !AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(context.getSettings());
     }
 
     /**
@@ -189,7 +213,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // below forces a gather (a gather-forced input is already singleton — a PARTIAL over it
         // would be invalid). Otherwise emit the single coordinator aggregate.
         boolean partitioned = isPartitioned(child);
-        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate)) {
+        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate) || splitSuppressedBySubToggle()) {
             call.transformTo(singleOnSingleton);
             return;
         }
