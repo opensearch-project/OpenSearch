@@ -28,14 +28,13 @@ import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
-import org.opensearch.analytics.exec.shuffle.ShuffleSenderImpl;
+import org.opensearch.analytics.exec.shuffle.ShuffleProducerSinkBuilder;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
@@ -44,7 +43,6 @@ import org.opensearch.analytics.spi.InstructionType;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.analytics.spi.ShuffleProducerOutputState;
-import org.opensearch.analytics.spi.ShuffleSender;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -950,35 +948,16 @@ public class AnalyticsSearchService implements AutoCloseable {
         String queryId,
         int stageId
     ) {
-        ShuffleSender sender = new ShuffleSenderImpl(
-            client,
-            threadPool,
-            clusterService,
-            producerState.getQueryId(),
-            producerState.getTargetStageId(),
-            producerState.getSide()
-        );
-        // Producer's ExchangeSinkContext carries no child inputs (the producer IS the source) and
-        // no downstream sink (the partitioned sink ships out-of-band via the ShuffleSender, not
-        // into another in-process sink). fragmentBytes is left empty for the same reason — the
-        // partitioning operates on the engine's terminal output, not on a plan.
-        ExchangeSinkContext sinkCtx = new ExchangeSinkContext(
-            queryId,
-            stageId,
+        // Delegated so the shard, worker and (step 5) coordinator-reduce producer paths share ONE
+        // sender/sink construction — shuffle production is instruction-driven, not stage-typed.
+        return new ShuffleProducerSinkBuilder(client, threadPool, clusterService).build(
+            backend.getExchangeSinkProvider(),
+            producerState,
             ctx.getTask() == null ? 0L : ctx.getTask().getId(),
-            new byte[0],
             ctx.getAllocator(),
-            List.of(),
-            /* downstream */ null
+            queryId,
+            stageId
         );
-        return backend.getExchangeSinkProvider()
-            .createPartitionedSink(
-                producerState.getHashKeyChannels(),
-                producerState.getPartitionCount(),
-                producerState.getTargetWorkerNodeIds(),
-                sender,
-                sinkCtx
-            );
     }
 
     /**

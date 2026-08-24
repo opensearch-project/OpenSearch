@@ -277,6 +277,29 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Allow a JOIN to distribute even when one of its inputs is a GATHERED sub-stage, by letting the resulting
+     * coordinator-reduce stage act as a hash-shuffle PRODUCER.
+     *
+     * <p>The pass's shippable-producer gate (step 3d) refuses to distribute such a join today: a gathered input
+     * becomes a {@code ReduceStageExecution}, which historically could only emit to its parent sink, so
+     * shuffling out of one left the consuming worker waiting on a producer that never fired
+     * ({@code ShuffleScanHandler timed out for input-N}). With the reduce stage taught to resolve a producer
+     * sink from its own instruction chain, that limit is lifted — and with it the reason every join above a
+     * decorrelated subquery stays coordinator-centric (TPC-H q4 {@code exists}→SEMI, q22 {@code not exists}
+     * →ANTI, q2/q15 scalar subqueries).
+     *
+     * <p>Default {@code false}: the failure mode of getting this wrong is a HANG rather than a wrong answer or
+     * a clean error, so the coordinator-centric fallback stays the validated default until the distributed
+     * shape is proven on a cluster for these shapes.
+     */
+    public static final Setting<Boolean> MPP_REDUCE_STAGE_SHUFFLE_PRODUCER = Setting.boolSetting(
+        "analytics.mpp.reduce_stage_shuffle_producer",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
@@ -422,6 +445,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_COLLAPSE_COPARTITIONED_TIERS,
         MPP_AGGREGATE_GROUP_KEY_SHUFFLE,
+        MPP_REDUCE_STAGE_SHUFFLE_PRODUCER,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,

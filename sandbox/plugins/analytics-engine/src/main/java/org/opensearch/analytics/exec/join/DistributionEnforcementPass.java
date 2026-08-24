@@ -89,6 +89,7 @@ public final class DistributionEnforcementPass {
     private final boolean shuffleAggregateEnabled;
     private final boolean collapseCoPartitionedTiers;
     private final boolean groupKeyShuffleEnabled;
+    private final boolean reduceStageShuffleProducerEnabled;
 
     public DistributionEnforcementPass(
         OpenSearchDistributionTraitDef traitDef,
@@ -117,12 +118,25 @@ public final class DistributionEnforcementPass {
         boolean collapseCoPartitionedTiers,
         boolean groupKeyShuffleEnabled
     ) {
+        this(traitDef, partitionCount, minRows, shuffleAggregateEnabled, collapseCoPartitionedTiers, groupKeyShuffleEnabled, false);
+    }
+
+    public DistributionEnforcementPass(
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers,
+        boolean groupKeyShuffleEnabled,
+        boolean reduceStageShuffleProducerEnabled
+    ) {
         this.traitDef = traitDef;
         this.partitionCount = partitionCount;
         this.minRows = minRows;
         this.shuffleAggregateEnabled = shuffleAggregateEnabled;
         this.collapseCoPartitionedTiers = collapseCoPartitionedTiers;
         this.groupKeyShuffleEnabled = groupKeyShuffleEnabled;
+        this.reduceStageShuffleProducerEnabled = reduceStageShuffleProducerEnabled;
     }
 
     /** Result of visiting a node: the (possibly rewritten) rel and the distribution it actually outputs. */
@@ -191,6 +205,37 @@ public final class DistributionEnforcementPass {
         boolean collapseCoPartitionedTiers,
         boolean groupKeyShuffleEnabled
     ) {
+        return enforce(
+            plan,
+            traitDef,
+            partitionCount,
+            minRows,
+            shuffleAggregateEnabled,
+            collapseCoPartitionedTiers,
+            groupKeyShuffleEnabled,
+            false
+        );
+    }
+
+    /**
+     * {@link #enforce(RelNode, OpenSearchDistributionTraitDef, int, long, boolean, boolean, boolean)} with the
+     * reduce-stage-producer toggle.
+     *
+     * @param reduceStageShuffleProducerEnabled {@code analytics.mpp.reduce_stage_shuffle_producer}: when
+     *                       {@code true}, a join whose input is a GATHERED sub-stage may still distribute,
+     *                       because a coordinator reduce stage can now ship a shuffle. See the setting's
+     *                       javadoc for the hang risk that keeps it off by default.
+     */
+    public static RelNode enforce(
+        RelNode plan,
+        OpenSearchDistributionTraitDef traitDef,
+        int partitionCount,
+        long minRows,
+        boolean shuffleAggregateEnabled,
+        boolean collapseCoPartitionedTiers,
+        boolean groupKeyShuffleEnabled,
+        boolean reduceStageShuffleProducerEnabled
+    ) {
         if (partitionCount <= 1) {
             return plan;
         }
@@ -200,7 +245,8 @@ public final class DistributionEnforcementPass {
             minRows,
             shuffleAggregateEnabled,
             collapseCoPartitionedTiers,
-            groupKeyShuffleEnabled
+            groupKeyShuffleEnabled,
+            reduceStageShuffleProducerEnabled
         );
         // Root demand is SINGLETON — the query result must land on the coordinator. This seeds the
         // top-down demand-flow; a transparent op directly under the root passes it through so its child
@@ -457,13 +503,24 @@ public final class DistributionEnforcementPass {
         // "reduce-then-shuffle" producer, so if EITHER join input is non-shippable we do NOT distribute
         // this join — gather both inputs and run it coordinator-centric (correct, the legacy fallback).
         // The "only distribute what dispatch can run" discipline. (sf=10 bucket A.)
+        //
+        // analytics.mpp.reduce_stage_shuffle_producer lifts this: a COORDINATOR+SINGLETON input is cut as a
+        // ReduceStageExecution, and that stage can now resolve a producer sink from its own instruction chain
+        // (ReduceStageExecutionFactory + ShuffleProducerSinkBuilder), so it CAN ship a shuffle. With the toggle
+        // on, a gathered input counts as shippable and the join distributes. Off by default because the
+        // failure mode is a HANG, not a wrong answer — see the setting's javadoc.
         if (n instanceof OpenSearchJoin) {
             boolean allInputsShippable = true;
             for (OpenSearchDistribution cd : childDists) {
-                if (!isPartitioned(cd) && !isShardLocal(cd)) {
-                    allInputsShippable = false;
-                    break;
+                if (isPartitioned(cd) || isShardLocal(cd)) {
+                    continue;
                 }
+                // A gathered sub-stage: shippable only once a reduce stage can produce partitions.
+                if (reduceStageShuffleProducerEnabled && isCoordinatorSingleton(cd)) {
+                    continue;
+                }
+                allInputsShippable = false;
+                break;
             }
             if (!allInputsShippable) {
                 List<RelNode> regathered = new ArrayList<>(childContents.size());
@@ -804,6 +861,17 @@ public final class DistributionEnforcementPass {
      */
     private static boolean isShippable(OpenSearchDistribution dist) {
         return isPartitioned(dist) || isShardLocal(dist);
+    }
+
+    /**
+     * A GATHERED sub-stage: {@code COORDINATOR+SINGLETON}. {@code DAGBuilder} cuts one as a
+     * {@code ReduceStageExecution}, which can ship a hash shuffle only when
+     * {@code analytics.mpp.reduce_stage_shuffle_producer} is on.
+     */
+    private static boolean isCoordinatorSingleton(OpenSearchDistribution dist) {
+        return dist != null
+            && dist.getType() == org.apache.calcite.rel.RelDistribution.Type.SINGLETON
+            && dist.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
     }
 
     private static boolean isShardLocal(OpenSearchDistribution dist) {

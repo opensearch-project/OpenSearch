@@ -940,6 +940,56 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
     }
 
+    /**
+     * STEP 5: with {@code analytics.mpp.reduce_stage_shuffle_producer=true} the same
+     * {@code Join(Aggregate(Join(A,B)), C)} DOES distribute — a gathered sub-stage is cut as a
+     * {@code ReduceStageExecution}, which can now resolve a producer sink from its own instruction chain and so
+     * ship a hash shuffle. This is the gate that otherwise forces every join above a decorrelated subquery
+     * (TPC-H q4/q22 semi/anti, q2/q15 scalar) to stay coordinator-centric.
+     *
+     * <p>Paired deliberately with {@link #testEnforcementPass_joinOverGatheredAggregateStaysCoordCentric},
+     * which pins the DEFAULT: the two together prove the toggle is what changes the shape, not some unrelated
+     * cost drift.
+     */
+    public void testEnforcementPass_reduceStageProducerLetsJoinOverGatheredAggregateDistribute() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        // A tiny broadcast cap so the aggregate result is NOT broadcast-eligible. Without this the pass
+        // preserves CBO's broadcast of the small aggregate and returns BEFORE the step-3d shippability gate,
+        // so the toggle under test is never consulted (measured: the top join came back with an
+        // OpenSearchBroadcastExchange on the aggregate side).
+        PlannerContext context = buildMppContext(shardCounts, rowCounts, /* maxBroadcastBytes */ 1L);
+
+        RelNode cbo = runPlanner(makeJoinOverAggregateOverJoin(context), context);
+        RelNode enforced = DistributionEnforcementPass.enforce(
+            cbo,
+            context.getDistributionTraitDef(),
+            CLUSTER_DATA_NODES,
+            /* minRows */ 1L,
+            /* shuffleAggregateEnabled */ true,
+            /* collapseCoPartitionedTiers */ false,
+            /* groupKeyShuffleEnabled */ false,
+            /* reduceStageShuffleProducerEnabled */ true
+        );
+
+        OpenSearchJoin topJoin = findAll(enforced, OpenSearchJoin.class).stream()
+            .filter(j -> !findAll(j, org.opensearch.analytics.planner.rel.OpenSearchAggregate.class).isEmpty())
+            .findFirst()
+            .orElseThrow(
+                () -> new AssertionError("no join-over-aggregate found:\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced))
+            );
+        assertTrue(
+            "with the reduce-stage producer enabled the gathered aggregate sub-stage must be SHUFFLED:\n"
+                + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            unwrap(topJoin.getInput(0)) instanceof OpenSearchShuffleExchange
+        );
+        assertTrue(
+            "the other side must be shuffled too — a distributed join shuffles BOTH inputs:\n"
+                + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            unwrap(topJoin.getInput(1)) instanceof OpenSearchShuffleExchange
+        );
+    }
+
     /** Builds {@code Aggregate(COLLECT(col1) by col0)} over a 3-way join — COLLECT is STATE_EXPANDING, so
      *  {@code shouldSkipPartialFinalSplit} is true (genuinely non-decomposable: it can't merge per-partition
      *  partials additively), so the pass must gather, not split/ride-per-partition. (Single-arg

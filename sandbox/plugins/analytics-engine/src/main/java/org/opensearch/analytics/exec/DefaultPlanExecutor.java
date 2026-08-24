@@ -361,6 +361,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE)
             )
+            // Same for the reduce-stage-producer toggle — it changes the enforced plan shape, so a static
+            // node-bootstrap read would make a dynamic enable a silent no-op.
+            .put(
+                AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER)
+            )
             .put(
                 AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
@@ -444,7 +450,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings),
                 AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.get(perQuerySettings),
-                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.get(perQuerySettings)
+                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.get(perQuerySettings),
+                AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER.get(perQuerySettings)
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
