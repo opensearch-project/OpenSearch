@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Prevent negative fielddata stats by guarding against stale removals after shard reallocation ([#21667](https://github.com/opensearch-project/OpenSearch/pull/21667))
 - Fix unbounded recursion in deserialization that can cause StackOverflowError ([#22404](https://github.com/opensearch-project/OpenSearch/pull/22404))
 - Reject out-of-range WLM node threshold updates at validation time ([#22678](https://github.com/opensearch-project/OpenSearch/pull/22678))
+- Add query_string nesting depth limit to prevent StackOverflow ([#22477](https://github.com/opensearch-project/OpenSearch/pull/22477))
 
 ### Security
 
