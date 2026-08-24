@@ -288,13 +288,23 @@ public final class AnalyticsSettings {
      * decorrelated subquery stays coordinator-centric (TPC-H q4 {@code exists}→SEMI, q22 {@code not exists}
      * →ANTI, q2/q15 scalar subqueries).
      *
-     * <p>Default {@code false}: the failure mode of getting this wrong is a HANG rather than a wrong answer or
-     * a clean error, so the coordinator-centric fallback stays the validated default until the distributed
-     * shape is proven on a cluster for these shapes.
+     * <p>Default {@code true}. It was introduced off — the failure mode of getting this wrong is a HANG rather
+     * than a wrong answer — and earned the default on evidence: {@code ReduceStageShuffleProducerIT} covers the
+     * SEMI, ANTI and broadcast-ineligible shapes end-to-end, the full {@code integTest} suite is green with it
+     * on, and the TPC-H sf=10 sweep goes 13/22 → 16/22 with flat latency (q4 {@code exists}, q21 and q22
+     * {@code not in} flip FAIL→PASS). Set to {@code false} to fall back to the coordinator-centric shape.
+     *
+     * <p><b>Do NOT blame this setting for TPC-H q15.</b> An sf=1 sweep shows q15 PASS with this off and FAIL
+     * with it on, which looks damning and is NOT causal — at 20 runs per arm q15 is correct 9/20 BOTH ways.
+     * q15 compares two independently-computed parallel {@code SUM(double)}s for exact equality
+     * ({@code where total_revenue = [ … max(total_revenue) ]}, over the same subquery inlined twice), so the
+     * last bits disagree at random and the row vanishes. It flakes in every configuration, including
+     * coordinator-centric with intra-shard concurrency disabled. A 1-or-2-run A/B on this query proves nothing;
+     * use ≥20 runs per arm.
      */
     public static final Setting<Boolean> MPP_REDUCE_STAGE_SHUFFLE_PRODUCER = Setting.boolSetting(
         "analytics.mpp.reduce_stage_shuffle_producer",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
