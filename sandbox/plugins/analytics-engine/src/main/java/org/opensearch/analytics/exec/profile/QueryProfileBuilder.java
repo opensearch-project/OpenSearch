@@ -155,7 +155,11 @@ public final class QueryProfileBuilder {
             var target = shardTask.target();
             if (target instanceof ShardExecutionTarget shardTarget) {
                 String nodeId = shardTarget.node() != null ? shardTarget.node().getId() : "(unknown)";
-                return nodeId + "/shard[" + shardTarget.shardId().getId() + "]";
+                // Include the index name: shard IDs are only unique within an index, so a bare
+                // "node/shard[N]" collides (and can't be traced back to an index) if a query ever
+                // spans multiple indices. LM's per-shard label (LateMaterializationStageExecution)
+                // mirrors this exact format so the two stage types read identically in the profile.
+                return nodeId + "/" + shardTarget.shardId().getIndexName() + "/shard[" + shardTarget.shardId().getId() + "]";
             }
             return target.node() != null ? target.node().getId() : "(unknown)";
         }

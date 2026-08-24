@@ -444,8 +444,9 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
                 n -> new PendingExecutions(config.maxConcurrentShardRequestsPerNode())
             );
             // Shard label matches QueryProfileBuilder#describeTarget so the LM profile's per-shard
-            // task entries read the same as SHARD_FRAGMENT shard tasks.
-            String shardLabel = target.node().getId() + "/shard[" + target.shardId().getId() + "]";
+            // task entries read the same as SHARD_FRAGMENT shard tasks. Includes the index name
+            // because shard IDs are only unique within an index.
+            String shardLabel = target.node().getId() + "/" + target.shardId().getIndexName() + "/shard[" + target.shardId().getId() + "]";
             transport.dispatchFetchByRowIds(
                 request,
                 target.node(),
