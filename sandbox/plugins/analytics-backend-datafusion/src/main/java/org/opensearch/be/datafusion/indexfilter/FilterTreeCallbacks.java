@@ -15,7 +15,9 @@ import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 
 import java.lang.foreign.MemorySegment;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Static callback targets invoked by the native engine via FFM upcalls.
@@ -64,6 +66,118 @@ public final class FilterTreeCallbacks {
     private FilterTreeCallbacks() {}
 
     /**
+     * Why an upcall gave up and returned {@code -1}. Every {@code -1} an upcall returns is
+     * attributed to exactly one of these, so the opaque native
+     * {@code "collectDocs(context_id=…, key=…) failed: -1"} that surfaces three layers away
+     * can be traced back to the Java-side decision that produced it.
+     */
+    private enum GiveUpCause {
+        /**
+         * No binding for this {@code contextId}. Either the query's
+         * {@link #unregister(long)} already ran while a native collector call was still in
+         * flight (query completed or was cancelled — tokio abort is cooperative, so a scan
+         * task already inside a blocking row-group prefetch keeps running to its next yield
+         * point), or {@link #register} was never called for it.
+         */
+        NO_BINDING,
+        /** The binding exists but its handle reports the owning query cancelled. */
+        CANCELLED,
+        /** The accepting backend's handle itself returned a negative result. */
+        HANDLE_ERROR
+    }
+
+    /**
+     * Bound on {@link #LOGGED_GIVE_UPS}. Each live query contributes at most one entry per
+     * (op, cause), so this holds many queries' worth of history while staying flat.
+     */
+    private static final int MAX_LOGGED_GIVE_UPS = 1024;
+
+    /**
+     * De-duplication set for give-up diagnostics: {@code contextId/op/cause} → present.
+     * {@code collectDocs} is a per-row-group hot callback and a torn-down query can fail
+     * every remaining row group, so each (query, op, cause) is logged exactly ONCE instead
+     * of once per call. FIFO-evicted past {@link #MAX_LOGGED_GIVE_UPS} — never wholesale
+     * cleared, so a long-lived node can't turn eviction into a log flood.
+     */
+    private static final ConcurrentHashMap<String, Boolean> LOGGED_GIVE_UPS = new ConcurrentHashMap<>();
+    private static final Queue<String> LOGGED_GIVE_UP_ORDER = new ConcurrentLinkedQueue<>();
+
+    /**
+     * Records that {@code op} on {@code contextId} gave up because of {@code cause}, returning
+     * {@code true} only for the FIRST occurrence of that triple so the caller logs once.
+     */
+    private static boolean firstGiveUp(long contextId, String op, GiveUpCause cause) {
+        String key = contextId + "/" + op + "/" + cause;
+        if (LOGGED_GIVE_UPS.putIfAbsent(key, Boolean.TRUE) != null) {
+            return false;
+        }
+        LOGGED_GIVE_UP_ORDER.add(key);
+        while (LOGGED_GIVE_UP_ORDER.size() > MAX_LOGGED_GIVE_UPS) {
+            String evicted = LOGGED_GIVE_UP_ORDER.poll();
+            if (evicted == null) {
+                break;
+            }
+            LOGGED_GIVE_UPS.remove(evicted);
+        }
+        return true;
+    }
+
+    /**
+     * Logs — once per (contextId, op, cause) — that an upcall returned {@code -1}, naming WHICH
+     * condition fired and the doc range so the resulting native
+     * {@code "… failed: -1"} is traceable. {@code range} may be {@code null} for the
+     * lifecycle callbacks that have no doc range.
+     *
+     * <p>Levels: {@link GiveUpCause#CANCELLED} is DEBUG — a cancelled query tearing down its
+     * in-flight collector calls is expected and not operator-actionable. The other two are WARN:
+     * both were previously invisible, and each indicates either a lifecycle bug or a genuine
+     * refusal by the accepting backend. All three are de-duplicated, so nothing floods.
+     */
+    private static void logGiveUp(long contextId, int key, String op, GiveUpCause cause, String range) {
+        if (firstGiveUp(contextId, op, cause) == false) {
+            return;
+        }
+        String detail = range == null ? "" : " " + range;
+        if (cause == GiveUpCause.CANCELLED) {
+            LOGGER.debug(
+                "{}(contextId={}, key={}){} returning -1: query cancelled — in-flight delegated collector calls "
+                    + "are being torn down (expected; logged once per query)",
+                op,
+                contextId,
+                key,
+                detail
+            );
+            return;
+        }
+        if (cause == GiveUpCause.NO_BINDING) {
+            LOGGER.warn(
+                "{}(contextId={}, key={}){} returning -1: NO BINDING registered — the query's binding was "
+                    + "unregistered while a native collector call was still in flight, or register() never ran. "
+                    + "Live contextIds: {} (logged once per query)",
+                op,
+                contextId,
+                key,
+                detail,
+                BINDINGS.keySet()
+            );
+            return;
+        }
+        LOGGER.warn(
+            "{}(contextId={}, key={}){} returning -1: the accepting backend's FilterDelegationHandle returned a "
+                + "negative result (unknown key, or the segment/reader is gone) (logged once per query)",
+            op,
+            contextId,
+            key,
+            detail
+        );
+    }
+
+    /** Renders a doc range for the give-up diagnostics. */
+    private static String range(int minDoc, int maxDoc) {
+        return "[" + minDoc + ", " + maxDoc + ")";
+    }
+
+    /**
      * Register a per-query binding keyed by {@code contextId}.
      * Must be called before query execution begins.
      *
@@ -88,6 +202,11 @@ public final class FilterTreeCallbacks {
      */
     public static void unregister(long contextId) {
         BINDINGS.remove(contextId);
+        // Deliberately NOT clearing this query's LOGGED_GIVE_UPS entries: the give-ups we most
+        // want to see are the ones that arrive AFTER unregister (a native collector call still
+        // in flight during teardown). Dropping the dedup marker here would let those late calls
+        // re-log once per row group — exactly the flood the dedup exists to prevent. The FIFO
+        // cap in firstGiveUp bounds the set instead.
     }
 
     private static long trackStart(long contextId) {
@@ -150,11 +269,16 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
-            assertBindingExists(binding, "createProvider", contextId);
             if (binding == null || binding.handle() == null) {
+                logGiveUp(contextId, annotationId, "createProvider", GiveUpCause.NO_BINDING, null);
+                assertBindingExists(binding, "createProvider", contextId);
                 return -1;
             }
-            return binding.handle().createProvider(annotationId);
+            int providerKey = binding.handle().createProvider(annotationId);
+            if (providerKey < 0) {
+                logGiveUp(contextId, annotationId, "createProvider", GiveUpCause.HANDLE_ERROR, null);
+            }
+            return providerKey;
         } catch (AssertionError e) {
             // Propagate so lifecycle bugs surface in tests; in production -ea is off and this branch never runs.
             throw e;
@@ -197,11 +321,16 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
-            assertBindingExists(binding, "createCollector", contextId);
             if (binding == null || binding.handle() == null) {
+                logGiveUp(contextId, providerKey, "createCollector", GiveUpCause.NO_BINDING, range(minDoc, maxDoc));
+                assertBindingExists(binding, "createCollector", contextId);
                 return -1;
             }
-            return binding.handle().createCollector(providerKey, writerGeneration, minDoc, maxDoc);
+            int collectorKey = binding.handle().createCollector(providerKey, writerGeneration, minDoc, maxDoc);
+            if (collectorKey < 0) {
+                logGiveUp(contextId, providerKey, "createCollector", GiveUpCause.HANDLE_ERROR, range(minDoc, maxDoc));
+            }
+            return collectorKey;
         } catch (AssertionError e) {
             throw e;
         } catch (Throwable throwable) {
@@ -229,18 +358,32 @@ public final class FilterTreeCallbacks {
         long tid = trackStart(contextId);
         try {
             QueryBinding binding = BINDINGS.get(contextId);
-            assertBindingExists(binding, "collectDocs", contextId);
             if (binding == null || binding.handle() == null) {
+                // Log BEFORE the assert: the diagnostic is the production signal and must not
+                // depend on -ea (which is on in tests, off in production).
+                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.NO_BINDING, range(minDoc, maxDoc));
+                assertBindingExists(binding, "collectDocs", contextId);
                 return -1L;
             }
             FilterDelegationHandle handle = binding.handle();
             if (handle.isCancelled()) {
+                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.CANCELLED, range(minDoc, maxDoc));
                 return -1L;
             }
             int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
             MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
-            long result = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
-            return (result < 0) ? -1L : result;
+            // Packed result: upper 32 bits = nextDoc, lower 32 = wordsWritten (see
+            // FilterDelegationHandle#collectDocs). Returned VERBATIM on success — narrowing it to
+            // wordsWritten would silently discard the nextDoc the native evaluator uses to skip
+            // row groups. Only a negative value is a sentinel: nextDoc is a non-negative docId
+            // (Integer.MAX_VALUE when exhausted), so the widest legal packing is
+            // 0x7FFFFFFF_FFFFFFFF — always positive.
+            long packed = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
+            if (packed < 0) {
+                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.HANDLE_ERROR, range(minDoc, maxDoc));
+                return -1L;
+            }
+            return packed;
         } catch (AssertionError e) {
             throw e;
         } catch (Throwable throwable) {
