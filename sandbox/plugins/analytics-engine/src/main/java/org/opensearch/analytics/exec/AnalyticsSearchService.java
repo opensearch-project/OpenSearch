@@ -785,6 +785,12 @@ public class AnalyticsSearchService implements AutoCloseable {
             );
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
 
+            // Detect deleted docs and propagate to the execution context so the native
+            // bridge can pass it to Rust (for defusing the live-docs MatchAll Collector
+            // when no deletions exist).
+            AnalyticsSearchBackendPlugin luceneBackend = backends.get("lucene");
+            ctx.setHasDeletedDocs(luceneBackend != null && luceneBackend.hasDeletedDocs(ctx));
+
             backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
             // Handle exchange — if plan has delegation, ask accepting backend for handle and pass to driving
@@ -828,6 +834,14 @@ public class AnalyticsSearchService implements AutoCloseable {
                 // queries have isolated FFM callback bindings. The returned cleanup removes the
                 // binding after query execution completes.
                 trackerCleanup = backend.configureFilterDelegation(contextId, handle, tracker, backendContext);
+            } else if (luceneBackend != null && task != null && !"lucene".equals(resolved.plan.getBackendId())) {
+                // No delegation, but a non-Lucene driving backend (e.g. DataFusion) needs a Lucene
+                // handle registered so Rust's getLiveDocs FFM callback can resolve liveDocs for the
+                // ListingTable path. Skip when Lucene is the driving backend: it applies liveDocs
+                // natively via its Collector and does not implement configureFilterDelegation.
+                long contextId = task.getId();
+                FilterDelegationHandle handle = luceneBackend.getFilterDelegationHandle(java.util.List.of(), ctx);
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, null, backendContext);
             }
 
             // Hash-shuffle producer routing: if the instruction chain produced a

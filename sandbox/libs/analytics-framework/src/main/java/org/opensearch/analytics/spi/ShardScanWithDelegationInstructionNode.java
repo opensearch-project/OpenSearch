@@ -25,28 +25,36 @@ public class ShardScanWithDelegationInstructionNode extends ShardScanInstruction
 
     private final FilterTreeShape treeShape;
     private final int delegatedPredicateCount;
+    private final boolean requiresDeletedDocFiltering;
 
     public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-        this(treeShape, delegatedPredicateCount, false, null);
+        this(treeShape, delegatedPredicateCount, false, null, true);
     }
 
-    // treeShape/delegatedPredicateCount/requestsRowIds are upstream's params; logicalTableName is our
-    // feature-branch addition, appended last.
+    public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount, boolean requestsRowIds) {
+        this(treeShape, delegatedPredicateCount, requestsRowIds, null, true);
+    }
+
+    // treeShape/delegatedPredicateCount/requestsRowIds are upstream's params; logicalTableName is main's
+    // addition; requiresDeletedDocFiltering is our feature-branch addition, appended last.
     public ShardScanWithDelegationInstructionNode(
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
         boolean requestsRowIds,
-        String logicalTableName
+        String logicalTableName,
+        boolean requiresDeletedDocFiltering
     ) {
         super(requestsRowIds, logicalTableName);
         this.treeShape = treeShape;
         this.delegatedPredicateCount = delegatedPredicateCount;
+        this.requiresDeletedDocFiltering = requiresDeletedDocFiltering;
     }
 
     public ShardScanWithDelegationInstructionNode(StreamInput in) throws IOException {
         super(in);
         this.treeShape = in.readEnum(FilterTreeShape.class);
         this.delegatedPredicateCount = in.readVInt();
+        this.requiresDeletedDocFiltering = in.readBoolean();
     }
 
     @Override
@@ -59,6 +67,7 @@ public class ShardScanWithDelegationInstructionNode extends ShardScanInstruction
         super.writeTo(out);
         out.writeEnum(treeShape);
         out.writeVInt(delegatedPredicateCount);
+        out.writeBoolean(requiresDeletedDocFiltering);
     }
 
     public FilterTreeShape getTreeShape() {
@@ -67,5 +76,15 @@ public class ShardScanWithDelegationInstructionNode extends ShardScanInstruction
 
     public int getDelegatedPredicateCount() {
         return delegatedPredicateCount;
+    }
+
+    /**
+     * Whether the data node should inject a MatchAll delegation when deleted docs are present.
+     * Computed at the coordinator via the tree coverage algorithm: {@code true} when the filter
+     * tree does not guarantee that every result row passes through a correctness Collector
+     * (which respects liveDocs).
+     */
+    public boolean requiresDeletedDocFiltering() {
+        return requiresDeletedDocFiltering;
     }
 }
