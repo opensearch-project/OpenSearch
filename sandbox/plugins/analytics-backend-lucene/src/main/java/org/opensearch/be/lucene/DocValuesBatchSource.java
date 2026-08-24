@@ -73,6 +73,7 @@ final class DocValuesBatchSource implements ArrowBatchSource {
     private final LongAdder batches;
     private final LongAdder rows;
     private final LongAdder nullValues;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private int leafIndex = -1;
@@ -323,7 +324,7 @@ final class DocValuesBatchSource implements ArrowBatchSource {
     }
 
     private void checkCancelled() {
-        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+        if (cancelled.get() || (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled())) {
             throw new TaskCancelledException("doc-values scan cancelled");
         }
     }
@@ -335,7 +336,13 @@ final class DocValuesBatchSource implements ArrowBatchSource {
     }
 
     @Override
+    public void cancel() {
+        cancelled.set(true);
+    }
+
+    @Override
     public void close() {
+        cancel();
         if (closed.compareAndSet(false, true)) {
             try {
                 searcher.getIndexReader().decRef();

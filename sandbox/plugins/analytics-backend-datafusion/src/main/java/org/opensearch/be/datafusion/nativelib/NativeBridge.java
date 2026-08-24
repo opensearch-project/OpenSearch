@@ -14,6 +14,7 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.be.datafusion.NativeErrorConverter;
+import org.opensearch.be.datafusion.arrow.ArrowBatchSourceCallbacks;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -30,6 +31,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -115,9 +118,11 @@ public final class NativeBridge {
     private static final MethodHandle FREE_METRICS_BUF;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
     private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
+    private static final MethodHandle REGISTER_ARROW_BATCH_SOURCE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
     private static final MethodHandle CLOSE_LOCAL_SESSION;
     private static final MethodHandle REGISTER_PARTITION_STREAM;
+    private static final MethodHandle REGISTER_ARROW_BATCH_SOURCE_PROVIDER;
     private static final MethodHandle EXECUTE_LOCAL_PLAN;
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_TERMINATE_EARLY;
@@ -335,6 +340,25 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_register_arrow_batch_source_provider(session_ptr, input_id_ptr, input_id_len,
+        // plan_ptr, plan_len, binding_id, task_id, out_ptr, out_cap, out_len)
+        REGISTER_ARROW_BATCH_SOURCE_PROVIDER = linker.downcallHandle(
+            lib.find("df_register_arrow_batch_source_provider").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+
         // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len,
         // partial_plan_ptr, partial_plan_len,
         // out_ptr, out_cap, out_len)
@@ -406,6 +430,11 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS
             )
+        );
+
+        REGISTER_ARROW_BATCH_SOURCE_CALLBACKS = linker.downcallHandle(
+            lib.find("df_register_arrow_batch_source_callbacks").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
         );
 
         // Same signature as df_register_memtable but for SessionContextHandle (shard-scan path).
@@ -657,6 +686,7 @@ public final class NativeBridge {
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
         installFilterTreeCallbacks(linker);
+        installArrowBatchSourceCallbacks(linker);
 
         CLOSE_SESSION_CONTEXT = linker.downcallHandle(
             lib.find("df_close_session_context").orElseThrow(),
@@ -757,6 +787,85 @@ public final class NativeBridge {
     }
 
     private NativeBridge() {}
+
+    private static void installArrowBatchSourceCallbacks(Linker linker) {
+        try {
+            Arena arena = Arena.global();
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle createSource = lookup.findStatic(
+                ArrowBatchSourceCallbacks.class,
+                "createSource",
+                MethodType.methodType(int.class, long.class, MemorySegment.class, long.class, MemorySegment.class, long.class)
+            );
+            MethodHandle nextBatch = lookup.findStatic(
+                ArrowBatchSourceCallbacks.class,
+                "nextBatch",
+                MethodType.methodType(
+                    long.class,
+                    long.class,
+                    int.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    long.class
+                )
+            );
+            MethodHandle cancelSource = lookup.findStatic(
+                ArrowBatchSourceCallbacks.class,
+                "cancelSource",
+                MethodType.methodType(void.class, long.class, int.class)
+            );
+            MethodHandle releaseSource = lookup.findStatic(
+                ArrowBatchSourceCallbacks.class,
+                "releaseSource",
+                MethodType.methodType(void.class, long.class, int.class)
+            );
+            MemorySegment createSourceStub = linker.upcallStub(
+                createSource,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG
+                ),
+                arena
+            );
+            MemorySegment nextBatchStub = linker.upcallStub(
+                nextBatch,
+                FunctionDescriptor.of(
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG
+                ),
+                arena
+            );
+            MemorySegment cancelSourceStub = linker.upcallStub(
+                cancelSource,
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
+                arena
+            );
+            MemorySegment releaseSourceStub = linker.upcallStub(
+                releaseSource,
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT),
+                arena
+            );
+            NativeCall.invokeVoid(
+                REGISTER_ARROW_BATCH_SOURCE_CALLBACKS,
+                createSourceStub,
+                nextBatchStub,
+                cancelSourceStub,
+                releaseSourceStub
+            );
+        } catch (Throwable throwable) {
+            throw new ExceptionInInitializerError(throwable);
+        }
+    }
 
     private static void installFilterTreeCallbacks(Linker linker) {
         try {
@@ -1359,8 +1468,9 @@ public final class NativeBridge {
     // ---- Coordinator-reduce exports ----
 
     /**
-     * Pair returned from {@link #registerPartitionStream} / {@link #registerMemtable}: the
-     * native sender pointer (or 0 for memtable) plus the Arrow IPC-encoded schema the native
+     * Pair returned from {@link #registerArrowBatchSourceProvider}, {@link #registerPartitionStream}, or
+     * {@link #registerMemtable}: the
+     * native sender pointer (or 0 for non-stream inputs) plus the Arrow IPC-encoded schema the native
      * session derived by lowering the producer-side substrait. The Java tripwire
      * ({@code typesMatch} in {@code DatafusionReduceSink}) validates fed batches against this
      * schema, and downstream callers decode it once into an Arrow {@link org.apache.arrow.vector.types.pojo.Schema}.
@@ -1382,6 +1492,43 @@ public final class NativeBridge {
     /** Frees the native local session. Tolerates a zero pointer for idempotent close. */
     public static void closeLocalSession(long sessionPtr) {
         NativeCall.invokeVoid(CLOSE_LOCAL_SESSION, sessionPtr);
+    }
+
+    /**
+     * Registers a Java Arrow batch source provider. The binding ID selects the Java factory;
+     * the task ID is used only for native cancellation and accounting. The production owner
+     * must back source batches with a breaker-accounted Arrow allocator. Native imports retain
+     * those externally accounted buffers but do not perform separate coordinator admission.
+     */
+    public static RegisteredInput registerArrowBatchSourceProvider(
+        long sessionPtr,
+        String inputId,
+        byte[] planBytes,
+        long bindingId,
+        long taskId
+    ) {
+        NativeHandle.validatePointer(sessionPtr, "session");
+        if (bindingId <= 0L) {
+            throw new IllegalArgumentException("bindingId must be positive");
+        }
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            var out = call.outBuffer(64 * 1024);
+            call.invoke(
+                REGISTER_ARROW_BATCH_SOURCE_PROVIDER,
+                sessionPtr,
+                id.segment(),
+                id.len(),
+                call.bytes(planBytes),
+                (long) planBytes.length,
+                bindingId,
+                taskId,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
+            return new RegisteredInput(0L, out.toByteArray());
+        }
     }
 
     /**

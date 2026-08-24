@@ -664,6 +664,37 @@ pub unsafe extern "C" fn df_destroy_custom_cache_manager(ptr: i64) {
     }
 }
 
+/// Registers a Java-backed Arrow batch source provider on a local session.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_arrow_batch_source_provider(
+    session_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    plan_ptr: *const u8,
+    plan_len: i64,
+    binding_id: i64,
+    task_id: i64,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|error| format!("df_register_arrow_batch_source_provider: input_id: {error}"))?;
+    let plan = slice::from_raw_parts(plan_ptr, plan_len as usize);
+    let schema_ipc =
+        api::register_arrow_batch_source_provider(session_ptr, input_id, plan, binding_id, task_id)
+            .map_err(|error| error.to_string())?;
+    write_out_buffer(
+        &schema_ipc,
+        out_ptr,
+        out_cap,
+        out_len,
+        "Arrow batch source provider schema IPC",
+    )?;
+    Ok(0)
+}
+
 /// Registers a streaming partition input on the session. Schema is derived by
 /// lowering the producer-side substrait `partial_plan_bytes`; the resulting
 /// IPC-encoded schema is written into the caller-allocated `out_ptr/out_cap`

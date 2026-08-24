@@ -215,6 +215,34 @@ public class DocValuesBatchSourceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testCooperativeCancellation() throws Exception {
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)
+        ) {
+            Document document = new Document();
+            document.add(new NumericDocValuesField("n", 1));
+            writer.addDocument(document);
+            writer.commit();
+
+            try (
+                DirectoryReader reader = DirectoryReader.open(writer);
+                DocValuesBatchSourceFactory factory = new DocValuesBatchSourceFactory(
+                    new IndexSearcher(reader),
+                    new MatchAllDocsQuery(),
+                    List.of(new InputColumn("n", ColumnKind.LONG)),
+                    allocator,
+                    null
+                );
+                ArrowBatchSource source = factory.open(new int[] { 0 })
+            ) {
+                source.cancel();
+                expectThrows(TaskCancelledException.class, source::nextBatch);
+            }
+        }
+    }
+
     private static void assertMultiValuedRejected(DirectoryReader reader, RootAllocator allocator, InputColumn column, String kind)
         throws Exception {
         try (
