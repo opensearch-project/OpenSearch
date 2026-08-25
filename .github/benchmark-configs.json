@@ -293,7 +293,7 @@
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "INSTALL_STREAMING_PLUGINS": "true",
       "JVM_SYS_PROPS": "io.netty.allocator.numDirectArenas=16,io.netty.noUnsafe=false,io.netty.tryUnsafe=true,io.netty.tryReflectionSetAccessible=true",
-      "ADDITIONAL_CONFIG": "opensearch.experimental.feature.transport.stream.enabled:true stream.search.enabled:true arrow.flight.publish_host:0.0.0.0 arrow.flight.bind_host:0.0.0.0 search.aggregations.streaming.max_estimated_bucket_count:2000000",
+      "ADDITIONAL_CONFIG": "opensearch.experimental.feature.transport.stream.enabled:true stream.search.enabled:true arrow.flight.publish_host:127.0.0.1 arrow.flight.bind_host:127.0.0.1 search.aggregations.streaming.max_estimated_bucket_count:2000000",
       "TEST_WORKLOAD": "clickbench",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"clickbench_3_shards\",\"use_snapshot\":true,\"snapshot_repo\":\"benchmark-workloads-repo-3x\",\"warmup_iterations\":10,\"test_iterations\":20}",
       "CAPTURE_NODE_STAT": "true",
