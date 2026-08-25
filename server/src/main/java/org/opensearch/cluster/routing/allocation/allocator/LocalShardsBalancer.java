@@ -72,6 +72,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Metadata metadata;
 
     private final float avgPrimaryShardsPerNode;
+    private final int primaryBalanceNodeCount;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
     private final Supplier<Boolean> timedOutFunc;
@@ -96,19 +97,20 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         int primarySum = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
-        int nodeCount = routingNodes.size();
+        int primaryBalanceNodeCount = routingNodes.size();
         if (preferPrimaryFilterAware) {
-            int eligible = 0;
+            int eligibleNodeCount = 0;
             for (RoutingNode routingNode : routingNodes) {
                 if (allocation.deciders().canAllocateAnyShardToNode(routingNode, allocation).type() != Decision.Type.NO) {
-                    eligible++;
+                    eligibleNodeCount++;
                 }
             }
-            if (eligible > 0) {
-                nodeCount = eligible;
+            if (eligibleNodeCount > 0) {
+                primaryBalanceNodeCount = eligibleNodeCount;
             }
         }
-        avgPrimaryShardsPerNode = ((float) primarySum) / nodeCount;
+        this.primaryBalanceNodeCount = primaryBalanceNodeCount;
+        avgPrimaryShardsPerNode = ((float) primarySum) / primaryBalanceNodeCount;
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -136,7 +138,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     @Override
     public float avgPrimaryShardsPerNode(String index) {
-        return ((float) metadata.index(index).getNumberOfShards()) / nodes.size();
+        return ((float) metadata.index(index).getNumberOfShards()) / primaryBalanceNodeCount;
     }
 
     @Override
