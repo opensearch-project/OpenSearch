@@ -25,6 +25,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -330,9 +331,9 @@ public class LicenseHeadersTask extends DefaultTask {
     private List<File> sourceDirectories() {
         List<File> result = new ArrayList<>();
         for (FileCollection files : javaFiles) {
-            for (File file : files.getFiles()) {
-                if (file.exists() && file.isDirectory()) {
-                    result.add(file);
+            for (File dir : ((SourceDirectorySet) files).getSrcDirs()) {
+                if (dir.exists()) {
+                    result.add(dir);
                 }
             }
         }

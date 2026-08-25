@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
  * Tests for {@link LicenseHeadersTask}, in particular that a license registered through
