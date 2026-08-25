@@ -11,17 +11,25 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Translates SUM metric aggregation to Calcite. */
 public class SumMetricTranslator extends AbstractMetricTranslator<SumAggregationBuilder> {
 
-    /** Creates a SUM metric translator. */
-    public SumMetricTranslator() {}
+    /**
+     * Creates a SUM metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public SumMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        super(mapperServiceSupplier);
+    }
 
     @Override
     public Class<SumAggregationBuilder> getAggregationType() {
@@ -43,6 +51,6 @@ public class SumMetricTranslator extends AbstractMetricTranslator<SumAggregation
     public InternalAggregation toInternalAggregation(SumAggregationBuilder agg, Map<String, Object> values) {
         Object value = singleValue(agg, values);
         double sum = value == null ? 0.0 : toDouble(value);
-        return new InternalSum(agg.getName(), sum, MetricTranslator.parseFormat(agg.format()), AggregationTranslator.userMetadata(agg));
+        return new InternalSum(agg.getName(), sum, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }

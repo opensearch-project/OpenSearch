@@ -15,6 +15,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
@@ -22,6 +23,7 @@ import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.opensearch.dsl.aggregation.metric.StatsMetricTranslator.COUNT_SUFFIX;
 import static org.opensearch.dsl.aggregation.metric.StatsMetricTranslator.MAX_SUFFIX;
@@ -42,8 +44,16 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
 
     static final String VARIANCE_SUFFIX = "_variance";
 
-    /** Creates an extended_stats metric translator. */
-    public ExtendedStatsMetricTranslator() {}
+    private final Supplier<MapperService> mapperServiceSupplier;
+
+    /**
+     * Creates an extended_stats metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public ExtendedStatsMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        this.mapperServiceSupplier = mapperServiceSupplier;
+    }
 
     @Override
     public Class<ExtendedStatsAggregationBuilder> getAggregationType() {
@@ -107,7 +117,7 @@ public class ExtendedStatsMetricTranslator implements MetricTranslator<ExtendedS
             max,
             sumOfSquares,
             sigma,
-            MetricTranslator.parseFormat(agg.format()),
+            MetricTranslator.resolveFormat(mapperServiceSupplier, agg.field(), agg.format(), name),
             AggregationTranslator.userMetadata(agg)
         );
     }

@@ -36,13 +36,13 @@ public class AggregationRegistryFactory {
      */
     public static AggregationRegistry create(Supplier<MapperService> mapperServiceSupplier) {
         AggregationRegistry registry = new AggregationRegistry();
-        registry.register(new AvgMetricTranslator());
-        registry.register(new SumMetricTranslator());
-        registry.register(new MinMetricTranslator());
-        registry.register(new MaxMetricTranslator());
-        registry.register(new StatsMetricTranslator());
-        registry.register(new ExtendedStatsMetricTranslator());
-        registry.register(new ValueCountMetricTranslator());
+        registry.register(new AvgMetricTranslator(mapperServiceSupplier));
+        registry.register(new SumMetricTranslator(mapperServiceSupplier));
+        registry.register(new MinMetricTranslator(mapperServiceSupplier));
+        registry.register(new MaxMetricTranslator(mapperServiceSupplier));
+        registry.register(new StatsMetricTranslator(mapperServiceSupplier));
+        registry.register(new ExtendedStatsMetricTranslator(mapperServiceSupplier));
+        registry.register(new ValueCountMetricTranslator(mapperServiceSupplier));
         registry.register(new TermsBucketTranslator(mapperServiceSupplier));
         return registry;
     }

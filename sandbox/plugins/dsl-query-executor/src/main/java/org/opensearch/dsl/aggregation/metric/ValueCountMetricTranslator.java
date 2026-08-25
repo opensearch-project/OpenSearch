@@ -11,11 +11,13 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Translator for value_count aggregation.
@@ -23,8 +25,15 @@ import java.util.Map;
  */
 public class ValueCountMetricTranslator extends AbstractMetricTranslator<ValueCountAggregationBuilder> {
 
-    /** Creates a value_count metric translator. */
-    public ValueCountMetricTranslator() {}
+    /**
+     * Creates a value_count metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService (unused today:
+     *        value_count carries no value format)
+     */
+    public ValueCountMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        super(mapperServiceSupplier);
+    }
 
     @Override
     public Class<ValueCountAggregationBuilder> getAggregationType() {

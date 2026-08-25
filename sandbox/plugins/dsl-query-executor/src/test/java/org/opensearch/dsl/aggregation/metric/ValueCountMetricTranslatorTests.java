@@ -15,6 +15,8 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.golden.TestMapperServices;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
@@ -23,11 +25,14 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ValueCountMetricTranslatorTests extends OpenSearchTestCase {
 
+    private static final Supplier<MapperService> MAPPER = TestMapperServices.fromSqlMapping(Map.of("price", "BIGINT", "brand", "VARCHAR"));
+
     private final ConversionContext ctx = TestUtils.createContext();
-    private final ValueCountMetricTranslator translator = new ValueCountMetricTranslator();
+    private final ValueCountMetricTranslator translator = new ValueCountMetricTranslator(MAPPER);
 
     public void testGetAggregationType() {
         assertEquals(ValueCountAggregationBuilder.class, translator.getAggregationType());

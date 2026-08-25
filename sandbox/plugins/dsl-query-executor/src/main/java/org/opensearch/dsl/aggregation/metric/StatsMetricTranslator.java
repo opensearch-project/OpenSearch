@@ -17,6 +17,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalStats;
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Translator for the stats aggregation. One request node fans out to four SQL aggregate
@@ -38,8 +40,16 @@ public class StatsMetricTranslator implements MetricTranslator<StatsAggregationB
     static final String MAX_SUFFIX = "_max";
     static final String SUM_SUFFIX = "_sum";
 
-    /** Creates a stats metric translator. */
-    public StatsMetricTranslator() {}
+    private final Supplier<MapperService> mapperServiceSupplier;
+
+    /**
+     * Creates a stats metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public StatsMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        this.mapperServiceSupplier = mapperServiceSupplier;
+    }
 
     @Override
     public Class<StatsAggregationBuilder> getAggregationType() {
@@ -105,7 +115,7 @@ public class StatsMetricTranslator implements MetricTranslator<StatsAggregationB
             sum,
             min,
             max,
-            MetricTranslator.parseFormat(agg.format()),
+            MetricTranslator.resolveFormat(mapperServiceSupplier, agg.field(), agg.format(), name),
             AggregationTranslator.userMetadata(agg)
         );
     }

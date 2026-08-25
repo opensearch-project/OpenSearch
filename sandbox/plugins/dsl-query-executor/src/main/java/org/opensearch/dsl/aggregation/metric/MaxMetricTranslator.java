@@ -11,17 +11,25 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** Translates MAX metric aggregation to Calcite. */
 public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregationBuilder> {
 
-    /** Creates a MAX metric translator. */
-    public MaxMetricTranslator() {}
+    /**
+     * Creates a MAX metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value format resolution
+     */
+    public MaxMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        super(mapperServiceSupplier);
+    }
 
     @Override
     public Class<MaxAggregationBuilder> getAggregationType() {
@@ -43,6 +51,6 @@ public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregation
     public InternalAggregation toInternalAggregation(MaxAggregationBuilder agg, Map<String, Object> values) {
         Object value = singleValue(agg, values);
         double max = value == null ? Double.NEGATIVE_INFINITY : toDouble(value);
-        return new InternalMax(agg.getName(), max, MetricTranslator.parseFormat(agg.format()), AggregationTranslator.userMetadata(agg));
+        return new InternalMax(agg.getName(), max, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }

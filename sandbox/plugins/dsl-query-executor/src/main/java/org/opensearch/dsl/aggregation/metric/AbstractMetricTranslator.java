@@ -15,11 +15,14 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Base class for simple metric translators (single value: AVG, SUM, MIN, MAX, COUNT).
@@ -29,8 +32,22 @@ import java.util.Map;
  */
 public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
-    /** Creates a metric translator. */
-    protected AbstractMetricTranslator() {}
+    private final Supplier<MapperService> mapperServiceSupplier;
+
+    /**
+     * Creates a metric translator.
+     *
+     * @param mapperServiceSupplier supplies the target index's MapperService for value
+     *        format resolution; supplying null fails rendering of format-bearing metrics
+     */
+    protected AbstractMetricTranslator(Supplier<MapperService> mapperServiceSupplier) {
+        this.mapperServiceSupplier = mapperServiceSupplier;
+    }
+
+    /** Resolves this metric's {@link DocValueFormat} from the index mapping — see {@link MetricTranslator#resolveFormat}. */
+    protected DocValueFormat resolveFormat(T agg) {
+        return MetricTranslator.resolveFormat(mapperServiceSupplier, getFieldName(agg), agg.format(), agg.getName());
+    }
 
     /**
      * Rejects request parameters the analytics path cannot honor, before any plan state

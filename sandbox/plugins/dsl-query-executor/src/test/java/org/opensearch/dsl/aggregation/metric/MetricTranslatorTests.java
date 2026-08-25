@@ -15,6 +15,8 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.golden.TestMapperServices;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
@@ -26,13 +28,16 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MetricTranslatorTests extends OpenSearchTestCase {
+
+    private static final Supplier<MapperService> MAPPER = TestMapperServices.fromSqlMapping(Map.of("price", "BIGINT", "brand", "VARCHAR"));
 
     private final ConversionContext ctx = TestUtils.createContext();
 
     public void testAvgTranslator() throws ConversionException {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         List<AggregateCall> calls = translator.toAggregateCalls(new AvgAggregationBuilder("avg_price").field("price"), ctx.getRowType());
 
         assertEquals(1, calls.size());
@@ -44,7 +49,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testSumTranslator() throws ConversionException {
-        SumMetricTranslator translator = new SumMetricTranslator();
+        SumMetricTranslator translator = new SumMetricTranslator(MAPPER);
         List<AggregateCall> calls = translator.toAggregateCalls(new SumAggregationBuilder("total").field("price"), ctx.getRowType());
 
         assertEquals(1, calls.size());
@@ -54,7 +59,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testMinTranslator() throws ConversionException {
-        MinMetricTranslator translator = new MinMetricTranslator();
+        MinMetricTranslator translator = new MinMetricTranslator(MAPPER);
         List<AggregateCall> calls = translator.toAggregateCalls(new MinAggregationBuilder("min_price").field("price"), ctx.getRowType());
 
         assertEquals(1, calls.size());
@@ -64,7 +69,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testMaxTranslator() throws ConversionException {
-        MaxMetricTranslator translator = new MaxMetricTranslator();
+        MaxMetricTranslator translator = new MaxMetricTranslator(MAPPER);
         List<AggregateCall> calls = translator.toAggregateCalls(new MaxAggregationBuilder("max_price").field("price"), ctx.getRowType());
 
         assertEquals(1, calls.size());
@@ -74,7 +79,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testThrowsForUnknownField() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
 
         expectThrows(
             ConversionException.class,
@@ -83,7 +88,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testNonNumericFieldRejectedWithClassicMessage() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -94,9 +99,9 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testNonNumericFieldRejectedForAllArithmeticMetrics() {
-        assertNonNumericRejected(new SumMetricTranslator(), new SumAggregationBuilder("s").field("brand"), "sum");
-        assertNonNumericRejected(new MinMetricTranslator(), new MinAggregationBuilder("m").field("brand"), "min");
-        assertNonNumericRejected(new MaxMetricTranslator(), new MaxAggregationBuilder("x").field("brand"), "max");
+        assertNonNumericRejected(new SumMetricTranslator(MAPPER), new SumAggregationBuilder("s").field("brand"), "sum");
+        assertNonNumericRejected(new MinMetricTranslator(MAPPER), new MinAggregationBuilder("m").field("brand"), "min");
+        assertNonNumericRejected(new MaxMetricTranslator(MAPPER), new MaxAggregationBuilder("x").field("brand"), "max");
     }
 
     private <T extends org.opensearch.search.aggregations.AggregationBuilder> void assertNonNumericRejected(
@@ -109,7 +114,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testAggregateFieldName() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         List<String> names = translator.getAggregateFieldNames(new AvgAggregationBuilder("avg_price").field("price"));
         assertEquals(1, names.size());
         assertEquals("avg_price", names.get(0));
@@ -121,34 +126,37 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
         AvgAggregationBuilder avg = new AvgAggregationBuilder("a").field("price");
         avg.setMetadata(meta);
-        assertEquals(meta, new AvgMetricTranslator().toInternalAggregation(avg, Map.of("a", 1.0)).getMetadata());
+        assertEquals(meta, new AvgMetricTranslator(MAPPER).toInternalAggregation(avg, Map.of("a", 1.0)).getMetadata());
 
         SumAggregationBuilder sum = new SumAggregationBuilder("s").field("price");
         sum.setMetadata(meta);
-        assertEquals(meta, new SumMetricTranslator().toInternalAggregation(sum, Map.of("s", 1.0)).getMetadata());
+        assertEquals(meta, new SumMetricTranslator(MAPPER).toInternalAggregation(sum, Map.of("s", 1.0)).getMetadata());
 
         MinAggregationBuilder min = new MinAggregationBuilder("mn").field("price");
         min.setMetadata(meta);
-        assertEquals(meta, new MinMetricTranslator().toInternalAggregation(min, Map.of("mn", 1.0)).getMetadata());
+        assertEquals(meta, new MinMetricTranslator(MAPPER).toInternalAggregation(min, Map.of("mn", 1.0)).getMetadata());
 
         MaxAggregationBuilder max = new MaxAggregationBuilder("mx").field("price");
         max.setMetadata(meta);
-        assertEquals(meta, new MaxMetricTranslator().toInternalAggregation(max, Map.of("mx", 1.0)).getMetadata());
+        assertEquals(meta, new MaxMetricTranslator(MAPPER).toInternalAggregation(max, Map.of("mx", 1.0)).getMetadata());
 
         // Echoed even when the metric has no value (empty result)
-        assertEquals(meta, new AvgMetricTranslator().toInternalAggregation(avg, null).getMetadata());
+        assertEquals(meta, new AvgMetricTranslator(MAPPER).toInternalAggregation(avg, null).getMetadata());
     }
 
     /** Requests without meta keep rendering without a meta section. */
     public void testNullMetadataStaysNull() {
         assertNull(
-            new AvgMetricTranslator().toInternalAggregation(new AvgAggregationBuilder("a").field("price"), Map.of("a", 1.0)).getMetadata()
+            new AvgMetricTranslator(MAPPER).toInternalAggregation(new AvgAggregationBuilder("a").field("price"), Map.of("a", 1.0))
+                .getMetadata()
         );
-        assertNull(new MaxMetricTranslator().toInternalAggregation(new MaxAggregationBuilder("mx").field("price"), null).getMetadata());
+        assertNull(
+            new MaxMetricTranslator(MAPPER).toInternalAggregation(new MaxAggregationBuilder("mx").field("price"), null).getMetadata()
+        );
     }
 
     public void testMissingAggregatesOverCoalescedColumn() throws ConversionException {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
         agg.missing(0);
         int baseFieldCount = ctx.getRowType().getFieldCount();
@@ -160,7 +168,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testMissingWithoutAllocatorRejected() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
         agg.missing(0);
 
@@ -168,10 +176,10 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testScriptRejectedForAllSimpleMetrics() {
-        assertScriptRejected(new AvgMetricTranslator(), new AvgAggregationBuilder("m"));
-        assertScriptRejected(new SumMetricTranslator(), new SumAggregationBuilder("m"));
-        assertScriptRejected(new MinMetricTranslator(), new MinAggregationBuilder("m"));
-        assertScriptRejected(new MaxMetricTranslator(), new MaxAggregationBuilder("m"));
+        assertScriptRejected(new AvgMetricTranslator(MAPPER), new AvgAggregationBuilder("m"));
+        assertScriptRejected(new SumMetricTranslator(MAPPER), new SumAggregationBuilder("m"));
+        assertScriptRejected(new MinMetricTranslator(MAPPER), new MinAggregationBuilder("m"));
+        assertScriptRejected(new MaxMetricTranslator(MAPPER), new MaxAggregationBuilder("m"));
     }
 
     private <T extends ValuesSourceAggregationBuilder<T>> void assertScriptRejected(AbstractMetricTranslator<T> translator, T agg) {
@@ -183,7 +191,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testNonNumericMissingRejected() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
         agg.missing("not-a-number");
         LiteralColumnAllocator allocator = new AggregationMetadataBuilder().literalColumnAllocator(ctx.getRowType().getFieldCount());
@@ -192,7 +200,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testFormatAppliedToResponse() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
         agg.format("0.00");
 
@@ -202,7 +210,7 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testInvalidFormatRejected() {
-        AvgMetricTranslator translator = new AvgMetricTranslator();
+        AvgMetricTranslator translator = new AvgMetricTranslator(MAPPER);
         AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price");
         agg.format("0.0.0");
         LiteralColumnAllocator allocator = new AggregationMetadataBuilder().literalColumnAllocator(ctx.getRowType().getFieldCount());

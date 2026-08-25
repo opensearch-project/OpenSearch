@@ -15,6 +15,8 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -22,6 +24,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Translates a metric aggregation to Calcite AggregateCall(s),
@@ -55,17 +58,35 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
     }
 
     /**
-     * Resolves the request's {@code format} pattern to a {@link DocValueFormat} (decimal
-     * patterns only; RAW when absent). Validate first via {@link #validateFormat}.
+     * Resolves the metric's {@link DocValueFormat} from the index mapping, honoring the
+     * request's {@code format} pattern when present — the same precedence classic search
+     * applies in {@code ValuesSourceConfig.resolveFormat}. Fails loudly when the mapping
+     * or the field cannot be resolved, matching the terms rendering contract.
      *
-     * @param pattern the request's format pattern, or null/empty for RAW
+     * @param mapperServiceSupplier supplies the target index's MapperService
+     * @param field the aggregated field
+     * @param pattern the request's format pattern, or null/empty for the mapping's format
+     * @param aggName the aggregation name for error messages
      * @return the resolved format
      */
-    static DocValueFormat parseFormat(String pattern) {
-        if (pattern == null || pattern.isEmpty()) {
-            return DocValueFormat.RAW;
+    static DocValueFormat resolveFormat(Supplier<MapperService> mapperServiceSupplier, String field, String pattern, String aggName) {
+        MapperService mapperService = mapperServiceSupplier == null ? null : mapperServiceSupplier.get();
+        if (mapperService == null) {
+            throw new IllegalStateException(
+                "index mapping unavailable for metric aggregation ["
+                    + aggName
+                    + "] — cannot resolve the value format for field ["
+                    + field
+                    + "]"
+            );
         }
-        return new DocValueFormat.Decimal(pattern);
+        MappedFieldType fieldType = mapperService.fieldType(field);
+        if (fieldType == null) {
+            throw new IllegalStateException(
+                "field [" + field + "] of metric aggregation [" + aggName + "] is not present in the index mapping"
+            );
+        }
+        return fieldType.docValueFormat(pattern == null || pattern.isEmpty() ? null : pattern, null);
     }
 
     /**
@@ -77,8 +98,11 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      * @throws ConversionException if the pattern is not a valid decimal format
      */
     static void validateFormat(String pattern, String aggName) throws ConversionException {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
         try {
-            parseFormat(pattern);
+            new DocValueFormat.Decimal(pattern);
         } catch (IllegalArgumentException e) {
             throw new ConversionException("aggregation [" + aggName + "] has an invalid format [" + pattern + "]: " + e.getMessage());
         }
