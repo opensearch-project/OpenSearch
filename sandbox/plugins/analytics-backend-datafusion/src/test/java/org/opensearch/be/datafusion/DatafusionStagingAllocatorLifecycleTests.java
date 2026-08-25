@@ -20,94 +20,89 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Regression tests for the staging-allocator LIFETIME contract, i.e. the bug behind
- * {@code IllegalStateException: Memory was leaked by query. Memory leaked: (1024)} thrown from
- * {@code BaseAllocator#close} via the old {@code reclaimDrainedStaging}.
+ * Regression tests for the staging-allocator OWNERSHIP contract: the allocator batches are imported onto is
+ * supplied by the caller ({@code AnalyticsSearchService} in production, via
+ * {@code ShardScanExecutionContext#getImportStagingAllocator}), node-scoped, and never created or closed by
+ * the stream. Two separate bugs are pinned here, both rooted in a stream owning its staging allocator:
  *
- * <p><b>Why this asserts the contract rather than the race.</b> The failure was a data race between the
- * producer thread (sweeping drained staging allocators) and the Flight executor thread (charging the
- * reused stream root's allocator in {@code BaseFixedWidthVector#transferTo}). The window is a couple of
- * statements wide with no injection point, so a thread-racing test would reproduce only probabilistically.
- * What IS deterministic is the invariant the transport depends on and the old code broke:
- * {@code FlightServerChannel#transferIntoStreamRoot} builds its long-lived stream root on the FIRST
- * emitted batch's vector allocator, and its comment states "The producer's allocator must be long-lived
- * (not closed per-request)". So:
  * <ul>
- *   <li>every batch of one stream must be imported on the SAME allocator, and</li>
- *   <li>that allocator must still be OPEN after later batches are imported and earlier ones released.</li>
+ *   <li><b>Use-after-close.</b> {@code FlightServerChannel#transferIntoStreamRoot} builds its long-lived
+ *       stream root on the FIRST emitted batch's vector allocator — its comment states "The producer's
+ *       allocator must be long-lived (not closed per-request)" — and charges that same allocator for every
+ *       later batch. A per-batch staging allocator closed as soon as its own buffers drained was therefore
+ *       closed while the transport was still using it, throwing {@code IllegalStateException: Memory was
+ *       leaked by query} from {@code BaseAllocator#close}. The window is a couple of statements wide with no
+ *       injection point, so what these tests assert is the deterministic invariant behind it: every batch of a
+ *       stream imports onto the SAME allocator, which is still OPEN afterwards.</li>
+ *   <li><b>Stranded child allocators.</b> Keeping a per-stream allocator open instead (to dodge the race)
+ *       leaks it until node reboot: {@code BaseAllocator#newChildAllocator} registers every child in the
+ *       parent's {@code childAllocators} map unconditionally, and only the child's own {@code close()}
+ *       deregisters it — so an un-closed staging child stays strongly referenced by the node-lifetime root,
+ *       one per query. {@link #testStreamsDoNotMintOrStrandChildAllocators} pins that the stream mints no
+ *       child allocator at all.</li>
  * </ul>
- * The old per-batch design violated both: batch N+1 got a fresh allocator, and batch N's was closed as
- * soon as its own buffers drained — while the transport was still charging it.
  */
 public class DatafusionStagingAllocatorLifecycleTests extends OpenSearchTestCase {
 
     private static final int ROWS = 8192; // DataFusion's default batch size
     private RootAllocator root;
+    /** Stands in for the node-scoped allocator AnalyticsSearchService owns and hands to every stream. */
+    private BufferAllocator staging;
+    /** Stands in for the native (Rust) allocator owning the exported buffers; long-lived like the real one. */
+    private BufferAllocator producer;
     // Resources the production DatafusionResultStream#close would own; the test must release them itself.
     private final List<CDataDictionaryProvider> providers = new ArrayList<>();
-    private final List<BufferAllocator> producers = new ArrayList<>();
-    private final List<DatafusionResultStream.BatchIterator> iterators = new ArrayList<>();
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         root = new RootAllocator(Long.MAX_VALUE);
+        staging = root.newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
+        producer = root.newChildAllocator("producer", 0, Long.MAX_VALUE);
     }
 
     @Override
     public void tearDown() throws Exception {
-        // Release in the order production does: staging allocator, then the dictionary provider, then the
-        // stand-in native producer allocators. Only then can the root close cleanly.
-        for (DatafusionResultStream.BatchIterator it : iterators) {
-            it.closeStagingAllocator();
-        }
+        // No stream closes the staging allocator — the caller does, exactly as AnalyticsSearchService#close
+        // does in production.
         for (CDataDictionaryProvider dp : providers) {
             dp.close();
         }
-        for (BufferAllocator p : producers) {
-            p.close();
-        }
+        staging.close();
+        producer.close();
         root.close();
         super.tearDown();
     }
 
     /**
      * Imports three batches through the production path and asserts all three land on the SAME staging
-     * allocator, which is still open at the end.
-     *
-     * <p>Fails on the pre-fix code: each {@code importBatch} minted a new
-     * {@code datafusion-import-staging} child, so the allocators differ between batches.
+     * allocator — the caller-supplied one — which is still open at the end.
      */
     public void testAllBatchesOfAStreamShareOneOpenStagingAllocator() throws Exception {
         DatafusionResultStream.BatchIterator it = newIterator();
 
-        BufferAllocator first = null;
         for (int i = 0; i < 3; i++) {
             VectorSchemaRoot imported = importOneBatch(it);
-            BufferAllocator batchAllocator = imported.getFieldVectors().getFirst().getAllocator();
-            if (first == null) {
-                first = batchAllocator;
-            } else {
-                assertSame(
-                    "every batch of a stream must import onto the SAME staging allocator — the Flight "
-                        + "stream root is built on the first batch's allocator and reused for all later batches",
-                    first,
-                    batchAllocator
-                );
-            }
-            // The consumer releases this batch. Under the old code this drained the allocator to zero and
-            // made it eligible for the per-batch sweep on the NEXT import.
+            assertSame(
+                "every batch of a stream must import onto the caller-supplied staging allocator — the Flight "
+                    + "stream root is built on the first batch's allocator and reused for all later batches",
+                staging,
+                imported.getFieldVectors().getFirst().getAllocator()
+            );
+            // The consumer releases this batch. Under the old per-batch code this drained the allocator to
+            // zero and made it eligible for the sweep on the NEXT import.
             imported.close();
         }
 
-        assertNotNull("staging allocator must exist after importing", it.stagingAllocator());
-        assertSame("the tracked staging allocator is the one batches were imported on", first, it.stagingAllocator());
+        assertSame("the iterator must not substitute an allocator of its own", staging, it.stagingAllocator());
         // The decisive assertion: still usable by the transport after later imports + earlier releases.
-        assertEquals("staging allocator must NOT have been closed per-batch", 0L, it.stagingAllocator().getAllocatedMemory());
-        it.stagingAllocator().assertOpen();
+        assertEquals("staging allocator must NOT have been closed per-batch", 0L, staging.getAllocatedMemory());
+        staging.assertOpen();
     }
 
     /**
@@ -141,6 +136,31 @@ public class DatafusionStagingAllocatorLifecycleTests extends OpenSearchTestCase
         }
     }
 
+    /**
+     * The leak regression: streaming N results must not add a single child allocator to the root. A stream
+     * that mints its own staging child either has to close it (racing the transport — see the tests above) or
+     * leave it open, in which case the root's {@code childAllocators} map retains it for the node's lifetime.
+     * Neither is acceptable, so the stream mints nothing.
+     */
+    public void testStreamsDoNotMintOrStrandChildAllocators() throws Exception {
+        Set<BufferAllocator> before = new HashSet<>(root.getChildAllocators());
+
+        for (int stream = 0; stream < 3; stream++) {
+            DatafusionResultStream.BatchIterator it = newIterator();
+            VectorSchemaRoot imported = importOneBatch(it);
+            imported.close();      // consumer releases the batch
+            it.closeLastBatch();   // what DatafusionResultStream#close does to the iterator
+        }
+
+        assertEquals(
+            "importing on a caller-supplied staging allocator must add no child allocator to the root — an "
+                + "un-closed child stays registered in the parent's childAllocators map until node reboot",
+            before,
+            new HashSet<>(root.getChildAllocators())
+        );
+        staging.assertOpen();
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────────────────────────
 
     private DatafusionResultStream.BatchIterator newIterator() {
@@ -148,15 +168,11 @@ public class DatafusionStagingAllocatorLifecycleTests extends OpenSearchTestCase
         // the native runtime (no .so needed).
         CDataDictionaryProvider dp = new CDataDictionaryProvider();
         providers.add(dp);
-        DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(null, root, dp);
-        iterators.add(it);
-        return it;
+        return new DatafusionResultStream.BatchIterator(null, root, staging, dp);
     }
 
     /** Exports a fresh batch across the C Data Interface and imports it via the production path. */
     private VectorSchemaRoot importOneBatch(DatafusionResultStream.BatchIterator it) {
-        BufferAllocator producer = root.newChildAllocator("producer", 0, Long.MAX_VALUE);
-        producers.add(producer);
         try (ArrowArray array = ArrowArray.allocateNew(producer); ArrowSchema cSchema = ArrowSchema.allocateNew(producer)) {
             try (VectorSchemaRoot source = VectorSchemaRoot.create(intSchema(producer), producer)) {
                 IntVector v = (IntVector) source.getVector(0);
