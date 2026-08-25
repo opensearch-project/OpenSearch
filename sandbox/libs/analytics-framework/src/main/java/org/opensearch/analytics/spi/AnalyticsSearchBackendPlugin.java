@@ -11,7 +11,9 @@ package org.opensearch.analytics.spi;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
+import org.opensearch.index.shard.IndexShard;
 
 import java.util.Collections;
 import java.util.List;
@@ -148,6 +150,69 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
+     * Evaluates whether a shard can possibly match the given serialized filter predicates.
+     * Used by the can-match pre-filter phase to prune shards before fragment dispatch.
+     *
+     * <p>Default returns true (fail-open: shard is kept). Backends that store data with
+     * rich metadata statistics should override to check row-group min/max against the
+     * filter range.
+     *
+     * @param shard the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @return true if the shard can possibly match, false if provably cannot
+     */
+    default boolean canMatch(IndexShard shard, byte[] filterBytes) {
+        return true;
+    }
+
+    /**
+     * Outcome of a can-match probe.
+     *
+     * <p>The two fields fail open in opposite directions because their risks differ.
+     * {@code canMatch=false} says "don't run this shard" — wrong means lost data, so uncertainty
+     * must yield {@code true}. {@code bounds} is only a hint, so {@code null} costs nothing. The
+     * fail-open answer for both is therefore {@code (true, null)}.
+     *
+     * @param canMatch true if the shard may match, false if it provably cannot
+     * @param bounds   min/max of the requested sort column, or {@code null}
+     */
+    record CanMatchResult(boolean canMatch, ShardSortBounds bounds) {
+
+        /** Shard may match; {@code bounds} may be null if none were requested or available. */
+        public static CanMatchResult matched(ShardSortBounds bounds) {
+            return new CanMatchResult(true, bounds);
+        }
+
+        /** Shard provably cannot match; bounds aren't collected for a pruned shard. */
+        public static CanMatchResult pruned() {
+            return new CanMatchResult(false, null);
+        }
+
+        /** Probe couldn't run — the {@code true} here is a fail-open default, not an answer. */
+        public static CanMatchResult unavailable() {
+            return new CanMatchResult(true, null);
+        }
+    }
+
+    /**
+     * Evaluates the prune predicate and, for surviving shards, folds the sort column's min/max.
+     *
+     * <p>One method rather than two so the backend can acquire the shard reader once for both
+     * answers and skip the fold for a shard it just pruned.
+     *
+     * <p>Implementations must fail open everywhere: uncertainty yields {@code canMatch=true}
+     * and/or null bounds, never a wrong prune or a guessed range.
+     *
+     * @param shard       the target index shard
+     * @param filterBytes serialized filter list (see CanMatchFilterSerializer)
+     * @param sortColumn  column to fold min/max for, or {@code null} to skip that work
+     */
+    default CanMatchResult canMatchWithBounds(IndexShard shard, byte[] filterBytes, String sortColumn) {
+        // Backends without statistics have no bounds to give.
+        return new CanMatchResult(canMatch(shard, filterBytes), null);
+    }
+
+    /**
      * QTF fetch phase: reads specific rows by global row ID.
      * Row IDs are passed as a BigIntVector for zero-copy transfer to native.
      *
@@ -165,6 +230,36 @@ public interface AnalyticsSearchBackendPlugin {
         long contextId
     ) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
+     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
+     */
+    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+
+    /**
+     * Returns the default number of hash-shuffle output partitions this backend recommends
+     * for the current cluster topology, or {@code 1} if the backend does not participate in
+     * MPP hash-shuffle. Consulted by the strategy advisor when no explicit partition count is
+     * configured via {@code analytics.mpp.shuffle.partitions}.
+     *
+     * <p>Returning {@code 1} (the default) effectively opts the backend out of HASH_SHUFFLE
+     * because the split rule refuses to fire when partitionCount ≤ 1; joins on this backend
+     * fall through to BROADCAST or COORDINATOR_CENTRIC. Backends that have a streaming engine
+     * capable of consuming hash-partitioned input (DataFusion today; future Velox-style
+     * backends) override this to return a real partition count — typically the number of
+     * data nodes that hold any shard of the joined indices.
+     *
+     * <p>This is the engine-level default; an operator can still pin a specific N via the
+     * cluster setting. The setting takes precedence when set to a positive value.
+     *
+     * @param state cluster state at the time of advisor invocation; backends may inspect the
+     *              routing table to size partition count to the relevant node set.
+     * @return desired partition count (≥ 1); {@code 1} disables shuffle for this backend.
+     */
+    default int defaultShuffleParallelism(ClusterState state) {
+        return 1;
     }
 
     /**

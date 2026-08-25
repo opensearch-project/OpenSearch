@@ -73,7 +73,7 @@ public class TransportClearCacheAction extends TransportNodesAction<
 
     @Override
     protected ClearCacheNodeRequest newNodeRequest(ClearCacheNodesRequest request) {
-        return new ClearCacheNodeRequest(request.isFooter(), request.isColumn(), request.isOffset());
+        return new ClearCacheNodeRequest(request.isFooter(), request.isColumn(), request.isOffset(), request.isStatistics());
     }
 
     @Override
@@ -93,6 +93,7 @@ public class TransportClearCacheAction extends TransportNodesAction<
                 if (request.isFooter()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.METADATA);
                 if (request.isColumn()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.COLUMN_INDEX);
                 if (request.isOffset()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.OFFSET_INDEX);
+                if (request.isStatistics()) cacheManager.clearCacheForCacheType(CacheUtils.CacheType.STATISTICS);
             }
         }
         return new ClearCacheNodeResponse(clusterService.localNode());

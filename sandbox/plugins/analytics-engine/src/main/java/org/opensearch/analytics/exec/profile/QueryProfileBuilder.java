@@ -57,6 +57,8 @@ public final class QueryProfileBuilder {
             String distribution = (stage != null && stage.getExchangeInfo() != null)
                 ? stage.getExchangeInfo().distributionType().name()
                 : null;
+            // TODO(plan-shape): also expose ALL post-fork alternatives
+            // (stage.getPlanAlternatives() -> each .resolvedFragment()) as `alternatives`.
             List<String> fragment = stage != null && stage.getFragment() != null
                 ? splitPlanLines(RelOptUtil.toString(stage.getFragment()))
                 : List.of();

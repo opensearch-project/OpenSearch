@@ -416,6 +416,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
+    private static final long REPLICA_SYNC_POLL_INTERVAL_MS = 500;
+
     private final DataFormatRegistry dataFormatRegistry;
 
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
@@ -1050,10 +1052,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 forceRefreshes.close();
 
                 boolean syncTranslog = (isRemoteTranslogEnabled() || this.isMigratingToRemote())
-                    && Durability.ASYNC == indexSettings.getTranslogDurability();
-                // Since all the index permits are acquired at this point, the translog buffer will not change.
-                // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
-                // translogs has been uploaded to the remote store.
+                    && (Durability.ASYNC == indexSettings.getTranslogDurability() || indexSettings.isPluggableDataFormatEnabled());
+                // Force a final, blocking translog upload to remote for ALL remote-backed indexes before draining
+                // uploads below. This must run for REQUEST durability too, not just ASYNC: with REQUEST the freshest
+                // acked ops may still be in the buffered upload path and not yet on remote. If we drained without
+                // this sync, the pending upload would hit the drained syncPermit, no-op (TLOG-SKIP), and those acked
+                // ops would never reach remote, silently lost on handoff since the target recovers from remote.
                 if (syncTranslog) {
                     maybeSync();
                 }
@@ -1420,6 +1424,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.DeleteResult applyDeleteOperationOnPrimary(
         long version,
         String id,
+        @Nullable String routing,
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm
@@ -1431,6 +1436,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getOperationPrimaryTerm(),
             version,
             id,
+            routing,
             versionType,
             ifSeqNo,
             ifPrimaryTerm,
@@ -1438,7 +1444,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnPrimary(long, String, String, VersionType, long, long)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(
+        long version,
+        String id,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
+        return applyDeleteOperationOnPrimary(version, id, null, versionType, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        @Nullable String routing
+    ) throws IOException {
         if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             final Engine.Delete delete = new Engine.Delete(
                 id,
@@ -1450,7 +1476,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Engine.Operation.Origin.REPLICA,
                 System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                routing
             );
             return getIndexer().delete(delete);
         }
@@ -1460,11 +1487,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             opPrimaryTerm,
             version,
             id,
+            routing,
             null,
             UNASSIGNED_SEQ_NO,
             0,
             Engine.Operation.Origin.REPLICA
         );
+    }
+
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnReplica(long, long, long, String, String)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+        return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
     }
 
     private Engine.DeleteResult applyDeleteOperation(
@@ -1473,6 +1509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long opPrimaryTerm,
         long version,
         String id,
+        @Nullable String routing,
         @Nullable VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
@@ -1484,7 +1521,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Engine.Delete delete = engine.prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = engine.prepareDelete(
+            id,
+            routing,
+            seqNo,
+            opPrimaryTerm,
+            version,
+            versionType,
+            origin,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
         return delete(engine, delete);
     }
 
@@ -1504,9 +1551,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
+        return prepareDelete(id, null, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Deprecated(since = "3.4.0", forRemoval = true)
+    public static Engine.Delete prepareDelete(
+        String id,
+        @Nullable String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
         long startTime = System.nanoTime();
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     private Engine.DeleteResult delete(Indexer engine, Engine.Delete delete) throws IOException {
@@ -3023,6 +3085,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     delete.primaryTerm(),
                     delete.version(),
                     delete.id(),
+                    delete.routing(),
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,
@@ -3839,6 +3902,77 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Set<SegmentReplicationShardStats> getReplicationStatsForTrackedReplicas() {
         return replicationTracker.getSegmentReplicationStats();
+    }
+
+    /**
+     * Stable marker substring embedded in every replica-sync-timeout message. Used for detection
+     * in mixed-version clusters or log parsing, analogous to
+     * {@link org.opensearch.storage.action.tiering.MergeDrainTimeoutException#MERGE_DRAIN_TIMEOUT_MARKER}.
+     */
+    public static final String REPLICA_SYNC_TIMEOUT_MARKER = "[REPLICA_SYNC_TIMEOUT]";
+
+    /**
+     * Waits for all tracked replicas to be in sync with the primary's latest checkpoint.
+     * Polls every 500ms until either all replicas report {@code checkpointsBehindCount == 0}
+     * or the timeout is exceeded.
+     * <p>
+     * Used during tiering preparation to verify replicas are in sync after
+     * {@code waitForRemoteStoreSync()} — ensures replicas have downloaded the latest
+     * segments before shard relocation begins.
+     *
+     * @param timeout maximum time to wait for replicas to sync
+     * @throws IOException if replicas fail to sync within the timeout
+     */
+    public void waitForReplicaSync(TimeValue timeout) throws IOException {
+        if (!indexSettings.isSegRepEnabledOrRemoteNode()) {
+            return;
+        }
+        long startNanos = System.nanoTime();
+        Set<SegmentReplicationShardStats> stats = Set.of();
+        while (System.nanoTime() - startNanos < timeout.nanos()) {
+            stats = getReplicationStatsForTrackedReplicas();
+            if (stats.isEmpty()
+                || stats.stream()
+                    .allMatch(
+                        s -> s.getCheckpointsBehindCount() == 0 && s.getBytesBehindCount() == 0 && s.getCurrentReplicationTimeMillis() == 0
+                    )) {
+                logger.debug("All replicas in sync for shard [{}]", shardId);
+                return;
+            }
+            long behindReplicas = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
+            long maxCheckpointsBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
+            logger.debug(
+                "Waiting for replica sync on shard [{}]: {} replica(s) still behind, max checkpoints behind: {}, max bytes behind: {}",
+                shardId,
+                behindReplicas,
+                maxCheckpointsBehind,
+                maxBytesBehind
+            );
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for replica sync on shard [" + shardId + "]", e);
+            }
+        }
+        // Build diagnostic message with per-replica details
+        long behindCount = stats.stream().filter(s -> s.getCheckpointsBehindCount() > 0 || s.getBytesBehindCount() > 0).count();
+        long maxBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getCheckpointsBehindCount).max().orElse(0);
+        long maxBytes = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0);
+        throw new IOException(
+            REPLICA_SYNC_TIMEOUT_MARKER
+                + " Shard ["
+                + shardId
+                + "] replicas failed to sync within "
+                + timeout
+                + ". Replicas still behind: "
+                + behindCount
+                + ", max checkpoints behind: "
+                + maxBehind
+                + ", max bytes behind: "
+                + maxBytes
+        );
     }
 
     public ReplicationStats getReplicationStats() {
@@ -5571,6 +5705,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             @Override
+            public ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+                return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), id, routing);
+            }
+
+            @Override
             public ParsedDocument newNoopTombstoneDoc(String reason) {
                 return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), reason);
             }
@@ -6189,7 +6328,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Fetch the latest SegmentInfos held by the shard's underlying Engine, wrapped
-     * by a a {@link GatedCloseable} to ensure files are not deleted/merged away.
+     * by a {@link GatedCloseable} to ensure files are not deleted/merged away.
      *
      * @throws EngineException - When segment infos cannot be safely retrieved
      */

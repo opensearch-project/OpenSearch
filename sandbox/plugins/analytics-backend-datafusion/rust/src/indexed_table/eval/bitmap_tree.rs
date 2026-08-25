@@ -49,9 +49,7 @@
 //! before any expensive Collector leaf work. The refinement stage walks
 //! children in their *original* tree order, which is fine because Arrow
 //! kernels don't short-circuit internally and leaf identity is by
-//! `Arc::as_ptr`, not DFS position. See [`subtree_cost`] and the
-//! `collect_collector_leaves` doc for the identity mechanism that lets
-//! these two orderings coexist safely.
+//! `Arc::as_ptr`, not DFS position. See [`subtree_cost`].
 //!
 //! Plus [`CollectorLeafBitmaps`] — the default [`LeafBitmapSource`] impl that
 //! expands index-backed `RowGroupDocsCollector` output into RoaringBitmaps.
@@ -93,9 +91,6 @@ impl TreeEvaluator for BitmapTreeEvaluator {
     ) -> Result<TreePrefetch, String> {
         let mut per_leaf = Vec::new();
         let mut dfs_counter = 0usize;
-        // Root call passes `under_all_and_path = true` — root's (empty)
-        // ancestor chain is trivially all-AND, so if the root short-circuits
-        // to empty, the candidate set is empty and refinement won't run.
         let candidates = prefetch_node(
             tree,
             ctx,
@@ -105,7 +100,6 @@ impl TreeEvaluator for BitmapTreeEvaluator {
             page_prune_metrics,
             &mut dfs_counter,
             &mut per_leaf,
-            /* under_all_and_path */ true,
             stats_prune_tree,
             rg_index_to_pos,
         )?;
@@ -148,9 +142,7 @@ impl TreeEvaluator for BitmapTreeEvaluator {
 // It's used only to assign a stable `leaf_dfs_index` to each leaf so a
 // `LeafBitmapSource` implementation can identify which leaf it's being asked
 // about. We advance `dfs` on every leaf whether we actually evaluate it or
-// not (see the short-circuit branches in AND/OR) so downstream walkers that
-// reproduce the DFS order (`collect_collector_leaves`, `skip_dfs`) stay in
-// sync with this one.
+// not (see the short-circuit branches in AND/OR).
 //
 // Note: the stored per-leaf bitmap entries use `Arc::as_ptr(collector)` as
 // the key, not `leaf_dfs_index`. DFS position changes between
@@ -158,22 +150,12 @@ impl TreeEvaluator for BitmapTreeEvaluator {
 // walks in original order), but `Arc` identity is stable across both. See
 // the refinement-stage walker for the lookup.
 //
-// The `under_all_and_path` flag tracks whether every ancestor (up to root)
-// is an AND node. When true, an empty candidate result here propagates all
-// the way up — `TreeBitsetSource::prefetch_rg` returns `None`, the RG is
-// skipped entirely, and the refinement stage never runs. In that case we
-// can drop Collector bitmap materialisation in short-circuited branches
-// (no one will look them up). When false, some ancestor is OR or NOT,
-// which can recover from an empty subtree — refinement may still run and
-// will need the bitmaps in `out`, so we materialise them defensively.
-//
-// Propagation rule:
-//   - Root call: `under_all_and_path = true` (no ancestors).
-//   - Recurse into an AND child: pass the flag unchanged.
-//   - Recurse into an OR or NOT child: pass `false`.
-// The universe-saturation short-circuit in OR is NOT affected — saturation
-// produces a non-empty candidate set, so the RG is always read and
-// refinement always runs. Bitmaps must be materialised regardless.
+// Short-circuit contract:
+//   - AND dead branch: `skip_dfs_with_empty_bitmaps` — no FFM upcalls,
+//     empty entries in side-table so refinement doesn't panic.
+//   - OR saturated: `collect_collector_leaves` — real FFM upcalls needed
+//     because Predicate supersets shrink at refinement (OR still needs
+//     the real Collector bitmaps for correct results).
 
 fn prefetch_node(
     node: &ResolvedNode,
@@ -184,7 +166,6 @@ fn prefetch_node(
     page_prune_metrics: Option<&PagePruneMetrics>,
     dfs: &mut usize,
     out: &mut Vec<(usize, RoaringBitmap)>,
-    under_all_and_path: bool,
     stats_prune_tree: Option<&StatsPruneTree>,
     rg_index_to_pos: &HashMap<usize, usize>,
 ) -> Result<RoaringBitmap, String> {
@@ -199,11 +180,7 @@ fn prefetch_node(
                     "BitmapTree: skipping subtree for RG {} — pruned by RG-level stats",
                     ctx.rg_idx
                 );
-                if under_all_and_path {
-                    skip_dfs(node, dfs);
-                } else {
-                    skip_dfs_with_empty_bitmaps(node, dfs, out);
-                }
+                skip_dfs_with_empty_bitmaps(node, dfs, out);
                 return Ok(RoaringBitmap::new());
             }
         }
@@ -212,7 +189,8 @@ fn prefetch_node(
     match node {
         ResolvedNode::And(children) => {
             let mut indices: Vec<usize> = (0..children.len()).collect();
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
+            indices
+                .sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
 
             let mut result_bitmap: Option<RoaringBitmap> = None;
             let mut ranges: Option<Vec<(i32, i32)>> = ctx.collector_call_ranges.clone();
@@ -234,7 +212,6 @@ fn prefetch_node(
                     page_prune_metrics,
                     dfs,
                     out,
-                    under_all_and_path,
                     stats_prune_tree.and_then(|spt| spt.children.get(i)),
                     rg_index_to_pos,
                 )?;
@@ -259,21 +236,12 @@ fn prefetch_node(
                     }
                 }
 
-                // Short circuit case
-                // 1. Skip if subtree only consists of AND [ since all bits are not set here, no need to evaluate ]
-                // 2. Collect if subtree is mixed with OR/NOT, which can produce set bits and recover
+                // Short circuit: AND is dead (empty ∩ anything = empty).
+                // Remaining children get empty bitmap entries (no FFM
+                // upcalls) so refinement can look them up without panic.
                 if result_bitmap.as_ref().unwrap().is_empty() {
-                    // Remaining children still need to advance `dfs` so leaf
-                    // IDs remain stable.
                     for &j in indices.iter().skip_while(|&&x| x != i).skip(1) {
-                        if under_all_and_path {
-                            // Empty propagates to root → RG skipped → bitmaps
-                            // unused. Just advance the counter.
-                            skip_dfs(&children[j], dfs);
-                        } else {
-                            // OR/NOT ancestor can recover
-                            collect_collector_leaves(&children[j], ctx, leaves, dfs, out)?;
-                        }
+                        skip_dfs_with_empty_bitmaps(&children[j], dfs, out);
                     }
                     break;
                 }
@@ -284,7 +252,8 @@ fn prefetch_node(
             let mut indices: Vec<usize> = (0..children.len()).collect();
 
             // sort the children by cost to prune children better
-            indices.sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
+            indices
+                .sort_by_key(|&i| subtree_cost(&children[i], ctx, page_pruner, pruning_predicates));
             let total_docs = (ctx.max_doc - ctx.min_doc) as u64;
 
             let mut result_bitmap = RoaringBitmap::new();
@@ -298,8 +267,6 @@ fn prefetch_node(
                     page_prune_metrics,
                     dfs,
                     out,
-                    // OR breaks all-AND propagation for its subtree.
-                    false,
                     stats_prune_tree.and_then(|spt| spt.children.get(val)),
                     rg_index_to_pos,
                 )?;
@@ -322,9 +289,6 @@ fn prefetch_node(
         // Mainly needed for collectors, predicate expressions are inversed where possible
         // and wouldn't usually hit this
         ResolvedNode::Not(child) => {
-            // NOT breaks all-AND propagation — inverting empty gives universe,
-            // which is non-empty, so the RG will be read and refinement will
-            // run. Materialise bitmaps below.
             let child_bm = prefetch_node(
                 child,
                 ctx,
@@ -334,7 +298,6 @@ fn prefetch_node(
                 page_prune_metrics,
                 dfs,
                 out,
-                /* under_all_and_path */ false,
                 stats_prune_tree.and_then(|spt| spt.children.first()),
                 rg_index_to_pos,
             )?;
@@ -397,22 +360,40 @@ fn prefetch_node(
     }
 }
 
-/// Walk a subtree without combining into the parent accumulator, but still
-/// populate the per-leaf bitmap side-table that the refinement stage will
-/// read from later.
-///
-/// Called when the parent's candidate-stage accumulator has short-circuited
-/// (AND reached empty, OR reached the universe) and so this subtree's
-/// contribution is no longer needed for the candidate superset. We can't
-/// just skip the subtree entirely though — the refinement stage walks the
-/// whole tree and will look up every Collector leaf's bitmap in the
-/// side-table. Missing entries there would panic at refinement time. So we
-/// still materialise the bitmaps (but skip the expensive AND/OR combine and
-/// skip the page-pruner work for Predicate leaves, since those never enter
-/// the side-table).
-///
-/// Also advances the `dfs` counter in lockstep with the main walker so
-/// downstream leaf_dfs_index assignments stay consistent.
+/// Advance `dfs` and push empty bitmaps for each Collector leaf without
+/// making FFM calls. Used when a subtree is provably dead (AND
+/// short-circuit or stats-prune) — entries ensure refinement doesn't
+/// panic on missing keys.
+fn skip_dfs_with_empty_bitmaps(
+    node: &ResolvedNode,
+    dfs: &mut usize,
+    out: &mut Vec<(usize, RoaringBitmap)>,
+) {
+    match node {
+        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
+            for c in children {
+                skip_dfs_with_empty_bitmaps(c, dfs, out);
+            }
+        }
+        ResolvedNode::Not(child) => skip_dfs_with_empty_bitmaps(child, dfs, out),
+        ResolvedNode::Collector { collector, .. } => {
+            *dfs += 1;
+            let key = Arc::as_ptr(collector) as *const () as usize;
+            out.push((key, RoaringBitmap::new()));
+        }
+        ResolvedNode::Predicate(_) => *dfs += 1,
+        ResolvedNode::DelegationPossible { .. } => {
+            unimplemented!(
+                "invariant violation: DelegationPossible reached skip_dfs_with_empty_bitmaps."
+            )
+        }
+    }
+}
+
+/// Walk a subtree materializing Collector bitmaps without combining into
+/// the parent accumulator. Used at the OR saturation short-circuit: the
+/// candidate superset is already full, but refinement still needs real
+/// Collector bitmaps because Predicate supersets shrink at refinement.
 fn collect_collector_leaves(
     node: &ResolvedNode,
     ctx: &RgEvalContext,
@@ -447,60 +428,6 @@ fn collect_collector_leaves(
         }
     }
     Ok(())
-}
-
-/// Advance the `dfs` counter over a subtree without doing any bitmap work.
-/// Used at an AND short-circuit point when we know the whole candidate
-/// result will be empty and the RG will be skipped — there's no refinement
-/// stage to prepare bitmaps for, so we only need to keep leaf-ID assignment
-/// stable. See the `under_all_and_path` handling in `prefetch_node`.
-fn skip_dfs(node: &ResolvedNode, dfs: &mut usize) {
-    match node {
-        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
-            for c in children {
-                skip_dfs(c, dfs);
-            }
-        }
-        ResolvedNode::Not(child) => skip_dfs(child, dfs),
-        ResolvedNode::Collector { .. } | ResolvedNode::Predicate(_) => *dfs += 1,
-        ResolvedNode::DelegationPossible { .. } => {
-            // Invariant: see prefetch_node arm. Same contract.
-            unimplemented!(
-                "invariant violation: DelegationPossible reached skip_dfs. \
-                 Planner must drop performance peers under OR/NOT before fragment conversion."
-            )
-        }
-    }
-}
-
-/// Advance `dfs` and push empty bitmaps for each Collector leaf without
-/// making FFM calls. Used when a subtree is pruned by RG-level stats but
-/// refinement may still run (OR/NOT ancestor) — ensures the side-table
-/// has entries so refinement doesn't panic on missing keys.
-fn skip_dfs_with_empty_bitmaps(
-    node: &ResolvedNode,
-    dfs: &mut usize,
-    out: &mut Vec<(usize, RoaringBitmap)>,
-) {
-    match node {
-        ResolvedNode::And(children) | ResolvedNode::Or(children) => {
-            for c in children {
-                skip_dfs_with_empty_bitmaps(c, dfs, out);
-            }
-        }
-        ResolvedNode::Not(child) => skip_dfs_with_empty_bitmaps(child, dfs, out),
-        ResolvedNode::Collector { collector, .. } => {
-            *dfs += 1;
-            let key = Arc::as_ptr(collector) as *const () as usize;
-            out.push((key, RoaringBitmap::new()));
-        }
-        ResolvedNode::Predicate(_) => *dfs += 1,
-        ResolvedNode::DelegationPossible { .. } => {
-            unimplemented!(
-                "invariant violation: DelegationPossible reached skip_dfs_with_empty_bitmaps."
-            )
-        }
-    }
 }
 
 fn predicate_page_bitmap(
@@ -574,14 +501,12 @@ fn ranges_from_bitmap(bm: &RoaringBitmap, ctx: &RgEvalContext) -> Vec<(i32, i32)
     use super::CollectorCallStrategy;
     match ctx.collector_strategy {
         CollectorCallStrategy::FullRange => vec![(ctx.min_doc, ctx.max_doc)],
-        CollectorCallStrategy::TightenOuterBounds => {
-            match (bm.min(), bm.max()) {
-                (Some(lo), Some(hi)) => {
-                    vec![(ctx.min_doc + lo as i32, ctx.min_doc + hi as i32 + 1)]
-                }
-                _ => vec![(ctx.min_doc, ctx.max_doc)],
+        CollectorCallStrategy::TightenOuterBounds => match (bm.min(), bm.max()) {
+            (Some(lo), Some(hi)) => {
+                vec![(ctx.min_doc + lo as i32, ctx.min_doc + hi as i32 + 1)]
             }
-        }
+            _ => vec![(ctx.min_doc, ctx.max_doc)],
+        },
         CollectorCallStrategy::PageRangeSplit => {
             // Extract contiguous runs of set bits as absolute doc ranges.
             let mut ranges = Vec::new();
@@ -1059,14 +984,41 @@ pub struct CollectorLeafBitmaps {
     /// round-trip to Java per Collector leaf per RG. `None` for tests
     /// that don't care about metrics.
     pub ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
+    /// Per-leaf iterator position carried across row groups: maps a collector
+    /// leaf (keyed by its `Arc` pointer identity) to the next matching docId
+    /// returned by that leaf's last `collectDocs` call. A later RG whose whole
+    /// range sits below this value has no matches for the leaf and is skipped
+    /// without an FFM call.
+    ///
+    /// Why interior mutability at all: `leaf_bitmap` takes `&self` (the
+    /// `LeafBitmapSource` trait signature) but must update this map on every
+    /// RG, so it can't take `&mut self`.
+    ///
+    /// Why `Mutex` and not `RefCell`: `LeafBitmapSource: Send + Sync` and the
+    /// impl is held as `Arc<dyn LeafBitmapSource>`, so the whole struct must be
+    /// `Sync`. `RefCell` is `!Sync` and won't compile under that bound; `Mutex`
+    /// is the simplest `Sync` keyed cell. (`SingleCollectorEvaluator` uses a
+    /// single `AtomicI32` because it tracks exactly one collector; a tree has
+    /// many leaves, hence a keyed map.)
+    ///
+    /// The lock is uncontended in practice: within a partition, row groups are
+    /// prefetched sequentially, so no two threads call `leaf_bitmap` on the same
+    /// instance at once. The `Mutex` satisfies the `Sync` bound, not real
+    /// concurrent access.
+    leaf_to_next_doc_map: std::sync::Mutex<HashMap<usize, i32>>,
 }
 
 impl CollectorLeafBitmaps {
+    pub fn new(ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>) -> Self {
+        Self {
+            ffm_collector_calls,
+            leaf_to_next_doc_map: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
     /// Construct a `CollectorLeafBitmaps` with no metrics.
     pub fn without_metrics() -> Self {
-        Self {
-            ffm_collector_calls: None,
-        }
+        Self::new(None)
     }
 }
 
@@ -1083,7 +1035,26 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
                 return Err("CollectorLeafBitmaps: non-Collector node passed to leaf_bitmap".into())
             }
         };
-        // Use the narrowed call ranges if available (set by AND evaluator
+
+        // `Arc` pointer identity is a stable per-query key: the collector Arc
+        // lives inside the resolved tree for the whole query, so its address
+        // never aliases another leaf mid-query.
+        let leaf_key = Arc::as_ptr(collector) as *const () as usize;
+
+        // nextDoc from this leaf's previous collectDocs (i32::MIN = "no info yet").
+        // Ranges are half-open [min, max): a nextDoc at or past a range's exclusive
+        // upper bound means no match in that range, so we compare with `>=`.
+        let last_next_doc = {
+            let map = self.leaf_to_next_doc_map.lock().unwrap();
+            map.get(&leaf_key).copied().unwrap_or(i32::MIN)
+        };
+
+        // Whole RG is past the next match → no FFM call needed.
+        if last_next_doc >= ctx.max_doc {
+            return Ok(RoaringBitmap::new());
+        }
+
+        // Use the narrowed call ranges if available (set by the AND evaluator
         // after earlier children shrink the candidate set). Each range
         // produces one FFM call; results are merged into one bitmap in
         // min_doc-relative coordinates.
@@ -1094,15 +1065,32 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
             .unwrap_or_else(|| vec![(ctx.min_doc, ctx.max_doc)]);
 
         let mut result_bitmap = RoaringBitmap::new();
+        let mut next_doc_out = last_next_doc;
         for (call_min, call_max) in &call_ranges {
-            let bitset = collector.collect_packed_u64_bitset(*call_min, *call_max)?;
+            // Sub-ranges are ascending; carry the freshest next_doc forward so a
+            // later sub-range skips/tightens on the position the iterator has
+            // already advanced to. Skip a sub-range entirely below the next match;
+            // otherwise tighten its lower bound so collectDocs skips the empty prefix.
+            if next_doc_out >= *call_max {
+                continue;
+            }
+            let effective_min = next_doc_out.max(*call_min);
+            let result = collector.collect_packed_u64_bitset(effective_min, *call_max)?;
             if let Some(ref c) = self.ffm_collector_calls {
                 c.add(1);
             }
-            let offset = (*call_min - ctx.min_doc) as u32;
-            let num_docs = (*call_max - *call_min) as u32;
+            // Advance only forward — the iterator position is monotonic; guard
+            // against a stale/sentinel next_doc dragging it backward.
+            next_doc_out = next_doc_out.max(result.next_doc);
+            // Bitset is relative to effective_min; place it at the matching
+            // RG-relative offset so bit k maps to absolute doc effective_min + k.
+            let offset = (effective_min - ctx.min_doc) as u32;
+            let num_docs = (*call_max - effective_min) as u32;
             let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(bitset.as_ptr() as *const u8, bitset.len() * 8)
+                std::slice::from_raw_parts(
+                    result.words.as_ptr() as *const u8,
+                    result.words.len() * 8,
+                )
             };
             let mut chunk = RoaringBitmap::from_lsb0_bytes(offset, bytes);
             let upper = offset + num_docs;
@@ -1111,6 +1099,11 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
             }
             result_bitmap |= chunk;
         }
+
+        // Persist this leaf's advanced position for subsequent row groups.
+        let mut map = self.leaf_to_next_doc_map.lock().unwrap();
+        map.insert(leaf_key, next_doc_out);
+
         Ok(result_bitmap)
     }
 }
@@ -1123,6 +1116,7 @@ impl LeafBitmapSource for CollectorLeafBitmaps {
 mod tests {
     use super::*;
     use crate::indexed_table::bool_tree::ResolvedNode;
+    use crate::indexed_table::index::CollectDocsResult;
     use crate::indexed_table::index::RowGroupDocsCollector;
     use datafusion::arrow::array::Int32Array;
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -1183,7 +1177,11 @@ mod tests {
             ArrowReaderOptions::new().with_page_index(true),
         )
         .unwrap();
-        PagePruner::new(meta.schema(), meta.metadata().clone())
+        PagePruner::new(
+            meta.schema(),
+            meta.metadata().clone(),
+            meta.schema().clone(),
+        )
     }
 
     fn collector_leaf(idx: usize) -> ResolvedNode {
@@ -1191,8 +1189,12 @@ mod tests {
         #[derive(Debug)]
         struct Dummy;
         impl RowGroupDocsCollector for Dummy {
-            fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
-                Ok(vec![])
+            fn collect_packed_u64_bitset(
+                &self,
+                _: i32,
+                _: i32,
+            ) -> Result<CollectDocsResult, String> {
+                Ok(vec![].into())
             }
         }
         let _ = idx;
@@ -1218,7 +1220,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
         assert_eq!(result.per_leaf.len(), 2);
@@ -1232,7 +1243,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[1, 2, 3]));
     }
@@ -1245,7 +1265,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // Universe is [0, 16). Minus {0,1,2} = {3..15}
         let expected: RoaringBitmap = (3u32..16).collect();
@@ -1260,7 +1289,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let state = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
 
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
@@ -1401,7 +1439,11 @@ mod tests {
         #[derive(Debug)]
         struct Poison;
         impl RowGroupDocsCollector for Poison {
-            fn collect_packed_u64_bitset(&self, _: i32, _: i32) -> Result<Vec<u64>, String> {
+            fn collect_packed_u64_bitset(
+                &self,
+                _: i32,
+                _: i32,
+            ) -> Result<CollectDocsResult, String> {
                 unreachable!("Phase 2 must not call collect")
             }
         }
@@ -1520,23 +1562,32 @@ mod tests {
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
 
     #[test]
-    fn candidate_and_short_circuit_under_or_still_materialises() {
+    fn candidate_and_short_circuit_under_or_skips_ffm() {
         // Tree: OR(AND(empty_leaf, other_leaf), standalone_leaf).
         // Cost sort at root OR: [standalone_leaf (10), AND (20)].
         // DFS order:
         //   idx 0 = standalone_leaf (evaluated first by cost sort),
         //   idx 1 = empty_leaf (AND's first child),
-        //   idx 2 = other_leaf (AND's second child).
+        //   idx 2 = other_leaf (AND's second child — skipped).
         //
-        // The AND short-circuits on idx 1 (empty). Because the path to
-        // root contains an OR (not all-AND), the walker must still
-        // materialise idx 2's bitmap so refinement can look it up.
+        // The AND short-circuits on idx 1 (empty). skip_dfs advances the
+        // counter for idx 2 without calling leaf_bitmap. Refinement treats
+        // the missing entry as all-false.
         let tree = ResolvedNode::Or(vec![
             ResolvedNode::And(vec![collector_leaf(0), collector_leaf(1)]),
             collector_leaf(2),
@@ -1548,24 +1599,28 @@ mod tests {
             b
         });
         allowed.insert(1, RoaringBitmap::new()); // empty → short-circuit
-        allowed.insert(2, {
-            let mut b = RoaringBitmap::new();
-            b.insert(7);
-            b
-        });
-        let leaves = PoisonLeafBitmaps {
-            allowed,
-            forbidden: HashSet::new(),
-        };
+        let mut forbidden = HashSet::new();
+        forbidden.insert(2); // must NOT be called — AND is dead
+        let leaves = PoisonLeafBitmaps { allowed, forbidden };
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // OR contributes {5} from standalone_leaf → non-empty candidates.
         assert!(!result.candidates.is_empty());
-        // All 3 collector leaves must have per_leaf entries — AND
-        // short-circuit under OR does NOT skip materialisation.
+        // All 3 collector leaves have per_leaf entries. The key difference:
+        // other_leaf (idx 2) gets an empty bitmap from skip_dfs_with_empty_bitmaps
+        // without calling leaf_bitmap (the forbidden set verifies this).
         assert_eq!(
             result.per_leaf.len(),
             3,
@@ -1575,34 +1630,37 @@ mod tests {
     }
 
     #[test]
-    fn candidate_and_short_circuit_under_not_still_materialises() {
+    fn candidate_and_short_circuit_under_not_skips_ffm() {
         // Tree: NOT(AND(empty_leaf, other_leaf)).
         // Inner AND short-circuits on empty_leaf. NOT inverts empty to
-        // universe → candidates non-empty → RG read → refinement will
-        // look up other_leaf's bitmap.
+        // universe → candidates non-empty → RG read. other_leaf gets an
+        // empty bitmap via skip_dfs_with_empty_bitmaps (no FFM call).
         let tree = ResolvedNode::Not(Box::new(ResolvedNode::And(vec![
             collector_leaf(0),
             collector_leaf(1),
         ])));
         let mut allowed = HashMap::new();
         allowed.insert(0, RoaringBitmap::new()); // triggers short-circuit
-        allowed.insert(1, {
-            let mut b = RoaringBitmap::new();
-            b.insert(9);
-            b
-        });
-        let leaves = PoisonLeafBitmaps {
-            allowed,
-            forbidden: HashSet::new(),
-        };
+        let mut forbidden = HashSet::new();
+        forbidden.insert(1); // must NOT be called — AND is dead
+        let leaves = PoisonLeafBitmaps { allowed, forbidden };
         let pruner = empty_pruner();
 
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         // NOT inverts empty AND → universe.
         assert_eq!(result.candidates.len(), 16);
-        // Both collector leaves materialised.
+        // Both entries present (other_leaf has empty bitmap from skip).
         assert_eq!(result.per_leaf.len(), 2);
     }
 
@@ -1630,7 +1688,8 @@ mod tests {
             ctx.cost_predicate * COST_SCALE
         );
         assert_eq!(
-            subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp), ctx.cost_collector * COST_SCALE
+            subtree_cost(&collector_leaf(0), &ctx, &pruner, &pp),
+            ctx.cost_collector * COST_SCALE
         );
     }
 
@@ -1641,7 +1700,8 @@ mod tests {
         let pp = HashMap::new();
         let wrapped = ResolvedNode::Not(Box::new(test_predicate_node()));
         assert_eq!(
-            subtree_cost(&wrapped, &ctx, &pruner, &pp), ctx.cost_predicate * COST_SCALE
+            subtree_cost(&wrapped, &ctx, &pruner, &pp),
+            ctx.cost_predicate * COST_SCALE
         );
     }
 
@@ -1673,7 +1733,8 @@ mod tests {
         let pruner = empty_pruner();
         let pp = HashMap::new();
         assert!(
-            subtree_cost(&nested, &ctx, &pruner, &pp) < subtree_cost(&single_collector, &ctx, &pruner, &pp),
+            subtree_cost(&nested, &ctx, &pruner, &pp)
+                < subtree_cost(&single_collector, &ctx, &pruner, &pp),
         );
     }
 
@@ -1684,7 +1745,10 @@ mod tests {
         let ctx = test_ctx();
         let pruner = empty_pruner();
         let pp = HashMap::new();
-        assert!(subtree_cost(&nested, &ctx, &pruner, &pp) > subtree_cost(&single_collector, &ctx, &pruner, &pp));
+        assert!(
+            subtree_cost(&nested, &ctx, &pruner, &pp)
+                > subtree_cost(&single_collector, &ctx, &pruner, &pp)
+        );
     }
 
     // ── intersect_range_lists unit tests ────────────────────────────
@@ -1771,10 +1835,10 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.collector_strategy = super::super::CollectorCallStrategy::PageRangeSplit;
         let mut bm = RoaringBitmap::new();
-        bm.insert_range(2..5);  // bits 2,3,4
+        bm.insert_range(2..5); // bits 2,3,4
         bm.insert_range(8..11); // bits 8,9,10
-        bm.insert(14);          // bit 14
-        // Three contiguous runs → three ranges
+        bm.insert(14); // bit 14
+                       // Three contiguous runs → three ranges
         assert_eq!(
             ranges_from_bitmap(&bm, &ctx),
             vec![(2, 5), (8, 11), (14, 15)]
@@ -1798,9 +1862,7 @@ mod tests {
         }
     }
 
-    fn prune_tree_and(
-        children: Vec<StatsPruneTree>,
-    ) -> StatsPruneTree {
+    fn prune_tree_and(children: Vec<StatsPruneTree>) -> StatsPruneTree {
         let mut rg_can_match = vec![true; children[0].rg_can_match.len()];
         for c in &children {
             for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
@@ -1813,9 +1875,7 @@ mod tests {
         }
     }
 
-    fn prune_tree_or(
-        children: Vec<StatsPruneTree>,
-    ) -> StatsPruneTree {
+    fn prune_tree_or(children: Vec<StatsPruneTree>) -> StatsPruneTree {
         let mut rg_can_match = vec![false; children[0].rg_can_match.len()];
         for c in &children {
             for (r, v) in rg_can_match.iter_mut().zip(c.rg_can_match.iter()) {
@@ -1840,7 +1900,16 @@ mod tests {
             prune_tree_leaf(vec![true]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1857,7 +1926,16 @@ mod tests {
             prune_tree_leaf(vec![true]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
     }
@@ -1874,7 +1952,16 @@ mod tests {
             prune_tree_leaf(vec![false]),
         ]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1898,7 +1985,16 @@ mod tests {
         ]);
         let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // collector2 (dfs=0) → {3,4,5}; OR-child1 (dfs=2) → {3,4,5,6}; OR = {3,4,5,6}
         // AND = {3,4,5} ∩ {3,4,5,6} = {3,4,5}
@@ -1921,7 +2017,16 @@ mod tests {
         ]);
         let spt = prune_tree_and(vec![or_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -1934,7 +2039,16 @@ mod tests {
         };
         let pruner = empty_pruner();
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, None, &HashMap::new())
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                None,
+                &HashMap::new(),
+            )
             .unwrap();
         assert_eq!(result.candidates, bm(&[3, 4]));
     }
@@ -1960,10 +2074,315 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.rg_idx = 5;
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .prefetch(
+                &tree,
+                &ctx,
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &rg_map,
+            )
             .unwrap();
         // Not pruned — both collectors contribute.
         assert_eq!(result.candidates, bm(&[2, 3]));
+    }
+
+    // ── CollectorLeafBitmaps next_doc skip/tighten tests ─────────────
+
+    /// Mock collector that returns configurable docs and next_doc, and records
+    /// the (min_doc, max_doc) arguments it was called with.
+    #[derive(Debug)]
+    struct NextDocMockCollector {
+        /// Absolute doc IDs to include in the returned bitset.
+        docs: Vec<i32>,
+        /// The `next_doc` value to return from `collect_packed_u64_bitset`.
+        next_doc: i32,
+        /// Records each (min_doc, max_doc) invocation.
+        calls: std::sync::Mutex<Vec<(i32, i32)>>,
+    }
+
+    impl NextDocMockCollector {
+        fn new(docs: Vec<i32>, next_doc: i32) -> Self {
+            Self {
+                docs,
+                next_doc,
+                calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn call_args(&self) -> Vec<(i32, i32)> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    impl RowGroupDocsCollector for NextDocMockCollector {
+        fn collect_packed_u64_bitset(
+            &self,
+            min_doc: i32,
+            max_doc: i32,
+        ) -> Result<CollectDocsResult, String> {
+            self.calls.lock().unwrap().push((min_doc, max_doc));
+            // Mirror the real FfmSegmentCollector empty-range shortcut: an empty
+            // range yields no words and reports the scorer as exhausted. A skip
+            // check that lets an empty (min == max) call through would poison the
+            // stored next_doc to i32::MAX and drop later matches.
+            if max_doc <= min_doc {
+                return Ok(CollectDocsResult {
+                    words: Vec::new(),
+                    next_doc: i32::MAX,
+                });
+            }
+            let num_docs = (max_doc - min_doc) as usize;
+            let num_words = num_docs.div_ceil(64);
+            let mut words = vec![0u64; num_words];
+            for &d in &self.docs {
+                if d >= min_doc && d < max_doc {
+                    let bit = (d - min_doc) as usize;
+                    words[bit / 64] |= 1u64 << (bit % 64);
+                }
+            }
+            Ok(CollectDocsResult {
+                words,
+                next_doc: self.next_doc,
+            })
+        }
+    }
+
+    /// Helper: build a ResolvedNode::Collector wrapping a given Arc collector.
+    fn collector_node_from_arc(collector: Arc<dyn RowGroupDocsCollector>) -> ResolvedNode {
+        ResolvedNode::Collector {
+            provider_key: 1,
+            collector,
+        }
+    }
+
+    /// Test 1: Per-leaf skip.
+    /// RG0 returns next_doc=500. RG1 covers [100, 200).
+    /// Since 500 > 200 (call_max), the sub-range is skipped entirely,
+    /// resulting in an empty bitmap for RG1.
+    #[test]
+    fn next_doc_skip_when_next_doc_exceeds_call_max() {
+        let mock = Arc::new(NextDocMockCollector::new(vec![110, 120, 130], 500));
+        let node = collector_node_from_arc(mock.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Collector returns next_doc=500.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm0 = source.leaf_bitmap(&node, 0, &ctx0).unwrap();
+        // The mock returns docs in [0,100) that match — none do, so empty.
+        assert!(bm0.is_empty());
+        // Verify the collector was called for RG0.
+        assert_eq!(mock.call_args().len(), 1);
+
+        // RG1: covers [100, 200). Since last_next_doc=500 > 200 (call_max),
+        // the entire range is skipped — collector should NOT be called again.
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm1 = source.leaf_bitmap(&node, 0, &ctx1).unwrap();
+        assert!(
+            bm1.is_empty(),
+            "RG1 should be empty because next_doc > max_doc"
+        );
+        // Collector was NOT called for RG1 — still only 1 total call.
+        assert_eq!(
+            mock.call_args().len(),
+            1,
+            "collector should not be called when next_doc > call_max"
+        );
+    }
+
+    /// Test 2: Per-leaf tighten.
+    /// RG0 returns next_doc=150. RG1 covers [100, 200).
+    /// effective_min = max(150, 100) = 150. The collector should be called
+    /// with min_doc=150, not 100.
+    #[test]
+    fn next_doc_tighten_effective_min() {
+        // Docs at 160, 170 — both within the tightened range [150, 200).
+        let mock = Arc::new(NextDocMockCollector::new(vec![160, 170], 150));
+        let node = collector_node_from_arc(mock.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Returns next_doc=150.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let _ = source.leaf_bitmap(&node, 0, &ctx0).unwrap();
+        assert_eq!(mock.call_args(), vec![(0, 100)]);
+
+        // RG1: covers [100, 200). last_next_doc=150, so effective_min=max(150,100)=150.
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm1 = source.leaf_bitmap(&node, 0, &ctx1).unwrap();
+
+        // Verify the collector was called with tightened min_doc=150, not 100.
+        let calls = mock.call_args();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[1], (150, 200));
+
+        // Bitmap contains docs 160 and 170 at correct RG-relative positions.
+        // offset = (150 - 100) = 50. doc 160 at bit (160-150)=10 placed at 50+10=60.
+        assert!(bm1.contains(60), "doc 160 should be at position 60");
+        assert!(bm1.contains(70), "doc 170 should be at position 70");
+        assert_eq!(bm1.len(), 2);
+    }
+
+    /// Test 3: Multiple leaves are independent.
+    /// Leaf A returns next_doc=500, leaf B returns next_doc=50.
+    /// For RG1 [100, 200): leaf A skips (500 > 200), leaf B does not (50 < 200).
+    #[test]
+    fn next_doc_multiple_leaves_independent() {
+        let mock_a = Arc::new(NextDocMockCollector::new(vec![], 500));
+        let mock_b = Arc::new(NextDocMockCollector::new(vec![110, 120], 50));
+        let node_a = collector_node_from_arc(mock_a.clone());
+        let node_b = collector_node_from_arc(mock_b.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        // RG0: covers [0, 100). Both leaves are called.
+        let ctx0 = RgEvalContext {
+            rg_idx: 0,
+            rg_first_row: 0,
+            rg_num_rows: 100,
+            min_doc: 0,
+            max_doc: 100,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let _ = source.leaf_bitmap(&node_a, 0, &ctx0).unwrap();
+        let _ = source.leaf_bitmap(&node_b, 1, &ctx0).unwrap();
+        assert_eq!(mock_a.call_args().len(), 1);
+        assert_eq!(mock_b.call_args().len(), 1);
+
+        // RG1: covers [100, 200).
+        let ctx1 = RgEvalContext {
+            rg_idx: 1,
+            rg_first_row: 100,
+            rg_num_rows: 100,
+            min_doc: 100,
+            max_doc: 200,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+        let bm_a = source.leaf_bitmap(&node_a, 0, &ctx1).unwrap();
+        let bm_b = source.leaf_bitmap(&node_b, 1, &ctx1).unwrap();
+
+        // Leaf A: next_doc=500 > 200 (call_max) → skipped, empty bitmap.
+        assert!(
+            bm_a.is_empty(),
+            "leaf A should skip: next_doc=500 > max_doc=200"
+        );
+        assert_eq!(
+            mock_a.call_args().len(),
+            1,
+            "leaf A collector should not be called for RG1"
+        );
+
+        // Leaf B: next_doc=50 < 200 → not skipped, collector called.
+        assert!(
+            !bm_b.is_empty(),
+            "leaf B should not skip: next_doc=50 < max_doc=200"
+        );
+        assert_eq!(
+            mock_b.call_args().len(),
+            2,
+            "leaf B collector should be called for RG1"
+        );
+        // Docs 110, 120 relative to min_doc=100 → bits 10, 20.
+        assert!(bm_b.contains(10));
+        assert!(bm_b.contains(20));
+    }
+
+    /// Regression for the exclusive-boundary bug (Bharath's scenario):
+    /// 3 RGs of 100 docs each. A match sits at doc 200 — exactly the start of
+    /// RG2, i.e. exactly RG1's exclusive max_doc.
+    ///   RG0 [0,100)   match: doc 5,  next_doc=200
+    ///   RG1 [100,200) no matches — must be skipped WITHOUT an empty collect call
+    ///   RG2 [200,300) match: doc 200 — boundary doc, must be collected
+    /// With a `>` check, RG1 would tighten to an empty collect(200,200) → the
+    /// mock returns next_doc=i32::MAX → RG2 skipped → doc 200 silently dropped.
+    /// With `>=`, RG1 is skipped outright and doc 200 survives.
+    #[test]
+    fn next_doc_boundary_doc_not_dropped() {
+        let mock = Arc::new(NextDocMockCollector::new(vec![5, 200], 200));
+        let node = collector_node_from_arc(mock.clone());
+        let source = CollectorLeafBitmaps::without_metrics();
+
+        let mk_ctx = |rg_idx: usize, first: i64, min: i32, max: i32| RgEvalContext {
+            rg_idx,
+            rg_first_row: first,
+            rg_num_rows: 100,
+            min_doc: min,
+            max_doc: max,
+            cost_predicate: 1,
+            cost_collector: 10,
+            collector_call_ranges: None,
+            collector_strategy: super::super::CollectorCallStrategy::FullRange,
+        };
+
+        // RG0 [0,100): doc 5 matches, next_doc=200.
+        let bm0 = source.leaf_bitmap(&node, 0, &mk_ctx(0, 0, 0, 100)).unwrap();
+        assert!(bm0.contains(5), "doc 5 should be collected in RG0");
+
+        // RG1 [100,200): next_doc=200 >= max_doc=200 → skipped, no collect call.
+        let bm1 = source
+            .leaf_bitmap(&node, 0, &mk_ctx(1, 100, 100, 200))
+            .unwrap();
+        assert!(bm1.is_empty(), "RG1 has no matches");
+        assert_eq!(
+            mock.call_args().len(),
+            1,
+            "RG1 must be skipped without a collect call (no empty-range poison)"
+        );
+
+        // RG2 [200,300): boundary doc 200 must be collected.
+        let bm2 = source
+            .leaf_bitmap(&node, 0, &mk_ctx(2, 200, 200, 300))
+            .unwrap();
+        assert!(
+            bm2.contains(0),
+            "boundary doc 200 (RG-relative pos 0) must not be dropped"
+        );
     }
 
     /// When `rg_idx` IS in the reverse map and maps to a position where
@@ -1986,7 +2405,16 @@ mod tests {
         let mut ctx = test_ctx();
         ctx.rg_idx = 3;
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &ctx, &leaves, &pruner, &HashMap::new(), None, Some(&spt), &rg_map)
+            .prefetch(
+                &tree,
+                &ctx,
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &rg_map,
+            )
             .unwrap();
         assert!(result.candidates.is_empty());
     }
@@ -2011,8 +2439,8 @@ mod tests {
     /// entries since coll2 survives → candidates non-empty → refinement runs.
     #[test]
     fn stats_prune_under_or_materialises_empty_bitmaps_for_collectors() {
-        use datafusion::physical_expr::expressions::Literal;
         use datafusion::common::ScalarValue;
+        use datafusion::physical_expr::expressions::Literal;
         let always_true_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
 
@@ -2033,32 +2461,50 @@ mod tests {
         let pruner = empty_pruner();
         // Stats: AND subtree = false (Predicate child stats=false), coll2 = true
         let and_spt = prune_tree_and(vec![
-            prune_tree_leaf(vec![false]),  // Predicate
-            prune_tree_or(vec![           // OR(coll0, coll1)
+            prune_tree_leaf(vec![false]), // Predicate
+            prune_tree_or(vec![
+                // OR(coll0, coll1)
                 prune_tree_leaf(vec![true]),
                 prune_tree_leaf(vec![true]),
             ]),
         ]);
         let spt = prune_tree_or(vec![and_spt, prune_tree_leaf(vec![true])]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // AND subtree pruned → empty; coll2 → {5,6,7}; OR = {5,6,7}
         assert_eq!(result.candidates, bm(&[5, 6, 7]));
-        // Critical: both collector leaves from pruned subtree must have
-        // per_leaf entries (empty bitmaps) so refinement doesn't panic.
-        // coll2 (dfs=0) → real bitmap; coll0 (dfs=2), coll1 (dfs=3) → empty.
+        // All 3 collector leaves have per_leaf entries. coll0 and coll1
+        // get empty bitmaps from skip_dfs_with_empty_bitmaps (no FFM calls).
         assert_eq!(
             result.per_leaf.len(),
             3,
-            "stats-pruned collectors under OR must still have per_leaf entries; got {}",
+            "expected 3 per_leaf entries; got {}",
             result.per_leaf.len()
         );
         // coll2 (dfs=0) gets real bitmap
-        assert!(!result.per_leaf[0].1.is_empty(), "coll2 should have non-empty bitmap");
+        assert!(
+            !result.per_leaf[0].1.is_empty(),
+            "coll2 should have non-empty bitmap"
+        );
         // coll0 (dfs=2) and coll1 (dfs=3) get empty bitmaps from pruned subtree
-        assert!(result.per_leaf[1].1.is_empty(), "pruned coll0 should have empty bitmap");
-        assert!(result.per_leaf[2].1.is_empty(), "pruned coll1 should have empty bitmap");
+        assert!(
+            result.per_leaf[1].1.is_empty(),
+            "pruned coll0 should have empty bitmap"
+        );
+        assert!(
+            result.per_leaf[2].1.is_empty(),
+            "pruned coll1 should have empty bitmap"
+        );
     }
 
     /// Same scenario but deeper — mirrors a query like:
@@ -2077,8 +2523,8 @@ mod tests {
     /// coll0 and coll1 must still get empty per_leaf entries.
     #[test]
     fn stats_prune_deep_or_under_and_materialises_all_collector_bitmaps() {
-        use datafusion::physical_expr::expressions::Literal;
         use datafusion::common::ScalarValue;
+        use datafusion::physical_expr::expressions::Literal;
         let pred_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
             Arc::new(Literal::new(ScalarValue::Boolean(Some(true))));
 
@@ -2097,14 +2543,20 @@ mod tests {
         // Cost sort at OR: coll2(10) before AND(Pred+OR=1+20=21)
         // DFS: coll3=0, coll2=1, Predicate=2, coll0=3, coll1=4
         let leaves = FixedLeafBitmaps {
-            bitmaps: vec![bm(&[5, 6, 7, 8]), bm(&[6, 7, 8]), bm(&[99]), bm(&[99]), bm(&[99])],
+            bitmaps: vec![
+                bm(&[5, 6, 7, 8]),
+                bm(&[6, 7, 8]),
+                bm(&[99]),
+                bm(&[99]),
+                bm(&[99]),
+            ],
         };
         let pruner = empty_pruner();
         // Stats: outer AND[coll3=true, OR=true]
         //   OR[inner AND=false (pruned), coll2=true]
         //     inner AND[Predicate=false, OR(coll0=true, coll1=true)]
         let inner_and_spt = prune_tree_and(vec![
-            prune_tree_leaf(vec![false]),  // Predicate stats=false
+            prune_tree_leaf(vec![false]), // Predicate stats=false
             prune_tree_or(vec![
                 prune_tree_leaf(vec![true]),
                 prune_tree_leaf(vec![true]),
@@ -2113,12 +2565,21 @@ mod tests {
         let or_spt = prune_tree_or(vec![inner_and_spt, prune_tree_leaf(vec![true])]);
         let spt = prune_tree_and(vec![prune_tree_leaf(vec![true]), or_spt]);
         let result = BitmapTreeEvaluator
-            .prefetch(&tree, &test_ctx(), &leaves, &pruner, &HashMap::new(), None, Some(&spt), &HashMap::from([(0, 0)]))
+            .prefetch(
+                &tree,
+                &test_ctx(),
+                &leaves,
+                &pruner,
+                &HashMap::new(),
+                None,
+                Some(&spt),
+                &HashMap::from([(0, 0)]),
+            )
             .unwrap();
         // coll3={5,6,7,8}; OR: inner AND pruned→empty, coll2={6,7,8}; OR={6,7,8}
         // Final AND = {5,6,7,8} ∩ {6,7,8} = {6,7,8}
         assert_eq!(result.candidates, bm(&[6, 7, 8]));
-        // All 4 collector leaves must have per_leaf entries (coll3, coll2 real;
+        // All 4 collector leaves have per_leaf entries (coll3, coll2 real;
         // coll0, coll1 empty from skip_dfs_with_empty_bitmaps).
         assert_eq!(
             result.per_leaf.len(),
@@ -2127,10 +2588,22 @@ mod tests {
             result.per_leaf.len()
         );
         // coll3 (dfs=0) and coll2 (dfs=1) are real
-        assert!(!result.per_leaf[0].1.is_empty(), "coll3 should have non-empty bitmap");
-        assert!(!result.per_leaf[1].1.is_empty(), "coll2 should have non-empty bitmap");
+        assert!(
+            !result.per_leaf[0].1.is_empty(),
+            "coll3 should have non-empty bitmap"
+        );
+        assert!(
+            !result.per_leaf[1].1.is_empty(),
+            "coll2 should have non-empty bitmap"
+        );
         // coll0 (dfs=3) and coll1 (dfs=4) are empty from pruned subtree
-        assert!(result.per_leaf[2].1.is_empty(), "pruned coll0 should have empty bitmap");
-        assert!(result.per_leaf[3].1.is_empty(), "pruned coll1 should have empty bitmap");
+        assert!(
+            result.per_leaf[2].1.is_empty(),
+            "pruned coll0 should have empty bitmap"
+        );
+        assert!(
+            result.per_leaf[3].1.is_empty(),
+            "pruned coll1 should have empty bitmap"
+        );
     }
 }

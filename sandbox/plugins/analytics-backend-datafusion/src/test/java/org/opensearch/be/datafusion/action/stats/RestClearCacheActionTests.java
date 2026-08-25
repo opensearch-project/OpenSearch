@@ -59,6 +59,7 @@ public class RestClearCacheActionTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertFalse(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertTrue("no params → isClearAll()", req.isClearAll());
     }
 
@@ -67,6 +68,7 @@ public class RestClearCacheActionTests extends OpenSearchTestCase {
         assertTrue(req.isFooter());
         assertFalse(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
@@ -75,6 +77,7 @@ public class RestClearCacheActionTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertTrue(req.isColumn());
         assertFalse(req.isOffset());
+        assertFalse(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
@@ -83,6 +86,16 @@ public class RestClearCacheActionTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertFalse(req.isColumn());
         assertTrue(req.isOffset());
+        assertFalse(req.isStatistics());
+        assertFalse(req.isClearAll());
+    }
+
+    public void testStatisticsParamSetsStatisticsFlag() throws Exception {
+        ClearCacheNodesRequest req = captureRequest(Map.of("statistics", "true"));
+        assertFalse(req.isFooter());
+        assertFalse(req.isColumn());
+        assertFalse(req.isOffset());
+        assertTrue(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 
@@ -91,6 +104,7 @@ public class RestClearCacheActionTests extends OpenSearchTestCase {
         assertFalse(req.isFooter());
         assertTrue(req.isColumn());
         assertTrue(req.isOffset());
+        assertFalse(req.isStatistics());
         assertFalse(req.isClearAll());
     }
 

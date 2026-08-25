@@ -21,14 +21,14 @@ pub fn init_pools(write_limit: usize, merge_limit: usize) {
     MERGE_POOL.get_or_init(|| Arc::new(MemoryPool::new("merge", merge_limit)));
 }
 
-/// Returns the write pool, or panics if not initialized.
+/// Returns the write pool, initializing with a large default if not yet set.
 pub fn write_pool() -> &'static Arc<MemoryPool> {
-    WRITE_POOL.get().expect("write pool not initialized")
+    WRITE_POOL.get_or_init(|| Arc::new(MemoryPool::new("write", usize::MAX)))
 }
 
-/// Returns the merge pool, or panics if not initialized.
+/// Returns the merge pool, initializing with a large default if not yet set.
 pub fn merge_pool() -> &'static Arc<MemoryPool> {
-    MERGE_POOL.get().expect("merge pool not initialized")
+    MERGE_POOL.get_or_init(|| Arc::new(MemoryPool::new("merge", usize::MAX)))
 }
 
 pub fn set_write_limit(v: usize) {

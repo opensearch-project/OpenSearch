@@ -40,16 +40,17 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
     "description": "Indexing and search configuration for pmc workload",
@@ -89,17 +90,18 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.enabled:true",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_7": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as all",
@@ -107,17 +109,18 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:all",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_8": {
     "description": "Search only test-procedure for big5 with concurrent segment search mode as auto",
@@ -125,17 +128,18 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_9": {
     "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.0.0. Enables range query approximation.",
@@ -143,17 +147,18 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "opensearch.experimental.feature.approximate_point_range_query.enabled:true",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_10": {
     "description": "Benchmarking config for NESTED workload, benchmarks nested queries with inner-hits",
@@ -178,7 +183,7 @@
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.1\",\"snapshot_name\":\"http_logs_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -195,7 +200,7 @@
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "nyc_taxis",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -211,6 +216,7 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_text_field\"}",
@@ -219,9 +225,9 @@
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_14": {
     "description": "Intra-segment search test-procedure for http_logs with concurrent segment search mode as auto",
@@ -231,7 +237,7 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"http_logs_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "intra-segment"
     },
@@ -247,6 +253,7 @@
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.partition_strategy:force",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"big5_1_shard_text_field\"}",
@@ -255,9 +262,9 @@
     },
     "cluster_configuration": {
       "size": "Single-Node",
-      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
     },
-    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_16": {
     "description": "clickbench workload DSL queries test",
@@ -267,7 +274,7 @@
       "MIN_DISTRIBUTION": "true",
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "clickbench",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"clickbench_3_shards\",\"warmup_iterations\":10,\"test_iterations\":20}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"clickbench_3_shards\",\"warmup_iterations\":10,\"test_iterations\":20}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "dsl-clickbench-snapshot"
     },

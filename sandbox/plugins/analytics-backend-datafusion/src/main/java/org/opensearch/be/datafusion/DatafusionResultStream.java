@@ -27,6 +27,7 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -75,6 +76,7 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         try {
             if (iteratorInstance != null) {
                 iteratorInstance.closeLastBatch();
+                iteratorInstance.reclaimDrainedStaging();
             }
         } finally {
             try {
@@ -97,6 +99,9 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         private Boolean nextAvailable;
         private boolean batchEmitted;
         private boolean nativeStreamExhausted;
+        // Per-batch staging allocators used by {@link #importBatch}. Each is reclaimed once its batch's
+        // buffers have been released by the consumer (see {@link #reclaimDrainedStaging}).
+        private final List<BufferAllocator> stagingAllocators = new ArrayList<>();
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -134,13 +139,79 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
                 }
                 return false;
             }
-            VectorSchemaRoot freshRoot = VectorSchemaRoot.create(schema, allocator);
             try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
-                Data.importIntoVectorSchemaRoot(allocator, arrowArray, freshRoot, dictionaryProvider);
+                nextBatch = importBatch(arrowArray);
             }
-            nextBatch = freshRoot;
             batchEmitted = true;
             return true;
+        }
+
+        /**
+         * Imports one native batch across the Arrow C Data Interface into a per-batch staging allocator
+         * (an unbounded child of the root) rather than directly into {@code allocator}.
+         *
+         * <p>{@link Data#importIntoVectorSchemaRoot} charges each buffer against the target allocator as it
+         * walks the array. Against a bounded target that fills part-way through a wide batch the import
+         * throws, and arrow-java's {@code ReferenceCountedArrowArray#unsafeAssociateAllocation} retains the
+         * imported array <em>before</em> the throwing {@code wrapForeignAllocation} without rolling back, so
+         * the C Data release callback never fires and the whole native batch leaks in the producer's native
+         * allocator — invisible to the JVM heap and the Java Arrow allocator (arrow-java &le; 18.1.0). An
+         * unbounded staging child can't OOM mid-array, so the release callback always fires.
+         *
+         * <p>The batch is returned as-is (zero-copy); its buffers are released by the existing consumer close
+         * paths, which drives the C Data reference count to zero. Each staging allocator is reclaimed once
+         * drained (see {@link #reclaimDrainedStaging}); on import failure it is closed immediately.
+         */
+        private VectorSchemaRoot importBatch(ArrowArray arrowArray) {
+            reclaimDrainedStaging();
+            BufferAllocator staging = allocator.getRoot().newChildAllocator("datafusion-import-staging", 0, Long.MAX_VALUE);
+            try {
+                VectorSchemaRoot root = importOntoStaging(staging, schema, arrowArray, dictionaryProvider);
+                stagingAllocators.add(staging);
+                return root;
+            } catch (RuntimeException e) {
+                staging.close();
+                throw e;
+            }
+        }
+
+        /**
+         * Closes staging allocators whose batches have been fully released (drained to zero). A batch still
+         * in flight keeps its staging allocator open so the eventual release callback frees the small C Data
+         * bookkeeping allocation against a live allocator; that allocator is a leaf child of the root and
+         * holds no batch data once drained.
+         */
+        private void reclaimDrainedStaging() {
+            stagingAllocators.removeIf(a -> {
+                if (a.getAllocatedMemory() == 0) {
+                    a.close();
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        /**
+         * Imports {@code arrowArray} into a fresh {@link VectorSchemaRoot} on {@code staging}, which MUST be
+         * an unbounded child of the root so the import cannot OOM part-way through the array. On failure the
+         * returned root is closed (firing the native release for the whole batch) and the exception rethrown;
+         * the caller owns {@code staging}. Package-private so the leak regression test can drive the exact
+         * production import path.
+         */
+        static VectorSchemaRoot importOntoStaging(
+            BufferAllocator staging,
+            Schema schema,
+            ArrowArray arrowArray,
+            CDataDictionaryProvider dictionaryProvider
+        ) {
+            VectorSchemaRoot root = VectorSchemaRoot.create(schema, staging);
+            try {
+                Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
+            } catch (RuntimeException e) {
+                root.close();
+                throw e;
+            }
+            return root;
         }
 
         @Override

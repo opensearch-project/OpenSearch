@@ -72,14 +72,14 @@
 //! [`read_columns_indexes`]/[`read_offset_indexes`] (the only public subset
 //! decoders). Migrate to `ParquetMetaDataOptions` when it grows a page-index knob.
 
-pub mod cache_store;
 pub mod cache_keys;
-pub mod page_index_io;
+pub mod cache_store;
 pub mod column_schema_resolver;
+pub mod page_index_io;
 
-use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
 use crate::cache::eviction_policy::CacheEvictionPolicy;
 use cache_keys::{CiCellKey, OiCellKey, OiColumn};
+use cache_store::{BoundedCache, DEFAULT_SCOPED_CACHE_LIMIT};
 
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use once_cell::sync::Lazy;
@@ -101,20 +101,44 @@ pub fn set_scoped_page_index_enabled(enabled: bool) {
     SCOPED_PAGE_INDEX_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+/// Whether the page-index loader fetches each file's WHOLE index region in one
+/// `get_ranges` (decode stays scoped) instead of per-column scoped fetches.
+///
+/// Only worthwhile on a remote/warm object store: the warm tier is keyed by the
+/// exact byte-range string, and eager shard-init populates the whole-region range,
+/// so a narrower per-column fetch computes a different key and misses. Fetching the
+/// whole region makes the query's key match what warming wrote → a warm hit. For
+/// local stores there is no warm tier and fewer bytes is better, so it stays off.
+/// Set from `create_reader` when a Java-supplied (remote) store is wired in.
+pub(crate) static WHOLE_REGION_FETCH_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Returns true when whole-region page-index fetch is enabled (remote stores).
+pub fn is_whole_region_fetch_enabled() -> bool {
+    WHOLE_REGION_FETCH_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Enable/disable whole-region page-index fetch. Called from `create_reader` based
+/// on whether a remote object store is in use (`store_ptr > 0`).
+pub fn set_whole_region_fetch_enabled(enabled: bool) {
+    WHOLE_REGION_FETCH_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
 pub use cache_store::ScopedCacheStats;
-pub use page_index_io::load_scoped_page_index_cols;
 pub use column_schema_resolver::{
-    resolve_predicate_parquet_columns,
-    resolve_predicate_parquet_columns_pair,
+    resolve_predicate_parquet_columns, resolve_predicate_parquet_columns_pair,
 };
+pub use page_index_io::load_scoped_page_index_cols;
 
 // Process-global caches
 
 pub(crate) static COLUMN_INDEX_CACHE: Lazy<BoundedCache<CiCellKey, ColumnIndexMetaData>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+    Lazy::new(|| {
+        BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo)
+    });
 
-pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> =
-    Lazy::new(|| BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo));
+pub(crate) static OFFSET_INDEX_CACHE: Lazy<BoundedCache<OiCellKey, OiColumn>> = Lazy::new(|| {
+    BoundedCache::with_named_policy(DEFAULT_SCOPED_CACHE_LIMIT, CacheEvictionPolicy::Fifo)
+});
 
 /// Set the ColumnIndex cache's byte budget. Called from startup wiring with the
 /// configured limit. Idempotent; shrinking evicts immediately. Zero ignored.

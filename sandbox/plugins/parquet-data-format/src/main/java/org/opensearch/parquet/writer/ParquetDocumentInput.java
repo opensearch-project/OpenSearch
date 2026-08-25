@@ -15,11 +15,14 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -37,6 +40,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private static final Logger logger = LogManager.getLogger(ParquetDocumentInput.class);
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
+    private final Set<MappedFieldType> dedup = Collections.newSetFromMap(new IdentityHashMap<>());
     private long rowId = -1;
     private boolean isClosed = false;
 
@@ -49,6 +53,11 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
             // nothing to support on this format for this field.
             logger.trace("Ignored to add field: {} {}", fieldType.name(), fieldType.getCapabilityMap());
             return;
+        }
+        if (dedup.add(fieldType) == false) {
+            throw new MapperParsingException(
+                "Cannot accept multiple values for field: [" + fieldType.name() + "] of type: [" + fieldType.typeName() + "]."
+            );
         }
         collectedFields.add(new FieldValuePair(fieldType, value));
     }

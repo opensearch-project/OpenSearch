@@ -222,12 +222,17 @@ mod tests {
             config_options: Arc::new(datafusion::config::ConfigOptions::new()),
         };
 
-        let out = ConvUdf::new().invoke_with_args(args).expect("conv must accept Utf8View");
+        let out = ConvUdf::new()
+            .invoke_with_args(args)
+            .expect("conv must accept Utf8View");
         let arr = match out {
             ColumnarValue::Array(a) => a,
             _ => panic!("expected array output"),
         };
-        let s = arr.as_any().downcast_ref::<StringArray>().expect("Utf8 output");
+        let s = arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("Utf8 output");
         assert_eq!(s.value(0), "1011"); // 11 base10 → base2
         assert_eq!(s.value(1), "255"); // FF base16 → base10
         assert!(s.is_null(2)); // null input → null

@@ -28,17 +28,17 @@ use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaD
 use datafusion::datasource::physical_plan::parquet::{
     ParquetAccessPlan, ParquetFileMetrics, ParquetFileReaderFactory, RowGroupAccess,
 };
-use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
-use datafusion::parquet::arrow::async_reader::ParquetObjectReader;
-use datafusion::parquet::file::metadata::{PageIndexPolicy, ParquetMetaDataReader};
 use datafusion::datasource::physical_plan::ParquetSource;
+use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::parquet::arrow::arrow_reader::{ArrowReaderOptions, RowSelection};
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
+use datafusion::parquet::arrow::async_reader::ParquetObjectReader;
 use datafusion::parquet::arrow::parquet_to_arrow_schema;
 use datafusion::parquet::file::metadata::ParquetMetaData;
+use datafusion::parquet::file::metadata::{PageIndexPolicy, ParquetMetaDataReader};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
@@ -283,7 +283,11 @@ impl CachedMetadataReaderFactory {
         metadata: Arc<ParquetMetaData>,
         io_stats: Arc<ReadIoStats>,
     ) -> Self {
-        Self { store, metadata, io_stats }
+        Self {
+            store,
+            metadata,
+            io_stats,
+        }
     }
 }
 

@@ -129,6 +129,7 @@ pub async fn build_segments(
             object_path: meta.location.clone(),
             parquet_size: size,
             row_groups,
+            arrow_schema: file_schema,
             metadata: pq_meta,
             global_base,
             sort_min,
@@ -295,7 +296,9 @@ mod tests {
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
-    use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};
+    use object_store::{
+        local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt,
+    };
     use tempfile::tempdir;
 
     /// Mirror of what `CacheManager::try_new` auto-installs when no custom

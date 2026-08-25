@@ -71,28 +71,28 @@ public class ExampleSearchRequestPreProcessorTests extends OpenSearchTestCase {
         // original size < 5 => should generate
         SearchRequest smallRequest = new SearchRequest();
         smallRequest.source(new SearchSourceBuilder().size(4));
-        ProcessorGenerationContext smallContext = new ProcessorGenerationContext(smallRequest);
+        ProcessorGenerationContext smallContext = new ProcessorGenerationContext(smallRequest, null);
         assertTrue(factory.shouldGenerate(smallContext));
 
         // original size = 5 => should not generate
         SearchRequest boundaryRequest = new SearchRequest();
         boundaryRequest.source(new SearchSourceBuilder().size(5));
-        ProcessorGenerationContext boundaryContext = new ProcessorGenerationContext(boundaryRequest);
+        ProcessorGenerationContext boundaryContext = new ProcessorGenerationContext(boundaryRequest, null);
         assertFalse(factory.shouldGenerate(boundaryContext));
 
         // original size > 5 => should not generate
         SearchRequest largeRequest = new SearchRequest();
         largeRequest.source(new SearchSourceBuilder().size(6));
-        ProcessorGenerationContext largeContext = new ProcessorGenerationContext(largeRequest);
+        ProcessorGenerationContext largeContext = new ProcessorGenerationContext(largeRequest, null);
         assertFalse(factory.shouldGenerate(largeContext));
 
         // null request => should not generate
-        ProcessorGenerationContext nullContext = new ProcessorGenerationContext(null);
+        ProcessorGenerationContext nullContext = new ProcessorGenerationContext(null, null);
         assertFalse(factory.shouldGenerate(nullContext));
 
         // null source => should not generate
         SearchRequest nullSourceRequest = new SearchRequest();
-        ProcessorGenerationContext nullSourceContext = new ProcessorGenerationContext(nullSourceRequest);
+        ProcessorGenerationContext nullSourceContext = new ProcessorGenerationContext(nullSourceRequest, null);
         assertFalse(factory.shouldGenerate(nullSourceContext));
     }
 

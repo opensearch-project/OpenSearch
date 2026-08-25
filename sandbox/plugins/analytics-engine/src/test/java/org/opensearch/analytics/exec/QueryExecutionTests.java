@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.OutOfMemoryException;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.OpenSearchException;
 import org.opensearch.analytics.backend.ExchangeSource;
@@ -28,6 +29,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -190,6 +193,46 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         assertSame("original stage failure must reach the listener even when terminal sink close throws", rootCause, onFailure.get());
     }
 
+    /**
+     * A query self-cancels its remaining stages once a stage fails (e.g. a reduce sink throwing
+     * {@code ReduceSizeExceededException}). The parent task ends up cancelled, but the captured
+     * stage failure is the TRUE cause — {@code terminalCause} must surface it rather than masking
+     * it behind {@code TaskCancelledException}, so the user sees the actionable reason.
+     *
+     * <p>Reproduces the masking ordering: the parent task is cancelled BEFORE the query reaches
+     * its terminal (the real scheduler cancels the task as part of the self-cancel cascade), and
+     * the failing stage has captured a real cause. Without the fix, {@code terminalCause} would
+     * see {@code task.isCancelled()} and return {@code TaskCancelledException}, hiding the cause.
+     */
+    public void testCapturedStageFailureWinsOverSelfCancelMask() {
+        Stage rootStage = stageWithId(0);
+        // A stage that holds a captured failure but lands on CANCELLED (cascade), exactly as a
+        // child stage does when the query self-cancels after a sibling/downstream failure.
+        RuntimeException rootCause = new RuntimeException("Stage 0 sink feed failed", new IllegalStateException("buffer budget exceeded"));
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryContext ctx = queryCtx(rootStage);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, s -> s.start(ActionListener.wrap(v -> {}, e -> {})));
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        QueryExecution qe = new QueryExecution(
+            ctx,
+            graph,
+            s -> s.start(ActionListener.wrap(v -> {}, e -> {})),
+            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
+        );
+        qe.start();
+
+        // Self-cancel cascade: parent task cancelled first, then the stage settles to a terminal
+        // while carrying the captured cause. Capture the failure without firing FAILED (record it,
+        // then drive the CANCELLED terminal) to mirror the cascade ordering.
+        ctx.parentTask().cancel("self-cancel after stage failure");
+        root.recordFailureOnly(rootCause);
+        qe.cancelAll("self-cancel after stage failure");
+
+        assertSame("captured stage failure must win over the self-cancel TaskCancelledException mask", rootCause, onFailure.get());
+    }
+
     public void testBareBreakerMasqueradingAsCancelSurfacesAs429() {
         // The exact shape reproduced live on 91-d: the breaker is the root stage's captured failure
         // (DatafusionReduceSink.reduce → onTaskTerminal → captureFailure), and the same trip then
@@ -282,32 +325,158 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         assertEquals("cancellation maps to HTTP 500", RestStatus.INTERNAL_SERVER_ERROR, ((OpenSearchException) surfaced).status());
     }
 
-    public void testNonBreakerFailureWithCancelledParentStaysTaskCancelled() {
-        // A non-breaker stage failure that also cancelled the parent task keeps the original cancel-first
-        // behavior: the peek finds no breaker, so we report TaskCancelledException (HTTP 500). Option B
-        // only diverts the breaker case; every other cancelled path is unchanged.
+    // ── Arrow OutOfMemoryException translation ──────────────────────────
+    // Same shape as Garov's CircuitBreakingException tests, but for Arrow Java's allocator-budget
+    // refusal (org.apache.arrow.memory.OutOfMemoryException — NOT a JVM OOM). Arrow OOM is the
+    // signal that an allocation was rejected against native.allocator.pool.query.max; it belongs
+    // in the same back-pressure / 429 class as CircuitBreakingException so FailAwareWeightedRouting
+    // skips replica retry. terminalCause translates it to CircuitBreakingException at the coordinator.
+
+    public void testBareArrowOomMasqueradingAsCancelSurfacesAs429() {
+        // Mirrors the live failure on dev (332-big5): an Arrow allocator trip fails the reduce stage
+        // and the same sweep cancels the parent task, so isCancelled() is already true by the time we
+        // report. terminalCause must translate the Arrow OOM to CircuitBreakingException (HTTP 429),
+        // not mask it as TaskCancelledException (HTTP 500).
         Stage rootStage = stageWithId(0);
         TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
         builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AnalyticsQueryTask task = newTask();
-        task.cancel("sibling sweep cancelled the parent task");
+        task.cancel("arrow allocator sweep cancelled the parent task");
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
         newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set), task);
 
-        root.failWith(new RuntimeException("non-memory stage failure"));
+        OutOfMemoryException arrowOom = new OutOfMemoryException(
+            "Unable to allocate buffer of size 128 (rounded from 80) due to memory limit. Current allocation: 277821480"
+        );
+        root.failWith(arrowOom);
 
         Exception surfaced = onFailure.get();
-        assertTrue("non-breaker failure under a cancel stays TaskCancelledException", surfaced instanceof TaskCancelledException);
+        assertTrue("Arrow OOM must be translated to CircuitBreakingException", surfaced instanceof CircuitBreakingException);
+        assertEquals("translated breaker maps to HTTP 429", RestStatus.TOO_MANY_REQUESTS, ((OpenSearchException) surfaced).status());
+        assertSame("original Arrow OOM must be preserved as cause", arrowOom, surfaced.getCause());
+        assertTrue("translated message must preserve the Arrow OOM detail", surfaced.getMessage().contains("Unable to allocate buffer"));
+    }
+
+    public void testWrappedArrowOomUnderCancelStillUnwrapsTo429() {
+        // Mirrors the in-process Arrow OOM path: ArrayImporter wraps the OOM in IllegalArgumentException
+        // ("Could not load buffers for field cnt[hll_registers]") before it propagates up. Even nested
+        // under a cancelled parent task, the cause-walk must surface it as 429.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AnalyticsQueryTask task = newTask();
+        task.cancel("arrow allocator sweep cancelled the parent task");
+
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set), task);
+
+        OutOfMemoryException arrowOom = new OutOfMemoryException("Unable to allocate buffer of size 98304");
+        IllegalArgumentException wrapped = new IllegalArgumentException("Could not load buffers for field cnt[hll_registers]", arrowOom);
+        root.failWith(wrapped);
+
+        Exception surfaced = onFailure.get();
+        assertTrue("wrapped Arrow OOM must still translate to CircuitBreakingException", surfaced instanceof CircuitBreakingException);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ((OpenSearchException) surfaced).status());
+        assertTrue(surfaced.getMessage().contains("Unable to allocate buffer"));
+    }
+
+    public void testBareArrowOomFailureSurfacesAs429() {
+        // Coordinator-local Arrow OOM (no cancel sweep): a direct in-process materialization
+        // OOM with parent task NOT cancelled must still translate to 429 via the non-cancel
+        // path so client/router treat it as back-pressure.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+
+        OutOfMemoryException arrowOom = new OutOfMemoryException("Unable to allocate buffer of size 4194304");
+        root.failWith(arrowOom);
+
+        Exception surfaced = onFailure.get();
+        assertTrue(surfaced instanceof CircuitBreakingException);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ((OpenSearchException) surfaced).status());
+        assertSame(arrowOom, surfaced.getCause());
+    }
+
+    public void testStreamExceptionCarryingArrowOomMessageTranslatesTo429() {
+        // The cross-Flight-RPC path: shard-side Arrow OOM travels over Flight, the wire envelope strips
+        // the original OutOfMemoryException class, coordinator receives StreamException[INTERNAL] whose
+        // message contains Arrow's "Unable to allocate buffer ..." marker. terminalCause must still
+        // surface this as CircuitBreakingException (HTTP 429), not as the raw 500 StreamException.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+
+        StreamException se = new StreamException(
+            StreamErrorCode.INTERNAL,
+            "Could not load buffers for field cnt[hll_registers]: Binary not null. error message: "
+                + "Unable to allocate buffer of size 98304 due to memory limit. Current allocation: 197104"
+        );
+        root.failWith(se);
+
+        Exception surfaced = onFailure.get();
+        assertTrue("post-RPC Arrow OOM must translate to CircuitBreakingException", surfaced instanceof CircuitBreakingException);
+        assertEquals("translated breaker maps to HTTP 429", RestStatus.TOO_MANY_REQUESTS, ((OpenSearchException) surfaced).status());
+        assertSame("original StreamException must be preserved as cause", se, surfaced.getCause());
+        assertTrue("translated message must preserve the Arrow OOM detail", surfaced.getMessage().contains("Unable to allocate buffer"));
+    }
+
+    public void testStreamExceptionWithoutArrowOomMessageSurfacesUnchanged() {
+        // INTERNAL-code StreamException whose message is NOT an Arrow allocator failure (e.g. a Rust
+        // panic surfaced via cross_rt_stream.rs) must NOT be re-classified as back-pressure — operators
+        // need 500 so it pages and FailAwareWeightedRouting can retry on a replica.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+
+        StreamException se = new StreamException(
+            StreamErrorCode.INTERNAL,
+            "java.lang.RuntimeException: Execution error: Panic: byte array offset overflow"
+        );
+        root.failWith(se);
+
+        Exception surfaced = onFailure.get();
+        assertSame("non-Arrow-OOM StreamException must pass through unchanged", se, surfaced);
+        assertFalse(surfaced instanceof CircuitBreakingException);
+    }
+
+    public void testNonArrowOomFailureSurfacesUnchanged() {
+        // An unrelated stage failure (e.g. engine-bug-class — a Rust panic surfaced as a
+        // RuntimeException) must NOT be re-classified as back-pressure. It needs HTTP 500
+        // so operators see a real "fix this" signal and FailAwareWeightedRouting can retry
+        // it on a replica.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+
+        RuntimeException panic = new RuntimeException("Execution error: Panic: byte array offset overflow");
+        root.failWith(panic);
+
+        Exception surfaced = onFailure.get();
+        assertSame("non-Arrow-OOM failure must pass through unchanged", panic, surfaced);
+        assertFalse(surfaced instanceof CircuitBreakingException);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
 
     private QueryExecution newQueryExecution(Stage rootStage, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         QueryContext ctx = queryCtx(rootStage);
-        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
-        return new QueryExecution(ctx, graph, StageExecution::start, listener);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, s -> s.start(ActionListener.wrap(v -> {}, e -> {})));
+        return new QueryExecution(ctx, graph, s -> s.start(ActionListener.wrap(v -> {}, e -> {})), listener);
     }
 
     private QueryExecution newQueryExecution(
@@ -317,8 +486,8 @@ public class QueryExecutionTests extends OpenSearchTestCase {
     ) {
         QueryDAG dag = new QueryDAG("q-test", rootStage);
         QueryContext ctx = QueryContext.forTest(dag, task);
-        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
-        return new QueryExecution(ctx, graph, StageExecution::start, listener);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, s -> s.start(ActionListener.wrap(v -> {}, e -> {})));
+        return new QueryExecution(ctx, graph, s -> s.start(ActionListener.wrap(v -> {}, e -> {})), listener);
     }
 
     private static AnalyticsQueryTask newTask() {
@@ -381,7 +550,9 @@ public class QueryExecutionTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start(ActionListener<Void> onStarted) {
+            onStarted.onResponse(null);
+        }
 
         @Override
         public java.util.List<org.opensearch.analytics.exec.stage.StageTask> tasks() {
@@ -434,6 +605,12 @@ public class QueryExecutionTests extends OpenSearchTestCase {
 
         void failWith(Exception cause) {
             failWithCause(cause);
+        }
+
+        /** Records a captured failure WITHOUT transitioning state — mirrors a stage that captured a
+         *  cause but then settled to CANCELLED via the self-cancel cascade rather than FAILED. */
+        void recordFailureOnly(Exception cause) {
+            failure.compareAndSet(null, cause);
         }
 
         void succeed() {

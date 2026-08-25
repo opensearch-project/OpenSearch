@@ -27,6 +27,7 @@ public class ClearCacheNodesRequest extends BaseNodesRequest<ClearCacheNodesRequ
     private boolean footer;
     private boolean column;
     private boolean offset;
+    private boolean statistics;
 
     /** Clears ALL caches on the target nodes (no params given). */
     public ClearCacheNodesRequest(String... nodesIds) {
@@ -38,6 +39,7 @@ public class ClearCacheNodesRequest extends BaseNodesRequest<ClearCacheNodesRequ
         this.footer = in.readBoolean();
         this.column = in.readBoolean();
         this.offset = in.readBoolean();
+        this.statistics = in.readBoolean();
     }
 
     @Override
@@ -46,6 +48,7 @@ public class ClearCacheNodesRequest extends BaseNodesRequest<ClearCacheNodesRequ
         out.writeBoolean(footer);
         out.writeBoolean(column);
         out.writeBoolean(offset);
+        out.writeBoolean(statistics);
     }
 
     /** Whether to clear the footer metadata cache. */
@@ -75,8 +78,16 @@ public class ClearCacheNodesRequest extends BaseNodesRequest<ClearCacheNodesRequ
         this.offset = offset;
     }
 
+    public boolean isStatistics() {
+        return statistics;
+    }
+
+    public void setStatistics(boolean statistics) {
+        this.statistics = statistics;
+    }
+
     /** True when no specific flag is set — means clear everything. */
     public boolean isClearAll() {
-        return !footer && !column && !offset;
+        return !footer && !column && !offset && !statistics;
     }
 }

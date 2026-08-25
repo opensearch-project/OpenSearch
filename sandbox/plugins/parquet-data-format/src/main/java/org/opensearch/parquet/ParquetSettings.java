@@ -19,6 +19,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 import java.util.Collections;
@@ -39,8 +43,57 @@ public final class ParquetSettings {
     public static final String POOL_WRITE = "write";
     public static final String POOL_MERGE = "merge";
 
-    public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
-    public static final int DEFAULT_MAX_ROWS_PER_VSR = 65536;
+    /**
+     * Anchor used to scale the batch/sort defaults with machine memory. The tuned base values
+     * (VSR rows, merge rows, and sort-threshold MiB) were measured on a 64 GiB machine; defaults
+     * scale linearly with total RAM relative to this anchor.
+     */
+    static final long BATCH_SIZE_ANCHOR_RAM_BYTES = 64L * 1024 * 1024 * 1024;
+
+    /** Fixed bounds for the RAM-scaled {@code parquet.max_rows_per_vsr} default (user-set values are unbounded). */
+    public static final int DEFAULT_MAX_ROWS_PER_VSR = 65_536;
+    static final int MAX_ROWS_PER_VSR_FLOOR = 8_192;
+    static final int MAX_ROWS_PER_VSR_CEIL = 131_072;
+
+    /** Tuned base (64 GiB anchor) and fixed bounds for the RAM-scaled {@code index.parquet.merge_batch_size} default. */
+    public static final int DEFAULT_MERGE_BATCH_SIZE = 100_000;
+    static final int MERGE_BATCH_SIZE_FLOOR = 12_500;
+    static final int MERGE_BATCH_SIZE_CEIL = 100_000;
+
+    /**
+     * Tuned base (64 GiB anchor) and fixed bounds, in MiB, for the RAM-scaled
+     * {@code index.parquet.sort_in_memory_threshold} default. Governs the sorted-write chunk size;
+     * each chunk flush transiently reserves ~2× this on the write pool.
+     */
+    static final int SORT_IN_MEMORY_THRESHOLD_BASE_MB = 32;
+    static final int SORT_IN_MEMORY_THRESHOLD_FLOOR_MB = 16;
+    static final int SORT_IN_MEMORY_THRESHOLD_CEIL_MB = 64;
+
+    /**
+     * RAM-scaled defaults, computed once at class load (total RAM is constant per node).
+     * Any failure reading RAM falls back to the tuned base value (see {@link #safeTotalRamBytes()}).
+     */
+    private static final int MAX_ROWS_PER_VSR_DEFAULT = deriveBatchSizeDefault(
+        safeTotalRamBytes(),
+        DEFAULT_MAX_ROWS_PER_VSR,
+        MAX_ROWS_PER_VSR_FLOOR,
+        MAX_ROWS_PER_VSR_CEIL
+    );
+    private static final int MERGE_BATCH_SIZE_DEFAULT = deriveBatchSizeDefault(
+        safeTotalRamBytes(),
+        DEFAULT_MERGE_BATCH_SIZE,
+        MERGE_BATCH_SIZE_FLOOR,
+        MERGE_BATCH_SIZE_CEIL
+    );
+    private static final ByteSizeValue SORT_IN_MEMORY_THRESHOLD_DEFAULT = new ByteSizeValue(
+        deriveBatchSizeDefault(
+            safeTotalRamBytes(),
+            SORT_IN_MEMORY_THRESHOLD_BASE_MB,
+            SORT_IN_MEMORY_THRESHOLD_FLOOR_MB,
+            SORT_IN_MEMORY_THRESHOLD_CEIL_MB
+        ),
+        ByteSizeUnit.MB
+    );
 
     /** Data page size limit in bytes (default 1MB). */
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
@@ -104,33 +157,23 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Maximum native memory allocation for Arrow buffers, as a percentage of non-heap memory (default 10%). */
-    public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
-        "parquet.max_native_allocation",
-        DEFAULT_MAX_NATIVE_ALLOCATION,
-        Setting.Property.NodeScope
-    );
-
-    /** Maximum rows per VectorSchemaRoot before rotation is triggered (default 50000). */
+    /**
+     * Maximum rows per VectorSchemaRoot before rotation is triggered. Default scales with total RAM
+     * (linearly, anchored at 64 GiB → {@value #DEFAULT_MAX_ROWS_PER_VSR}), clamped to
+     * [{@value #MAX_ROWS_PER_VSR_FLOOR}, {@value #MAX_ROWS_PER_VSR_CEIL}].
+     */
     public static final Setting<Integer> MAX_ROWS_PER_VSR = Setting.intSetting(
         "parquet.max_rows_per_vsr",
-        DEFAULT_MAX_ROWS_PER_VSR,
+        MAX_ROWS_PER_VSR_DEFAULT,
         1,
         Setting.Property.NodeScope
     );
 
-    /** File size threshold for in-memory sort vs streaming merge sort (default 32MB). */
+    /** File size threshold for in-memory sort vs streaming merge sort. Default scales with total RAM
+     *  (anchor 32 MiB @ 64 GiB), clamped to [16 MiB, 64 MiB]. */
     public static final Setting<ByteSizeValue> SORT_IN_MEMORY_THRESHOLD = Setting.byteSizeSetting(
         "index.parquet.sort_in_memory_threshold",
-        new ByteSizeValue(32, ByteSizeUnit.MB),
-        Setting.Property.IndexScope
-    );
-
-    /** Batch size for streaming merge sort (default 8192 rows). */
-    public static final Setting<Integer> SORT_BATCH_SIZE = Setting.intSetting(
-        "index.parquet.sort_batch_size",
-        8192,
-        1,
+        SORT_IN_MEMORY_THRESHOLD_DEFAULT,
         Setting.Property.IndexScope
     );
 
@@ -149,10 +192,14 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Batch size for reading records during merge (default 100000 rows). */
+    /**
+     * Batch size for reading records during merge. Default scales with total RAM
+     * (linearly, anchored at 64 GiB → {@value #DEFAULT_MERGE_BATCH_SIZE}), clamped to
+     * [{@value #MERGE_BATCH_SIZE_FLOOR}, {@value #MERGE_BATCH_SIZE_CEIL}].
+     */
     public static final Setting<Integer> MERGE_BATCH_SIZE = Setting.intSetting(
         "index.parquet.merge_batch_size",
-        100_000,
+        MERGE_BATCH_SIZE_DEFAULT,
         1,
         Setting.Property.IndexScope
     );
@@ -186,10 +233,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Minimum guaranteed bytes for the native write pool. Default is 2% of budget. */
+    /** Minimum guaranteed bytes for the native write pool. Default is 2% of budget on warm nodes, 4% otherwise. */
     public static final Setting<Long> WRITE_POOL_MIN = new Setting<>(
         "parquet.native.pool.write.min",
-        s -> derivePoolMinDefault(s, 2),
+        s -> derivePoolMinDefault(s, DiscoveryNode.isWarmNode(s) ? 2 : 4),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
@@ -201,10 +248,10 @@ public final class ParquetSettings {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the native write pool can burst to. Default is 3% of budget on warm nodes, 5% otherwise. */
+    /** Maximum bytes the native write pool can burst to. Default is 4% of budget on warm nodes, 8% otherwise. */
     public static final Setting<Long> WRITE_POOL_MAX = new Setting<>(
         "parquet.native.pool.write.max",
-        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 3 : 5),
+        s -> derivePoolMaxDefault(s, DiscoveryNode.isWarmNode(s) ? 4 : 8),
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
@@ -271,6 +318,42 @@ public final class ParquetSettings {
             return "0";
         }
         return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+    }
+
+    /**
+     * Scales a batch-size default linearly with total physical RAM, anchored at the 64 GiB benchmark
+     * machine ({@link #BATCH_SIZE_ANCHOR_RAM_BYTES}), and clamps the result to [{@code floor}, {@code ceil}].
+     * The base value is the default tuned on the anchor machine, and {@code factor = totalRamBytes / anchor}.
+     * If RAM is unavailable ({@code totalRamBytes <= 0}), falls back to the tuned default {@code base}
+     * with no scaling/clamping applied.
+     *
+     * @param totalRamBytes total physical RAM in bytes (e.g. {@code OsProbe.getTotalPhysicalMemorySize()})
+     * @param base          tuned default at the 64 GiB anchor (also the fallback value)
+     * @param floor         fixed lower bound
+     * @param ceil          fixed upper bound
+     */
+    static int deriveBatchSizeDefault(long totalRamBytes, int base, int floor, int ceil) {
+        if (totalRamBytes <= 0) {
+            // Memory unavailable — fall back to the tuned default, no calculation.
+            return base;
+        }
+        double factor = (double) totalRamBytes / BATCH_SIZE_ANCHOR_RAM_BYTES;
+        long scaled = Math.round((double) base * factor);
+        return (int) Math.max(floor, Math.min(ceil, scaled));
+    }
+
+    /**
+     * Returns total physical RAM in bytes, or {@code -1} if it cannot be read for any reason.
+     * A negative result drives {@link #deriveBatchSizeDefault} to the tuned base default, ensuring
+     * settings always resolve to a sane value (and class initialization never fails) even if the
+     * OS probe throws.
+     */
+    private static long safeTotalRamBytes() {
+        try {
+            return OsProbe.getInstance().getTotalPhysicalMemorySize();
+        } catch (Exception e) {
+            return -1L;
+        }
     }
 
     public static final Set<String> VALID_ENCODINGS = Set.of(
@@ -399,6 +482,9 @@ public final class ParquetSettings {
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
+
+    /** Name of the {@code low_cardinality} mapping parameter, which suppresses Lucene indexing and enables a Parquet column bloom filter. */
+    public static final String LOW_CARDINALITY_PARAM = "low_cardinality";
 
     // Field-level bloom filter enabled configuration (parallel arrays)
     public static final Setting<List<String>> BLOOM_FILTER_ENABLED_FIELD_SETTING = Setting.listSetting(
@@ -586,6 +672,49 @@ public final class ParquetSettings {
         );
     }
 
+    /** Returns the field names whose {@code low_cardinality} mapping parameter resolves to {@code true}, read from the mapping. */
+    public static Set<String> getLowCardinalityEnabledFields(MapperService mapperService) {
+        return getFieldsWithParameterEnabled(mapperService, LOW_CARDINALITY_PARAM);
+    }
+
+    /**
+     * Returns the field names whose given boolean mapping parameter resolves to {@code true}, read from the mapping.
+     * Applies to any boolean parameter the plugin contributes via {@link ParquetDataFormatPlugin#getPluginMappingParameters}.
+     */
+    public static Set<String> getFieldsWithParameterEnabled(MapperService mapperService, String parameterName) {
+        Map<String, Object> values = getFieldParameterValues(mapperService, parameterName);
+        Set<String> enabled = new java.util.HashSet<>();
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (Boolean.TRUE.equals(entry.getValue())) {
+                enabled.add(entry.getKey());
+            }
+        }
+        return Collections.unmodifiableSet(enabled);
+    }
+
+    /**
+     * Returns a map of field name to the resolved value of the given mapping parameter, for fields that expose it.
+     * Works for any parameter type the plugin contributes via {@link ParquetDataFormatPlugin#getPluginMappingParameters}.
+     *
+     * <p>This performs a linear scan of the document mapper's fields and is intended for cold paths
+     * (settings sync, index creation). If called on the write path, cache the result by mapping version.
+     */
+    public static Map<String, Object> getFieldParameterValues(MapperService mapperService, String parameterName) {
+        if (mapperService == null || mapperService.documentMapper() == null || mapperService.documentMapper().mappers() == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> result = new HashMap<>();
+        for (Mapper mapper : mapperService.documentMapper().mappers()) {
+            if (mapper instanceof ParametrizedFieldMapper) {
+                Object value = ((ParametrizedFieldMapper) mapper).mappingPluginParameterValues().get(parameterName);
+                if (value != null) {
+                    result.put(mapper.name(), value);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     public static Map<String, Double> getFieldBloomFilterFpp(Settings settings) {
         Map<String, Double> result = new HashMap<>();
         for (String key : settings.keySet()) {
@@ -707,12 +836,15 @@ public final class ParquetSettings {
 
     /**
      * Validates that field-level configurations are compatible with their Arrow types in the schema.
+     * Only keyword and text field types are accepted for low_cardinality_enable.
      */
     public static void validateFieldConfigurations(
         Map<String, String> fieldEncodings,
         Map<String, String> fieldCompressions,
         Map<String, Boolean> fieldBloomFilterEnabled,
-        Schema schema
+        Set<String> lowCardinalityEnabledFields,
+        Schema schema,
+        MapperService mapperService
     ) {
         Map<String, ArrowType> arrowTypes = new HashMap<>();
         for (Field field : schema.getFields()) {
@@ -749,6 +881,48 @@ public final class ParquetSettings {
                 );
             }
         }
+
+        // Validate low_cardinality_enable fields: must exist and be keyword or text type
+        for (String fieldName : lowCardinalityEnabledFields) {
+            if (!arrowTypes.containsKey(fieldName)) {
+                throw new IllegalArgumentException(
+                    "Field '" + fieldName + "' in low_cardinality_enable configuration does not exist in mappings"
+                );
+            }
+            org.opensearch.index.mapper.MappedFieldType mappedFieldType = mapperService.fieldType(fieldName);
+            if (mappedFieldType == null) {
+                throw new IllegalArgumentException(
+                    "Field '" + fieldName + "' in low_cardinality_enable configuration does not exist in mappings"
+                );
+            }
+            String typeName = mappedFieldType.typeName();
+            if (!"keyword".equals(typeName) && !"text".equals(typeName)) {
+                throw new IllegalArgumentException(
+                    "low_cardinality_enable is only supported for keyword and text fields, but field '"
+                        + fieldName
+                        + "' has type '"
+                        + typeName
+                        + "'"
+                );
+            }
+        }
+    }
+
+    /**
+     * Overload that omits low_cardinality validation — kept for backward compatibility with callers
+     * that do not yet have a MapperService reference.
+     *
+     * @deprecated Use the overload that accepts {@code lowCardinalityEnabledFields} and
+     *             {@code mapperService} to enable full validation.
+     */
+    @Deprecated
+    public static void validateFieldConfigurations(
+        Map<String, String> fieldEncodings,
+        Map<String, String> fieldCompressions,
+        Map<String, Boolean> fieldBloomFilterEnabled,
+        Schema schema
+    ) {
+        validateFieldConfigurations(fieldEncodings, fieldCompressions, fieldBloomFilterEnabled, Collections.emptySet(), schema, null);
     }
 
     /** Returns all settings defined by the Parquet plugin. */
@@ -762,10 +936,8 @@ public final class ParquetSettings {
             BLOOM_FILTER_ENABLED,
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
-            MAX_NATIVE_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,
-            SORT_BATCH_SIZE,
             ROW_GROUP_MAX_ROWS,
             ROW_GROUP_MAX_BYTES,
             MERGE_BATCH_SIZE,

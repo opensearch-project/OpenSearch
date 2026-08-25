@@ -126,6 +126,8 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.setSourceRemoteStoreRepository(randomAlphaOfLengthBetween(5, 10));
         }
 
+        instance.attachToDataStream(randomBoolean());
+
         return instance;
     }
 

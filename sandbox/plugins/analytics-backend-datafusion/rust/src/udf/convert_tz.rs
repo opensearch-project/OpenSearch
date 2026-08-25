@@ -131,20 +131,26 @@ impl ScalarUDFImpl for ConvertTzUdf {
         // Only materialize column-valued tz operands; for scalars the parsed
         // TzSpec is already in hand. Keep the ArrayRef alive alongside the
         // view — StringArrayView borrows from the underlying buffer.
-        let from_arr_ref: Option<ArrayRef> = if from_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(args.args[1].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let to_arr_ref: Option<ArrayRef> = if to_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
-            Some(args.args[2].clone().into_array(n)?)
-        } else {
-            None
-        };
-        let from_array: Option<StringArrayView<'_>> =
-            from_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
-        let to_array: Option<StringArrayView<'_>> =
-            to_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let from_arr_ref: Option<ArrayRef> =
+            if from_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
+                Some(args.args[1].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let to_arr_ref: Option<ArrayRef> =
+            if to_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
+                Some(args.args[2].clone().into_array(n)?)
+            } else {
+                None
+            };
+        let from_array: Option<StringArrayView<'_>> = from_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
+        let to_array: Option<StringArrayView<'_>> = to_arr_ref
+            .as_ref()
+            .map(StringArrayView::from_array)
+            .transpose()?;
 
         let mut builder = TimestampMillisecondBuilder::with_capacity(n);
         for i in 0..n {
@@ -195,7 +201,9 @@ impl ScalarUDFImpl for ConvertTzUdf {
 fn scalar_tz(cv: &ColumnarValue) -> Option<TzSpec> {
     if let ColumnarValue::Scalar(sv) = cv {
         let s = match sv {
-            ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt) => opt.as_deref(),
+            ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt) => {
+                opt.as_deref()
+            }
             _ => None,
         };
         return s.and_then(parse_tz);
@@ -294,19 +302,18 @@ fn offset_seconds_at(tz: &TzSpec, naive: &NaiveDateTime) -> Option<i32> {
 /// the input. We reconstruct the instant from `ts_millis` + `from_offset` (since
 /// `ts_millis` is a wall clock in from_tz), then look up to_tz's offset at that
 /// instant — DST-correct even across transitions.
-fn offset_seconds_at_instant(
-    tz: &TzSpec,
-    ts_millis: i64,
-    from_offset_seconds: i32,
-) -> Option<i32> {
+fn offset_seconds_at_instant(tz: &TzSpec, ts_millis: i64, from_offset_seconds: i32) -> Option<i32> {
     match tz {
         TzSpec::Offset(o) => Some(*o),
         TzSpec::Iana(z) => {
             // instant_utc_millis = wall_millis - from_offset_millis
-            let instant_millis =
-                ts_millis.checked_sub((from_offset_seconds as i64) * 1_000)?;
+            let instant_millis = ts_millis.checked_sub((from_offset_seconds as i64) * 1_000)?;
             let instant = DateTime::<Utc>::from_timestamp_millis(instant_millis)?;
-            Some(z.offset_from_utc_datetime(&instant.naive_utc()).fix().local_minus_utc())
+            Some(
+                z.offset_from_utc_datetime(&instant.naive_utc())
+                    .fix()
+                    .local_minus_utc(),
+            )
         }
     }
 }
@@ -478,7 +485,12 @@ mod tests {
         let udf = ConvertTzUdf::new();
         assert!(udf.coerce_types(&[DataType::Utf8]).is_err());
         assert!(udf
-            .coerce_types(&[DataType::Utf8, DataType::Utf8, DataType::Utf8, DataType::Utf8])
+            .coerce_types(&[
+                DataType::Utf8,
+                DataType::Utf8,
+                DataType::Utf8,
+                DataType::Utf8
+            ])
             .is_err());
     }
 
@@ -486,11 +498,7 @@ mod tests {
     #[test]
     fn invoke_nulls_and_bad_tz_propagate() {
         let udf = ConvertTzUdf::new();
-        let ts = TimestampMillisecondArray::from(vec![
-            Some(1_704_456_000_000),
-            None,
-            Some(0),
-        ]);
+        let ts = TimestampMillisecondArray::from(vec![Some(1_704_456_000_000), None, Some(0)]);
         let from = StringArray::from(vec![
             Some("+00:00"),
             Some("UTC"),

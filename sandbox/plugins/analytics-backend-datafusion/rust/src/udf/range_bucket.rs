@@ -43,9 +43,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, Float64Array, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, Float64Array, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::plan_err;
 use datafusion::error::{DataFusionError, Result};
@@ -141,7 +139,13 @@ impl ScalarUDFImpl for RangeBucketUdf {
             } else {
                 Some(end_param.value(i))
             };
-            match calculate(value.value(i), data_min.value(i), data_max.value(i), start, end) {
+            match calculate(
+                value.value(i),
+                data_min.value(i),
+                data_max.value(i),
+                start,
+                end,
+            ) {
                 Some(s) => builder.append_value(&s),
                 None => builder.append_null(),
             }
@@ -202,7 +206,11 @@ fn magnitude_based_width(effective_range: f64) -> f64 {
     let log10_range = effective_range.log10();
     let floor_log = log10_range.floor();
     let is_exact_power_of_10 = (log10_range - floor_log).abs() < 1e-10;
-    let adjusted = if is_exact_power_of_10 { floor_log - 1.0 } else { floor_log };
+    let adjusted = if is_exact_power_of_10 {
+        floor_log - 1.0
+    } else {
+        floor_log
+    };
     10f64.powf(adjusted)
 }
 
@@ -405,10 +413,18 @@ mod tests {
             config_options: Arc::new(Default::default()),
         };
         let out = udf.invoke_with_args(args).unwrap();
-        let ColumnarValue::Array(a) = out else { panic!("expected array") };
+        let ColumnarValue::Array(a) = out else {
+            panic!("expected array")
+        };
         let s = a.as_string::<i32>();
         (0..n)
-            .map(|i| if s.is_null(i) { None } else { Some(s.value(i).to_string()) })
+            .map(|i| {
+                if s.is_null(i) {
+                    None
+                } else {
+                    Some(s.value(i).to_string())
+                }
+            })
             .collect()
     }
 

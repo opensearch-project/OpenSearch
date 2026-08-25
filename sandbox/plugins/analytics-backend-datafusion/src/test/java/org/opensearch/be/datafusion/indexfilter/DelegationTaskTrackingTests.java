@@ -324,7 +324,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+        public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
             int n = Math.min(words.length, (int) (out.byteSize() / Long.BYTES));
             for (int i = 0; i < n; i++)
                 out.setAtIndex(ValueLayout.JAVA_LONG, i, words[i]);
