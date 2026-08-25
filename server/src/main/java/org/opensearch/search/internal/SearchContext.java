@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -291,6 +292,15 @@ public abstract class SearchContext implements Releasable {
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
+
+    /**
+     * The {@link FilteredStatsCache} for this context's index, or {@code null} when it is unavailable (e.g. a
+     * cacheless context). {@code DefaultSearchContext} overrides this; callers must tolerate {@code null} and fall
+     * back to inline computation.
+     */
+    public FilteredStatsCache filteredStatsCache() {
+        return null;
+    }
 
     public abstract TimeValue timeout();
 

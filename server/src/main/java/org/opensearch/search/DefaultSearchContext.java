@@ -61,6 +61,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.Engine;
@@ -743,6 +744,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public BitsetFilterCache bitsetFilterCache() {
         return indexService.cache().bitsetFilterCache();
+    }
+
+    @Override
+    public FilteredStatsCache filteredStatsCache() {
+        return indexService.cache().filteredStatsCache();
     }
 
     @Override

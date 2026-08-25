@@ -60,6 +60,7 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -72,6 +73,7 @@ import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
@@ -331,7 +333,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexFieldData,
                 indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null
             );
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+            FilteredStatsCache filteredStatsCache = new FilteredStatsCache(
+                indexSettings,
+                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA)
+            );
+            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache, filteredStatsCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
