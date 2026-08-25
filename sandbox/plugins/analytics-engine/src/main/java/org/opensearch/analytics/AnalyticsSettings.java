@@ -136,7 +136,7 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Size floor for the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass},
+     * Size floor for distributing an operator onto a worker tier (
      * the only MPP scheduler): a join/aggregate is distributed onto a worker tier only when its larger scan
      * subtree exceeds this many rows (or a deeper operator already distributed — the cascade continues upward
      * regardless). Below the floor the operator stays coordinator-centric, matching CBO's cheap choice for
@@ -206,7 +206,7 @@ public final class AnalyticsSettings {
      * Per-strategy sub-toggle for distributed <em>aggregation</em> (the {@code HASH_SHUFFLE_AGG}
      * strategy): a decomposable {@code GROUP BY} over a distributed join is split PARTIAL (on the join's
      * worker tier, per-partition) + FINAL (gathered to the coordinator) by the general post-CBO pass
-     * {@code DistributionEnforcementPass}, instead of gathering the whole join output and aggregating
+     * CBO's trait enforcement, instead of gathering the whole join output and aggregating
      * serially on the coordinator.
      *
      * <p>Gated under {@link #MPP_ENABLED}: this only has effect when MPP is on. When {@code true}
@@ -219,91 +219,6 @@ public final class AnalyticsSettings {
      */
     public static final Setting<Boolean> MPP_SHUFFLE_AGGREGATE_ENABLED = Setting.boolSetting(
         "analytics.mpp.shuffle.aggregate.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Collapse co-partitioned join tiers into ONE worker tier ({@code false} = one tier per join, the
-     * validated default).
-     *
-     * <p>When several joins in a tree partition on the SAME key, the lower join's output is already
-     * hash-partitioned the way its parent needs it, so the inter-tier shuffle between them ships rows that
-     * are already in the right place. With {@code true} the enforcement pass reuses such a co-partitioned
-     * input in place and {@code GeneralShuffleDAGRewriter} promotes the whole collapsed sub-tree to a single
-     * worker tier, saving one shuffle round-trip per collapsed level (a bushy 4-way join on one key goes
-     * from 3 tiers to 1). This requires the N-ary shuffle transport ({@code ShuffleSlots}) — a collapsed
-     * tier reads one slot per leaf, not two.
-     *
-     * <p>Default {@code false} because the saving is a TRADE, not free: collapsing removes a shuffle
-     * round-trip but makes one worker run several joins, raising its peak memory. DataFusion's hash-join
-     * build is non-spillable, so a collapsed tier can OOM where the tiered plan survived (the same hazard
-     * behind {@code analytics.mpp.shuffle.sort_merge_join_min_rows}). Enable per-query and measure before
-     * making it the default; the tiered shape stays the validated path.
-     */
-    public static final Setting<Boolean> MPP_COLLAPSE_COPARTITIONED_TIERS = Setting.boolSetting(
-        "analytics.mpp.collapse_copartitioned_tiers",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Run a distributed aggregate's FINAL phase on a WORKER TIER, fed by a shuffle on the group keys,
-     * instead of gathering every PARTIAL state to the coordinator.
-     *
-     * <p>Today a split aggregate is {@code FINAL( ER(SINGLETON)( PARTIAL(input) ) )}: every shard's partial
-     * state crosses to the coordinator, which merges them all. For a HIGH-CARDINALITY grouping that gather is
-     * the whole cost — it is what trips
-     * {@code ReduceSizeExceededException: Coordinator-reduce buffer exceeded the per-query memory budget}
-     * on the shared Arrow {@code POOL_QUERY} pool (TPC-H sf=10 q16-q21). With {@code true} the pass instead
-     * emits {@code FINAL( SHUFFLE(hash groupKeys)( PARTIAL(input) ) )}: each partition receives every partial
-     * for its groups, merges them locally, and the coordinator only CONCATENATES one row per group.
-     *
-     * <p>Correct because {@code PARTIAL} fronts its group keys to output positions {@code [0..groupCount)},
-     * so hashing on those places every partial of a group in ONE partition — the per-partition merge is
-     * therefore complete, and no cross-partition FINAL is needed. An EMPTY group set has no key to hash on
-     * and always keeps the coordinator gather.
-     *
-     * <p>Default {@code false}: it trades the coordinator gather for a shuffle round-trip, which is a loss
-     * when the grouping is low-cardinality (few partials, cheap to gather). Enable and measure per workload.
-     */
-    public static final Setting<Boolean> MPP_AGGREGATE_GROUP_KEY_SHUFFLE = Setting.boolSetting(
-        "analytics.mpp.aggregate.group_key_shuffle",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Allow a JOIN to distribute even when one of its inputs is a GATHERED sub-stage, by letting the resulting
-     * coordinator-reduce stage act as a hash-shuffle PRODUCER.
-     *
-     * <p>The pass's shippable-producer gate (step 3d) refuses to distribute such a join today: a gathered input
-     * becomes a {@code ReduceStageExecution}, which historically could only emit to its parent sink, so
-     * shuffling out of one left the consuming worker waiting on a producer that never fired
-     * ({@code ShuffleScanHandler timed out for input-N}). With the reduce stage taught to resolve a producer
-     * sink from its own instruction chain, that limit is lifted — and with it the reason every join above a
-     * decorrelated subquery stays coordinator-centric (TPC-H q4 {@code exists}→SEMI, q22 {@code not exists}
-     * →ANTI, q2/q15 scalar subqueries).
-     *
-     * <p>Default {@code true}. It was introduced off — the failure mode of getting this wrong is a HANG rather
-     * than a wrong answer — and earned the default on evidence: {@code ReduceStageShuffleProducerIT} covers the
-     * SEMI, ANTI and broadcast-ineligible shapes end-to-end, the full {@code integTest} suite is green with it
-     * on, and the TPC-H sf=10 sweep goes 13/22 → 16/22 with flat latency (q4 {@code exists}, q21 and q22
-     * {@code not in} flip FAIL→PASS). Set to {@code false} to fall back to the coordinator-centric shape.
-     *
-     * <p><b>Do NOT blame this setting for TPC-H q15.</b> An sf=1 sweep shows q15 PASS with this off and FAIL
-     * with it on, which looks damning and is NOT causal — at 20 runs per arm q15 is correct 9/20 BOTH ways.
-     * q15 compares two independently-computed parallel {@code SUM(double)}s for exact equality
-     * ({@code where total_revenue = [ … max(total_revenue) ]}, over the same subquery inlined twice), so the
-     * last bits disagree at random and the row vanishes. It flakes in every configuration, including
-     * coordinator-centric with intra-shard concurrency disabled. A 1-or-2-run A/B on this query proves nothing;
-     * use ≥20 runs per arm.
-     */
-    public static final Setting<Boolean> MPP_REDUCE_STAGE_SHUFFLE_PRODUCER = Setting.boolSetting(
-        "analytics.mpp.reduce_stage_shuffle_producer",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -488,9 +403,6 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
-        MPP_COLLAPSE_COPARTITIONED_TIERS,
-        MPP_AGGREGATE_GROUP_KEY_SHUFFLE,
-        MPP_REDUCE_STAGE_SHUFFLE_PRODUCER,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,

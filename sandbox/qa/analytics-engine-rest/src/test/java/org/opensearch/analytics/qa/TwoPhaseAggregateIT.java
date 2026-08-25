@@ -16,26 +16,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end tests for TWO-PHASE GROUP-KEY AGGREGATION
- * ({@code analytics.mpp.aggregate.group_key_shuffle}).
+ * End-to-end tests for TWO-PHASE aggregation (PARTIAL on the data nodes, FINAL on the coordinator) over
+ * high-cardinality, low-cardinality and empty group sets.
  *
- * <p>Without the toggle a split aggregate is {@code FINAL( ER(SINGLETON)( PARTIAL(scan) ) )}: every shard's
- * partial state crosses to the coordinator, which merges them all. {@link HashShuffleAggregateIT} documents
- * that shape — a bare {@code GROUP BY} is NOT worker-parallelized today. For a HIGH-CARDINALITY grouping that
- * coordinator gather is the whole cost, and it is what exhausts the shared Arrow query pool at scale
- * ({@code ReduceSizeExceededException}).
+ * <p>A split aggregate is {@code FINAL( ER(SINGLETON)( PARTIAL(scan) ) )}: every shard's partial state
+ * crosses to the coordinator, which merges them. For a HIGH-CARDINALITY grouping that gather is the whole
+ * cost, and it is what exhausts the shared Arrow query pool at scale
+ * ({@code ReduceSizeExceededException}). {@link HashShuffleAggregateIT} documents that a bare
+ * {@code GROUP BY} is not worker-parallelized today.
  *
- * <p>With the toggle the pass emits {@code FINAL( SHUFFLE(hash groupKeys)( PARTIAL(scan) ) )}: each partition
- * receives every partial for its own groups, merges them locally on a worker, and the coordinator only
- * CONCATENATES one row per group. Correct because {@code PARTIAL} fronts its group keys to output positions
- * {@code [0..groupCount)}, so hashing on those puts every partial of a group in ONE partition.
- *
- * <p>Each test asserts BOTH halves of "the optimization works": the plan really changes (a shuffle appears
- * between PARTIAL and FINAL), and the results are identical to the un-optimized run. A plan change alone
- * would not prove the rows survive the reshuffle; identical rows alone would not prove the optimization
- * engaged.
+ * <p><b>Refactored when {@code analytics.mpp.aggregate.group_key_shuffle} was removed.</b> These tests used
+ * to A/B that toggle and assert the plan gained a {@code SHUFFLE} between PARTIAL and FINAL. The toggle lived
+ * entirely inside the deleted post-CBO enforcement pass and shipped default-OFF, so that plan shape no longer
+ * exists — but the USE CASES it covered do, and they are what these tests now pin: each grouping shape must
+ * return the same rows with MPP on as with MPP off, with every group surviving and no partial lost or
+ * double-counted. The plan-shape half was dropped rather than weakened, because both arms legitimately
+ * produce PARTIAL/FINAL and there is no longer a shape difference to assert.
  */
-public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
+public class TwoPhaseAggregateIT extends AnalyticsRestTestCase {
 
     private static final String HIGH_INDEX = "tp_agg_high_card";
     private static final String LOW_INDEX = "tp_agg_low_card";
@@ -53,7 +51,6 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
     public void tearDown() throws Exception {
         resetSetting("analytics.mpp.enabled");
         resetSetting("analytics.mpp.distribute.min_rows");
-        resetSetting("analytics.mpp.aggregate.group_key_shuffle");
         super.tearDown();
     }
 
@@ -61,32 +58,26 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
      * Hero test: a high-cardinality bare {@code GROUP BY}. With the toggle on the PARTIAL→FINAL exchange must
      * become a SHUFFLE, and every row must match the toggle-off run.
      */
-        public void testHighCardinalityGroupBy_shufflesPartialToFinalAndKeepsResults() throws Exception {
+        public void testHighCardinalityGroupByOverDistributedJoin_matchesBaseline() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + HIGH_INDEX + " | stats sum(amount) as total by user_id | sort user_id";
 
         enableMpp();
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "false");
+        applySetting("analytics.mpp.enabled", "false");
         List<List<Object>> gathered = executePplRows(ppl);
-        String gatheredPlan = executedPlan(ppl);
 
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "true");
+        applySetting("analytics.mpp.enabled", "true");
         List<List<Object>> shuffled = executePplRows(ppl);
         String shuffledPlan = executedPlan(ppl);
 
-        // (1) the optimization ENGAGED: a shuffle exchange now carries PARTIAL → FINAL.
-        assertFalse(
-            "baseline plan must gather PARTIAL→FINAL, not shuffle it:\n" + gatheredPlan,
-            gatheredPlan.contains("OpenSearchShuffleExchange")
-        );
-        assertTrue(
-            "group_key_shuffle=true must place a shuffle between PARTIAL and FINAL:\n" + shuffledPlan,
-            shuffledPlan.contains("OpenSearchShuffleExchange")
-        );
+        // Both arms split PARTIAL/FINAL (MPP-off still uses the shard-partial / coordinator-final path), so
+        // there is no plan-shape difference to assert here — only that the aggregate really is two-phase.
+        assertTrue("MPP-on plan must be a two-phase aggregate:\n" + shuffledPlan, shuffledPlan.contains("PARTIAL"));
+        assertTrue("MPP-on plan must carry the FINAL merge:\n" + shuffledPlan, shuffledPlan.contains("FINAL"));
 
-        // (2) it is CORRECT: identical rows, and the full group set survived the reshuffle.
-        assertEquals("every group must survive the group-key reshuffle", HIGH_ROW_COUNT, shuffled.size());
-        assertRowMultisetEquals("group-key shuffle must not change results", gathered, shuffled);
+        // The invariant that matters: identical rows, and the full group set survived.
+        assertEquals("every group must survive two-phase aggregation", HIGH_ROW_COUNT, shuffled.size());
+        assertRowMultisetEquals("MPP two-phase aggregation must not change high-cardinality results", gathered, shuffled);
     }
 
     /**
@@ -99,14 +90,14 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
         String ppl = "source = " + LOW_INDEX + " | stats sum(amount) as total, count() as cnt by category | sort category";
 
         enableMpp();
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "false");
+        applySetting("analytics.mpp.enabled", "false");
         List<List<Object>> gathered = executePplRows(ppl);
 
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "true");
+        applySetting("analytics.mpp.enabled", "true");
         List<List<Object>> shuffled = executePplRows(ppl);
 
         assertEquals("4 distinct categories, each merged exactly once", 4, shuffled.size());
-        assertRowMultisetEquals("group-key shuffle must not change low-cardinality results", gathered, shuffled);
+        assertRowMultisetEquals("MPP must not change low-cardinality results", gathered, shuffled);
         long totalCount = 0L;
         for (List<Object> row : shuffled) {
             totalCount += ((Number) row.get(1)).longValue();
@@ -123,12 +114,12 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
         String ppl = "source = " + HIGH_INDEX + " | stats sum(amount) as total";
 
         enableMpp();
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "true");
+        applySetting("analytics.mpp.enabled", "true");
         List<List<Object>> rows = executePplRows(ppl);
 
         assertEquals("a global aggregate returns exactly one row", 1, rows.size());
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "false");
-        assertRowMultisetEquals("an empty group set must be unaffected by the toggle", executePplRows(ppl), rows);
+        applySetting("analytics.mpp.enabled", "false");
+        assertRowMultisetEquals("an empty group set must be unaffected by MPP", executePplRows(ppl), rows);
     }
 
     /** MPP off is the correctness oracle: the toggle must not change what a non-MPP run returns. */
@@ -140,7 +131,7 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
         List<List<Object>> nonMpp = executePplRows(ppl);
 
         enableMpp();
-        applySetting("analytics.mpp.aggregate.group_key_shuffle", "true");
+        applySetting("analytics.mpp.enabled", "true");
         assertRowMultisetEquals("two-phase aggregation must match the non-MPP baseline", nonMpp, executePplRows(ppl));
     }
 
@@ -266,8 +257,8 @@ public class TwoPhaseGroupKeyAggregateIT extends AnalyticsRestTestCase {
     }
 
     private static void assertRowMultisetEquals(String message, List<List<Object>> expected, List<List<Object>> actual) {
-        List<String> expectedNorm = expected.stream().map(TwoPhaseGroupKeyAggregateIT::normalizeRow).sorted().toList();
-        List<String> actualNorm = actual.stream().map(TwoPhaseGroupKeyAggregateIT::normalizeRow).sorted().toList();
+        List<String> expectedNorm = expected.stream().map(TwoPhaseAggregateIT::normalizeRow).sorted().toList();
+        List<String> actualNorm = actual.stream().map(TwoPhaseAggregateIT::normalizeRow).sorted().toList();
         assertEquals(message, expectedNorm, actualNorm);
     }
 

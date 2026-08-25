@@ -15,12 +15,14 @@ import org.opensearch.analytics.exec.OrdinalAppendingSink;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
@@ -135,6 +137,7 @@ public class DAGBuilder {
             // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
+            // Root gather has no consumer above it, so nothing to hoist for.
             rootFragment = cutAtExchange(
                 reducer,
                 counter,
@@ -142,7 +145,8 @@ public class DAGBuilder {
                 registry,
                 clusterService,
                 indexNameExpressionResolver,
-                subplanReuseEnabled
+                subplanReuseEnabled,
+                null
             );
         } else if (cboOutput instanceof OpenSearchLateMaterialization lm) {
             // LM at root, no above-ops (e.g. `source = t | where ... | sort col | head N`):
@@ -280,7 +284,16 @@ public class DAGBuilder {
                 );
             } else if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(
-                    cutAtExchange(reducer, counter, childStages, registry, clusterService, indexNameExpressionResolver, subplanReuseEnabled)
+                    cutAtExchange(
+                        reducer,
+                        counter,
+                        childStages,
+                        registry,
+                        clusterService,
+                        indexNameExpressionResolver,
+                        subplanReuseEnabled,
+                        node
+                    )
                 );
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
                 newInputs.add(
@@ -463,14 +476,53 @@ public class DAGBuilder {
         CapabilityRegistry registry,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        boolean subplanReuseEnabled
+        boolean subplanReuseEnabled,
+        RelNode consumer
     ) {
+        // Keep a leading row-transparent Project chain in the PARENT fragment instead of the child.
+        //
+        // Rehomed from the deleted post-CBO enforcement pass's gatherSinkingProjects.
+        // A Project computing a column whose Calcite-declared type differs from the backend's runtime type
+        // (PPL span(...), round(int) — Calcite says INTEGER, DataFusion returns Float64) must not cross the cut:
+        // the StageInputScan would declare the stale Calcite type while the gathered data carries the backend
+        // type. Running a row-wise Project above the gather is semantically identical and merely ships a few
+        // extra columns. The walk stops at the first non-Project, so a Filter stays BELOW the gather.
+        List<OpenSearchProject> hoisted = new ArrayList<>();
+        RelNode belowExchange = RelNodeUtils.unwrapHep(reducer.getInput());
+        // ONLY for an aggregate consumer — the pass hoisted exactly here (`isAggregate ? gatherSinkingProjects
+        // : gatherIfNeeded`). Doing it for a JOIN consumer instead un-prunes the shard-side projection and
+        // ships every scan column across the gather for nothing (measured: 3 DAGShapeTests regress).
+        // Hoist ONLY for a SINGLE-mode aggregate consumer. That mirrors the pass exactly: it sank the reducer in
+        // its GATHER branch, which is the non-splittable (SINGLE) path — a FINAL aggregate goes through the
+        // PARTIAL/FINAL preservation branch and never gathered here.
+        //
+        // Hoisting under a FINAL is actively WRONG: the boundary then sits BETWEEN the two aggregate phases, so
+        // the child ships partial state (APPROX_COUNT_DISTINCT ships HLL as Binary) while rewriting the
+        // StageInputScan row type makes the parent declare the FINAL type. Measured: `DatafusionReduceSink:
+        // declared <u: Int(64)> vs batch <u: Binary not null>` — 3 IT failures across ShardBucketOversamplingIT
+        // and PplClickBenchIT.
+        RelNode resolvedConsumer = RelNodeUtils.unwrapHep(consumer == null ? reducer : consumer);
+        boolean aggregateConsumer = resolvedConsumer instanceof OpenSearchAggregate aggregate
+            && aggregate.getMode() == AggregateMode.SINGLE;
+        // Skip hoisting when the reducer's row type differs from its input's: a QTF reducer adds a ___ugsi
+        // column its input lacks, and the StageInputScan must stay aligned with the REDUCER 1:1.
+        if (aggregateConsumer && reducer.getRowType().equals(belowExchange.getRowType())) {
+            while (belowExchange instanceof OpenSearchProject project && !project.containsOver() && project.getInputs().size() == 1) {
+                RelNode next = RelNodeUtils.unwrapHep(project.getInput(0));
+                if (!(next instanceof OpenSearchRelNode)) {
+                    break;
+                }
+                hoisted.add(project);
+                belowExchange = next;
+            }
+        }
+
         // Recurse into the child fragment with full sever() so any nested ExchangeReducers
         // (e.g. a Join below a top-level gather Reducer) are also cut into their own child
         // stages rather than being left intact inside the shard-local fragment.
         List<Stage> grandchildren = new ArrayList<>();
         RelNode childFragment = severFragment(
-            reducer.getInput(),
+            belowExchange,
             counter,
             grandchildren,
             registry,
@@ -515,22 +567,30 @@ public class DAGBuilder {
         parentChildStages.add(childStage);
 
         // Source both rowType and FSI from the reducer so they stay aligned 1:1 (its input lacks
-        // QTF's ___ugsi entry). No-op for non-QTF reducers.
+        // QTF's ___ugsi entry). No-op for non-QTF reducers. When Projects were hoisted the boundary now carries
+        // the row type from BELOW them, so describe that instead.
+        boolean anyHoisted = !hoisted.isEmpty();
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
             reducer.getCluster(),
             reducer.getTraitSet(),
             childStageId,
-            reducer.getRowType(),
+            anyHoisted ? belowExchange.getRowType() : reducer.getRowType(),
             reducer.getViableBackends(),
-            reducer.getOutputFieldStorage()
+            anyHoisted ? ((OpenSearchRelNode) belowExchange).getOutputFieldStorage() : reducer.getOutputFieldStorage()
         );
-        return new OpenSearchExchangeReducer(
+        RelNode parentBoundary = new OpenSearchExchangeReducer(
             reducer.getCluster(),
             reducer.getTraitSet(),
             stageInput,
             reducer.getViableBackends(),
             reducer.getExchangeInfo()
         );
+        // Rebuild the hoisted chain above the gather, innermost first.
+        for (int i = hoisted.size() - 1; i >= 0; i--) {
+            OpenSearchProject hoistedProject = hoisted.get(i);
+            parentBoundary = hoistedProject.copy(hoistedProject.getTraitSet(), List.of(parentBoundary));
+        }
+        return parentBoundary;
     }
 
     /**

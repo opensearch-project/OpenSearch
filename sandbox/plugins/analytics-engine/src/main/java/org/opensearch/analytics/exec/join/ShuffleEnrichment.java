@@ -456,7 +456,7 @@ public final class ShuffleEnrichment {
     /**
      * Largest {@link OpenSearchTableScan} row count in {@code node}'s subtree (0 when no scan / unknown).
      * Used to estimate a worker join's build-side size for the sort-merge-join decision — mirrors the
-     * estimate {@code DistributionEnforcementPass} uses for the distribute floor.
+     * estimate CBO's trait enforcement uses for the distribute floor.
      */
     static long subtreeMaxScanRows(RelNode node) {
         if (node == null) {

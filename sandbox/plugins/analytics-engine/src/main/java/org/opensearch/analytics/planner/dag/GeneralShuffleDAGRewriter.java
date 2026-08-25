@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
-import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerInput;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerLevel;
@@ -36,7 +35,7 @@ import java.util.function.Supplier;
 
 /**
  * DAG rewriter for the GENERAL post-CBO scheduler (Option B — see {@code MPP-GENERAL-SCHEDULING-DESIGN.md}).
- * Promotes the join-over-two-shuffles stages of the DAG that {@link DistributionEnforcementPass} produces
+ * Promotes the join-over-two-shuffles stages of the DAG that CBO's trait enforcement produces
  * into worker tiers.
  *
  * <p><b>In-place worker promotion.</b> The enforcement pass does binary-tier lowering: it shuffles every

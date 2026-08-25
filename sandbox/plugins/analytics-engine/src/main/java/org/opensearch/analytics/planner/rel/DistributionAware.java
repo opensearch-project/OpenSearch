@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Per-operator distribution algebra — the contract the post-CBO distribution-enforcement pass
- * ({@code DistributionEnforcementPass}) consults to place exchanges generically, the way Spark's
+ * (CBO trait enforcement) consults to place exchanges generically, the way Spark's
  * {@code EnsureRequirements} and Presto's {@code AddExchanges} do.
  *
  * <p>An operator declares two things, both as pure functions over {@link OpenSearchDistribution}:

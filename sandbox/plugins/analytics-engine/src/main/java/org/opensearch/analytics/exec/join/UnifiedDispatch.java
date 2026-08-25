@@ -49,7 +49,7 @@ import java.util.function.Function;
 
 /**
  * Single dispatch entry point for the GENERAL post-CBO scheduler (Option B — see
- * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that {@link DistributionEnforcementPass}
+ * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that CBO's trait enforcement
  * produced, with ONE general principle that needs no per-query-shape recognition:
  *
  * <p><b>Broadcast is an INSTRUCTION, not a stage type.</b> A stage that consumes a broadcast carries a

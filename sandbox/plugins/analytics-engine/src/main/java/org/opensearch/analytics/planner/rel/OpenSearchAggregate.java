@@ -310,7 +310,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
      *
      * <p>TODO(trait-propagation): PARTIAL/FINAL split PLACEMENT is already a trait algebra — see
      * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
-     * on this class, consulted by the post-CBO {@code DistributionEnforcementPass}. A future top-down
+     * on this class, consulted by CBO's trait machinery. A future top-down
      * migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode} {@code deriveTraits}/
      * {@code passThroughTraits}) would fold the cost-RANKING part of this override into the trait
      * machinery. NOTE: the SINGLE-mode infinite-cost gate below is a CORRECTNESS backstop, not cost
@@ -323,8 +323,15 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
         for (int index = 0; index < getInput().getTraitSet().size(); index++) {
             RelTrait trait = getInput().getTraitSet().getTrait(index);
             if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
-                || distribution.getType() == RelDistribution.Type.ANY;
+            // ANY is Volcano's UNRESOLVED placeholder, not a real distribution — skip it and let the
+            // memo expand, exactly as the FINAL branch below already does. Treating ANY as SINGLETON
+            // priced every PARTIAL whose input trait was not yet resolved at INFINITY, which is why the
+            // agg-over-distributed-join split (TPC-H q3/q5/q7/q11/q21) could never win the cost race and
+            // only the post-CBO pass could produce it: the split IS registered and `deriveTraits` does
+            // derive PARTIAL@HASH(WORKER), but the alternative was unaffordable before it could compete.
+            // The real placement invariants still hold — they are enforced on the RESOLVED trait below.
+            if (distribution.getType() == RelDistribution.Type.ANY) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON;
 
             // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
             if (mode == AggregateMode.SINGLE && !inputIsSingleton) {

@@ -412,13 +412,18 @@ public class RelNodeUtils {
      * Largest {@code TableScan} row count anywhere in {@code node}'s subtree — the size signal behind
      * {@code analytics.mpp.distribute.min_rows}, which decides whether an operator is worth distributing.
      *
-     * <p>Shared so the post-CBO {@code DistributionEnforcementPass} and the split RULES agree on one estimate;
+     * <p>Shared so the post-CBO rewriters and the split RULES agree on one estimate;
      * two different estimators would place exchanges by one rule and veto them by another.
      *
      * <p><b>Resolves {@link RelSubset}s.</b> The pass walks a concrete tree, but a Volcano rule sees subsets,
      * whose {@code getInputs()} is EMPTY — so a subset-blind walk reports 0 rows, reads as "below the floor",
      * and silently suppresses every distributed alternative. Returns 0 only when no scan is reachable, which
      * callers must treat as "unknown", never as "small".
+     *
+     * <p>Note this does NOT make missing index statistics safe: with no count from
+     * {@code IndexRowCountFetcher}, {@code OpenSearchTableScanRule}'s table returns Calcite's DEFAULT 100 rows
+     * rather than 0, so an unknown-statistics index reports 100 and reads as SMALL to any floor. Callers that
+     * want unknown-means-distribute must detect it at the statistics layer, not here.
      */
     public static long subtreeMaxScanRows(RelNode node) {
         RelNode n = unwrapHep(node);

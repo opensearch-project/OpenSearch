@@ -34,8 +34,6 @@ import org.opensearch.analytics.exec.action.AnalyticsClearShuffleResponse;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
-import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
-import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.join.UnifiedDispatch;
@@ -56,7 +54,6 @@ import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.settings.PlannerSettings;
 import org.opensearch.analytics.spi.BroadcastSizeExceededException;
@@ -348,25 +345,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
                 clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
             )
-            // Tier collapse must follow dynamic updates too — it changes the enforced plan shape, so a
-            // static node-bootstrap read would pin the default and make a per-query enable a no-op.
-            .put(
-                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS)
-            )
-            // Same for the group-key-shuffle toggle: it moves a split aggregate's FINAL onto a worker tier,
-            // so without this overlay a dynamic enable is silently a no-op (the pass keeps reading the
-            // node-bootstrap false and the plan never changes — measured against a live cluster).
-            .put(
-                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE)
-            )
-            // Same for the reduce-stage-producer toggle — it changes the enforced plan shape, so a static
-            // node-bootstrap read would make a dynamic enable a silent no-op.
-            .put(
-                AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER)
-            )
             // Sub-plan reuse changes how DAGBuilder cuts the plan, so a static node-bootstrap read would make a
             // dynamic enable/disable a silent no-op — which is the whole point of keeping it as a kill switch.
             .put(
@@ -442,24 +420,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // UnifiedDispatch then runs whatever it distributes. Below the size floor the pass is a no-op and the
         // query stays coordinator-centric (CBO's cheap choice for small joins). See
         // MPP-GENERAL-SCHEDULING-DESIGN.md.
-        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)) {
-            int shufflePartitions = MppShufflePartitions.resolve(
-                perQuerySettings,
-                planningState,
-                capabilityRegistry,
-                ((OpenSearchRelNode) plan).getViableBackends()
-            );
-            plan = DistributionEnforcementPass.enforce(
-                plan,
-                plannerContext.getDistributionTraitDef(),
-                shufflePartitions,
-                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings),
-                AnalyticsSettings.MPP_COLLAPSE_COPARTITIONED_TIERS.get(perQuerySettings),
-                AnalyticsSettings.MPP_AGGREGATE_GROUP_KEY_SHUFFLE.get(perQuerySettings),
-                AnalyticsSettings.MPP_REDUCE_STAGE_SHUFFLE_PRODUCER.get(perQuerySettings)
-            );
-        }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
         // Deliberately NOT gated on MPP_ENABLED: a plan that computes the same aggregate twice returns the wrong
         // answer coordinator-centric too (TPC-H q15), so the sharing has to apply either way.
@@ -686,9 +646,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     }
 
     /**
-     * Runs the GENERAL post-CBO scheduler path. The DAG was produced by {@link DistributionEnforcementPass}:
-     * it already carries every shuffle/broadcast exchange and a pre-split aggregate
-     * ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link UnifiedDispatch}, which captures any broadcast
+     * Runs the GENERAL post-CBO scheduler path. CBO's own trait enforcement placed every shuffle/broadcast
+     * exchange, and {@code OpenSearchPartialAggregatePushdownRewriter} split any aggregate that sits across a
+     * gather ({@code FINAL(ER(PARTIAL(...)))}). Delegates to {@link UnifiedDispatch}, which captures any broadcast
      * builds (injecting each as an instruction on its consumer stage), then promotes the shuffle worker
      * tiers and dispatches — one path for any join depth / shape / type, with no per-shape recognition.
      */

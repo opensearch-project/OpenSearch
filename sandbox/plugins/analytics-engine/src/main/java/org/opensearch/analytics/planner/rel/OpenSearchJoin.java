@@ -38,7 +38,7 @@ import java.util.Set;
  * build side (matches substrait {@code JoinRel.right}).
  *
  * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass
- * ({@code DistributionEnforcementPass}), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
+ * (CBO trait enforcement), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
  * on its equi keys — it requires {@code WORKER+HASH(leftKeys,N)} on the left input and
  * {@code WORKER+HASH(rightKeys,N)} on the right, and outputs {@code WORKER+HASH(leftKeys,N)}. That lets a
  * parent join/aggregate keyed on the same column consume the output with no further exchange, so the
@@ -119,7 +119,7 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
      *
      * <p>TODO(trait-propagation): exchange PLACEMENT is already a trait algebra — see
      * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
-     * on this class, which the post-CBO {@code DistributionEnforcementPass} consults (the
+     * on this class, which CBO's trait machinery consults (the
      * {@code passThroughTraits}/{@code deriveTraits} logic expressed as plain methods). Join-ALGORITHM
      * selection (broadcast/shuffle/coord) still rides this cost gate because Volcano runs bottom-up. A
      * future migration to top-down mode ({@code setTopDownOpt} + Calcite {@code PhysicalNode} hooks)
@@ -505,7 +505,7 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
         }
         // Same RIGHT/FULL restriction as the top-down deriveTraits path: a null-extended row has NULL
         // left keys and does not obey the left-key hash, so such a join must not advertise a
-        // co-partitionable output. Without this the cascade in DistributionEnforcementPass can reuse the
+        // co-partitionable output. Without this the cascade in CBO's trait enforcement can reuse the
         // partitioning and skip a required re-shuffle, silently dropping matches.
         return advertisesLeftKeyHash() ? traitDef.hash(info.leftKeys, n) : null;
     }

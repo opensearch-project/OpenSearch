@@ -123,7 +123,7 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
 
     /**
      * True when this reducer carries a QTF-declared {@link #overrideRowType} (the coord-side
-     * {@code ___ugsi} column). {@code DistributionEnforcementPass} must NOT peel such a reducer and
+     * {@code ___ugsi} column). CBO's trait enforcement must NOT peel such a reducer and
      * rebuild it via {@code buildReducer()}: that goes through the 4-arg constructor and drops both the
      * override row type and its {@code overrideStorage}, after which the reduce sink's schema validation
      * rejects the runtime batch (declared schema is missing {@code ___ugsi}).

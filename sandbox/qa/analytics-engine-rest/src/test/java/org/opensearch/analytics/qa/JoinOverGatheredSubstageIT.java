@@ -16,23 +16,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end tests for a COORDINATOR REDUCE stage acting as a hash-shuffle PRODUCER
- * ({@code analytics.mpp.reduce_stage_shuffle_producer}) — step 5 of retiring the post-CBO
- * {@code DistributionEnforcementPass}.
+ * End-to-end tests for JOINS OVER A GATHERED SUB-STAGE — the decorrelated-subquery shapes:
+ * {@code exists} → SEMI (TPC-H q4), {@code not in} → ANTI (q22), and the broadcast-ineligible variant.
  *
- * <p>A decorrelated subquery ({@code exists} → SEMI, {@code not in} → ANTI, a scalar subquery) becomes a
- * GATHERED sub-stage, which {@code DAGBuilder} cuts as a {@code ReduceStageExecution}. That stage could only
- * ever emit to its parent sink, so the pass's shippable-producer gate refused to distribute any join above it —
- * every such query stayed coordinator-centric. With the toggle on, the reduce stage resolves a producer sink
- * from its own instruction chain and ships partitions, so the join distributes.
+ * <p>A decorrelated subquery becomes a GATHERED sub-stage, which {@code DAGBuilder} cuts as a
+ * {@code ReduceStageExecution}. Historically that stage could only emit to its parent sink, so no join above
+ * it could be distributed and every such query stayed coordinator-centric.
  *
  * <p><b>Why an IT and not just a plan-shape unit test.</b> The failure mode of getting this wrong is a HANG,
  * not a wrong answer or an exception: the consuming worker blocks on
  * {@code ShuffleScanHandler.awaitReady} for a producer that never fires, and the query dies on a timeout.
  * A plan assertion cannot see that. Each test here therefore RUNS the query and compares rows against the
- * un-distributed baseline, which is the only evidence that the partitions actually arrive.
+ * MPP-off baseline, which is the only evidence that the partitions actually arrive.
+ *
+ * <p><b>Refactored when {@code analytics.mpp.reduce_stage_shuffle_producer} was removed.</b> These tests used
+ * to A/B that toggle; it lived entirely inside the deleted post-CBO enforcement pass. The toggle is gone but
+ * these query shapes are exactly the ones that regress first, so the A/B is now MPP-off vs MPP-on — a
+ * stronger baseline, since it also covers the non-MPP path.
  */
-public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
+public class JoinOverGatheredSubstageIT extends AnalyticsRestTestCase {
 
     private static final String ORDERS = "rsp_orders";
     private static final String ITEMS = "rsp_items";
@@ -46,7 +48,6 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
     public void tearDown() throws Exception {
         resetSetting("analytics.mpp.enabled");
         resetSetting("analytics.mpp.distribute.min_rows");
-        resetSetting("analytics.mpp.reduce_stage_shuffle_producer");
         resetSetting("analytics.mpp.broadcast.max_bytes");
         super.tearDown();
     }
@@ -57,33 +58,33 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
      * the reduce stage is never asked to produce. Kept as a regression guard that enabling the toggle does not
      * disturb the broadcast path — read {@link #testShuffleForcedWhenBroadcastIneligible} for the shuffle case.
      */
-    public void testExistsSubquery_matchesBaselineWithReduceStageProducer() throws Exception {
+    public void testExistsSubquery_semiJoinOverGatheredSubstageMatchesBaseline() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + ORDERS + " | where exists [ source = " + ITEMS + " | where item_order = order_id ] "
             + "| stats count() as c by priority | sort priority";
 
         enableMpp();
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "false");
+        applySetting("analytics.mpp.enabled", "false");
         List<List<Object>> baseline = executePplRows(ppl);
 
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "true");
+        applySetting("analytics.mpp.enabled", "true");
         List<List<Object>> distributed = executePplRows(ppl);
 
         assertFalse("baseline must return rows (otherwise the comparison is vacuous)", baseline.isEmpty());
-        assertRowMultisetEquals("reduce-stage shuffle production must not change results", baseline, distributed);
+        assertRowMultisetEquals("MPP must not change results for a SEMI join over a gathered sub-stage", baseline, distributed);
     }
 
     /** The ANTI counterpart ({@code not in [...]}), the TPC-H q22 shape. */
-        public void testNotInSubquery_matchesBaselineWithReduceStageProducer() throws Exception {
+        public void testNotInSubquery_antiJoinOverGatheredSubstageMatchesBaseline() throws Exception {
         ensureDataProvisioned();
         String ppl = "source = " + ORDERS + " | where order_id not in [ source = " + ITEMS + " | fields item_order ] "
             + "| stats count() as c by priority | sort priority";
 
         enableMpp();
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "false");
+        applySetting("analytics.mpp.enabled", "false");
         List<List<Object>> baseline = executePplRows(ppl);
 
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "true");
+        applySetting("analytics.mpp.enabled", "true");
         assertRowMultisetEquals("ANTI join over a gathered sub-stage must not change results", baseline, executePplRows(ppl));
     }
 
@@ -100,10 +101,10 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
 
         enableMpp();
         applySetting("analytics.mpp.broadcast.max_bytes", "\"1b\"");
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "false");
+        applySetting("analytics.mpp.enabled", "false");
         List<List<Object>> baseline = executePplRows(ppl);
 
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "true");
+        applySetting("analytics.mpp.enabled", "true");
         List<List<Object>> distributed = executePplRows(ppl);
 
         assertFalse("baseline must return rows", baseline.isEmpty());
@@ -120,7 +121,7 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
         List<List<Object>> nonMpp = executePplRows(ppl);
 
         enableMpp();
-        applySetting("analytics.mpp.reduce_stage_shuffle_producer", "true");
+        applySetting("analytics.mpp.enabled", "true");
         assertRowMultisetEquals("reduce-stage producer must match the non-MPP baseline", nonMpp, executePplRows(ppl));
     }
 
@@ -221,8 +222,8 @@ public class ReduceStageShuffleProducerIT extends AnalyticsRestTestCase {
     }
 
     private static void assertRowMultisetEquals(String message, List<List<Object>> expected, List<List<Object>> actual) {
-        List<String> expectedNorm = expected.stream().map(ReduceStageShuffleProducerIT::normalizeRow).sorted().toList();
-        List<String> actualNorm = actual.stream().map(ReduceStageShuffleProducerIT::normalizeRow).sorted().toList();
+        List<String> expectedNorm = expected.stream().map(JoinOverGatheredSubstageIT::normalizeRow).sorted().toList();
+        List<String> actualNorm = actual.stream().map(JoinOverGatheredSubstageIT::normalizeRow).sorted().toList();
         assertEquals(message, expectedNorm, actualNorm);
     }
 

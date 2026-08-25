@@ -88,7 +88,7 @@ public class OpenSearchDistribution implements RelDistribution {
      * <p>Previously the same effect was obtained accidentally: the enforcement pass tracked the real
      * distribution in a side record while the rel's traitSet kept CBO's stale {@code coordSingleton}, so
      * {@code satisfies()} happened to return false and an inter-tier shuffle got inserted
-     * ({@code DistributionEnforcementPass}:464-467 documents the dependency). Encoding the tier in the
+     * (the deleted post-CBO enforcement pass depended on that staleness). Encoding the tier in the
      * trait replaces that accident with a stated rule, which is the prerequisite for making traits
      * authoritative and retiring the pass's forced {@code buildReducer} calls.
      */

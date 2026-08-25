@@ -128,7 +128,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * the split is conservative in those shapes — distributed parallelism is traded for
      * correctness.
      *
-     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * <p>Public so the post-CBO {@code OpenSearchPartialAggregatePushdownRewriter}
      * shares the same correctness gates as this coord-centric split — both use an identical PARTIAL/FINAL
      * safety check, so STATE_EXPANDING / DISTINCT / cross-family-non-prefix shapes stay coordinator-centric
      * in every path.
@@ -395,7 +395,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      *
-     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * <p>Public so the post-CBO {@code OpenSearchPartialAggregatePushdownRewriter}
      * can call it.
      */
     public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
@@ -432,7 +432,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     /**
      * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
      * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
-     * pass ({@code DistributionEnforcementPass}) shares the exact capture the coord-centric split uses
+     * pass (CBO trait enforcement) shares the exact capture the coord-centric split uses
      * (keeps PARTIAL/FINAL literal handling identical).
      */
     public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {

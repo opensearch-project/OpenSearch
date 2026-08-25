@@ -49,7 +49,9 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLargeJoinDistributionRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchPartialAggregatePushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
@@ -160,6 +162,23 @@ public class PlannerImpl {
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
             RelNodeUtils.logPlan(LOGGER, "After sort pushdown", modifiedRelNode);
+        }
+        // Promotes a gathered join onto a worker tier when its inputs are large enough — the policy half of the
+        // deleted DistributionEnforcementPass. Must run BEFORE the partial-aggregate pushdown so an aggregate
+        // above a promoted join can be split across the new gather.
+        Optional<RelNode> largeJoin = OpenSearchLargeJoinDistributionRewriter.rewrite(modifiedRelNode, context);
+        if (largeJoin.isPresent()) {
+            modifiedRelNode = largeJoin.get();
+            RelNodeUtils.logPlan(LOGGER, "After large-join distribution", modifiedRelNode);
+        }
+        // Splits a SINGLE aggregate across a gather whose input CBO distributed, so the coordinator merges
+        // aggregated groups instead of raw rows. This is what the deleted post-CBO
+        // deleted post-CBO DistributionEnforcementPass supplied; see the rewriter's javadoc for why it cannot form during
+        // search (the distribution lattice has no "partitioned-unspecified" required property).
+        Optional<RelNode> partialAgg = OpenSearchPartialAggregatePushdownRewriter.rewrite(modifiedRelNode, context);
+        if (partialAgg.isPresent()) {
+            modifiedRelNode = partialAgg.get();
+            RelNodeUtils.logPlan(LOGGER, "After partial-aggregate pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
