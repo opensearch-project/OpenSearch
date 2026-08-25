@@ -59,6 +59,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 import org.opensearch.analytics.planner.rules.OpenSearchWindowProjectGatherRule;
 
@@ -437,6 +438,7 @@ public class PlannerImpl {
             // fixpoint so stacked limits collapse first, then any now-redundant Sort is removed.
             .addRuleCollection(
                 List.of(
+                    new OpenSearchValuesCharNormalizeRule(),
                     FILTER_PROJECT_TRANSPOSE_DETERMINISTIC,
                     CoreRules.FILTER_AGGREGATE_TRANSPOSE,
                     CoreRules.FILTER_INTO_JOIN,
