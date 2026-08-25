@@ -335,163 +335,186 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // that's fed into AnalyticsStatsCollector for the _plugins/_analytics/stats endpoint.
         // The non-explain path drops the profile from the response after recording it; the
         // explain path returns it inline.
-        final long planStartNanos = System.nanoTime();
-        // Build a per-query Settings snapshot that overlays the live cluster-state values for
-        // analytics-* settings on top of the node-startup settings. Without this overlay, dynamic
-        // updates via PUT /_cluster/settings (e.g. analytics.mpp.enabled) are invisible to the
-        // planner rules — they'd see the node-bootstrap default forever, defeating both the
-        // operator kill switch and the IT framework's per-test setSetting calls.
-        final Settings perQuerySettings = Settings.builder()
-            .put(clusterService.getSettings())
-            .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
-            .put(
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
-            )
-            .put(
-                AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
-            )
-            // The general-scheduler row floor must follow dynamic updates too — the enforce() call gates
-            // distribute-vs-coord on it; the cluster ITs lower it (small datasets) to exercise the
-            // distributed path, so a static node-bootstrap read would pin the 1M default and never distribute.
-            .put(
-                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS)
-            )
-            .put(
-                AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
-            )
-            // Overlay the broadcast byte cap too: OpenSearchBroadcastJoinSplitRule's pre-flight size
-            // gate reads it from PlannerContext settings, and it must agree with the runtime cap
-            // BroadcastCaptureSink enforces (DefaultPlanExecutor reads it live from cluster settings).
-            // Without this, a dynamic PUT /_cluster/settings update would shift the runtime cap while
-            // the planner gate kept the node-bootstrap value — gate and runtime would disagree mid-query.
-            .put(
-                AnalyticsSettings.BROADCAST_MAX_BYTES.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES)
-            )
-            // TODO(prune-columns-setting): now INERT. Upstream #22301 replaced our gated
-            // PlannerImpl.trimUnusedFields with its own unconditional trimFields, so nothing reads this
-            // value any more. Kept in the overlay (and registered) so a cluster that already set it keeps
-            // starting; remove the setting once we confirm no deployment depends on it.
-            .put(
-                AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS.getKey(),
-                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS)
-            )
-            // Join reordering is read live by PlannerImpl.reorderJoins via PlannerContext settings; overlay
-            // it so a dynamic PUT /_cluster/settings toggle is honored (else it pins the node-bootstrap default).
-            .put(AnalyticsSettings.MPP_JOIN_REORDER.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_JOIN_REORDER))
-            .build();
-        // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
-        // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
-        // TODO: remove the null fallback once every front-end (test-ppl-frontend,
-        // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
-        ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
-        // Fetch primary-shard doc counts for every index this query touches. The CBO cost
-        // model needs them to discriminate broadcast (small build × N probes) from
-        // coord-centric (gather both sides) — without real counts every scan is Calcite's
-        // default 100 rows and broadcast loses the cost race against SINGLETON gather even
-        // for tiny dimensions. See IndexRowCountFetcher's class javadoc for the full story.
-        ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
-        PlannerContext plannerContext = new PlannerContext(
-            capabilityRegistry,
-            planningState,
-            indexNameExpressionResolver,
-            false,
-            preferMetadataDriver,
-            perQuerySettings,
-            tableRowCounts
-        );
-        plannerContext.setPlannerSettings(plannerSettings);
-        // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
-        // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
-        plannerContext.setBroadcastEligible(!broadcastDisabled);
-        RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
-        // General post-CBO distribution-enforcement pass (Option B — the only MPP scheduler). Volcano CBO
-        // gathers every join to COORDINATOR+SINGLETON (its cost gate knows only 3 fixed localities), so its
-        // output is the degenerate "gather everything" plan. This pass walks that plan and places exchanges
-        // by the OpenSearchDistribution.satisfies() algebra — the cascade, agg-over-join, outer-join,
-        // mixed-key, broadcast, and scalar-subquery shapes all emerge generically, with no per-shape code.
-        // UnifiedDispatch then runs whatever it distributes. Below the size floor the pass is a no-op and the
-        // query stays coordinator-centric (CBO's cheap choice for small joins). See
-        // MPP-GENERAL-SCHEDULING-DESIGN.md.
-        if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)) {
-            int shufflePartitions = MppShufflePartitions.resolve(
-                perQuerySettings,
-                planningState,
+        //
+        // The entire planning phase — Calcite RBO/CBO, MPP distribution enforcement, DAG build,
+        // fork/adapt/convert — is wrapped in a single try below and guarded specifically: any
+        // failure in it is recorded as a planning failure via AnalyticsStatsCollector and rethrown.
+        // Execution setup and scheduling (allocator, QueryContext, scheduler.execute) live outside
+        // this try, so the planning_failures counter reflects only true planning-phase errors, not
+        // any exception escaping executeInternal.
+        final QueryDAG dag;
+        final String fullPlan;
+        final long planningTimeMs;
+        final boolean dispatchGeneralShuffle;
+        final boolean planUsesShuffle;
+        try {
+            final long planStartNanos = System.nanoTime();
+            // Build a per-query Settings snapshot that overlays the live cluster-state values for
+            // analytics-* settings on top of the node-startup settings. Without this overlay, dynamic
+            // updates via PUT /_cluster/settings (e.g. analytics.mpp.enabled) are invisible to the
+            // planner rules — they'd see the node-bootstrap default forever, defeating both the
+            // operator kill switch and the IT framework's per-test setSetting calls.
+            final Settings perQuerySettings = Settings.builder()
+                .put(clusterService.getSettings())
+                .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
+                .put(
+                    AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED)
+                )
+                .put(
+                    AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
+                )
+                // The general-scheduler row floor must follow dynamic updates too — the enforce() call gates
+                // distribute-vs-coord on it; the cluster ITs lower it (small datasets) to exercise the
+                // distributed path, so a static node-bootstrap read would pin the 1M default and never distribute.
+                .put(
+                    AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS)
+                )
+                .put(
+                    AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
+                )
+                // Overlay the broadcast byte cap too: OpenSearchBroadcastJoinSplitRule's pre-flight size
+                // gate reads it from PlannerContext settings, and it must agree with the runtime cap
+                // BroadcastCaptureSink enforces (DefaultPlanExecutor reads it live from cluster settings).
+                // Without this, a dynamic PUT /_cluster/settings update would shift the runtime cap while
+                // the planner gate kept the node-bootstrap value — gate and runtime would disagree mid-query.
+                .put(
+                    AnalyticsSettings.BROADCAST_MAX_BYTES.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES)
+                )
+                // TODO(prune-columns-setting): now INERT. Upstream #22301 replaced our gated
+                // PlannerImpl.trimUnusedFields with its own unconditional trimFields, so nothing reads this
+                // value any more. Kept in the overlay (and registered) so a cluster that already set it keeps
+                // starting; remove the setting once we confirm no deployment depends on it.
+                .put(
+                    AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PRUNE_COLUMNS)
+                )
+                // Join reordering is read live by PlannerImpl.reorderJoins via PlannerContext settings; overlay
+                // it so a dynamic PUT /_cluster/settings toggle is honored (else it pins the node-bootstrap default).
+                .put(
+                    AnalyticsSettings.MPP_JOIN_REORDER.getKey(),
+                    clusterService.getClusterSettings().get(AnalyticsSettings.MPP_JOIN_REORDER)
+                )
+                .build();
+            // Reuse the snapshot captured at REST entry when present; this is the same ClusterState
+            // OpenSearchSchemaBuilder used to build the SchemaPlus, so planner and schema agree.
+            // TODO: remove the null fallback once every front-end (test-ppl-frontend,
+            // dsl-query-executor) threads an EngineContextProvider.getContext() snapshot through.
+            ClusterState planningState = queryCtx != null ? queryCtx.clusterState() : clusterService.state();
+            // Fetch primary-shard doc counts for every index this query touches. The CBO cost
+            // model needs them to discriminate broadcast (small build × N probes) from
+            // coord-centric (gather both sides) — without real counts every scan is Calcite's
+            // default 100 rows and broadcast loses the cost race against SINGLETON gather even
+            // for tiny dimensions. See IndexRowCountFetcher's class javadoc for the full story.
+            ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
+            PlannerContext plannerContext = new PlannerContext(
                 capabilityRegistry,
-                ((OpenSearchRelNode) plan).getViableBackends()
+                planningState,
+                indexNameExpressionResolver,
+                false,
+                preferMetadataDriver,
+                perQuerySettings,
+                tableRowCounts
             );
-            plan = DistributionEnforcementPass.enforce(
-                plan,
-                plannerContext.getDistributionTraitDef(),
-                shufflePartitions,
-                AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
-                AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings)
-            );
-        }
-        final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
-
-        // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
-        // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and
-        // tagged stages SHUFFLE_*/BROADCAST_BUILD. The single UnifiedDispatch path runs whatever the DAG
-        // distributes — a shuffle cascade, a preserved CBO broadcast, or a mixed broadcast-under-shuffle —
-        // by capturing broadcasts (inject-as-instruction) then promoting shuffle worker tiers. A DAG the
-        // size floor kept fully coordinator-centric distributes nothing → UnifiedDispatch is a plain execute.
-        final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
-        final boolean dagHasBroadcast = MppStrategy.findBroadcastBuild(dag) != null;
-        final boolean dagHasDistributedJoin = GeneralShuffleDAGRewriter.hasDistributedJoin(dag);
-        final boolean dispatchGeneralShuffle = isQueryScheduler && (dagHasDistributedJoin || dagHasBroadcast);
-        // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
-        // buffers may be populated on data nodes. Drives the terminal cleanup broadcast: skip it for the
-        // common non-shuffle query so we don't fan O(data-nodes) no-op RPCs on every analytics query.
-        final boolean planUsesShuffle = dagHasHashExchange(dag);
-
-        // Record the dispatched strategy for /_analytics/_strategies. The general path distributes via
-        // broadcast and/or hash-shuffle worker tiers; record BROADCAST when the DAG preserved a CBO
-        // broadcast (even if a shuffle rides above it), HASH_SHUFFLE for a pure shuffle, else
-        // COORDINATOR_CENTRIC. Recorded BEFORE the plan-side pipeline so the decision is observable even if
-        // a later conversion fails.
-        if (MppStrategy.containsJoin(dag)) {
-            MppStrategy routedStrategy;
-            if (dispatchGeneralShuffle && dagHasBroadcast) {
-                routedStrategy = MppStrategy.BROADCAST;
-            } else if (dispatchGeneralShuffle) {
-                routedStrategy = MppStrategy.HASH_SHUFFLE;
-            } else {
-                routedStrategy = MppStrategy.COORDINATOR_CENTRIC;
+            plannerContext.setPlannerSettings(plannerSettings);
+            // On the broadcast→shuffle retry, make BROADCAST ineligible so CBO falls back to
+            // hash-shuffle / coordinator-centric (the build overflowed the runtime cap on attempt 1).
+            plannerContext.setBroadcastEligible(!broadcastDisabled);
+            RelNode plan = PlannerImpl.createPlan(logicalFragment, plannerContext);
+            // General post-CBO distribution-enforcement pass (Option B — the only MPP scheduler). Volcano CBO
+            // gathers every join to COORDINATOR+SINGLETON (its cost gate knows only 3 fixed localities), so its
+            // output is the degenerate "gather everything" plan. This pass walks that plan and places exchanges
+            // by the OpenSearchDistribution.satisfies() algebra — the cascade, agg-over-join, outer-join,
+            // mixed-key, broadcast, and scalar-subquery shapes all emerge generically, with no per-shape code.
+            // UnifiedDispatch then runs whatever it distributes. Below the size floor the pass is a no-op and the
+            // query stays coordinator-centric (CBO's cheap choice for small joins). See
+            // MPP-GENERAL-SCHEDULING-DESIGN.md.
+            if (AnalyticsSettings.MPP_ENABLED.get(perQuerySettings)) {
+                int shufflePartitions = MppShufflePartitions.resolve(
+                    perQuerySettings,
+                    planningState,
+                    capabilityRegistry,
+                    ((OpenSearchRelNode) plan).getViableBackends()
+                );
+                plan = DistributionEnforcementPass.enforce(
+                    plan,
+                    plannerContext.getDistributionTraitDef(),
+                    shufflePartitions,
+                    AnalyticsSettings.MPP_DISTRIBUTE_MIN_ROWS.get(perQuerySettings),
+                    AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(perQuerySettings)
+                );
             }
-            mppStrategyMetrics.recordDispatch(routedStrategy);
-        } else if (MppStrategy.containsFinalAggregate(dag)) {
-            // Agg-shaped query (FINAL aggregate present, no join): a distributed aggregate is pre-split by
-            // the enforcement pass into PARTIAL(worker)/FINAL(coord) and runs via the shuffle worker tier;
-            // record HASH_SHUFFLE_AGG when the DAG distributes, else COORDINATOR_CENTRIC.
-            MppStrategy routedStrategy = dagHasDistributedJoin ? MppStrategy.HASH_SHUFFLE_AGG : MppStrategy.COORDINATOR_CENTRIC;
-            mppStrategyMetrics.recordDispatch(routedStrategy);
+            fullPlan = profile ? RelOptUtil.toString(plan) : null;
+            dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
+
+            // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
+            // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and
+            // tagged stages SHUFFLE_*/BROADCAST_BUILD. The single UnifiedDispatch path runs whatever the DAG
+            // distributes — a shuffle cascade, a preserved CBO broadcast, or a mixed broadcast-under-shuffle —
+            // by capturing broadcasts (inject-as-instruction) then promoting shuffle worker tiers. A DAG the
+            // size floor kept fully coordinator-centric distributes nothing → UnifiedDispatch is a plain execute.
+            final boolean isQueryScheduler = scheduler instanceof QueryScheduler;
+            final boolean dagHasBroadcast = MppStrategy.findBroadcastBuild(dag) != null;
+            final boolean dagHasDistributedJoin = GeneralShuffleDAGRewriter.hasDistributedJoin(dag);
+            dispatchGeneralShuffle = isQueryScheduler && (dagHasDistributedJoin || dagHasBroadcast);
+            // Whether the plan contains any HASH exchange — the physical signal that ShuffleBufferManager
+            // buffers may be populated on data nodes. Drives the terminal cleanup broadcast: skip it for the
+            // common non-shuffle query so we don't fan O(data-nodes) no-op RPCs on every analytics query.
+            planUsesShuffle = dagHasHashExchange(dag);
+
+            // Record the dispatched strategy for /_analytics/_strategies. The general path distributes via
+            // broadcast and/or hash-shuffle worker tiers; record BROADCAST when the DAG preserved a CBO
+            // broadcast (even if a shuffle rides above it), HASH_SHUFFLE for a pure shuffle, else
+            // COORDINATOR_CENTRIC. Recorded BEFORE the plan-side pipeline so the decision is observable even if
+            // a later conversion fails.
+            if (MppStrategy.containsJoin(dag)) {
+                MppStrategy routedStrategy;
+                if (dispatchGeneralShuffle && dagHasBroadcast) {
+                    routedStrategy = MppStrategy.BROADCAST;
+                } else if (dispatchGeneralShuffle) {
+                    routedStrategy = MppStrategy.HASH_SHUFFLE;
+                } else {
+                    routedStrategy = MppStrategy.COORDINATOR_CENTRIC;
+                }
+                mppStrategyMetrics.recordDispatch(routedStrategy);
+            } else if (MppStrategy.containsFinalAggregate(dag)) {
+                // Agg-shaped query (FINAL aggregate present, no join): a distributed aggregate is pre-split by
+                // the enforcement pass into PARTIAL(worker)/FINAL(coord) and runs via the shuffle worker tier;
+                // record HASH_SHUFFLE_AGG when the DAG distributes, else COORDINATOR_CENTRIC.
+                MppStrategy routedStrategy = dagHasDistributedJoin ? MppStrategy.HASH_SHUFFLE_AGG : MppStrategy.COORDINATOR_CENTRIC;
+                mppStrategyMetrics.recordDispatch(routedStrategy);
+            }
+
+            PlanForker.forkAll(dag, capabilityRegistry);
+            BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
+            // Collapse multi-backend stages to a single chosen alternative before conversion
+            // so the convertor runs once per stage and the wire request carries one PlanAlternative.
+            PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
+            FragmentConversionDriver.convertAll(dag, capabilityRegistry);
+            final long planningTimeNanos = System.nanoTime() - planStartNanos;
+            planningTimeMs = TimeUnit.NANOSECONDS.toMillis(planningTimeNanos);
+            logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
+
+            if ((dagHasDistributedJoin || dagHasBroadcast) && !isQueryScheduler) {
+                logger.info(
+                    "[DefaultPlanExecutor] distributed plan-shape produced but scheduler is {}, not QueryScheduler; "
+                        + "falling back to single-pass execution.",
+                    scheduler.getClass().getSimpleName()
+                );
+            }
+
+            queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
+        } catch (Exception | AssertionError e) {
+            // Any failure across the planning phase above (Calcite planning, MPP enforcement, DAG
+            // build, fragment conversion) is a planning-phase failure. Execution setup below is
+            // outside this try, so this counter is not inflated by execution or scheduling errors.
+            statsCollector.recordPlanningFailure();
+            throw e;
         }
-
-        PlanForker.forkAll(dag, capabilityRegistry);
-        BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        // Collapse multi-backend stages to a single chosen alternative before conversion
-        // so the convertor runs once per stage and the wire request carries one PlanAlternative.
-        PlanAlternativeSelector.selectAll(dag, capabilityRegistry, preferMetadataDriver);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        final long planningTimeNanos = System.nanoTime() - planStartNanos;
-        final long planningTimeMs = TimeUnit.NANOSECONDS.toMillis(planningTimeNanos);
-        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
-
-        if ((dagHasDistributedJoin || dagHasBroadcast) && !isQueryScheduler) {
-            logger.info(
-                "[DefaultPlanExecutor] distributed plan-shape produced but scheduler is {}, not QueryScheduler; "
-                    + "falling back to single-pass execution.",
-                scheduler.getClass().getSimpleName()
-            );
-        }
-
-        queryListener.onPlanningComplete(dag.queryId(), planningTimeNanos);
 
         // The task is the framework-provided task from doExecute (registered by
         // HandledTransportAction before doExecute, unregistered when the listener completes).
