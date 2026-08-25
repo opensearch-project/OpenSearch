@@ -22,6 +22,8 @@ import org.opensearch.index.SearchSlowLog;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.charset.StandardCharsets;
+
 public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
 
     private IndexSettings createIndexSettings(TimeValue warnThreshold) {
@@ -196,7 +198,7 @@ public class AnalyticsFragmentSlowLogTests extends OpenSearchTestCase {
 
         IndexSettings indexSettings = createIndexSettings(TimeValue.timeValueMillis(0));
         byte[] metricsJson = "{\"physical_plan\":\"ParquetExec: file_groups={1}\",\"bytes_scanned\":1024,\"parquet_read_time\":500}"
-            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            .getBytes(StandardCharsets.UTF_8);
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             appender.addExpectation(
