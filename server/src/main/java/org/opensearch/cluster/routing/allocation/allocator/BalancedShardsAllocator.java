@@ -189,14 +189,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
-    /**
-     * Dynamic switch controlling whether primary-shard rebalance weight
-     * calculation ({@link LocalShardsBalancer#avgPrimaryShardsPerNode()}) should
-     * respect {@link org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider}
-     * exclusions. When {@code true}, filter-excluded nodes are removed from the node
-     * count so the average is computed over eligible nodes only. Defaults to {@code false}
-     * to preserve legacy behaviour.
-     */
+
     public static final Setting<Boolean> PREFER_PRIMARY_FILTER_AWARE = Setting.boolSetting(
         "cluster.routing.allocation.balance.prefer_primary.filter_aware",
         false,

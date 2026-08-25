@@ -1114,44 +1114,23 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * Reproduces the bug where shard-rebalance weight calculation does not consider
-     * {@link org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider} exclusions.
-     * <p>
-     * Setup (crafted so that regular total-shard balance is already satisfied and cannot mask
-     * the primary-only imbalance):
-     * <ul>
-     *   <li>8 nodes (node0..node7), the second half node4..node7 is excluded via
-     *       {@code cluster.routing.allocation.exclude._id}.</li>
-     *   <li>1 index with 12 primary shards + 1 replica each = 24 shards total.</li>
-     *   <li>Every eligible node holds exactly 6 shards (24 / 4 = 6), so the generic
-     *       {@code shardBalance * (node.numShards - avg)} term is neutral: it does not drive any
-     *       relocation on its own.</li>
-     *   <li>Primary shard layout on the 4 eligible nodes is 6 / 2 / 2 / 2 — obviously not balanced
-     *       (ideal would be 3 / 3 / 3 / 3).</li>
-     *   <li>{@link BalancedShardsAllocator#PREFER_PRIMARY_SHARD_BALANCE} and
-     *       {@link BalancedShardsAllocator#PREFER_PRIMARY_SHARD_REBALANCE} are both enabled so that
-     *       the primary-only constraints participate in the weight function.</li>
-     * </ul>
-     * <p>
-     * Root cause being reproduced:
-     * <br>
-     * {@code LocalShardsBalancer#avgPrimaryShardsPerNode()} divides the total primary count by
-     * {@code nodes.size()} — which counts filter-excluded nodes too — giving
-     * {@code 12 / 8 = 1.5}. With the default {@code PRIMARY_SHARD_REBALANCE_BUFFER = 0.10} the
-     * threshold {@code allowedPrimaryShardCount = ceil(1.5 * 1.10) = 2}. Every eligible node
-     * except node0 already holds exactly 2 primaries, so
-     * {@link org.opensearch.cluster.routing.allocation.ConstraintTypes#isPrimaryShardsPerNodeBreached}
-     * marks each of node1/node2/node3 as "breached" (>= allowed) and penalises them as rebalance
-     * targets. Node0 (6 primaries) is over the threshold too and would like to shed primaries, but
-     * every candidate target is penalised the same way, so no primary can be relocated.
-     * <p>
-     * Expected (ideal) primary distribution across the 4 eligible nodes: 3 / 3 / 3 / 3.
-     * <br>
-     * Actual buggy distribution after reroute: 6 / 2 / 2 / 2.
-     * <p>
-     * When the underlying bug is fixed (weight/avg calculation ignores filter-excluded nodes so
-     * that {@code avgPrimaryShardsPerNode = 12 / 4 = 3}) the final assertion at the bottom must be
-     * updated to require {@code max - min == 0}.
+     * Cluster: 8 nodes; node4..node7 excluded via cluster.routing.allocation.exclude._id
+     * Index  : 12 primaries x (1 + 1 replica) = 24 shards, all on the 4 eligible nodes
+     *          every eligible node holds exactly 6 shards.
+     *   Shard layout (each column = one node, each row = one shard on that node):
+     *
+     *   eligible (allowed)         | excluded (filter NO)
+     *   node0  node1  node2  node3 | node4  node5  node6  node7
+     *   -----  -----  -----  ----- | -----  -----  -----  -----
+     *     P      P      P      P   |  .      .      .      .
+     *     P      P      P      P   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *   6P/0r  2P/4r  2P/4r  2P/4r |          (P = primary, r = replica)
+     *
+     *   Primary layout on eligible nodes: 6 / 2 / 2 / 2   (ideal = 3 / 3 / 3 / 3)
      */
     public void testPrimaryRebalanceIgnoresAllocationFilter() {
         final int numberOfNodes = 8;
@@ -1170,9 +1149,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             excludeList.append("node").append(i);
         }
         settingsBuilder.put("cluster.routing.allocation.exclude._id", excludeList.toString());
-        // Enable the new dynamic switch so the primary-rebalance weight calculation
-        // respects the FilterAllocationDecider exclusions. Default is false; turning it on
-        // is the fix path being validated by this test.
         settingsBuilder.put("cluster.routing.allocation.balance.prefer_primary.filter_aware", true);
 
         AllocationService strategy = createAllocationService(settingsBuilder.build(), new TestGatewayAllocator());
@@ -1190,20 +1166,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
         IndexMetadata indexMetadata = getIndexMetadata(indexName, numberOfShards, numberOfReplicas);
 
-        // Craft an initial layout that is imbalanced on primaries but perfectly balanced on the
-        // total shard count of eligible nodes (6/6/6/6). This isolates the primary-rebalance path
-        // from the generic shard-balance path.
-        //
-        // Shard 0..5 : P -> node0 ; R -> node1/2/3/1/2/3
-        // Shard 6,7 : P -> node1 ; R -> node2, node3
-        // Shard 8,9 : P -> node2 ; R -> node1, node3
-        // Shard 10,11 : P -> node3 ; R -> node1, node2
-        //
-        // Resulting per-node counts on eligible nodes:
-        // node0: 6P + 0R = 6
-        // node1: 2P + 4R = 6
-        // node2: 2P + 4R = 6
-        // node3: 2P + 4R = 6
         int[] primaryOwners = new int[] { 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3 };
         int[] replicaOwners = new int[] { 1, 2, 3, 1, 2, 3, 2, 3, 1, 3, 1, 2 };
 
@@ -1255,7 +1217,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         assertEquals("eligible node2 total shards", 6, initialTotals[2]);
         assertEquals("eligible node3 total shards", 6, initialTotals[3]);
 
-        // Drive reroute repeatedly to allow rebalance to converge.
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
         for (int i = 0; i < 20; i++) {
@@ -1285,17 +1246,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             minEligible = Math.min(minEligible, finalPrimaries[i]);
         }
         assertEquals("all primaries should stay on eligible nodes", numberOfShards, totalEligiblePrimaries);
-
-        // With the fix (dynamic switch above set to true), avgPrimaryShardsPerNode is computed
-        // over eligible nodes only: 12 / 4 = 3, so allowed = ceil(3 * 1.10) = 4. Eligible nodes
-        // with 2 primaries are no longer treated as "breached" rebalance targets, and node0 (6P)
-        // can migrate primaries to node1/2/3 until the layout converges to 3/3/3/3.
-        assertEquals("primary count on eligible node0 should converge to 3", 3, finalPrimaries[0]);
-        assertEquals("primary count on eligible node1 should converge to 3", 3, finalPrimaries[1]);
-        assertEquals("primary count on eligible node2 should converge to 3", 3, finalPrimaries[2]);
-        assertEquals("primary count on eligible node3 should converge to 3", 3, finalPrimaries[3]);
         assertEquals(
-            "Fix applied: primaries fully balanced across eligible nodes -- final distribution: "
+            "Primaries fully balanced across eligible nodes -- final distribution: "
                 + "node0="
                 + finalPrimaries[0]
                 + ", node1="
@@ -1309,9 +1261,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         );
     }
 
-    /**
-     * Helper: returns primary-shard counts for the given index on each node, indexed the same as {@code nodesList}.
-     */
     private static int[] countPrimariesPerNode(ClusterState state, List<String> nodesList, String indexName) {
         int[] counts = new int[nodesList.size()];
         RoutingNodes routingNodes = state.getRoutingNodes();

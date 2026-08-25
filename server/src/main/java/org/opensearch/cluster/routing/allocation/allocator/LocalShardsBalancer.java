@@ -99,8 +99,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         int nodeCount = routingNodes.size();
         if (preferPrimaryFilterAware) {
             int eligible = 0;
-            for (RoutingNode rn : routingNodes) {
-                if (allocation.deciders().canAllocateAnyShardToNode(rn, allocation).type() != Decision.Type.NO) {
+            for (RoutingNode routingNode : routingNodes) {
+                if (allocation.deciders().canAllocateAnyShardToNode(routingNode, allocation).type() != Decision.Type.NO) {
                     eligible++;
                 }
             }
