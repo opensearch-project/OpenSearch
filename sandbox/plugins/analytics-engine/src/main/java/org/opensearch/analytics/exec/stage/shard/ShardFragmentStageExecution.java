@@ -23,6 +23,7 @@ import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase;
 import org.opensearch.analytics.exec.canmatch.SortSpec;
 import org.opensearch.analytics.exec.canmatch.TopNGate;
+import org.opensearch.analytics.exec.profile.CanMatchProfile;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -239,21 +240,14 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
      * profile-snapshot time so top-N skips and gate-armed state reflect the whole dispatch, not
      * just what was known when the probe returned.
      */
-    public org.opensearch.analytics.exec.profile.CanMatchProfile canMatchProfile() {
+    public CanMatchProfile canMatchProfile() {
         if (canMatchRan == false) {
             return null;
         }
         int skipped = canMatchSkippedByTopN.get();
         boolean armed = topNGate != null && topNGate.isArmed();
         int dispatched = canMatchTotalShards - canMatchPrunedByFilter - skipped;
-        return new org.opensearch.analytics.exec.profile.CanMatchProfile(
-            canMatchMs,
-            canMatchTotalShards,
-            canMatchPrunedByFilter,
-            skipped,
-            armed,
-            dispatched
-        );
+        return new CanMatchProfile(canMatchMs, canMatchTotalShards, canMatchPrunedByFilter, skipped, armed, dispatched);
     }
 
     /**
