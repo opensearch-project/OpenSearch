@@ -17,6 +17,12 @@ pluginManagement {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
       }
     }
+    maven {
+      url = uri("https://ci.opensearch.org/m2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
     gradlePluginPortal {
       content {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
@@ -53,8 +59,6 @@ List projects = [
   'client:rest-high-level',
   'client:sniffer',
   'client:test',
-  'client:client-benchmark-noop-api-plugin',
-  'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',

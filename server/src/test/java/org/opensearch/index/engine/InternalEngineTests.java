@@ -155,6 +155,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -2284,7 +2285,8 @@ public class InternalEngineTests extends EngineTestCase {
                     delete.origin(),
                     delete.startTime(),
                     UNASSIGNED_SEQ_NO,
-                    0
+                    0,
+                    delete.routing()
                 );
             }
         };
@@ -2387,7 +2389,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             UNASSIGNED_SEQ_NO,
-            0
+            0,
+            delete.routing()
         );
         TriFunction<Long, Long, Engine.Index, Engine.Index> indexWithSeq = (seqNo, term, index) -> new Engine.Index(
             index.uid(),
@@ -2413,7 +2416,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             seqNo,
-            term
+            term,
+            delete.routing()
         );
         Function<Engine.Index, Engine.Index> indexWithCurrentTerm = index -> new Engine.Index(
             index.uid(),
@@ -2439,7 +2443,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             delete.getIfSeqNo(),
-            delete.getIfPrimaryTerm()
+            delete.getIfPrimaryTerm(),
+            delete.routing()
         );
         for (Engine.Operation op : ops) {
             final boolean versionConflict = rarely();
@@ -9512,6 +9517,82 @@ public class InternalEngineTests extends EngineTestCase {
             );
             assertEquals("NRT SegmentInfos userData should match committed userData in full", committedUserData, nrtUserData);
         }
+    }
+
+    @SuppressWarnings("removal")
+    public void testDeleteRoutingPreservedThroughPrepareDelete() throws IOException {
+        Engine.Delete withRouting = engine.prepareDelete(
+            "1",
+            "my-routing",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertEquals("my-routing", withRouting.routing());
+
+        Engine.Delete withoutRouting = engine.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(withoutRouting.routing());
+
+        // Exercise the 10-param Engine.Delete constructor (delegates to 11-param with null routing)
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1"));
+        Engine.Delete directDelete = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(directDelete.routing());
+
+        Engine.Delete directDeleteWithRouting = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0,
+            "my-routing"
+        );
+        assertEquals("my-routing", directDeleteWithRouting.routing());
+
+        // Exercise the Delete(Delete template, VersionType) copy constructor
+        Engine.Delete copiedDelete = new Engine.Delete(directDeleteWithRouting, VersionType.EXTERNAL);
+        assertEquals("my-routing", copiedDelete.routing());
+
+        // Exercise the deprecated static IndexShard.prepareDelete (no routing) overload
+        Engine.Delete fromShardDeprecated = IndexShard.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(fromShardDeprecated.routing());
     }
 
 }

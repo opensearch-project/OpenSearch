@@ -29,10 +29,6 @@ import java.util.function.BiConsumer;
  */
 public class InMemoryRuleProcessingService {
 
-    /**
-     * Wildcard character which will be removed as we only support prefix based search rather than pattern match based
-     */
-    public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
     /**
      * Map of prioritized attributes
@@ -84,14 +80,14 @@ public class InMemoryRuleProcessingService {
     private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.remove(value.replace(WILDCARD, ""), rule.getFeatureValue());
+            valueStore.remove(value, rule.getFeatureValue());
         }
     }
 
     private void addOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.put(value.replace(WILDCARD, ""), rule.getFeatureValue());
+            valueStore.put(value, rule.getFeatureValue());
         }
     }
 

@@ -87,6 +87,7 @@ import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpContentEncoder;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -97,9 +98,11 @@ import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodecFactory;
 import io.netty.handler.codec.http2.CleartextHttp2ServerUpgradeHandler;
 import io.netty.handler.codec.http2.Http2CodecUtil;
+import io.netty.handler.codec.http2.Http2FrameCodec;
 import io.netty.handler.codec.http2.Http2FrameCodecBuilder;
 import io.netty.handler.codec.http2.Http2MultiplexHandler;
 import io.netty.handler.codec.http2.Http2ServerUpgradeCodec;
+import io.netty.handler.codec.http2.Http2Settings;
 import io.netty.handler.codec.http2.Http2StreamFrameToHttpObjectCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -185,11 +188,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Property.NodeScope
     );
 
+    public static final Setting<Integer> SETTING_HTTP_PIPELINE_DEPTH = Setting.intSetting(
+        "http.netty.pipeline.depth",
+        HttpContentEncoder.DEFAULT_MAX_PIPELINE_DEPTH,
+        1,
+        Property.NodeScope
+    );
+
     private final ByteSizeValue maxInitialLineLength;
     private final ByteSizeValue maxHeaderSize;
     private final ByteSizeValue maxChunkSize;
 
     private final int pipeliningMaxEvents;
+    private final int pipelineMaxDepth;
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -231,6 +242,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
+        this.pipelineMaxDepth = SETTING_HTTP_PIPELINE_DEPTH.get(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
@@ -419,7 +431,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 public UpgradeCodec newUpgradeCodec(CharSequence protocol) {
                     if (AsciiString.contentEquals(Http2CodecUtil.HTTP_UPGRADE_PROTOCOL_NAME, protocol)) {
                         return new Http2ServerUpgradeCodec(
-                            Http2FrameCodecBuilder.forServer().build(),
+                            createHttp2FrameCodec(),
                             new Http2MultiplexHandler(createHttp2ChannelInitializer(ch.pipeline()))
                         );
                     } else {
@@ -461,7 +473,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         pipeline.addAfter(
                             "aggregator",
                             "encoder_compress",
-                            new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                            new HttpContentCompressor(
+                                0,
+                                transport.pipelineMaxDepth,
+                                defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                            )
                         );
                     }
                     pipeline.addBefore("handler", "request_creator", requestCreator);
@@ -490,7 +506,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
                     "encoder_compress",
-                    new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                    new HttpContentCompressor(
+                        0,
+                        transport.pipelineMaxDepth,
+                        defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                    )
                 );
             }
             pipeline.addLast("request_creator", requestCreator);
@@ -500,8 +520,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
 
         protected void configureDefaultHttp2Pipeline(ChannelPipeline pipeline) {
-            pipeline.addLast(Http2FrameCodecBuilder.forServer().build())
-                .addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+            pipeline.addLast(createHttp2FrameCodec()).addLast(new Http2MultiplexHandler(createHttp2ChannelInitializer(pipeline)));
+        }
+
+        /**
+         * Advertises {@code http.max_header_size} as SETTINGS_MAX_HEADER_LIST_SIZE, otherwise Netty's 8kb default
+         * caps HTTP/2 request headers regardless of the configured value.
+         */
+        private Http2FrameCodec createHttp2FrameCodec() {
+            return Http2FrameCodecBuilder.forServer()
+                .initialSettings(Http2Settings.defaultSettings().maxHeaderListSize(handlingSettings.getMaxHeaderSize()))
+                .build();
         }
 
         private ChannelInitializer<Channel> createHttp2ChannelInitializerPriorKnowledge() {
@@ -538,7 +567,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         childChannel.pipeline()
                             .addLast(
                                 "encoder_compress",
-                                new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                                new HttpContentCompressor(
+                                    0,
+                                    transport.pipelineMaxDepth,
+                                    defaultCompressionOptions(handlingSettings.getCompressionLevel())
+                                )
                             );
                     }
 

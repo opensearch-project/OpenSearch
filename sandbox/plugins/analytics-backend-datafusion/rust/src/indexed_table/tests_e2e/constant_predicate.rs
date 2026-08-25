@@ -73,6 +73,7 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -85,7 +86,11 @@ async fn run_constant_residual(residual: Arc<dyn PhysicalExpr>) -> usize {
         let residual = Arc::clone(&residual);
         Arc::new(
             move |segment: &SegmentFileInfo, _chunk, stream_metrics, _stats_prune_tree| {
-                let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+                let pruner = Arc::new(PagePruner::new(
+                    &schema,
+                    Arc::clone(&segment.metadata),
+                    schema.clone(),
+                ));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(PredicateOnlyEvaluator::new(
                     pruner,
                     None,

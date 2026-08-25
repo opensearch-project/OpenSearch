@@ -9,9 +9,10 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.Nullable;
 
 /**
  * A DTO to hold the context used for a system generated factory to evaluate should we generate the processor
  */
-public record ProcessorGenerationContext(SearchRequest searchRequest) {
+public record ProcessorGenerationContext(SearchRequest searchRequest, @Nullable String parentAction) {
 }

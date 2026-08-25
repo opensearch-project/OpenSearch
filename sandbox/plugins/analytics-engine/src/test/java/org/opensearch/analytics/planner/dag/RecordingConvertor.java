@@ -11,7 +11,6 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
-import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.nio.charset.StandardCharsets;
@@ -30,10 +29,13 @@ public class RecordingConvertor implements FragmentConvertor {
 
     @Override
     public byte[] convertFragment(RelNode fragment) {
-        // Distinguish shard-scan vs reduce/final by walking down the leftmost spine to find a
+        // Distinguish shard-scan vs reduce/final by searching the entire fragment tree for a
         // TableScan-shaped leaf (annotations are stripped before this is called, so
-        // OpenSearchTableScan has been rewritten to LogicalTableScan).
-        TableScan scan = RelNodeUtils.findNode(fragment, TableScan.class);
+        // OpenSearchTableScan has been rewritten to LogicalTableScan). RelNodeUtils.findNode
+        // only walks the leftmost spine, which would miss the right-side TableScan in
+        // Join(BroadcastScan, TableScan) — exercise a full tree walk here so the mock matches
+        // the production heuristic in DataFusionFragmentConvertor.
+        TableScan scan = findAnyTableScan(fragment);
         if (scan != null) {
             this.shardScanCalled = true;
             this.shardScanTableName = scan.getTable().getQualifiedName().getLast();
@@ -43,6 +45,19 @@ public class RecordingConvertor implements FragmentConvertor {
         this.finalAggCalled = true;
         this.reduceFragment = fragment;
         return "reduce".getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static TableScan findAnyTableScan(RelNode node) {
+        if (node instanceof TableScan scan) {
+            return scan;
+        }
+        for (RelNode input : node.getInputs()) {
+            TableScan found = findAnyTableScan(input);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     @Override

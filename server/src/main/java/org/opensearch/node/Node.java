@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
@@ -76,11 +77,14 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
+import org.opensearch.cluster.deployment.DeploymentManagerService;
+import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
@@ -188,6 +192,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionPayloadDecoderRegistry;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -224,6 +230,7 @@ import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ConcurrencyLimiterStatsPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.DefaultPluginComponentRegistry;
@@ -955,6 +962,16 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // build ingestion payload decoder registry
+            final IngestionPayloadDecoderRegistry.Builder registryBuilder = IngestionPayloadDecoderRegistry.builder()
+                .register(XContentIngestionPayloadDecoder.NAME, XContentIngestionPayloadDecoder.Factory.INSTANCE);
+            pluginsService.filterPlugins(IngestionConsumerPlugin.class)
+                .forEach(plugin -> plugin.getIngestionPayloadDecoderFactories().forEach(registryBuilder::register));
+            final IngestionPayloadDecoderRegistry payloadDecoderRegistry = registryBuilder.build();
+            // If node construction fails before IndicesService takes ownership of the registry
+            // (see IndicesService#doClose), close it here so factories don't leak.
+            resourcesToClose.add(payloadDecoderRegistry);
+
             // Initialize tiered storage prefetch settings
             final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
             final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
@@ -1043,6 +1060,9 @@ public class Node implements Closeable {
             clusterService.setRerouteService(rerouteService);
             clusterModule.setRerouteServiceForAllocator(rerouteService);
 
+            final DeploymentStateService deploymentStateService = new DeploymentStateService(() -> clusterService.state());
+            final DeploymentManagerService deploymentManagerService = new DeploymentManagerService(clusterService, rerouteService);
+
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
             final CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(settings, settingsModule.getClusterSettings());
@@ -1059,7 +1079,8 @@ public class Node implements Closeable {
             final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
                 settings,
                 clusterService.getClusterSettings(),
-                threadPool
+                threadPool,
+                clusterService
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
@@ -1102,6 +1123,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                payloadDecoderRegistry,
                 ingestServiceReference::get,
                 recoverySettings,
                 cacheService,
@@ -1180,6 +1202,7 @@ public class Node implements Closeable {
                 clusterService,
                 metadataCreateIndexService
             );
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
@@ -1693,7 +1716,8 @@ public class Node implements Closeable {
                 repositoryService,
                 admissionControlService,
                 cacheService,
-                nativeAllocatorStatsSupplier
+                nativeAllocatorStatsSupplier,
+                buildConcurrencyLimiterStatsSupplier(pluginsService)
             );
 
             final SearchService searchService = newSearchService(
@@ -1767,6 +1791,8 @@ public class Node implements Closeable {
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(SearchPipelineService.class).toInstance(searchPipelineService);
+                b.bind(DeploymentStateService.class).toInstance(deploymentStateService);
+                b.bind(DeploymentManagerService.class).toInstance(deploymentManagerService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
@@ -1795,6 +1821,7 @@ public class Node implements Closeable {
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
                 b.bind(ViewService.class).toInstance(viewService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);
@@ -2451,6 +2478,15 @@ public class Node implements Closeable {
      */
     PageCacheRecycler createPageCacheRecycler(Settings settings) {
         return new PageCacheRecycler(settings);
+    }
+
+    private static Supplier<ActionConcurrencyLimiterStats> buildConcurrencyLimiterStatsSupplier(PluginsService pluginsService) {
+        List<ConcurrencyLimiterStatsPlugin> providers = pluginsService.filterPlugins(ConcurrencyLimiterStatsPlugin.class);
+        if (providers.isEmpty()) {
+            return () -> null;
+        }
+        ConcurrencyLimiterStatsPlugin provider = providers.getFirst();
+        return provider::getConcurrencyLimiterStats;
     }
 
     /**

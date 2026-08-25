@@ -36,6 +36,7 @@ import org.apache.lucene.document.FieldType;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -92,6 +94,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      * Implement as follows:
      * {@code return new MyBuilder(simpleName()).init(this); }
      */
+    /**
+     * Returns the resolved values of any plugin-contributed mapping parameters on this mapper, keyed by
+     * parameter name. Empty unless a data-format plugin contributed parameters for this field type.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public Map<String, Object> mappingPluginParameterValues() {
+        return Map.of();
+    }
+
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
     @Override
@@ -187,7 +200,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static final class Parameter<T> implements Supplier<T> {
+    public static sealed class Parameter<T> implements Supplier<T> permits SideEffectParameter {
 
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
@@ -558,6 +571,86 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     /**
+     * A {@link Parameter} that also applies a build-time side effect (for example, overriding a sibling
+     * parameter) when the owning mapper is built. Data-format plugins contribute these for parameters such
+     * as {@code low_cardinality}, where the field additionally opts out of Lucene indexing.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public static final class SideEffectParameter<T> extends Parameter<T> {
+
+        private final BiConsumer<Builder, T> sideEffect;
+
+        public SideEffectParameter(
+            String name,
+            boolean updateable,
+            Supplier<T> defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            Function<FieldMapper, T> initializer,
+            BiConsumer<Builder, T> sideEffect
+        ) {
+            super(name, updateable, defaultValue, parser, initializer);
+            this.sideEffect = Objects.requireNonNull(sideEffect, "sideEffect");
+        }
+
+        /**
+         * Creates a plugin-contributed parameter of any type. Its raw mapping value is converted by
+         * {@code parser}, read back from {@link ParametrizedFieldMapper#mappingPluginParameterValues()} during
+         * mapping merges, and the given side effect is applied at build time (for example, overriding a sibling
+         * parameter based on the resolved value).
+         *
+         * @param name         the parameter name as it appears in the mapping
+         * @param updateable   whether the parameter can be changed by a mapping update
+         * @param defaultValue the value used when the parameter is absent from the mapping
+         * @param parser       converts the raw mapping value into the parameter's type
+         * @param sideEffect   applied at build time with the builder and the resolved value
+         */
+        public static <T> SideEffectParameter<T> create(
+            String name,
+            boolean updateable,
+            T defaultValue,
+            TriFunction<String, ParserContext, Object, T> parser,
+            BiConsumer<Builder, T> sideEffect
+        ) {
+            return new SideEffectParameter<>(name, updateable, () -> defaultValue, parser, m -> {
+                Object value = ((ParametrizedFieldMapper) m).mappingPluginParameterValues().get(name);
+                if (value == null) {
+                    return defaultValue;
+                }
+                if (defaultValue != null && defaultValue.getClass().isInstance(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Plugin mapping parameter ["
+                            + name
+                            + "] resolved to a value of type ["
+                            + value.getClass().getName()
+                            + "]; expected ["
+                            + defaultValue.getClass().getName()
+                            + "]"
+                    );
+                }
+                @SuppressWarnings("unchecked")
+                T resolved = (T) value;
+                return resolved;
+            }, sideEffect);
+        }
+
+        /** Convenience factory for a boolean plugin-contributed parameter; see {@link #create}. */
+        public static SideEffectParameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            boolean defaultValue,
+            BiConsumer<Builder, Boolean> sideEffect
+        ) {
+            return create(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), sideEffect);
+        }
+
+        void applySideEffect(Builder builder) {
+            sideEffect.accept(builder, getValue());
+        }
+    }
+
+    /**
      * Conflicts in the field mapper
      *
      * @opensearch.internal
@@ -601,6 +694,84 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         protected Builder(String name) {
             super(name);
+        }
+
+        /** Plugin-contributed parameters supplied at construction; appended to {@link #getParameters()} by subclasses. */
+        private List<Parameter<?>> pluginMappingParameters = List.of();
+
+        /**
+         * Sets the plugin-contributed parameters for this builder. Called from the concrete builder's
+         * constructor so the parameters are present when {@link #getParameters()} runs.
+         */
+        protected void setPluginMappingParameters(List<Parameter<?>> parameters) {
+            this.pluginMappingParameters = (parameters == null || parameters.isEmpty()) ? List.of() : List.copyOf(parameters);
+        }
+
+        /** Returns the plugin-contributed parameters to be appended to {@link #getParameters()} by subclasses. */
+        protected List<Parameter<?>> pluginMappingParameters() {
+            return pluginMappingParameters;
+        }
+
+        /** Returns the resolved values of the plugin-contributed parameters, keyed by parameter name. */
+        protected Map<String, Object> pluginMappingParameterValues() {
+            if (pluginMappingParameters.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, Object> values = new HashMap<>();
+            for (Parameter<?> param : pluginMappingParameters) {
+                values.put(param.name, param.getValue());
+            }
+            return values;
+        }
+
+        /**
+         * Applies the build-time side effects declared by any {@link SideEffectParameter}s among the
+         * plugin-contributed parameters. Subclasses call this from {@code build(...)}.
+         */
+        protected final void applyPluginParameterEffects() {
+            for (Parameter<?> param : pluginMappingParameters) {
+                if (param instanceof SideEffectParameter) {
+                    ((SideEffectParameter<?>) param).applySideEffect(this);
+                }
+            }
+        }
+
+        /**
+         * Sets the value of the parameter with the given name if present. Used by a {@link SideEffectParameter}
+         * to override a sibling parameter at build time (e.g. disabling indexing).
+         *
+         * <p>The value must be type-compatible with the target parameter's current value; a mismatch throws
+         * {@link IllegalArgumentException} rather than silently corrupting the parameter.
+         */
+        public void setParameterValue(String name, Object value) {
+            for (Parameter<?> param : getParameters()) {
+                if (param.name.equals(name)) {
+                    setCheckedValue(param, value);
+                    return;
+                }
+            }
+        }
+
+        /**
+         * Assigns {@code value} to {@code param} after verifying it is assignable to the parameter's current value
+         * type. The unchecked cast is guarded by the preceding runtime {@code isInstance} check.
+         */
+        private static <T> void setCheckedValue(Parameter<T> param, Object value) {
+            T current = param.getValue();
+            if (value != null && current != null && current.getClass().isInstance(value) == false) {
+                throw new IllegalArgumentException(
+                    "Cannot set parameter ["
+                        + param.name
+                        + "] to a value of type ["
+                        + value.getClass().getName()
+                        + "]; expected ["
+                        + current.getClass().getName()
+                        + "]"
+                );
+            }
+            @SuppressWarnings("unchecked")
+            T typed = (T) value;
+            param.setValue(typed);
         }
 
         /**

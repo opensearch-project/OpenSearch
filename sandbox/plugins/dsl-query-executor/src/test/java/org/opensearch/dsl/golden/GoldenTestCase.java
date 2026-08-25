@@ -28,6 +28,7 @@ public class GoldenTestCase {
     private List<String> expectedRelNodePlan;
     private List<String> mockResultFieldNames;
     private List<List<Object>> mockResultRows;
+    private Map<String, Object> mockCountRow;
     private Map<String, Object> expectedOutputDsl;
     private String planType;
 
@@ -85,6 +86,19 @@ public class GoldenTestCase {
 
     public void setMockResultRows(List<List<Object>> mockResultRows) {
         this.mockResultRows = mockResultRows;
+    }
+
+    /**
+     * Column name → value for the request's COUNT plan single result row
+     * (e.g. {@code {"_total": 5, "_notnull$brand": 5}}). Null when the scenario expects no
+     * COUNT plan.
+     */
+    public Map<String, Object> getMockCountRow() {
+        return mockCountRow;
+    }
+
+    public void setMockCountRow(Map<String, Object> mockCountRow) {
+        this.mockCountRow = mockCountRow;
     }
 
     public Map<String, Object> getExpectedOutputDsl() {

@@ -368,6 +368,21 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         throw new UnsupportedOperationException("DataFormatAwareReadOnlyEngine does not support deletes");
     }
 
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        throw new UnsupportedOperationException("DataFormatAwareReadOnlyEngine does not support deletes");
+    }
+
     // ---- IndexerLifecycleOperations (Tasks 4, 7) ----
 
     @Override

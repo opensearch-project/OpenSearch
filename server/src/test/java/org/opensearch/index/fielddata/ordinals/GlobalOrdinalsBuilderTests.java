@@ -10,6 +10,7 @@ package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
@@ -18,10 +19,17 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -33,6 +41,61 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GlobalOrdinalsBuilderTests extends OpenSearchTestCase {
+
+    public void testBuildTripsFieldDataBreaker() throws IOException {
+        try (Directory dir = newDirectory()) {
+            RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+            w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+
+            for (int seg = 0; seg < 3; seg++) {
+                for (int i = 0; i < 10; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("field", new BytesRef("seg" + seg + "_term" + i)));
+                    w.addDocument(doc);
+                }
+                w.flush();
+            }
+
+            try (IndexReader reader = w.getReader()) {
+                w.close();
+                assertTrue("Need multiple segments for global ordinals", reader.leaves().size() > 1);
+
+                IndexOrdinalsFieldData fieldData = mockFieldData("field", reader);
+                IndexOrdinalsFieldData globalOrdinals = GlobalOrdinalsBuilder.build(
+                    reader,
+                    fieldData,
+                    new NoneCircuitBreakerService(),
+                    logger,
+                    AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                );
+                assertTrue("global ordinals should report memory usage", ((Accountable) globalOrdinals).ramBytesUsed() > 1L);
+
+                HierarchyCircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+                    Settings.builder()
+                        .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                        .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b")
+                        .build(),
+                    Collections.emptyList(),
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                );
+
+                CircuitBreakingException exception = expectThrows(
+                    CircuitBreakingException.class,
+                    () -> GlobalOrdinalsBuilder.build(
+                        reader,
+                        fieldData,
+                        breakerService,
+                        logger,
+                        AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                    )
+                );
+                assertTrue(exception.getMessage(), exception.getMessage().contains("[fielddata] Data too large"));
+                assertTrue(exception.getMessage(), exception.getMessage().contains("data for [field]"));
+                assertEquals(0L, breakerService.getBreaker(CircuitBreaker.FIELDDATA).getUsed());
+                assertEquals(1L, breakerService.getBreaker(CircuitBreaker.FIELDDATA).getTrippedCount());
+            }
+        }
+    }
 
     public void testBuildWithCancellationBetweenSegments() throws IOException {
         try (Directory dir = newDirectory()) {
