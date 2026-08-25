@@ -25,6 +25,9 @@ public class TermsLookupProtoUtils {
 
     /**
      * Convenience overload for lookups that cannot contain a nested query.
+     *
+     * @param termsLookupProto the Protocol Buffer TermsLookup object
+     * @return A configured TermsLookup instance
      */
     protected static TermsLookup parseTermsLookup(org.opensearch.protobufs.TermsLookup termsLookupProto) {
         return parseTermsLookup(termsLookupProto, null);
