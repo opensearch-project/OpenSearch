@@ -34,9 +34,9 @@ import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.DataFormatAwareEngine.DataFormatAwareReader;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineBackedIndexer;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.query.QueryBuilder;
@@ -293,8 +293,11 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             throw e;
         }
         try {
-            EngineBackedLuceneReader reader = new EngineBackedLuceneReader(searcher, snapshotRef, plugin.getDataFormat());
-            return new GatedCloseable<>(reader, reader::close);
+            DataFormatAwareReader reader = new DataFormatAwareReader(
+                snapshotRef,
+                Map.of(plugin.getDataFormat(), new LuceneReader(searcher.getDirectoryReader(), Map.of()))
+            );
+            return new GatedCloseable<>(reader, () -> IOUtils.close(searcher, reader));
         } catch (RuntimeException | Error e) {
             IOUtils.closeWhileHandlingException(searcher, snapshotRef);
             throw e;
@@ -322,49 +325,6 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
             shardCtx.getNamedWriteableRegistry(),
             isCancelled
         );
-    }
-
-    private static final class EngineBackedLuceneReader implements IndexReaderProvider.Reader {
-        private final Engine.Searcher searcher;
-        private final GatedCloseable<CatalogSnapshot> snapshotRef;
-        private final DataFormat luceneFormat;
-        private final LuceneReader luceneReader;
-
-        private EngineBackedLuceneReader(Engine.Searcher searcher, GatedCloseable<CatalogSnapshot> snapshotRef, DataFormat luceneFormat) {
-            this.searcher = searcher;
-            this.snapshotRef = snapshotRef;
-            this.luceneFormat = luceneFormat;
-            this.luceneReader = new LuceneReader(searcher.getDirectoryReader(), Map.of());
-        }
-
-        @Override
-        public CatalogSnapshot catalogSnapshot() {
-            return snapshotRef.get();
-        }
-
-        @Override
-        public Object reader(DataFormat format) {
-            return luceneFormat.equals(format) ? luceneReader : null;
-        }
-
-        @Override
-        public <R> R getReader(DataFormat format, Class<R> readerType) {
-            Object reader = reader(format);
-            if (reader == null) {
-                return null;
-            }
-            if (readerType.isInstance(reader) == false) {
-                throw new IllegalArgumentException(
-                    "Reader for format [" + format.name() + "] is " + reader.getClass().getName() + ", expected " + readerType.getName()
-                );
-            }
-            return readerType.cast(reader);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(searcher, snapshotRef);
-        }
     }
 
     // ── Lucene-as-driver execution path (count fast path) ──

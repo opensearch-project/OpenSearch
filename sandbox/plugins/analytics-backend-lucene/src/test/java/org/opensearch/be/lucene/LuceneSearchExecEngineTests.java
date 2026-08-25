@@ -22,8 +22,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.ArrowBatchSource;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.ColumnKind;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
@@ -64,7 +64,7 @@ public class LuceneSearchExecEngineTests extends OpenSearchTestCase {
                 LuceneSearcherState state = new LuceneSearcherState(searcher, new MatchAllDocsQuery(), List.of(), plan);
                 LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state);
                 AtomicBoolean executorCalled = new AtomicBoolean();
-                ArrowBatchSourceExecutor executor = (resultAllocator, receivedPlan, sourceFactory, receivedTask, receivedTracker) -> {
+                ArrowBatchSourceBridge bridge = (resultAllocator, receivedPlan, sourceFactory, receivedTask, receivedTracker) -> {
                     executorCalled.set(true);
                     assertSame(allocator, resultAllocator);
                     assertSame(plan, receivedPlan);
@@ -84,11 +84,11 @@ public class LuceneSearchExecEngineTests extends OpenSearchTestCase {
                     return new EmptyResultStream();
                 };
 
-                ArrowBatchSourceExecutorHolder.install(executor);
+                ArrowBatchSourceBridgeHolder.install(bridge);
                 try (EngineResultStream stream = engine.execute(context)) {
                     assertFalse(stream.iterator().hasNext());
                 } finally {
-                    ArrowBatchSourceExecutorHolder.remove(executor);
+                    ArrowBatchSourceBridgeHolder.remove(bridge);
                 }
 
                 assertTrue(executorCalled.get());

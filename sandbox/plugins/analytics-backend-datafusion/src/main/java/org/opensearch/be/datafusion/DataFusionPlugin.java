@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
@@ -487,7 +487,7 @@ public class DataFusionPlugin extends Plugin
     private static final int ACTIVE_QUERY_METRICS_TOP_N = 10;
 
     private volatile DataFusionService dataFusionService;
-    private volatile DatafusionArrowBatchSourceExecutor arrowBatchSourceExecutor;
+    private volatile DatafusionArrowBatchSourceBridge arrowBatchSourceBridge;
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
@@ -697,8 +697,8 @@ public class DataFusionPlugin extends Plugin
             );
         }
 
-        arrowBatchSourceExecutor = new DatafusionArrowBatchSourceExecutor(dataFusionService, this);
-        ArrowBatchSourceExecutorHolder.install(arrowBatchSourceExecutor);
+        arrowBatchSourceBridge = new DatafusionArrowBatchSourceBridge(dataFusionService, this);
+        ArrowBatchSourceBridgeHolder.install(arrowBatchSourceBridge);
         return Collections.singletonList(dataFusionService);
     }
 
@@ -1045,9 +1045,9 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public void close() throws IOException {
-        if (arrowBatchSourceExecutor != null) {
-            ArrowBatchSourceExecutorHolder.remove(arrowBatchSourceExecutor);
-            arrowBatchSourceExecutor = null;
+        if (arrowBatchSourceBridge != null) {
+            ArrowBatchSourceBridgeHolder.remove(arrowBatchSourceBridge);
+            arrowBatchSourceBridge = null;
         }
         if (getService != null) {
             getService.close();

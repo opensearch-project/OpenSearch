@@ -24,14 +24,13 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -62,7 +61,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         AggregateCall sum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(1), -1, scan, bigint, "sum_metric");
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(sum));
 
-        LuceneFragmentConvertor.ArrowSourceShape shape = LuceneFragmentConvertor.extractArrowSourceShape(aggregate);
+        LuceneFragmentPlanner.ArrowSourceShape shape = arrowSourceShape(aggregate);
 
         assertNotNull(shape);
         assertEquals(List.of("key", "metric"), shape.inputColumns().stream().map(ArrowBatchSourceFactory.InputColumn::name).toList());
@@ -85,8 +84,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         );
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(count));
 
-        assertFalse(LuceneFragmentConvertor.isCountFastPath(aggregate));
-        assertNotNull(LuceneFragmentConvertor.extractArrowSourceShape(aggregate));
+        assertTrue(LuceneFragmentPlanner.classify(aggregate) instanceof LuceneFragmentPlanner.ArrowSourceShape);
     }
 
     public void testCountStarRetainsMetadataFastPath() {
@@ -103,8 +101,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         );
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(count));
 
-        assertTrue(LuceneFragmentConvertor.isCountFastPath(aggregate));
-        assertNull(LuceneFragmentConvertor.extractArrowSourceShape(aggregate));
+        assertTrue(LuceneFragmentPlanner.classify(aggregate) instanceof LuceneFragmentPlanner.CountShape);
     }
 
     public void testRowProjectionRebasesKeywordInput() {
@@ -113,7 +110,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         RelNode scan = scan(rowType, List.of(storage("keyword", FieldType.KEYWORD), storage("unused", FieldType.KEYWORD)));
         RelNode project = LogicalProject.create(scan, List.of(), List.of(rexBuilder.makeInputRef(scan, 0)), List.of("keyword"));
 
-        LuceneFragmentConvertor.ArrowSourceShape shape = LuceneFragmentConvertor.extractArrowSourceShape(project);
+        LuceneFragmentPlanner.ArrowSourceShape shape = arrowSourceShape(project);
 
         assertNotNull(shape);
         assertEquals(List.of("keyword"), shape.inputColumns().stream().map(ArrowBatchSourceFactory.InputColumn::name).toList());
@@ -125,7 +122,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         RelNode scan = scan(typeFactory.builder().add("event_time", timestamp).build(), List.of(storage("event_time", FieldType.DATE)));
         RelNode project = LogicalProject.create(scan, List.of(), List.of(rexBuilder.makeInputRef(scan, 0)), List.of("event_time"));
 
-        LuceneFragmentConvertor.ArrowSourceShape shape = LuceneFragmentConvertor.extractArrowSourceShape(project);
+        LuceneFragmentPlanner.ArrowSourceShape shape = arrowSourceShape(project);
 
         assertNotNull(shape);
         assertEquals(ArrowBatchSourceFactory.ColumnKind.TIMESTAMP, shape.inputColumns().getFirst().kind());
@@ -136,7 +133,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         RelNode scan = scan(typeFactory.builder().add("value", integer).build(), List.of(storage("value", FieldType.INTEGER)));
         RelNode project = LogicalProject.create(scan, List.of(), List.of(rexBuilder.makeInputRef(scan, 0)), List.of("value"));
 
-        assertNull(LuceneFragmentConvertor.extractArrowSourceShape(project));
+        assertTrue(LuceneFragmentPlanner.classify(project) instanceof LuceneFragmentPlanner.UnsupportedShape);
     }
 
     public void testAttachedOperatorUpdatesCompiledPlanAndOutputNames() throws Exception {
@@ -145,23 +142,20 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         AggregateCall sum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, scan, bigint, "sum_metric");
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sum));
         RelNode project = LogicalProject.create(aggregate, List.of(), List.of(rexBuilder.makeInputRef(aggregate, 0)), List.of("renamed"));
-        RecordingExecutor executor = new RecordingExecutor();
-        ArrowBatchSourceExecutorHolder.install(executor);
+        RecordingBridge bridge = new RecordingBridge();
+        ArrowBatchSourceBridgeHolder.install(bridge);
         try {
             LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of());
             byte[] inner = convertor.convertFragment(aggregate);
             byte[] attached = convertor.attachFragmentOnTop(project, inner);
 
-            assertNotNull(executor.attachedFragment);
-            try (StreamInput input = StreamInput.wrap(attached)) {
-                List<String> metadata = input.readStringList();
-                assertArrayEquals(new byte[] { 4, 5, 6 }, java.util.Base64.getDecoder().decode(metadata.get(1)));
-                assertEquals("1", metadata.get(6));
-                assertEquals("renamed", metadata.get(7));
-                assertFalse(input.readBoolean());
-            }
+            assertNotNull(bridge.attachedFragment);
+            LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(attached);
+            assertArrayEquals(new byte[] { 4, 5, 6 }, wirePlan.arrowSourcePlan().planBytes());
+            assertEquals(List.of("renamed"), wirePlan.outputNames());
+            assertNull(wirePlan.filterBytes());
         } finally {
-            ArrowBatchSourceExecutorHolder.remove(executor);
+            ArrowBatchSourceBridgeHolder.remove(bridge);
         }
     }
 
@@ -170,27 +164,31 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         RelNode scan = scan(typeFactory.builder().add("metric", bigint).build(), List.of(storage("metric", FieldType.LONG)));
         AggregateCall sum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, scan, bigint, "sum_metric");
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sum));
-        RecordingExecutor executor = new RecordingExecutor();
-        ArrowBatchSourceExecutorHolder.install(executor);
+        RecordingBridge bridge = new RecordingBridge();
+        ArrowBatchSourceBridgeHolder.install(bridge);
         try {
             LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of());
             byte[] inner = convertor.convertFragment(scan);
             byte[] bytes = convertor.attachPartialAggOnTop(aggregate, inner);
 
-            assertTrue(executor.partialAggregate);
-            assertNotNull(executor.compiledFragment);
-            try (StreamInput input = StreamInput.wrap(bytes)) {
-                List<String> metadata = input.readStringList();
-                assertEquals(LuceneFragmentConvertor.ARROW_SOURCE_PLAN_MARKER, metadata.getFirst());
-                assertEquals("input-0", metadata.get(2));
-                assertEquals("1", metadata.get(3));
-                assertEquals("metric", metadata.get(4));
-                assertEquals("LONG", metadata.get(5));
-                assertFalse(input.readBoolean());
-            }
+            assertTrue(bridge.partialAggregate);
+            assertNotNull(bridge.compiledFragment);
+            LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(bytes);
+            assertEquals("input-0", wirePlan.arrowSourcePlan().inputId());
+            assertEquals(
+                List.of(new ArrowBatchSourceFactory.InputColumn("metric", ArrowBatchSourceFactory.ColumnKind.LONG)),
+                wirePlan.arrowSourcePlan().inputColumns()
+            );
+            assertNull(wirePlan.filterBytes());
         } finally {
-            ArrowBatchSourceExecutorHolder.remove(executor);
+            ArrowBatchSourceBridgeHolder.remove(bridge);
         }
+    }
+
+    private static LuceneFragmentPlanner.ArrowSourceShape arrowSourceShape(RelNode fragment) {
+        LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(fragment);
+        assertTrue(shape instanceof LuceneFragmentPlanner.ArrowSourceShape);
+        return (LuceneFragmentPlanner.ArrowSourceShape) shape;
     }
 
     private RelNode scan(RelDataType rowType, List<FieldStorageInfo> storage) {
@@ -213,7 +211,7 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         return typeFactory.createTypeWithNullability(typeFactory.createSqlType(type), true);
     }
 
-    private static final class RecordingExecutor implements ArrowBatchSourceExecutor {
+    private static final class RecordingBridge implements ArrowBatchSourceBridge {
         private RelNode compiledFragment;
         private RelNode attachedFragment;
         private boolean partialAggregate;

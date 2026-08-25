@@ -59,14 +59,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import io.substrait.extension.DefaultExtensionCatalog;
 
 /** End-to-end Lucene doc-values to DataFusion pull-source execution test. */
-public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase {
+public class DatafusionArrowBatchSourceBridgeTests extends OpenSearchTestCase {
 
     public void testCompilesNamedArrowSourcePlan() throws Exception {
         DataFusionPlugin plugin = org.mockito.Mockito.mock(DataFusionPlugin.class);
         org.mockito.Mockito.when(plugin.getSubstraitExtensions()).thenReturn(DefaultExtensionCatalog.DEFAULT_COLLECTION);
-        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(DataFusionService.builder().build(), plugin);
+        DatafusionArrowBatchSourceBridge bridge = new DatafusionArrowBatchSourceBridge(DataFusionService.builder().build(), plugin);
 
-        byte[] planBytes = executor.compile(inputScan("input-0"), false);
+        byte[] planBytes = bridge.compile(inputScan("input-0"), false);
 
         io.substrait.proto.Plan plan = io.substrait.proto.Plan.parseFrom(planBytes);
         assertEquals("input-0", plan.getRelations(0).getRoot().getInput().getRead().getNamedTable().getNames(0));
@@ -87,10 +87,10 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
         };
         ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan("input-0", new byte[] { 1 }, List.of(new InputColumn("x", ColumnKind.LONG)));
         DataFusionService stoppedService = DataFusionService.builder().build();
-        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(stoppedService);
+        DatafusionArrowBatchSourceBridge bridge = new DatafusionArrowBatchSourceBridge(stoppedService);
 
         try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
-            expectThrows(IllegalStateException.class, () -> executor.execute(allocator, plan, factory, null, null));
+            expectThrows(IllegalStateException.class, () -> bridge.execute(allocator, plan, factory, null, null));
         }
         assertEquals(1, closes.get());
     }
@@ -116,10 +116,10 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
         };
         task.cancel("test cancellation");
         ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan("input-0", new byte[] { 1 }, List.of(new InputColumn("x", ColumnKind.LONG)));
-        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(DataFusionService.builder().build());
+        DatafusionArrowBatchSourceBridge bridge = new DatafusionArrowBatchSourceBridge(DataFusionService.builder().build());
 
         try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
-            expectThrows(TaskCancelledException.class, () -> executor.execute(allocator, plan, factory, task, null));
+            expectThrows(TaskCancelledException.class, () -> bridge.execute(allocator, plan, factory, task, null));
         }
         assertEquals(1, closes.get());
     }
@@ -135,7 +135,7 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
         service.start();
         DataFusionPlugin plugin = org.mockito.Mockito.mock(DataFusionPlugin.class);
         org.mockito.Mockito.when(plugin.getSubstraitExtensions()).thenReturn(DefaultExtensionCatalog.DEFAULT_COLLECTION);
-        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(service, plugin);
+        DatafusionArrowBatchSourceBridge bridge = new DatafusionArrowBatchSourceBridge(service, plugin);
 
         try (
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
@@ -155,10 +155,10 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
                 );
                 ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan(
                     "input-0",
-                    executor.compile(inputScan("input-0"), false),
+                    bridge.compile(inputScan("input-0"), false),
                     List.of(new InputColumn("x", ColumnKind.LONG))
                 );
-                EngineResultStream stream = executor.execute(allocator, plan, factory, null, null);
+                EngineResultStream stream = bridge.execute(allocator, plan, factory, null, null);
                 assertTrue("factory and native source hold reader references", reader.getRefCount() > initialRefCount);
 
                 stream.close();
@@ -183,7 +183,7 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
         service.start();
         DataFusionPlugin plugin = org.mockito.Mockito.mock(DataFusionPlugin.class);
         org.mockito.Mockito.when(plugin.getSubstraitExtensions()).thenReturn(DefaultExtensionCatalog.DEFAULT_COLLECTION);
-        DatafusionArrowBatchSourceExecutor executor = new DatafusionArrowBatchSourceExecutor(service, plugin);
+        DatafusionArrowBatchSourceBridge bridge = new DatafusionArrowBatchSourceBridge(service, plugin);
 
         try (
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
@@ -206,12 +206,12 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
                 );
                 ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan(
                     "input-0",
-                    executor.compile(filteredInput("input-0", 15L), false),
+                    bridge.compile(filteredInput("input-0", 15L), false),
                     List.of(new InputColumn("x", ColumnKind.LONG))
                 );
                 Task task = new Task(98_001L, "test", "arrow-source", "arrow-source", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
-                try (EngineResultStream stream = executor.execute(allocator, plan, factory, task, null)) {
+                try (EngineResultStream stream = bridge.execute(allocator, plan, factory, task, null)) {
                     Iterator<EngineResultBatch> batches = stream.iterator();
                     assertTrue(batches.hasNext());
                     EngineResultBatch batch = batches.next();
@@ -238,7 +238,7 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
                     countSubstrait("input-0", true),
                     List.of(new InputColumn("x", ColumnKind.LONG))
                 );
-                try (EngineResultStream stream = executor.execute(allocator, countPlan, countFactory, task, null)) {
+                try (EngineResultStream stream = bridge.execute(allocator, countPlan, countFactory, task, null)) {
                     Iterator<EngineResultBatch> batches = stream.iterator();
                     assertTrue(batches.hasNext());
                     try (VectorSchemaRoot root = batches.next().getArrowRoot()) {
@@ -263,7 +263,7 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
                     countSubstrait("input-0", false),
                     List.of(new InputColumn("x", ColumnKind.LONG))
                 );
-                try (EngineResultStream stream = executor.execute(allocator, fieldCountPlan, fieldCountFactory, task, null)) {
+                try (EngineResultStream stream = bridge.execute(allocator, fieldCountPlan, fieldCountFactory, task, null)) {
                     Iterator<EngineResultBatch> batches = stream.iterator();
                     assertTrue(batches.hasNext());
                     try (VectorSchemaRoot root = batches.next().getArrowRoot()) {
@@ -283,10 +283,10 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
                 );
                 ArrowBatchSourcePlan keywordPlan = new ArrowBatchSourcePlan(
                     "input-0",
-                    executor.compile(inputScan("input-0", "keyword", SqlTypeName.VARCHAR), false),
+                    bridge.compile(inputScan("input-0", "keyword", SqlTypeName.VARCHAR), false),
                     List.of(new InputColumn("keyword", ColumnKind.KEYWORD))
                 );
-                try (EngineResultStream stream = executor.execute(allocator, keywordPlan, keywordFactory, task, null)) {
+                try (EngineResultStream stream = bridge.execute(allocator, keywordPlan, keywordFactory, task, null)) {
                     Iterator<EngineResultBatch> batches = stream.iterator();
                     assertTrue(batches.hasNext());
                     try (VectorSchemaRoot root = batches.next().getArrowRoot()) {
@@ -360,7 +360,7 @@ public class DatafusionArrowBatchSourceExecutorTests extends OpenSearchTestCase 
         Thread thread = Thread.currentThread();
         ClassLoader previous = thread.getContextClassLoader();
         try {
-            thread.setContextClassLoader(DatafusionArrowBatchSourceExecutorTests.class.getClassLoader());
+            thread.setContextClassLoader(DatafusionArrowBatchSourceBridgeTests.class.getClassLoader());
             return new DataFusionFragmentConvertor(DefaultExtensionCatalog.DEFAULT_COLLECTION).convertFragment(node);
         } finally {
             thread.setContextClassLoader(previous);

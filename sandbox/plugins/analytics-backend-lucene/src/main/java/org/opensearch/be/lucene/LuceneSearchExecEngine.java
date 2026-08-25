@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import java.util.List;
  * <p>Count-only states use the metadata fast path through
  * {@link org.apache.lucene.search.IndexSearcher#count(org.apache.lucene.search.Query)}.
  * States carrying an {@link ArrowBatchSourcePlan} create one doc-values source factory and
- * transfer it to the installed execution engine. Planner routing that creates those states
+ * transfer it to the installed bridge. Planner routing that creates those states
  * is separate from this execution handoff.
  *
  * <p>No deletes gate. {@code IndexSearcher.count} is self-healing: per-leaf
@@ -76,7 +76,7 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
             if (allocator == null) {
                 throw new IllegalStateException("ShardScanExecutionContext allocator is required for Arrow batch source execution");
             }
-            ArrowBatchSourceExecutor executor = ArrowBatchSourceExecutorHolder.get();
+            ArrowBatchSourceBridge bridge = ArrowBatchSourceBridgeHolder.get();
             DocValuesBatchSourceFactory sourceFactory = new DocValuesBatchSourceFactory(
                 state.searcher(),
                 state.filterQuery(),
@@ -84,7 +84,7 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
                 allocator,
                 context.getTask()
             );
-            return executor.execute(allocator, sourcePlan, sourceFactory, context.getTask(), context.getDelegationThreadTracker());
+            return bridge.execute(allocator, sourcePlan, sourceFactory, context.getTask(), context.getDelegationThreadTracker());
         }
 
         long count = state.searcher().count(state.filterQuery());

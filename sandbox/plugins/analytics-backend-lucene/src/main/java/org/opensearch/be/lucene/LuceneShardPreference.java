@@ -9,7 +9,7 @@
 package org.opensearch.be.lucene;
 
 import org.apache.calcite.rel.RelNode;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.ShardPreferenceContext;
 
@@ -41,10 +41,11 @@ final class LuceneShardPreference implements BackendShardPreference {
     @Override
     public OptionalInt scoreFor(RelNode fragment, ShardPreferenceContext ctx) {
         if (ctx.preferMetadataDriver() == false) return OptionalInt.empty();
-        if (LuceneFragmentConvertor.isCountFastPath(fragment)) {
+        LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(fragment);
+        if (shape instanceof LuceneFragmentPlanner.CountShape) {
             return OptionalInt.of(COUNT_FAST_PATH_SCORE);
         }
-        if (ArrowBatchSourceExecutorHolder.isAvailable() && LuceneFragmentConvertor.extractArrowSourceShape(fragment) != null) {
+        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape && ArrowBatchSourceBridgeHolder.isAvailable()) {
             return OptionalInt.of(ARROW_SOURCE_SCORE);
         }
         return OptionalInt.of(NOT_DRIVABLE_SCORE);

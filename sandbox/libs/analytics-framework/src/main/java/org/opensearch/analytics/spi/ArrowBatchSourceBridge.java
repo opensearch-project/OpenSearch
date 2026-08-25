@@ -13,16 +13,16 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.tasks.Task;
 
 /**
- * Executes an engine plan over a caller-provided Arrow pull source.
+ * Bridges a caller-provided Arrow pull source into an execution engine.
  *
  * <p>This SPI keeps storage plugins independent of the execution-engine implementation.
- * The executor takes ownership of {@code sourceFactory} when {@link #execute} is called,
+ * The bridge takes ownership of {@code sourceFactory} when {@link #execute} is called,
  * including when execution setup fails. The returned stream owns all remaining native and
  * callback resources and releases them from {@link EngineResultStream#close()}.
  *
  * @opensearch.internal
  */
-public interface ArrowBatchSourceExecutor {
+public interface ArrowBatchSourceBridge {
 
     /**
      * Compiles a fragment rebased onto the named Arrow input in its

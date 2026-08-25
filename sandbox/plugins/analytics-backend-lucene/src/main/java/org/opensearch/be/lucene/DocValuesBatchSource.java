@@ -14,9 +14,6 @@ import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.analytics.spi.ArrowBatchSource;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.ColumnKind;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.tasks.CancellableTask;
@@ -45,7 +43,6 @@ import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -105,7 +102,7 @@ final class DocValuesBatchSource implements ArrowBatchSource {
         this.rows = rows;
         this.nullValues = nullValues;
         this.weight = weight;
-        this.schema = batchSchema(columns);
+        this.schema = ArrowBatchSourcePlan.schemaFor(columns);
     }
 
     @Override
@@ -305,22 +302,6 @@ final class DocValuesBatchSource implements ArrowBatchSource {
 
     private static IllegalArgumentException incompatibleType(String name, DocValuesType type) {
         return new IllegalArgumentException("field [" + name + "] has incompatible doc values type [" + type + "]");
-    }
-
-    private static Schema batchSchema(List<InputColumn> columns) {
-        List<Field> fields = new ArrayList<>(columns.size());
-        FieldType int64 = new FieldType(true, new ArrowType.Int(64, true), null);
-        FieldType utf8 = new FieldType(true, new ArrowType.Utf8View(), null);
-        FieldType timestamp = new FieldType(true, new ArrowType.Timestamp(org.apache.arrow.vector.types.TimeUnit.MILLISECOND, null), null);
-        for (InputColumn column : columns) {
-            FieldType type = switch (column.kind()) {
-                case KEYWORD -> utf8;
-                case TIMESTAMP -> timestamp;
-                case LONG -> int64;
-            };
-            fields.add(new Field(column.name(), type, null));
-        }
-        return new Schema(fields);
     }
 
     private void checkCancelled() {

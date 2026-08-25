@@ -7,8 +7,17 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.vector.types.TimeUnit;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -17,7 +26,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public record ArrowBatchSourcePlan(String inputId, byte[] planBytes, List<InputColumn> inputColumns) {
+public record ArrowBatchSourcePlan(String inputId, byte[] planBytes, List<InputColumn> inputColumns) implements Writeable {
 
     public ArrowBatchSourcePlan {
         inputId = Objects.requireNonNull(inputId, "inputId");
@@ -31,8 +40,47 @@ public record ArrowBatchSourcePlan(String inputId, byte[] planBytes, List<InputC
         inputColumns = List.copyOf(Objects.requireNonNull(inputColumns, "inputColumns"));
     }
 
+    public ArrowBatchSourcePlan(StreamInput input) throws IOException {
+        this(input.readString(), input.readByteArray(), input.readList(ArrowBatchSourcePlan::readInputColumn));
+    }
+
     @Override
     public byte[] planBytes() {
         return planBytes.clone();
+    }
+
+    /** Arrow schema declared by this plan's input columns. */
+    public Schema inputSchema() {
+        return schemaFor(inputColumns);
+    }
+
+    /** Builds the source schema for an input-column list. */
+    public static Schema schemaFor(List<InputColumn> columns) {
+        return new Schema(columns.stream().map(ArrowBatchSourcePlan::toField).toList());
+    }
+
+    @Override
+    public void writeTo(StreamOutput output) throws IOException {
+        output.writeString(inputId);
+        output.writeByteArray(planBytes);
+        output.writeCollection(inputColumns, ArrowBatchSourcePlan::writeInputColumn);
+    }
+
+    private static Field toField(InputColumn column) {
+        ArrowType type = switch (column.kind()) {
+            case LONG -> new ArrowType.Int(64, true);
+            case KEYWORD -> new ArrowType.Utf8View();
+            case TIMESTAMP -> new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
+        };
+        return new Field(column.name(), new FieldType(true, type, null), null);
+    }
+
+    private static InputColumn readInputColumn(StreamInput input) throws IOException {
+        return new InputColumn(input.readString(), input.readEnum(ArrowBatchSourceFactory.ColumnKind.class));
+    }
+
+    private static void writeInputColumn(StreamOutput output, InputColumn column) throws IOException {
+        output.writeString(column.name());
+        output.writeEnum(column.kind());
     }
 }

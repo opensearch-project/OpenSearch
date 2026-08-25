@@ -46,8 +46,8 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutorHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegationType;
@@ -76,7 +76,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -190,9 +189,9 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     }
 
     public void testSumOverLongSelectsLuceneArrowSource() {
-        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
-        when(executor.compile(any(RelNode.class), anyBoolean())).thenReturn(new byte[] { 1, 2, 3 });
-        ArrowBatchSourceExecutorHolder.install(executor);
+        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
+        when(bridge.compile(any(RelNode.class), anyBoolean())).thenReturn(new byte[] { 1, 2, 3 });
+        ArrowBatchSourceBridgeHolder.install(bridge);
         try {
             TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
             AggregateCall sum = AggregateCall.create(
@@ -209,24 +208,20 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
             List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
             assertEquals(1, alternatives.size());
-            assertNotNull(
+            assertTrue(
                 org.apache.calcite.plan.RelOptUtil.toString(alternatives.getFirst().resolvedFragment()),
-                LuceneFragmentConvertor.extractArrowSourceShape(alternatives.getFirst().resolvedFragment())
+                LuceneFragmentPlanner.classify(alternatives.getFirst().resolvedFragment()) instanceof LuceneFragmentPlanner.ArrowSourceShape
             );
             assertEquals("lucene", alternatives.getFirst().backendId());
-            try (StreamInput input = StreamInput.wrap(alternatives.getFirst().convertedBytes())) {
-                assertEquals(LuceneFragmentConvertor.ARROW_SOURCE_PLAN_MARKER, input.readStringList().getFirst());
-            }
-        } catch (java.io.IOException e) {
-            throw new AssertionError(e);
+            assertNotNull(LuceneFragmentWirePlan.fromBytes(alternatives.getFirst().convertedBytes()).arrowSourcePlan());
         } finally {
-            ArrowBatchSourceExecutorHolder.remove(executor);
+            ArrowBatchSourceBridgeHolder.remove(bridge);
         }
     }
 
     public void testSumOverLongIgnoresUnsupportedUnreferencedField() {
-        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
-        ArrowBatchSourceExecutorHolder.install(executor);
+        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
+        ArrowBatchSourceBridgeHolder.install(bridge);
         try {
             TableScan scan = scanOver(List.of("metric", "unsupported"), List.of(SqlTypeName.BIGINT, SqlTypeName.INTEGER));
             AggregateCall sum = AggregateCall.create(
@@ -244,13 +239,13 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
             assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
         } finally {
-            ArrowBatchSourceExecutorHolder.remove(executor);
+            ArrowBatchSourceBridgeHolder.remove(bridge);
         }
     }
 
     public void testFilteredSumOverLongSelectsLuceneArrowSource() {
-        ArrowBatchSourceExecutor executor = mock(ArrowBatchSourceExecutor.class);
-        ArrowBatchSourceExecutorHolder.install(executor);
+        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
+        ArrowBatchSourceBridgeHolder.install(bridge);
         try {
             TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
             RexNode condition = rexBuilder.makeCall(
@@ -272,7 +267,7 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
 
             assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
         } finally {
-            ArrowBatchSourceExecutorHolder.remove(executor);
+            ArrowBatchSourceBridgeHolder.remove(bridge);
         }
     }
 

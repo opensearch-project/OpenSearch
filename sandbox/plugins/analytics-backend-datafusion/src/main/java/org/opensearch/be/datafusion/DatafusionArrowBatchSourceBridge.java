@@ -15,7 +15,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.FragmentResources;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
-import org.opensearch.analytics.spi.ArrowBatchSourceExecutor;
+import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.DelegationThreadTracker;
@@ -30,17 +30,17 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** DataFusion implementation of the generic Arrow pull-source execution SPI. */
-final class DatafusionArrowBatchSourceExecutor implements ArrowBatchSourceExecutor {
+/** DataFusion implementation of the generic Arrow pull-source bridge. */
+final class DatafusionArrowBatchSourceBridge implements ArrowBatchSourceBridge {
 
     private final DataFusionService service;
     private final DataFusionPlugin plugin;
 
-    DatafusionArrowBatchSourceExecutor(DataFusionService service) {
+    DatafusionArrowBatchSourceBridge(DataFusionService service) {
         this(service, null);
     }
 
-    DatafusionArrowBatchSourceExecutor(DataFusionService service, DataFusionPlugin plugin) {
+    DatafusionArrowBatchSourceBridge(DataFusionService service, DataFusionPlugin plugin) {
         this.service = Objects.requireNonNull(service, "service");
         this.plugin = plugin;
     }
@@ -110,7 +110,7 @@ final class DatafusionArrowBatchSourceExecutor implements ArrowBatchSourceExecut
             NativeBridge.registerArrowBatchSourceProvider(
                 session.getPointer(),
                 plan.inputId(),
-                plan.planBytes(),
+                ArrowSchemaIpc.toBytes(plan.inputSchema()),
                 registration.bindingId(),
                 taskId
             );

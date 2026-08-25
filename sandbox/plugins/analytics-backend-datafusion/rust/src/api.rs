@@ -1590,61 +1590,6 @@ pub unsafe fn sql_to_substrait(
     })
 }
 
-/// Finds a named input in a Substrait plan and converts its declared base schema
-/// to the Arrow types expected by local execution.
-pub(crate) fn derive_named_input_schema(
-    substrait_bytes: &[u8],
-    input_id: &str,
-) -> Result<arrow::datatypes::SchemaRef, DataFusionError> {
-    use datafusion::execution::SessionStateBuilder;
-    use datafusion::prelude::SessionConfig;
-    use datafusion_substrait::extensions::Extensions;
-    use datafusion_substrait::logical_plan::consumer::{
-        from_substrait_named_struct, DefaultSubstraitConsumer,
-    };
-    use prost::Message;
-    use substrait::proto::{read_rel::ReadType, Plan};
-
-    let plan = Plan::decode(substrait_bytes).map_err(|error| {
-        DataFusionError::Execution(format!("derive_named_input_schema: decode failed: {error}"))
-    })?;
-    let state = SessionStateBuilder::new()
-        .with_config(SessionConfig::new())
-        .with_default_features()
-        .build();
-    let extensions = Extensions::default();
-    let consumer = DefaultSubstraitConsumer::new(&extensions, &state);
-    let mut reads = Vec::new();
-    for plan_relation in &plan.relations {
-        if let Some(relation) = root_rel(plan_relation) {
-            collect_reads(&relation, &mut reads);
-        }
-    }
-    for read in reads {
-        let Some(ReadType::NamedTable(table)) = read.read_type.as_ref() else {
-            continue;
-        };
-        let name = table.names.last().map(String::as_str).unwrap_or_default();
-        if name != input_id {
-            continue;
-        }
-        let base_schema = read.base_schema.as_ref().ok_or_else(|| {
-            DataFusionError::Execution(format!("ReadRel '{input_id}' missing base_schema"))
-        })?;
-        let datafusion_schema = from_substrait_named_struct(&consumer, base_schema)?;
-        let arrow_schema = datafusion::datasource::file_format::parquet::transform_schema_to_view(
-            datafusion_schema.as_arrow(),
-        );
-        let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
-        return Ok(crate::schema_coerce::coerce_inferred_schema(Arc::new(
-            arrow_schema,
-        )));
-    }
-    Err(DataFusionError::Execution(format!(
-        "Substrait plan has no named input '{input_id}'"
-    )))
-}
-
 /// Lowers a partial-aggregate Substrait plan against a throwaway session and
 /// returns its physical output schema **narrowed via
 /// [`schema_coerce::coerce_inferred_schema`]** to types Substrait can bind
@@ -1986,15 +1931,13 @@ pub unsafe fn close_local_session(ptr: i64) {
 pub unsafe fn register_arrow_batch_source_provider(
     session_ptr: i64,
     input_id: &str,
-    plan_bytes: &[u8],
+    schema_ipc: &[u8],
     binding_id: i64,
     task_id: i64,
-) -> Result<Vec<u8>, DataFusionError> {
+) -> Result<(), DataFusionError> {
     let session = &mut *(session_ptr as *mut LocalSession);
-    let schema = derive_named_input_schema(plan_bytes, input_id)?;
-    let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
-    session.register_arrow_batch_source_provider(input_id, schema, binding_id, task_id)?;
-    Ok(schema_ipc)
+    let schema = schema_from_ipc_bytes(schema_ipc)?;
+    session.register_arrow_batch_source_provider(input_id, schema, binding_id, task_id)
 }
 
 /// Registers a streaming input on the session under `input_id`. The schema is

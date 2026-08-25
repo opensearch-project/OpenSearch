@@ -341,7 +341,7 @@ public final class NativeBridge {
         );
 
         // i64 df_register_arrow_batch_source_provider(session_ptr, input_id_ptr, input_id_len,
-        // plan_ptr, plan_len, binding_id, task_id, out_ptr, out_cap, out_len)
+        // schema_ptr, schema_len, binding_id, task_id)
         REGISTER_ARROW_BATCH_SOURCE_PROVIDER = linker.downcallHandle(
             lib.find("df_register_arrow_batch_source_provider").orElseThrow(),
             FunctionDescriptor.of(
@@ -352,10 +352,7 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS
+                ValueLayout.JAVA_LONG
             )
         );
 
@@ -1468,8 +1465,7 @@ public final class NativeBridge {
     // ---- Coordinator-reduce exports ----
 
     /**
-     * Pair returned from {@link #registerArrowBatchSourceProvider}, {@link #registerPartitionStream}, or
-     * {@link #registerMemtable}: the
+     * Pair returned from {@link #registerPartitionStream} or {@link #registerMemtable}: the
      * native sender pointer (or 0 for non-stream inputs) plus the Arrow IPC-encoded schema the native
      * session derived by lowering the producer-side substrait. The Java tripwire
      * ({@code typesMatch} in {@code DatafusionReduceSink}) validates fed batches against this
@@ -1500,34 +1496,26 @@ public final class NativeBridge {
      * must back source batches with a breaker-accounted Arrow allocator. Native imports retain
      * those externally accounted buffers but do not perform separate coordinator admission.
      */
-    public static RegisteredInput registerArrowBatchSourceProvider(
-        long sessionPtr,
-        String inputId,
-        byte[] planBytes,
-        long bindingId,
-        long taskId
-    ) {
+    public static void registerArrowBatchSourceProvider(long sessionPtr, String inputId, byte[] schemaIpc, long bindingId, long taskId) {
         NativeHandle.validatePointer(sessionPtr, "session");
+        if (schemaIpc.length == 0) {
+            throw new IllegalArgumentException("schemaIpc must not be empty");
+        }
         if (bindingId <= 0L) {
             throw new IllegalArgumentException("bindingId must be positive");
         }
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
-            var out = call.outBuffer(64 * 1024);
             call.invoke(
                 REGISTER_ARROW_BATCH_SOURCE_PROVIDER,
                 sessionPtr,
                 id.segment(),
                 id.len(),
-                call.bytes(planBytes),
-                (long) planBytes.length,
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length,
                 bindingId,
-                taskId,
-                out.data(),
-                (long) out.capacity(),
-                out.lenOut()
+                taskId
             );
-            return new RegisteredInput(0L, out.toByteArray());
         }
     }
 
