@@ -31,7 +31,7 @@
         "value": 0,
         "relation": "eq"
       },
-      "max_score": 0.0,
+      "max_score": null,
       "hits": []
     }
   }

@@ -14,21 +14,31 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.dsl.result.SearchResponseBuilder;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -44,6 +54,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     private final EngineContextProvider contextProvider;
     private final DslQueryPlanExecutor planExecutor;
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
@@ -64,6 +75,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         EngineContextProvider contextProvider,
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
         ClusterService clusterService,
+        IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ThreadPool threadPool
     ) {
@@ -71,6 +83,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         this.contextProvider = contextProvider;
         this.planExecutor = new DslQueryPlanExecutor(executor);
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
     }
@@ -78,50 +91,139 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-            final QueryPlans plans;
-            final long convertTime;
+            final long startNanos = System.nanoTime();
+            // One snapshot per request: index resolution, the engine schema, and response
+            // typing all derive from the same immutable cluster state.
+            final ClusterState state = clusterService.state();
+            final IndexMetadata indexMetadata;
             try {
-                String indexName = resolveToSingleIndex(request);
-                long convertStart = System.nanoTime();
-                SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext().schema());
-                plans = converter.convert(request.source(), indexName);
-                convertTime = System.nanoTime() - convertStart;
+                indexMetadata = resolveToSingleIndex(state, request);
             } catch (Exception e) {
-                logger.error("DSL conversion failed", e);
                 listener.onFailure(e);
                 return;
             }
-            planExecutor.execute(plans, ActionListener.wrap(results -> {
-                final SearchResponse response;
-                try {
-                    response = SearchResponseBuilder.build(results, convertTime);
-                } catch (Exception buildEx) {
-                    logger.error("DSL response building failed", buildEx);
-                    listener.onFailure(buildEx);
-                    return;
-                }
-                listener.onResponse(response);
-            }, e -> {
-                logger.error("DSL execution failed", e);
-                listener.onFailure(e);
-            }));
+            final String indexName = indexMetadata.getIndex().getName();
+
+            // Response typing works off the mapping pinned at request start: one immutable
+            // snapshot for conversion and response building, created lazily, and closed when
+            // the request completes whether it succeeded or failed.
+            // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
+            final RequestScopedMapperService mapperServiceHolder = new RequestScopedMapperService(
+                indexMetadata,
+                indicesService::createIndexMapperService
+            );
+            final ActionListener<SearchResponse> requestListener = ActionListener.runAfter(listener, mapperServiceHolder::close);
+
+            final QueryPlans plans;
+            final SearchSourceConverter converter;
+            try {
+                converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperServiceHolder);
+                plans = converter.convert(request.source(), indexName);
+            } catch (ConversionException e) {
+                // The request carries a shape or parameter this path cannot honor — a client
+                // error (400), matching classic search's rejection of unsupported parameters.
+                logger.debug("DSL conversion rejected the request", e);
+                requestListener.onFailure(new IllegalArgumentException(e.getMessage(), e));
+                return;
+            } catch (Exception e) {
+                requestListener.onFailure(e);
+                return;
+            }
+            executePlans(plans, request, converter, startNanos, requestListener);
         });
+    }
+
+    /**
+     * Submits the main plans as one batch and each COUNT plan as its own concurrent engine
+     * call, joins all results, and responds through
+     * {@link #buildAndRespond(List, SearchRequest, SearchSourceConverter, long, ActionListener)}.
+     * Any branch failing fails the request.
+     */
+    private void executePlans(
+        QueryPlans plans,
+        SearchRequest request,
+        SearchSourceConverter converter,
+        long startNanos,
+        ActionListener<SearchResponse> listener
+    ) {
+        List<QueryPlans.QueryPlan> countPlans = plans.get(QueryPlans.Type.COUNT);
+        QueryPlans.Builder mainBuilder = new QueryPlans.Builder();
+        for (QueryPlans.QueryPlan plan : plans.getAll()) {
+            if (plan.type() != QueryPlans.Type.COUNT) {
+                mainBuilder.add(plan);
+            }
+        }
+        final QueryPlans mainPlans = mainBuilder.build();
+
+        if (countPlans.isEmpty()) {
+            try {
+                planExecutor.execute(
+                    mainPlans,
+                    ActionListener.wrap(results -> buildAndRespond(results, request, converter, startNanos, listener), listener::onFailure)
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return;
+        }
+
+        // COUNT plans run concurrently with the main plans - all are engine calls.
+        final GroupedActionListener<List<ExecutionResult>> joined = new GroupedActionListener<>(ActionListener.wrap(collections -> {
+            List<ExecutionResult> allResults = new ArrayList<>();
+            for (List<ExecutionResult> branch : collections) {
+                allResults.addAll(branch);
+            }
+            buildAndRespond(allResults, request, converter, startNanos, listener);
+        }, listener::onFailure), 1 + countPlans.size());
+
+        try {
+            planExecutor.execute(mainPlans, joined);
+        } catch (Exception e) {
+            joined.onFailure(e);
+        }
+
+        for (QueryPlans.QueryPlan countPlan : countPlans) {
+            try {
+                planExecutor.execute(new QueryPlans.Builder().add(countPlan).build(), joined);
+            } catch (Exception e) {
+                joined.onFailure(e);
+            }
+        }
+    }
+
+    private void buildAndRespond(
+        List<ExecutionResult> results,
+        SearchRequest request,
+        SearchSourceConverter converter,
+        long startNanos,
+        ActionListener<SearchResponse> listener
+    ) {
+        final SearchResponse response;
+        try {
+            long tookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            response = SearchResponseBuilder.build(results, request, converter.getAggregationRegistry(), tookInMillis);
+        } catch (Exception buildEx) {
+            listener.onFailure(buildEx);
+            return;
+        }
+        listener.onResponse(response);
     }
 
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
     // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
     // so this plugin doesn't need its own resolution logic.
     /**
-     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.
-     * Throws if the resolution yields zero or more than one concrete index.
+     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete
+     * index, returning its metadata from the same cluster state snapshot. Throws if the
+     * resolution yields zero or more than one concrete index.
      */
-    private String resolveToSingleIndex(SearchRequest request) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
+    private IndexMetadata resolveToSingleIndex(ClusterState state, SearchRequest request) {
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices.length != 1) {
             throw new IllegalArgumentException(
                 "DSL execution currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
             );
         }
-        return concreteIndices[0].getName();
+        return state.metadata().getIndexSafe(concreteIndices[0]);
     }
 }
