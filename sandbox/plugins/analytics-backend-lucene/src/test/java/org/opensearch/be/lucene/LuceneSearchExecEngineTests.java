@@ -7,6 +7,7 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -21,9 +22,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.ArrowBatchSource;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
+import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.ColumnKind;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory.InputColumn;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
@@ -38,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class LuceneSearchExecEngineTests extends OpenSearchTestCase {
 
-    public void testTransfersPerExecutionDocValuesFactoryToInstalledExecutor() throws Exception {
+    public void testTransfersPerExecutionDocValuesFactoryToBoundBackend() throws Exception {
         try (
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             ByteBuffersDirectory directory = new ByteBuffersDirectory();
@@ -62,33 +63,44 @@ public class LuceneSearchExecEngineTests extends OpenSearchTestCase {
                 context.setAllocator(allocator);
                 context.setDelegationThreadTracker(tracker);
                 LuceneSearcherState state = new LuceneSearcherState(searcher, new MatchAllDocsQuery(), List.of(), plan);
-                LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state);
                 AtomicBoolean executorCalled = new AtomicBoolean();
-                ArrowBatchSourceBridge bridge = (resultAllocator, receivedPlan, sourceFactory, receivedTask, receivedTracker) -> {
-                    executorCalled.set(true);
-                    assertSame(allocator, resultAllocator);
-                    assertSame(plan, receivedPlan);
-                    assertSame(task, receivedTask);
-                    assertSame(tracker, receivedTracker);
-                    try (sourceFactory; ArrowBatchSource source = sourceFactory.open(new int[] { 0 })) {
-                        try (VectorSchemaRoot root = source.nextBatch()) {
-                            assertEquals(2, root.getRowCount());
-                            BigIntVector values = (BigIntVector) root.getVector("x");
-                            assertEquals(11L, values.get(0));
-                            assertEquals(22L, values.get(1));
-                        }
-                        assertNull(source.nextBatch());
-                    } catch (Exception exception) {
-                        throw new RuntimeException(exception);
+                AnalyticsSearchBackendPlugin backend = new AnalyticsSearchBackendPlugin() {
+                    @Override
+                    public String name() {
+                        return "test";
                     }
-                    return new EmptyResultStream();
-                };
 
-                ArrowBatchSourceBridgeHolder.install(bridge);
+                    @Override
+                    public EngineResultStream executeArrowBatchSource(
+                        BufferAllocator resultAllocator,
+                        ArrowBatchSourcePlan receivedPlan,
+                        ArrowBatchSourceFactory sourceFactory,
+                        Task receivedTask,
+                        DelegationThreadTracker receivedTracker
+                    ) {
+                        executorCalled.set(true);
+                        assertSame(allocator, resultAllocator);
+                        assertSame(plan, receivedPlan);
+                        assertSame(task, receivedTask);
+                        assertSame(tracker, receivedTracker);
+                        try (sourceFactory; ArrowBatchSource source = sourceFactory.open(new int[] { 0 })) {
+                            try (VectorSchemaRoot root = source.nextBatch()) {
+                                assertEquals(2, root.getRowCount());
+                                BigIntVector values = (BigIntVector) root.getVector("x");
+                                assertEquals(11L, values.get(0));
+                                assertEquals(22L, values.get(1));
+                            }
+                            assertNull(source.nextBatch());
+                        } catch (Exception exception) {
+                            throw new RuntimeException(exception);
+                        }
+                        return new EmptyResultStream();
+                    }
+                };
+                LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state, backend);
+
                 try (EngineResultStream stream = engine.execute(context)) {
                     assertFalse(stream.iterator().hasNext());
-                } finally {
-                    ArrowBatchSourceBridgeHolder.remove(bridge);
                 }
 
                 assertTrue(executorCalled.get());

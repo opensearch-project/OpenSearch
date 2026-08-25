@@ -17,10 +17,11 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -58,18 +59,20 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
     private static final Logger LOGGER = LogManager.getLogger(LuceneFragmentConvertor.class);
 
     private final Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers;
+    private final AnalyticsSearchBackendPlugin arrowBatchSourceBackend;
 
-    LuceneFragmentConvertor(Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers) {
+    LuceneFragmentConvertor(
+        Map<ScalarFunction, DelegatedPredicateSerializer> leafSerializers,
+        AnalyticsSearchBackendPlugin arrowBatchSourceBackend
+    ) {
         this.leafSerializers = leafSerializers;
+        this.arrowBatchSourceBackend = arrowBatchSourceBackend;
     }
 
     @Override
     public byte[] convertFragment(RelNode fragment) {
         LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(fragment);
         if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape arrowSource) {
-            if (ArrowBatchSourceBridgeHolder.isAvailable() == false) {
-                throw new IllegalStateException("Arrow batch source bridge became unavailable during Lucene fragment conversion");
-            }
             return convertArrowSourceShape(arrowSource, false);
         }
 
@@ -85,7 +88,19 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
     }
 
     private byte[] convertArrowSourceShape(LuceneFragmentPlanner.ArrowSourceShape shape, boolean partialAggregate) {
-        byte[] planBytes = ArrowBatchSourceBridgeHolder.get().compile(shape.rebasedFragment(), partialAggregate);
+        AnalyticsSearchBackendPlugin backend = requireArrowBatchSourceBackend();
+        RelNode adapted = BackendPlanAdapter.adaptFragment(shape.rebasedFragment(), backend.getCapabilityProvider());
+        FragmentConvertor convertor = backend.getFragmentConvertor();
+        byte[] planBytes;
+        if (partialAggregate) {
+            if (adapted instanceof Aggregate == false) {
+                throw new IllegalArgumentException("partial Arrow source plan must be rooted at an Aggregate");
+            }
+            Aggregate aggregate = (Aggregate) adapted;
+            planBytes = convertor.attachPartialAggOnTop(aggregate, convertor.convertFragment(aggregate.getInput()));
+        } else {
+            planBytes = convertor.convertFragment(adapted);
+        }
         QueryBuilder filterQuery = toQueryBuilder(shape.filter());
         ArrowBatchSourcePlan sourcePlan = new ArrowBatchSourcePlan(shape.inputId(), planBytes, shape.inputColumns());
         byte[] bytes = LuceneFragmentWirePlan.create(shape.outputNames(), filterQuery, sourcePlan).toBytes();
@@ -113,9 +128,6 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
         }
         LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(partialAggFragment);
         if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape arrowSource) {
-            if (ArrowBatchSourceBridgeHolder.isAvailable() == false) {
-                throw new IllegalStateException("Arrow batch source bridge became unavailable during partial aggregate conversion");
-            }
             return convertArrowSourceShape(arrowSource, true);
         }
 
@@ -131,9 +143,18 @@ final class LuceneFragmentConvertor implements FragmentConvertor {
         if (innerPlan == null) {
             throw new UnsupportedOperationException("Cannot attach a fragment to the Lucene count wire format");
         }
-        byte[] planBytes = ArrowBatchSourceBridgeHolder.get().attachFragment(fragment, innerPlan.planBytes());
+        AnalyticsSearchBackendPlugin backend = requireArrowBatchSourceBackend();
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, backend.getCapabilityProvider());
+        byte[] planBytes = backend.getFragmentConvertor().attachFragmentOnTop(adapted, innerPlan.planBytes());
         ArrowBatchSourcePlan plan = new ArrowBatchSourcePlan(innerPlan.inputId(), planBytes, innerPlan.inputColumns());
         return inner.withArrowSourcePlan(plan, LuceneFragmentPlanner.resultNames(fragment)).toBytes();
+    }
+
+    private AnalyticsSearchBackendPlugin requireArrowBatchSourceBackend() {
+        if (arrowBatchSourceBackend == null) {
+            throw new IllegalStateException("No backend supports Arrow batch source execution");
+        }
+        return arrowBatchSourceBackend;
     }
 
     @Override

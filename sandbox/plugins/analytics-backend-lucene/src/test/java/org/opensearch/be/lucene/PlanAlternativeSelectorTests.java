@@ -46,8 +46,6 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegationType;
@@ -88,7 +86,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -189,86 +186,67 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     }
 
     public void testSumOverLongSelectsLuceneArrowSource() {
-        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
-        when(bridge.compile(any(RelNode.class), anyBoolean())).thenReturn(new byte[] { 1, 2, 3 });
-        ArrowBatchSourceBridgeHolder.install(bridge);
-        try {
-            TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
-            AggregateCall sum = AggregateCall.create(
-                SqlStdOperatorTable.SUM,
-                false,
-                List.of(0),
-                -1,
-                scan,
-                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
-                "sum_metric"
-            );
+        TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_metric"
+        );
 
-            QueryDAG dag = forkAndSelect(aggregate(scan, sum), longMappings(), true, "lucene", true);
+        QueryDAG dag = forkAndSelect(aggregate(scan, sum), longMappings(), true, "lucene", true);
 
-            List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
-            assertEquals(1, alternatives.size());
-            assertTrue(
-                org.apache.calcite.plan.RelOptUtil.toString(alternatives.getFirst().resolvedFragment()),
-                LuceneFragmentPlanner.classify(alternatives.getFirst().resolvedFragment()) instanceof LuceneFragmentPlanner.ArrowSourceShape
-            );
-            assertEquals("lucene", alternatives.getFirst().backendId());
-            assertNotNull(LuceneFragmentWirePlan.fromBytes(alternatives.getFirst().convertedBytes()).arrowSourcePlan());
-        } finally {
-            ArrowBatchSourceBridgeHolder.remove(bridge);
-        }
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertTrue(
+            org.apache.calcite.plan.RelOptUtil.toString(alternatives.getFirst().resolvedFragment()),
+            LuceneFragmentPlanner.classify(alternatives.getFirst().resolvedFragment()) instanceof LuceneFragmentPlanner.ArrowSourceShape
+        );
+        assertEquals("lucene", alternatives.getFirst().backendId());
+        assertNotNull(LuceneFragmentWirePlan.fromBytes(alternatives.getFirst().convertedBytes()).arrowSourcePlan());
     }
 
     public void testSumOverLongIgnoresUnsupportedUnreferencedField() {
-        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
-        ArrowBatchSourceBridgeHolder.install(bridge);
-        try {
-            TableScan scan = scanOver(List.of("metric", "unsupported"), List.of(SqlTypeName.BIGINT, SqlTypeName.INTEGER));
-            AggregateCall sum = AggregateCall.create(
-                SqlStdOperatorTable.SUM,
-                false,
-                List.of(0),
-                -1,
-                scan,
-                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
-                "sum_metric"
-            );
-            Map<String, Map<String, Object>> mappings = Map.of("metric", Map.of("type", "long"), "unsupported", Map.of("type", "integer"));
+        TableScan scan = scanOver(List.of("metric", "unsupported"), List.of(SqlTypeName.BIGINT, SqlTypeName.INTEGER));
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_metric"
+        );
+        Map<String, Map<String, Object>> mappings = Map.of("metric", Map.of("type", "long"), "unsupported", Map.of("type", "integer"));
 
-            QueryDAG dag = forkAndSelect(aggregate(scan, sum), mappings, true, "lucene");
+        QueryDAG dag = forkAndSelect(aggregate(scan, sum), mappings, true, "lucene");
 
-            assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
-        } finally {
-            ArrowBatchSourceBridgeHolder.remove(bridge);
-        }
+        assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
     }
 
     public void testFilteredSumOverLongSelectsLuceneArrowSource() {
-        ArrowBatchSourceBridge bridge = mock(ArrowBatchSourceBridge.class);
-        ArrowBatchSourceBridgeHolder.install(bridge);
-        try {
-            TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
-            RexNode condition = rexBuilder.makeCall(
-                SqlStdOperatorTable.GREATER_THAN,
-                rexBuilder.makeInputRef(scan, 0),
-                rexBuilder.makeBigintLiteral(java.math.BigDecimal.TEN)
-            );
-            AggregateCall sum = AggregateCall.create(
-                SqlStdOperatorTable.SUM,
-                false,
-                List.of(0),
-                -1,
-                scan,
-                typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
-                "sum_metric"
-            );
+        TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeBigintLiteral(java.math.BigDecimal.TEN)
+        );
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_metric"
+        );
 
-            QueryDAG dag = forkAndSelect(aggregate(LogicalFilter.create(scan, condition), sum), longMappings(), true, "lucene");
+        QueryDAG dag = forkAndSelect(aggregate(LogicalFilter.create(scan, condition), sum), longMappings(), true, "lucene");
 
-            assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
-        } finally {
-            ArrowBatchSourceBridgeHolder.remove(bridge);
-        }
+        assertEquals("lucene", leafOf(dag).getPlanAlternatives().getFirst().backendId());
     }
 
     /**
@@ -391,8 +369,10 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
     ) {
         AnalyticsSearchBackendPlugin dfBackend = new StubDfBackend();
         AnalyticsSearchBackendPlugin luceneBackend = new LuceneAnalyticsBackendPlugin(null);
+        List<AnalyticsSearchBackendPlugin> backends = List.of(dfBackend, luceneBackend);
+        luceneBackend.bindBackends(Map.of(dfBackend.name(), dfBackend, luceneBackend.name(), luceneBackend));
 
-        PlannerContext context = buildContext(fieldMappings, List.of(dfBackend, luceneBackend), preferMetadataDriver, primaryFormat);
+        PlannerContext context = buildContext(fieldMappings, backends, preferMetadataDriver, primaryFormat);
         RelNode marked = PlannerImpl.runAllOptimizations(plan, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
@@ -580,6 +560,11 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         @Override
         public String name() {
             return "mock-parquet";
+        }
+
+        @Override
+        public boolean supportsArrowBatchSourceExecution() {
+            return true;
         }
 
         @Override

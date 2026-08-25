@@ -7,7 +7,6 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
@@ -22,20 +21,19 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
-import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
-import org.opensearch.analytics.spi.DelegationThreadTracker;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.tasks.Task;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
 
@@ -142,21 +140,16 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         AggregateCall sum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, scan, bigint, "sum_metric");
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sum));
         RelNode project = LogicalProject.create(aggregate, List.of(), List.of(rexBuilder.makeInputRef(aggregate, 0)), List.of("renamed"));
-        RecordingBridge bridge = new RecordingBridge();
-        ArrowBatchSourceBridgeHolder.install(bridge);
-        try {
-            LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of());
-            byte[] inner = convertor.convertFragment(aggregate);
-            byte[] attached = convertor.attachFragmentOnTop(project, inner);
+        RecordingBackend backend = new RecordingBackend();
+        LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of(), backend);
+        byte[] inner = convertor.convertFragment(aggregate);
+        byte[] attached = convertor.attachFragmentOnTop(project, inner);
 
-            assertNotNull(bridge.attachedFragment);
-            LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(attached);
-            assertArrayEquals(new byte[] { 4, 5, 6 }, wirePlan.arrowSourcePlan().planBytes());
-            assertEquals(List.of("renamed"), wirePlan.outputNames());
-            assertNull(wirePlan.filterBytes());
-        } finally {
-            ArrowBatchSourceBridgeHolder.remove(bridge);
-        }
+        assertNotNull(backend.attachedFragment);
+        LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(attached);
+        assertArrayEquals(new byte[] { 4, 5, 6 }, wirePlan.arrowSourcePlan().planBytes());
+        assertEquals(List.of("renamed"), wirePlan.outputNames());
+        assertNull(wirePlan.filterBytes());
     }
 
     public void testPartialAggregateCompilesAndSerializesArrowSourcePlan() throws Exception {
@@ -164,25 +157,20 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         RelNode scan = scan(typeFactory.builder().add("metric", bigint).build(), List.of(storage("metric", FieldType.LONG)));
         AggregateCall sum = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, scan, bigint, "sum_metric");
         RelNode aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sum));
-        RecordingBridge bridge = new RecordingBridge();
-        ArrowBatchSourceBridgeHolder.install(bridge);
-        try {
-            LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of());
-            byte[] inner = convertor.convertFragment(scan);
-            byte[] bytes = convertor.attachPartialAggOnTop(aggregate, inner);
+        RecordingBackend backend = new RecordingBackend();
+        LuceneFragmentConvertor convertor = new LuceneFragmentConvertor(Map.of(), backend);
+        byte[] inner = convertor.convertFragment(scan);
+        byte[] bytes = convertor.attachPartialAggOnTop(aggregate, inner);
 
-            assertTrue(bridge.partialAggregate);
-            assertNotNull(bridge.compiledFragment);
-            LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(bytes);
-            assertEquals("input-0", wirePlan.arrowSourcePlan().inputId());
-            assertEquals(
-                List.of(new ArrowBatchSourceFactory.InputColumn("metric", ArrowBatchSourceFactory.ColumnKind.LONG)),
-                wirePlan.arrowSourcePlan().inputColumns()
-            );
-            assertNull(wirePlan.filterBytes());
-        } finally {
-            ArrowBatchSourceBridgeHolder.remove(bridge);
-        }
+        assertTrue(backend.partialAggregate);
+        assertNotNull(backend.compiledFragment);
+        LuceneFragmentWirePlan wirePlan = LuceneFragmentWirePlan.fromBytes(bytes);
+        assertEquals("input-0", wirePlan.arrowSourcePlan().inputId());
+        assertEquals(
+            List.of(new ArrowBatchSourceFactory.InputColumn("metric", ArrowBatchSourceFactory.ColumnKind.LONG)),
+            wirePlan.arrowSourcePlan().inputColumns()
+        );
+        assertNull(wirePlan.filterBytes());
     }
 
     private static LuceneFragmentPlanner.ArrowSourceShape arrowSourceShape(RelNode fragment) {
@@ -211,34 +199,54 @@ public class LuceneArrowSourcePlanTests extends OpenSearchTestCase {
         return typeFactory.createTypeWithNullability(typeFactory.createSqlType(type), true);
     }
 
-    private static final class RecordingBridge implements ArrowBatchSourceBridge {
+    private static final class RecordingBackend implements AnalyticsSearchBackendPlugin {
         private RelNode compiledFragment;
         private RelNode attachedFragment;
         private boolean partialAggregate;
 
         @Override
-        public byte[] compile(RelNode fragment, boolean partial) {
-            compiledFragment = fragment;
-            partialAggregate = partial;
-            return new byte[] { 1, 2, 3 };
+        public String name() {
+            return "recording";
         }
 
         @Override
-        public byte[] attachFragment(RelNode fragment, byte[] innerPlanBytes) {
-            attachedFragment = fragment;
-            assertArrayEquals(new byte[] { 1, 2, 3 }, innerPlanBytes);
-            return new byte[] { 4, 5, 6 };
+        public boolean supportsArrowBatchSourceExecution() {
+            return true;
         }
 
         @Override
-        public EngineResultStream execute(
-            BufferAllocator resultAllocator,
-            ArrowBatchSourcePlan plan,
-            ArrowBatchSourceFactory sourceFactory,
-            Task task,
-            DelegationThreadTracker threadTracker
-        ) {
-            throw new UnsupportedOperationException();
+        public BackendCapabilityProvider getCapabilityProvider() {
+            return new BackendCapabilityProvider() {
+                @Override
+                public Set<EngineCapability> supportedEngineCapabilities() {
+                    return Set.of();
+                }
+            };
+        }
+
+        @Override
+        public FragmentConvertor getFragmentConvertor() {
+            return new FragmentConvertor() {
+                @Override
+                public byte[] convertFragment(RelNode fragment) {
+                    compiledFragment = fragment;
+                    return new byte[] { 1, 2, 3 };
+                }
+
+                @Override
+                public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerPlanBytes) {
+                    attachedFragment = fragment;
+                    assertArrayEquals(new byte[] { 1, 2, 3 }, innerPlanBytes);
+                    return new byte[] { 4, 5, 6 };
+                }
+
+                @Override
+                public byte[] attachPartialAggOnTop(RelNode partialAggFragment, byte[] innerBytes) {
+                    partialAggregate = true;
+                    assertArrayEquals(new byte[] { 1, 2, 3 }, innerBytes);
+                    return innerBytes;
+                }
+            };
         }
     }
 }

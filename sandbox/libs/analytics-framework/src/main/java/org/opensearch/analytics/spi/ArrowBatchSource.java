@@ -12,7 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 
 /**
- * Pull source for one sequential Arrow input stream.
+ * Source for one sequential Arrow input stream.
  *
  * <p>Implementations return ownership of every non-null batch to the caller. A null
  * batch signals EOF. Sources are single-consumer and close must be idempotent.
@@ -34,7 +34,7 @@ public interface ArrowBatchSource extends AutoCloseable {
      *
      * <p>This method can run concurrently with {@link #nextBatch()}. Implementations must
      * return promptly and must not close resources still in use by that call. The default
-     * is a no-op for compatibility; such sources can delay release until a pending pull returns.
+     * is a no-op for compatibility; such sources can delay release until a pending {@link #nextBatch()} call returns.
      */
     default void cancel() {}
 

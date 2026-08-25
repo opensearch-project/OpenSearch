@@ -24,8 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridge;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 
 import java.io.IOException;
@@ -41,8 +40,8 @@ import java.util.List;
  * <p>Count-only states use the metadata fast path through
  * {@link org.apache.lucene.search.IndexSearcher#count(org.apache.lucene.search.Query)}.
  * States carrying an {@link ArrowBatchSourcePlan} create one doc-values source factory and
- * transfer it to the installed bridge. Planner routing that creates those states
- * is separate from this execution handoff.
+ * transfer it to the backend selected by analytics-engine for Arrow source execution. Planner
+ * routing that creates those states is separate from this execution handoff.
  *
  * <p>No deletes gate. {@code IndexSearcher.count} is self-healing: per-leaf
  * {@code Weight.count(leaf)} returns -1 on dirty leaves and falls back to full iteration —
@@ -56,9 +55,11 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
     private static final Logger LOGGER = LogManager.getLogger(LuceneSearchExecEngine.class);
 
     private final LuceneSearcherState state;
+    private final AnalyticsSearchBackendPlugin arrowBatchSourceBackend;
 
-    LuceneSearchExecEngine(LuceneSearcherState state) {
+    LuceneSearchExecEngine(LuceneSearcherState state, AnalyticsSearchBackendPlugin arrowBatchSourceBackend) {
         this.state = state;
+        this.arrowBatchSourceBackend = arrowBatchSourceBackend;
     }
 
     @Override
@@ -76,7 +77,9 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
             if (allocator == null) {
                 throw new IllegalStateException("ShardScanExecutionContext allocator is required for Arrow batch source execution");
             }
-            ArrowBatchSourceBridge bridge = ArrowBatchSourceBridgeHolder.get();
+            if (arrowBatchSourceBackend == null) {
+                throw new IllegalStateException("No backend supports Arrow batch source execution");
+            }
             DocValuesBatchSourceFactory sourceFactory = new DocValuesBatchSourceFactory(
                 state.searcher(),
                 state.filterQuery(),
@@ -84,7 +87,13 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
                 allocator,
                 context.getTask()
             );
-            return bridge.execute(allocator, sourcePlan, sourceFactory, context.getTask(), context.getDelegationThreadTracker());
+            return arrowBatchSourceBackend.executeArrowBatchSource(
+                allocator,
+                sourcePlan,
+                sourceFactory,
+                context.getTask(),
+                context.getDelegationThreadTracker()
+            );
         }
 
         long count = state.searcher().count(state.filterQuery());

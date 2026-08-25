@@ -213,6 +213,7 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     }
 
     private final LucenePlugin plugin;
+    private volatile AnalyticsSearchBackendPlugin arrowBatchSourceBackend;
 
     public LuceneAnalyticsBackendPlugin(LucenePlugin plugin) {
         this.plugin = plugin;
@@ -221,6 +222,15 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     @Override
     public String name() {
         return LuceneDataFormat.LUCENE_FORMAT_NAME;
+    }
+
+    @Override
+    public void bindBackends(Map<String, AnalyticsSearchBackendPlugin> backends) {
+        arrowBatchSourceBackend = backends.values()
+            .stream()
+            .filter(AnalyticsSearchBackendPlugin::supportsArrowBatchSourceExecution)
+            .findFirst()
+            .orElse(null);
     }
 
     @Override
@@ -263,12 +273,10 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
             @Override
             public BackendShardPreference shardPreference() {
-                return SHARD_PREFERENCE;
+                return new LuceneShardPreference(() -> arrowBatchSourceBackend != null);
             }
         };
     }
-
-    private static final BackendShardPreference SHARD_PREFERENCE = new LuceneShardPreference();
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneAnalyticsBackendPlugin.class);
 
@@ -331,7 +339,7 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
 
     @Override
     public FragmentConvertor getFragmentConvertor() {
-        return new LuceneFragmentConvertor(QuerySerializerRegistry.getSerializers());
+        return new LuceneFragmentConvertor(QuerySerializerRegistry.getSerializers(), arrowBatchSourceBackend);
     }
 
     @Override
@@ -348,7 +356,7 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
                         + (backendContext == null ? "null" : backendContext.getClass().getName())
                 );
             }
-            LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state);
+            LuceneSearchExecEngine engine = new LuceneSearchExecEngine(state, arrowBatchSourceBackend);
             engine.prepare(ctx);
             return engine;
         };

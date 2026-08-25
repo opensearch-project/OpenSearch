@@ -9,11 +9,11 @@
 package org.opensearch.be.lucene;
 
 import org.apache.calcite.rel.RelNode;
-import org.opensearch.analytics.spi.ArrowBatchSourceBridgeHolder;
 import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.ShardPreferenceContext;
 
 import java.util.OptionalInt;
+import java.util.function.BooleanSupplier;
 
 /**
  * Lucene's per-shard preference: opt in to drive count-fast-path fragments when the user has
@@ -38,6 +38,12 @@ final class LuceneShardPreference implements BackendShardPreference {
     /** Prefer supported doc-values plans over generic storage alternatives. */
     private static final int ARROW_SOURCE_SCORE = 50;
 
+    private final BooleanSupplier arrowBatchSourceAvailable;
+
+    LuceneShardPreference(BooleanSupplier arrowBatchSourceAvailable) {
+        this.arrowBatchSourceAvailable = arrowBatchSourceAvailable;
+    }
+
     @Override
     public OptionalInt scoreFor(RelNode fragment, ShardPreferenceContext ctx) {
         if (ctx.preferMetadataDriver() == false) return OptionalInt.empty();
@@ -45,7 +51,7 @@ final class LuceneShardPreference implements BackendShardPreference {
         if (shape instanceof LuceneFragmentPlanner.CountShape) {
             return OptionalInt.of(COUNT_FAST_PATH_SCORE);
         }
-        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape && ArrowBatchSourceBridgeHolder.isAvailable()) {
+        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape && arrowBatchSourceAvailable.getAsBoolean()) {
             return OptionalInt.of(ARROW_SOURCE_SCORE);
         }
         return OptionalInt.of(NOT_DRIVABLE_SCORE);

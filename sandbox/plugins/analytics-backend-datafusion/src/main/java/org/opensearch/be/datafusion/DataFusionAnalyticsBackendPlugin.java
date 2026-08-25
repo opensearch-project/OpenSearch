@@ -25,6 +25,8 @@ import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DataTransferCapability;
@@ -61,6 +63,7 @@ import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapte
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.tasks.Task;
 
 import java.util.HashSet;
 import java.util.List;
@@ -907,6 +910,27 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public FragmentConvertor getFragmentConvertor() {
         return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+    }
+
+    @Override
+    public boolean supportsArrowBatchSourceExecution() {
+        return true;
+    }
+
+    @Override
+    public EngineResultStream executeArrowBatchSource(
+        BufferAllocator resultAllocator,
+        ArrowBatchSourcePlan plan,
+        ArrowBatchSourceFactory sourceFactory,
+        Task task,
+        DelegationThreadTracker threadTracker
+    ) {
+        DataFusionService service = plugin.getDataFusionService();
+        if (service == null) {
+            sourceFactory.close();
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+        return new DatafusionArrowBatchSourceExecutor(service).execute(resultAllocator, plan, sourceFactory, task, threadTracker);
     }
 
     @Override

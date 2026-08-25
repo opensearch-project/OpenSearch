@@ -15,6 +15,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,6 +45,28 @@ public interface AnalyticsSearchBackendPlugin {
 
     /** Unique backend name (e.g., "datafusion", "lucene"). */
     String name();
+
+    /**
+     * Supplies the complete backend set after extension discovery. Backends may retain collaborators
+     * needed for cross-backend execution. The map is immutable and keyed by {@link #name()}.
+     */
+    default void bindBackends(Map<String, AnalyticsSearchBackendPlugin> backends) {}
+
+    /** Whether this backend can execute plans over a caller-provided Arrow batch source. */
+    default boolean supportsArrowBatchSourceExecution() {
+        return false;
+    }
+
+    /** Executes a backend-native plan over a caller-provided Arrow batch source. */
+    default EngineResultStream executeArrowBatchSource(
+        BufferAllocator resultAllocator,
+        ArrowBatchSourcePlan plan,
+        ArrowBatchSourceFactory sourceFactory,
+        Task task,
+        DelegationThreadTracker threadTracker
+    ) {
+        throw new UnsupportedOperationException("Arrow batch source execution not implemented for [" + name() + "]");
+    }
 
     /**
      * Returns the capability provider for this backend.

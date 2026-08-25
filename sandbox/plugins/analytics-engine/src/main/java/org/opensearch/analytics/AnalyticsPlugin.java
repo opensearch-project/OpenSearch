@@ -183,12 +183,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
-        CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
-
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
+        Map<String, AnalyticsSearchBackendPlugin> immutableBackEndsByName = Map.copyOf(backEndsByName);
+        for (AnalyticsSearchBackendPlugin be : backEnds) {
+            be.bindBackends(immutableBackEndsByName);
+        }
+        CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
+
         readerContextStore = new ReaderContextStore(threadPool);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE, readerContextStore::setKeepAlive);
