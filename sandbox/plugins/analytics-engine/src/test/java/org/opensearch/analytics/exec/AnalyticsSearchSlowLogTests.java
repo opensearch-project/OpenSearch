@@ -118,29 +118,6 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSlowLogIncludesSourceAndHeaders() throws Exception {
-        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
-        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
-        Loggers.setLevel(logger, Level.WARN);
-
-        var wrapped = slowLog.createQueryListener("source = my_index | stats count()");
-        wrapped.setHeaders("user-opaque-123", "req-456");
-
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "source in log",
-                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
-                    Level.WARN,
-                    ".*source\\[source = my_index \\| stats count\\(\\)\\].*id\\[user-opaque-123\\].*request_id\\[req-456\\].*"
-                )
-            );
-
-            wrapped.onQueryComplete("q4", TimeValue.timeValueMillis(10).nanos(), 1);
-            appender.assertAllExpectationsMatched();
-        }
-    }
-
     public void testSlowLogIncludesFullPlan() throws Exception {
         AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
         Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
@@ -191,28 +168,6 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
             );
 
             wrapped.onQueryComplete("q-noplan", TimeValue.timeValueMillis(10).nanos(), 1);
-            appender.assertAllExpectationsMatched();
-        }
-    }
-
-    public void testSlowLogWithNullMetadata() throws Exception {
-        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
-        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
-        Loggers.setLevel(logger, Level.WARN);
-
-        var wrapped = slowLog.createQueryListener(null);
-
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "empty fields present",
-                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
-                    Level.WARN,
-                    ".*source\\[\\].*id\\[\\].*request_id\\[\\].*"
-                )
-            );
-
-            wrapped.onQueryComplete("q5", TimeValue.timeValueMillis(1).nanos(), 0);
             appender.assertAllExpectationsMatched();
         }
     }

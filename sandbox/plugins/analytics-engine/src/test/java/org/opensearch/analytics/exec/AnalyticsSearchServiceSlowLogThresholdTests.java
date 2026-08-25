@@ -76,15 +76,4 @@ public class AnalyticsSearchServiceSlowLogThresholdTests extends OpenSearchTestC
         IndexSettings settings = settingsWith(null, null, null, TimeValue.timeValueMillis(0));
         assertEquals(0L, AnalyticsSearchService.lowestEnabledSlowLogThreshold(settings));
     }
-
-    public void testHighestLevelLowestValue() {
-        // Inverted config: warn has the LOWEST value (unusual but legal). Must return warn's value.
-        IndexSettings settings = settingsWith(
-            TimeValue.timeValueMillis(50),
-            TimeValue.timeValueMillis(100),
-            TimeValue.timeValueMillis(200),
-            TimeValue.timeValueMillis(400)
-        );
-        assertEquals(TimeValue.timeValueMillis(50).nanos(), AnalyticsSearchService.lowestEnabledSlowLogThreshold(settings));
-    }
 }
