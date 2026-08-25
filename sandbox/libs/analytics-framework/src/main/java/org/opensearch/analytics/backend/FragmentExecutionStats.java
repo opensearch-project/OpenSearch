@@ -27,8 +27,15 @@ public record FragmentExecutionStats(long rowsProduced, boolean usedSecondaryInd
     boolean hasPartialAggregate, long taskId, String opaqueId, byte[] metricsJson) {
 
     /** Backwards-compatible constructor without metricsJson. */
-    public FragmentExecutionStats(long rowsProduced, boolean usedSecondaryIndex, int delegatedPredicateCount, String filterTreeShape,
-        boolean hasPartialAggregate, long taskId, String opaqueId) {
+    public FragmentExecutionStats(
+        long rowsProduced,
+        boolean usedSecondaryIndex,
+        int delegatedPredicateCount,
+        String filterTreeShape,
+        boolean hasPartialAggregate,
+        long taskId,
+        String opaqueId
+    ) {
         this(rowsProduced, usedSecondaryIndex, delegatedPredicateCount, filterTreeShape, hasPartialAggregate, taskId, opaqueId, null);
     }
 
