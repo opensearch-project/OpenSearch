@@ -1095,42 +1095,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     continue;
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
-                // doing such relocation wouldn't help in primary balance. The condition won't be applicable when we enable node level
-                // primary rebalance
-                int indexDiff = maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName());
-                if (preferPrimaryBalance == true && preferPrimaryRebalance == false && shard.primary() && indexDiff < 2) {
-                    logger.trace(
-                        "Skipping shard [{}] relocation: maxNode [{}], minNode [{}], indexDiff [{}]",
-                        shard.shardId(),
-                        maxNode.getNodeId(),
-                        minNode.getNodeId(),
-                        indexDiff
-                    );
+                // doing such relocation wouldn't help in primary balance.
+                if (shouldSkipForPrimaryBalance(shard, maxNode, minNode)) {
                     continue;
                 }
-                // Relax the above condition to per node to allow rebalancing to attain global balance
-                int nodeDiff = maxNode.numPrimaryShards() - minNode.numPrimaryShards();
-                if (preferPrimaryRebalance == true && shard.primary() && nodeDiff < 2) {
-                    boolean tryRebalanceForIndexPrimary = relocateBlockingReplicaEnabled && preferPrimaryBalance && indexDiff >= 2;
-                    if (false == tryRebalanceForIndexPrimary) {
-                        logger.trace(
-                            "Skipping shard [{}] relocation: maxNode [{}], minNode [{}], nodeDiff [{}]",
-                            shard.shardId(),
-                            maxNode.getNodeId(),
-                            minNode.getNodeId(),
-                            nodeDiff
-                        );
-                        continue;
-                    }
-                    logger.trace(
-                        "Attempting primary relocation for per-index rebalance: shard [{}], maxNode [{}], minNode [{}], indexDiff [{}], nodeDiff [{}]",
-                        shard.shardId(),
-                        maxNode.getNodeId(),
-                        minNode.getNodeId(),
-                        indexDiff,
-                        nodeDiff
-                    );
-                }
+
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
                 --totalShardCount;
@@ -1153,6 +1122,55 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
         }
         logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
+        return false;
+    }
+
+    private boolean shouldSkipForPrimaryBalance(
+        ShardRouting shard,
+        BalancedShardsAllocator.ModelNode maxNode,
+        BalancedShardsAllocator.ModelNode minNode
+    ) {
+        if (shard.primary() == false) {
+            return false;
+        }
+        final int indexDiff = maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName());
+        final int nodeDiff = maxNode.numPrimaryShards() - minNode.numPrimaryShards();
+
+        // Index-only mode: primary balance requested without node-level rebalance.
+        if (preferPrimaryBalance == true && preferPrimaryRebalance == false && indexDiff < 2) {
+            logger.trace(
+                "Skipping shard [{}] relocation: maxNode [{}], minNode [{}], indexDiff [{}]",
+                shard.shardId(),
+                maxNode.getNodeId(),
+                minNode.getNodeId(),
+                indexDiff
+            );
+            return true;
+        }
+        // Node-level mode (also covers double-flag). When node diff is already balanced, allow
+        // relaxation to per-index rebalance if the blocking-replica feature is enabled and index
+        // diff is still imbalanced.
+        if (preferPrimaryRebalance == true && nodeDiff < 2) {
+            boolean tryRebalanceForIndexPrimary = relocateBlockingReplicaEnabled && preferPrimaryBalance && indexDiff >= 2;
+            if (tryRebalanceForIndexPrimary == false) {
+                logger.trace(
+                    "Skipping shard [{}] relocation: maxNode [{}], minNode [{}], nodeDiff [{}]",
+                    shard.shardId(),
+                    maxNode.getNodeId(),
+                    minNode.getNodeId(),
+                    nodeDiff
+                );
+                return true;
+            }
+            logger.trace(
+                "Attempting primary relocation for per-index rebalance: shard [{}], maxNode [{}], minNode [{}], indexDiff [{}], nodeDiff [{}]",
+                shard.shardId(),
+                maxNode.getNodeId(),
+                minNode.getNodeId(),
+                indexDiff,
+                nodeDiff
+            );
+        }
         return false;
     }
 
@@ -1182,18 +1200,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             return;
         }
 
-        final String indexName = primary.getIndexName();
-        final int indexDiff = maxNode.numPrimaryShards(indexName) - minNode.numPrimaryShards(indexName);
-        final int nodeDiff = maxNode.numPrimaryShards() - minNode.numPrimaryShards();
-        if ((preferPrimaryBalance && indexDiff < 2) || (preferPrimaryRebalance && nodeDiff < 2)) {
-            logger.trace(
-                "Skipping blocking replica relocation for primary [{}]: preferPrimaryBalance [{}] indexDiff [{}], preferPrimaryRebalance [{}] nodeDiff [{}]",
-                primary,
-                preferPrimaryBalance,
-                indexDiff,
-                preferPrimaryRebalance,
-                nodeDiff
-            );
+        if (shouldSkipForPrimaryBalance(primary, maxNode, minNode)) {
             return;
         }
         final ShardRouting blockingReplica = findBlockingReplicaOnNode(primary, minNode);
