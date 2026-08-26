@@ -30,6 +30,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +60,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        WorkloadGroupService workloadGroupService
     ) {
         super(
             client,
@@ -78,7 +80,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             searchRequestOperationsCompositeListenerFactory,
             tracer,
             taskResourceTrackingService,
-            indicesService
+            indicesService,
+            workloadGroupService
         );
     }
 

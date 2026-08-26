@@ -30,10 +30,14 @@ public class WorkloadGroupTask extends CancellableTask {
 
     private static final Logger logger = LogManager.getLogger(WorkloadGroupTask.class);
     public static final String WORKLOAD_GROUP_ID_HEADER = "workloadGroupId";
+    /** Separator between the {@code subfield|value} principal tokens carried by {@link #getThrottlePrincipal()}. */
+    public static final String WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER = "\u001F";
     public static final Supplier<String> DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER = () -> "DEFAULT_WORKLOAD_GROUP";
     private final LongSupplier nanoTimeSupplier;
     private String workloadGroupId;
     private boolean isWorkloadGroupSet = false;
+    private volatile String throttlePrincipal;
+    private volatile String heldThrottleBucket;
 
     public WorkloadGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -88,6 +92,53 @@ public class WorkloadGroupTask extends CancellableTask {
         } else {
             this.workloadGroupId = DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get();
         }
+    }
+
+    /**
+     * Records the caller's principal for {@code username}/{@code role} throttling: {@code subfield|value} tokens
+     * (e.g. {@code username|alice}) joined by {@link #WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER}. Set on the coordinator
+     * by the WLM auto-tagging action filter, from the security plugin's principal extractor, before the action executes.
+     * <p>
+     * Deliberately held on the task rather than in the {@link ThreadContext}: a ThreadContext request header is
+     * serialized onto every outgoing transport request, which would ship the caller's identity to every shard and to
+     * remote clusters in a cross-cluster search even though only the coordinator reads it. A task field is also not
+     * something a client can supply, and is naturally per-request, so concurrent sub-requests sharing one thread context
+     * (an {@code _msearch}) cannot collide.
+     *
+     * @param throttlePrincipal the joined principal tokens, or {@code null} when no extractor is installed
+     */
+    public void setThrottlePrincipal(final String throttlePrincipal) {
+        this.throttlePrincipal = throttlePrincipal;
+    }
+
+    /**
+     * The caller's principal for throttle bucket resolution, or {@code null} when unknown, in which case
+     * {@code username}/{@code role} throttling fails open.
+     */
+    public String getThrottlePrincipal() {
+        return throttlePrincipal;
+    }
+
+    /**
+     * Records the throttle bucket this task successfully took a permit for, so a nested coordinator search issued
+     * while this one is in flight can recognise that its bucket is already paid for and skip admission. Set by
+     * {@code WorkloadGroupService#acquireThrottleOrReject} on a successful acquire only.
+     * <p>
+     * Deliberately not cleared on release: the value is scoped to the task, which is unregistered when the request
+     * finishes, and a rewrite round that issues a nested search after the outer permit has been released must still
+     * be recognised as nested rather than charged a fresh permit.
+     *
+     * @param heldThrottleBucket the bucket key a permit is held for
+     */
+    public void setHeldThrottleBucket(final String heldThrottleBucket) {
+        this.heldThrottleBucket = heldThrottleBucket;
+    }
+
+    /**
+     * The throttle bucket this task holds (or held) a permit for, or {@code null} if it was never throttled.
+     */
+    public String getHeldThrottleBucket() {
+        return heldThrottleBucket;
     }
 
     public long getElapsedTime() {

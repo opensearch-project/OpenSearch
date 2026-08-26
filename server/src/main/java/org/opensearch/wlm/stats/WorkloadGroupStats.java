@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -95,10 +96,12 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
         public static final String REJECTIONS = "total_rejections";
         public static final String TOTAL_CANCELLATIONS = "total_cancellations";
         public static final String FAILURES = "failures";
+        public static final String THROTTLED = "total_throttled";
         private long completions;
         private long rejections;
         private long failures;
         private long cancellations;
+        private long throttled;
         private Map<ResourceType, ResourceStats> resourceStats;
 
         // this is needed to support the factory method
@@ -109,12 +112,14 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             long rejections,
             long failures,
             long cancellations,
+            long throttled,
             Map<ResourceType, ResourceStats> resourceStats
         ) {
             this.completions = completions;
             this.rejections = rejections;
             this.failures = failures;
             this.cancellations = cancellations;
+            this.throttled = throttled;
             this.resourceStats = resourceStats;
         }
 
@@ -123,6 +128,12 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
             this.cancellations = in.readVLong();
+            // total_throttled arrives with throttling in 3.9, so it must be gated on that version and not on the
+            // older gate used by fields that already shipped: a 3.7/3.8 peer never writes it, and reading it anyway
+            // would consume the resourceStats map header and desync everything after it.
+            if (in.getVersion().onOrAfter(Version.V_3_9_0)) {
+                this.throttled = in.readVLong();
+            }
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
@@ -136,6 +147,10 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
 
         public long getCancellations() {
             return cancellations;
+        }
+
+        public long getThrottled() {
+            return throttled;
         }
 
         public Map<ResourceType, ResourceStats> getResourceStats() {
@@ -160,6 +175,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             statsHolder.rejections = workloadGroupState.getTotalRejections();
             statsHolder.failures = workloadGroupState.getFailures();
             statsHolder.cancellations = workloadGroupState.getTotalCancellations();
+            statsHolder.throttled = workloadGroupState.getTotalThrottled();
             statsHolder.resourceStats = resourceStatsMap;
             return statsHolder;
         }
@@ -175,6 +191,10 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.rejections);
             out.writeVLong(statsHolder.failures);
             out.writeVLong(statsHolder.cancellations);
+            // version-gated to match the StreamInput ctor; read/write gates and order must stay in sync.
+            if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+                out.writeVLong(statsHolder.throttled);
+            }
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
@@ -190,6 +210,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             builder.field(REJECTIONS, rejections);
             // builder.field(FAILURES, failures);
             builder.field(TOTAL_CANCELLATIONS, cancellations);
+            builder.field(THROTTLED, throttled);
 
             for (ResourceType resourceType : ResourceType.getSortedValues()) {
                 ResourceStats resourceStats1 = resourceStats.get(resourceType);
@@ -210,12 +231,13 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
                 && rejections == that.rejections
                 && Objects.equals(resourceStats, that.resourceStats)
                 && failures == that.failures
-                && cancellations == that.cancellations;
+                && cancellations == that.cancellations
+                && throttled == that.throttled;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(completions, rejections, cancellations, failures, resourceStats);
+            return Objects.hash(completions, rejections, cancellations, failures, throttled, resourceStats);
         }
     }
 
