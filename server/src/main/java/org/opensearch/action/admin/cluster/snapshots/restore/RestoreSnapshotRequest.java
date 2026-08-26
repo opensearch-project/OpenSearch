@@ -180,7 +180,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasReplacement = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_19_7)) {
             attachToDataStream = in.readBoolean();
         }
     }
@@ -225,7 +225,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasReplacement);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_7)) {
             out.writeBoolean(attachToDataStream);
         }
     }
