@@ -151,11 +151,16 @@ public class AggregationTreeWalker {
 
         List<String> aggNamePath = path.stream().map(PathStep::aggName).toList();
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder(aggNamePath);
-        for (PathStep step : path) {
+        int definingIndex = path.size() - 1;
+        for (int i = 0; i < path.size(); i++) {
+            PathStep step = path.get(i);
             builder.addGrouping(step.grouping());
-            // Ancestor filter predicates must propagate to descendant plans so that nested
-            // bucket sub-aggregations compute over only the ancestor-filtered documents.
-            if (step.filterQuery() != null) {
+            // The last path step is the defining aggregation itself; its own filter is captured
+            // separately via setFilterQuery, so only genuine ancestors (steps above it)
+            // contribute ancestor filters. Excluding the own filter here — rather than
+            // deduplicating downstream by name — keeps a descendant that legally reuses an
+            // ancestor's name from dropping that same-named ancestor's predicate.
+            if (i != definingIndex && step.filterQuery() != null) {
                 builder.addAncestorFilter(step.aggName(), step.filterQuery());
             }
         }

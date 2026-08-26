@@ -583,9 +583,8 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         );
         SearchSourceBuilder source = new SearchSourceBuilder().size(0)
             .aggregation(
-                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("bad_ancestor", unsupportedQuery).subAggregation(
-                    new TermsAggregationBuilder("by_name").field("name")
-                )
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("bad_ancestor", unsupportedQuery)
+                    .subAggregation(new TermsAggregationBuilder("by_name").field("name"))
             );
 
         ConversionException e = expectThrows(ConversionException.class, () -> converter.convert(source, "test-index"));
@@ -665,6 +664,198 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         // so that sum_other_doc_count is scoped to the filtered document set.
         String plan = eligiblePlan.relNode().explain();
         assertTrue("eligible-count plan must carry the ancestor filter predicate (brand=BrandA): " + plan, plan.contains("BrandA"));
+    }
+
+    public void testFilterWithMissingTermsChildEligibleCountCarriesAncestorFilter() throws ConversionException {
+        // Invariant: a filter parent must scope its bounded child's eligible-doc count to the
+        // FILTERED document set even when the child substitutes `missing`. The substitution must
+        // not divert the eligible count onto the unfiltered COUNT(*); otherwise
+        // sum_other_doc_count = corpusCount - returned exceeds the parent's doc_count.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name").missing("N/A").size(1))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+
+        List<QueryPlans.QueryPlan> countPlans = plans.get(QueryPlans.Type.COUNT);
+        assertFalse("must have at least one COUNT plan", countPlans.isEmpty());
+
+        String eligibleColumn = QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_name";
+        QueryPlans.QueryPlan eligiblePlan = countPlans.stream()
+            .filter(p -> p.relNode().getRowType().getFieldNames().contains(eligibleColumn))
+            .findFirst()
+            .orElse(null);
+        assertNotNull(
+            "a missing-configured bounded child must still get its own filtered eligible-count plan, " + "not ride the unfiltered COUNT(*)",
+            eligiblePlan
+        );
+
+        String plan = eligiblePlan.relNode().explain();
+        assertTrue(
+            "eligible-count plan for a missing-configured child must carry the ancestor filter predicate (brand=BrandA): " + plan,
+            plan.contains("BrandA")
+        );
+    }
+
+    public void testFilterWithMissingTermsChildEligibleCountCountsAllFilteredDocs() throws ConversionException {
+        // Invariant: when `missing` substitutes null keys into a bucket, null-field docs are
+        // eligible, so the filtered eligible count must count ALL filtered docs (COUNT() over an
+        // empty argument list) rather than only non-null group values (COUNT(field)).
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "brand_filter",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("by_name").field("name").missing("N/A").size(1))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+
+        List<QueryPlans.QueryPlan> countPlans = plans.get(QueryPlans.Type.COUNT);
+        assertFalse("must have at least one COUNT plan", countPlans.isEmpty());
+
+        String eligibleColumn = QueryPlans.COUNT_ELIGIBLE_COLUMN_PREFIX + "by_name";
+        QueryPlans.QueryPlan eligiblePlan = countPlans.stream()
+            .filter(p -> p.relNode().getRowType().getFieldNames().contains(eligibleColumn))
+            .findFirst()
+            .orElse(null);
+        assertNotNull("a missing-configured bounded child must have its own filtered eligible-count plan", eligiblePlan);
+
+        String plan = eligiblePlan.relNode().explain();
+        assertTrue(
+            "eligible count for a missing-configured child must count ALL filtered rows (COUNT()), "
+                + "not restrict to non-null group values (COUNT(field)): "
+                + plan,
+            plan.contains(eligibleColumn + "=[COUNT()]")
+        );
+    }
+
+    public void testDescendantFilterReusingAncestorNameKeepsAncestorPredicate() throws ConversionException {
+        // Invariant: aggregation names are unique only among siblings, so a descendant may
+        // legally reuse an ancestor's name. The by-name self-deduplication must not confuse a
+        // same-named ancestor filter with the defining aggregation's own filter — the innermost
+        // plan must carry BOTH the outer and inner predicates.
+        // Shape: filter "dup"(brand=BrandA) -> terms "grp"(rating) -> filter "dup"(name=Widget)
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "dup",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(
+                    new TermsAggregationBuilder("grp").field("rating")
+                        .subAggregation(
+                            new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                                "dup",
+                                new org.opensearch.index.query.TermQueryBuilder("name", "Widget")
+                            )
+                        )
+                )
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        List<QueryPlans.QueryPlan> aggPlans = plans.get(QueryPlans.Type.AGGREGATION);
+        assertEquals("outer filter + terms + inner filter must produce 3 plans", 3, aggPlans.size());
+
+        // Innermost plan is the re-named inner filter "dup" (walker emits parents before children).
+        String innermostPlan = aggPlans.get(2).relNode().explain();
+        assertTrue("innermost plan must carry its own filter (name=Widget): " + innermostPlan, innermostPlan.contains("Widget"));
+        assertTrue(
+            "innermost plan must ALSO carry the same-named ancestor filter (brand=BrandA): " + innermostPlan,
+            innermostPlan.contains("BrandA")
+        );
+    }
+
+    // ---- Range inner query as a filter aggregation (GAP A) ----
+
+    public void testFilterRangeInnerQueryPredicateReachesPlan() throws ConversionException {
+        // Invariant: a range inner query on a filter aggregation must translate to a bounded
+        // predicate carrying BOTH range endpoints — a dropped or mistranslated bound must fail.
+        // Shape: filter "price_band"(range price gte 300 lt 600) -> terms "by_brand"(brand).
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "price_band",
+                    new org.opensearch.index.query.RangeQueryBuilder("price").gte(300).lt(600)
+                ).subAggregation(new TermsAggregationBuilder("by_brand").field("brand"))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        String bandPlan = aggPlanEndingWith(plans, "price_band").relNode().explain();
+        // price is column 1 in the test schema; both bounds must be present and correctly oriented
+        assertTrue("range plan must carry the lower bound gte 300: " + bandPlan, bandPlan.contains(">=($1, CAST(300):INTEGER)"));
+        assertTrue("range plan must carry the upper bound lt 600: " + bandPlan, bandPlan.contains("<($1, CAST(600):INTEGER)"));
+    }
+
+    // ---- Falsifiable ancestor-predicate propagation (GAP B) ----
+    // A filter aggregation's predicate is injected into its bucket descendants' plans by
+    // SearchSourceConverter.applyAggregationFilters. A silently dropped injection would leave a
+    // descendant aggregating the full corpus; these tests assert the SPECIFIC predicate literal
+    // reaches the SPECIFIC descendant plan, so such a drop fails.
+
+    public void testNestedFilterPredicateReachesChildBucketPlan() throws ConversionException {
+        // A filter aggregation must scope its bucket sub-aggregation: the filter's predicate must
+        // reach the nested child's plan, otherwise the child aggregates the full corpus. Shape:
+        // filter "only_active"(term name=Widget) -> terms "by_rating"(rating). The child plan must
+        // carry the ancestor filter's predicate (name=Widget, column 0).
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "only_active",
+                    new org.opensearch.index.query.TermQueryBuilder("name", "Widget")
+                ).subAggregation(new TermsAggregationBuilder("by_rating").field("rating"))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        String childPlan = aggPlanEndingWith(plans, "by_rating").relNode().explain();
+        assertTrue(
+            "nested child plan must carry the filter's predicate (name=Widget): " + childPlan,
+            childPlan.contains("$0") && childPlan.contains("Widget")
+        );
+    }
+
+    public void testSiblingFilterPredicatesReachOwnChildPlansNoCrossContamination() throws ConversionException {
+        // Two sibling filters, each with its own terms child, must each scope ONLY their own
+        // child — no cross-contamination between siblings. Shapes:
+        // f_widget(term name=Widget) -> terms "cat_a"(brand)
+        // f_brand (term brand=BrandA) -> terms "cat_b"(rating)
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "f_widget",
+                    new org.opensearch.index.query.TermQueryBuilder("name", "Widget")
+                ).subAggregation(new TermsAggregationBuilder("cat_a").field("brand"))
+            )
+            .aggregation(
+                new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                    "f_brand",
+                    new org.opensearch.index.query.TermQueryBuilder("brand", "BrandA")
+                ).subAggregation(new TermsAggregationBuilder("cat_b").field("rating"))
+            );
+
+        QueryPlans plans = converter.convert(source, "test-index");
+        String catA = aggPlanEndingWith(plans, "cat_a").relNode().explain();
+        String catB = aggPlanEndingWith(plans, "cat_b").relNode().explain();
+
+        // Each child carries its OWN parent filter's predicate...
+        assertTrue("cat_a must carry its own parent's predicate (name=Widget): " + catA, catA.contains("Widget"));
+        assertTrue("cat_b must carry its own parent's predicate (brand=BrandA): " + catB, catB.contains("BrandA"));
+        // ...and NOT the sibling's predicate.
+        assertFalse("cat_a must not carry the sibling's predicate (BrandA): " + catA, catA.contains("BrandA"));
+        assertFalse("cat_b must not carry the sibling's predicate (Widget): " + catB, catB.contains("Widget"));
+    }
+
+    /** Returns the single AGGREGATION plan whose aggregation-name path ends with the given name. */
+    private static QueryPlans.QueryPlan aggPlanEndingWith(QueryPlans plans, String lastAggName) {
+        return plans.get(QueryPlans.Type.AGGREGATION).stream().filter(p -> {
+            List<String> path = p.aggregationMetadata().getAggNamePath();
+            return path.get(path.size() - 1).equals(lastAggName);
+        })
+            .reduce((a, b) -> { throw new AssertionError("multiple plans end with [" + lastAggName + "]"); })
+            .orElseThrow(() -> new AssertionError("no AGGREGATION plan ends with [" + lastAggName + "]"));
     }
 
     private SearchSourceBuilder parseSearchSource(Map<String, Object> inputDsl) throws IOException {

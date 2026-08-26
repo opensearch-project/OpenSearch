@@ -325,22 +325,14 @@ public class SearchSourceConverter {
     }
 
     /**
-     * Returns true when the metadata carries any non-trivial filter predicates (either its own
-     * defining filter query or inherited ancestor filters) that are not match_all. When true,
-     * the eligible-doc count plan must be built individually with those predicates applied,
-     * rather than sharing the flat unfiltered COUNT plan.
+     * Returns true when the metadata carries any filter predicates — either its own defining
+     * filter query or inherited ancestor filters. When true, the eligible-doc count plan must
+     * be built individually with those predicates applied, rather than sharing the flat
+     * unfiltered COUNT plan. The defining aggregation's own filter is no longer stored among
+     * the ancestor filters, so no name-based self-deduplication is needed here.
      */
     private boolean hasAncestorOrOwnFilter(AggregationMetadata metadata) {
-        if (metadata.getFilterQuery().isPresent()) {
-            return true;
-        }
-        for (AggregationMetadataBuilder.AncestorFilter ancestor : metadata.getAncestorFilters()) {
-            // Skip the defining aggregation's own filter — already checked above via getFilterQuery()
-            if (!ancestor.aggName().equals(metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1))) {
-                return true;
-            }
-        }
-        return false;
+        return metadata.getFilterQuery().isPresent() || !metadata.getAncestorFilters().isEmpty();
     }
 
     /**
@@ -349,7 +341,7 @@ public class SearchSourceConverter {
      * applies the same predicate set as the aggregation plan:
      *
      * <pre>
-     * Aggregate(COUNT(field) AS _eligible$&lt;aggName&gt;)
+     * Aggregate(COUNT(field) AS _eligible$&lt;aggName&gt;)   // COUNT(*) when a `missing` value applies
      *   [LogicalFilter(ancestorFilter2)]
      *   [LogicalFilter(ancestorFilter1)]
      *   [LogicalFilter(ownFilterQuery)]
@@ -373,9 +365,17 @@ public class SearchSourceConverter {
         countInput = applyAggregationFilters(countInput, metadata, ctx);
 
         String fieldName = metadata.getGroupByFieldNames().get(0);
-        RelDataTypeField field = countInput.getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Group-by field '" + fieldName + "' not found in schema");
+        List<Integer> countArgs;
+        if (metadata.getMissingValues().containsKey(fieldName)) {
+            // A `missing` value substitutes null-field docs into a bucket, making them eligible;
+            // SQL COUNT(field) excludes nulls, so count ALL filtered docs with COUNT(*) instead.
+            countArgs = List.of();
+        } else {
+            RelDataTypeField field = countInput.getRowType().getField(fieldName, false, false);
+            if (field == null) {
+                throw new ConversionException("Group-by field '" + fieldName + "' not found in schema");
+            }
+            countArgs = List.of(field.getIndex());
         }
 
         RelDataType bigint = ctx.getCluster().getTypeFactory().createSqlType(SqlTypeName.BIGINT);
@@ -384,7 +384,7 @@ public class SearchSourceConverter {
             false,
             false,
             false,
-            List.of(field.getIndex()),
+            countArgs,
             -1,
             RelCollations.EMPTY,
             bigint,
@@ -398,9 +398,11 @@ public class SearchSourceConverter {
      * the given input node. Reuses the same conversion and injection logic as the aggregation
      * plan loop so that predicate translation stays consistent in one place.
      *
-     * <p>Skips predicates that convert to literal TRUE (match_all) since they have no effect,
-     * and skips the defining aggregation's own filter when it also appears in the ancestor list
-     * (it is applied once via {@link AggregationMetadata#getFilterQuery()}).
+     * <p>Skips predicates that convert to literal TRUE (match_all) since they have no effect.
+     * The defining aggregation's own filter is applied once via
+     * {@link AggregationMetadata#getFilterQuery()} and is not stored among the ancestor filters,
+     * so the ancestor loop applies only genuine ancestors — including one that legally reuses
+     * this aggregation's name.
      */
     private RelNode applyAggregationFilters(RelNode input, AggregationMetadata metadata, ConversionContext ctx) throws ConversionException {
         // Apply the defining aggregation's own filter query first
@@ -421,10 +423,6 @@ public class SearchSourceConverter {
         }
         // Apply ancestor filter predicates
         for (AggregationMetadataBuilder.AncestorFilter ancestor : metadata.getAncestorFilters()) {
-            // Skip the defining aggregation's own filter — already applied above
-            if (ancestor.aggName().equals(metadata.getAggNamePath().get(metadata.getAggNamePath().size() - 1))) {
-                continue;
-            }
             RexNode ancestorPredicate = QUERY_REGISTRY.convert(ancestor.query(), ctx);
             if (ancestorPredicate instanceof UnresolvedQueryCall unresolvedCall) {
                 throw new ConversionException(

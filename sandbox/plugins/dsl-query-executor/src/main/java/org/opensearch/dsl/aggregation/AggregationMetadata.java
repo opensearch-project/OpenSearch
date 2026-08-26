@@ -193,11 +193,18 @@ public class AggregationMetadata {
      * makes every query-matching document eligible. False when the plan carries a
      * {@code min_doc_count} HAVING — the threshold drops whole groups from eligibility even with
      * {@code missing} — or when no {@code missing} value is configured; those plans use a
-     * per-aggregation eligible count instead. Meaningful only for plans with {@link #getFetch()}
-     * set (root-level, single-field by eligibility).
+     * per-aggregation eligible count instead. Also false when the plan carries its own filter
+     * or any ancestor filter: a filter narrows the eligible set, so the premise that every
+     * query-matching document is eligible no longer holds and a filtered per-aggregation count
+     * is required. Meaningful only for plans with {@link #getFetch()} set (root-level,
+     * single-field by eligibility).
      */
     public boolean eligibleDocCountIsTotal() {
-        return havingMinDocCount == null && !groupByFieldNames.isEmpty() && missingValues.containsKey(groupByFieldNames.get(0));
+        return havingMinDocCount == null
+            && !groupByFieldNames.isEmpty()
+            && missingValues.containsKey(groupByFieldNames.get(0))
+            && filterQuery == null
+            && ancestorFilters.isEmpty();
     }
 
     /** Returns the per-aggregation filter query, or empty when no predicate applies. */
