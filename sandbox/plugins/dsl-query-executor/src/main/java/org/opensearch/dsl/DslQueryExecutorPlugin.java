@@ -80,6 +80,10 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(DslQueryExecutorSettings.CALCITE_ENABLED);
+        return List.of(
+            DslQueryExecutorSettings.CALCITE_ENABLED,
+            DslQueryExecutorSettings.CALCITE_QUERY_ENABLED,
+            DslQueryExecutorSettings.CALCITE_AGGREGATION_ENABLED
+        );
     }
 }

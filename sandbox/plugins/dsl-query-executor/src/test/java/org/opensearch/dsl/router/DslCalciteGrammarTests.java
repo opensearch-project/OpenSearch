@@ -119,36 +119,34 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
         assertEquals("query:match", decision.rejectionReasons().get(0));
     }
 
-    public void testConstantScoreRecurses() {
-        SearchSourceBuilder ok = new SearchSourceBuilder().query(
+    public void testConstantScoreRejected() {
+        // constant_score has no handler (scoring not supported on the RelNode path) → codec,
+        // regardless of whether its inner query would be supported.
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("brand", "Acme"))
         );
-        assertTrue(grammar.validate(ok).supported());
-
-        SearchSourceBuilder bad = new SearchSourceBuilder().query(
-            QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("desc", "fast"))
-        );
-        assertFalse(grammar.validate(bad).supported());
+        RouteDecision d = grammar.validate(source);
+        assertFalse(d.supported());
+        assertEquals("query:constant_score", d.rejectionReasons().get(0));
     }
 
     public void testDeeplyNestedUnsupportedLeafRejected() {
-        // constant_score -> bool -> match: the unregistered "match" leaf sits two containers
-        // deep and must still be found and rejected (structural recursion, not a hardcoded switch).
+        // bool -> bool -> match: the unregistered "match" leaf sits two bool levels deep and must
+        // still be found and rejected (structural recursion, not a hardcoded switch).
         BoolQueryBuilder inner = QueryBuilders.boolQuery();
         inner.must(QueryBuilders.termQuery("brand", "Acme"));
         inner.should(QueryBuilders.matchQuery("desc", "fast"));
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.constantScoreQuery(inner));
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(inner));
         RouteDecision decision = grammar.validate(source);
         assertFalse(decision.supported());
         assertEquals("query:match", decision.rejectionReasons().get(0));
     }
 
     public void testDeeplyNestedSupportedTreeAccepted() {
-        // constant_score -> bool with only registered leaves at depth is accepted.
+        // bool -> bool with only registered leaves at depth is accepted.
         SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.constantScoreQuery(
-                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).filter(QueryBuilders.existsQuery("price"))
-            )
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).filter(QueryBuilders.existsQuery("price")))
         );
         assertTrue(grammar.validate(source).supported());
     }
@@ -286,6 +284,28 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
         RouteDecision d = grammar.validate(source);
         assertFalse(d.supported());
         assertEquals("agg.nested", d.rejectionReasons().get(0));
+    }
+
+    // ---- top-level field gating ----
+
+    public void testSupportedScalarTopLevelFieldsAccepted() {
+        SearchSourceBuilder source = new SearchSourceBuilder().size(10).from(5).trackTotalHits(true);
+        assertTrue(grammar.validate(source).supported());
+    }
+
+    public void testUnsupportedTopLevelFieldRejected() {
+        // post_filter has no handler yet → reject-unless-supported routes it to codec.
+        SearchSourceBuilder source = new SearchSourceBuilder().postFilter(QueryBuilders.termQuery("brand", "Acme"));
+        RouteDecision d = grammar.validate(source);
+        assertFalse(d.supported());
+        assertEquals("source.post_filter", d.rejectionReasons().get(0));
+    }
+
+    public void testSortRejectedUntilSupported() {
+        // sort has no handler yet (visitSort pending) → routed to codec.
+        RouteDecision d = grammar.validate(new SearchSourceBuilder().sort("price"));
+        assertFalse(d.supported());
+        assertEquals("source.sort", d.rejectionReasons().get(0));
     }
 
     // ---- short-circuit ----

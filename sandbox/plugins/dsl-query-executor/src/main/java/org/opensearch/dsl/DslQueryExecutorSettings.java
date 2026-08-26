@@ -29,5 +29,31 @@ public final class DslQueryExecutorSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Per-category switch for routing search/hits (and count) requests to Calcite (default
+     * {@code true}). When {@code false}, requests that return hits or are non-aggregation
+     * searches go through the codec path, even while {@link #CALCITE_AGGREGATION_ENABLED} stays
+     * on. Subordinate to {@link #CALCITE_ENABLED}. Dynamic and node-scoped.
+     */
+    public static final Setting<Boolean> CALCITE_QUERY_ENABLED = Setting.boolSetting(
+        "dsl.query_executor.calcite.query.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Per-category switch for routing aggregation requests to Calcite (default {@code true}).
+     * When {@code false}, any request that carries aggregations goes through the codec path,
+     * even while {@link #CALCITE_QUERY_ENABLED} stays on. Subordinate to {@link #CALCITE_ENABLED}.
+     * Dynamic and node-scoped.
+     */
+    public static final Setting<Boolean> CALCITE_AGGREGATION_ENABLED = Setting.boolSetting(
+        "dsl.query_executor.calcite.aggregation.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private DslQueryExecutorSettings() {}
 }

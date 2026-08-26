@@ -42,11 +42,18 @@ public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
     }
 
     public void testGetActionFiltersAfterCreateComponents() {
-        // SearchActionFilter subscribes to CALCITE_ENABLED via ClusterService — a real (but
+        // SearchActionFilter subscribes to the routing settings via ClusterService — a real (but
         // minimal) ClusterSettings is needed so addSettingsUpdateConsumer() has somewhere to
         // register. Other createComponents params remain null: none of them are dereferenced.
         Settings settings = Settings.EMPTY;
-        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(DslQueryExecutorSettings.CALCITE_ENABLED));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(
+                DslQueryExecutorSettings.CALCITE_ENABLED,
+                DslQueryExecutorSettings.CALCITE_QUERY_ENABLED,
+                DslQueryExecutorSettings.CALCITE_AGGREGATION_ENABLED
+            )
+        );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

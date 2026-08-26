@@ -8,23 +8,31 @@
 
 package org.opensearch.dsl.router;
 
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryTranslator;
 import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -33,8 +41,8 @@ import java.util.stream.Stream;
  *
  * <p>Strategy: registry-lookup is the safe list. Any query/aggregation whose class has a
  * translator registered is accepted structurally; per-parameter restrictions are layered on
- * top only where the translator has known request-shape limitations. Compound queries
- * ({@code bool}, {@code constant_score}) are transparent — recursed into, never looked up.
+ * top only where the translator has known request-shape limitations. The {@code bool} compound
+ * query is transparent — recursed into, never looked up.
  *
  * <p>Reject reasons are returned as short reason codes (e.g. {@code "query:function_score"},
  * {@code "range.relation:DISJOINT"}, {@code "pipeline_agg:cumulative_sum"}) for observability
@@ -47,9 +55,11 @@ import java.util.stream.Stream;
  *       trees are blanket-rejected for now and stay on the codec path until their Calcite /
  *       DataFusion performance is validated. Per-parameter checks per aggregation type are
  *       TODO and tracked inside {@code visitAggregation}.</li>
- *   <li>Top-level checks (size, sort, highlight, post_filter, etc.) are TODO — the response
- *       builder's hits are still stubbed, so top-level gating will be added when
- *       {@code buildHits} lands.</li>
+ *   <li>Top-level fields are reject-unless-supported: a field is supported only if we have a
+ *       handler for it. For now only {@code query} and {@code aggregations} have handlers, so a
+ *       request that sets any other top-level field ({@code size}, {@code sort}, {@code _source},
+ *       {@code highlight}, {@code post_filter}, …) is rejected and falls back to codec. Handlers
+ *       for the remaining supported fields are added incrementally.</li>
  * </ul>
  */
 public class DslCalciteGrammar {
@@ -62,16 +72,45 @@ public class DslCalciteGrammar {
      *
      * <p>Consulted before the leaf/registry path in {@link #visitQuery}, so a compound query
      * can never be mistaken for a leaf and have its children skipped.
+     *
+     * <p>Only {@code bool} is recursed today. Other compound queries ({@code constant_score},
+     * {@code dis_max}, {@code function_score}, {@code boosting}, {@code hybrid}) carry scoring
+     * semantics the DataFusion path does not support, so they have no entry here and fall back to
+     * codec.
      */
     private static final Map<Class<? extends QueryBuilder>, Function<QueryBuilder, Stream<QueryBuilder>>> COMPOUND_CHILDREN = Map.of(
         BoolQueryBuilder.class,
         q -> {
             BoolQueryBuilder b = (BoolQueryBuilder) q;
             return Stream.of(b.must(), b.filter(), b.should(), b.mustNot()).flatMap(List::stream);
-        },
-        ConstantScoreQueryBuilder.class,
-        q -> Stream.of(((ConstantScoreQueryBuilder) q).innerQuery())
+        }
     );
+
+    /**
+     * Validates the contents of one top-level field. Returns {@code true} if supported; otherwise
+     * adds a reason code to {@code issues} and returns {@code false}.
+     */
+    @FunctionalInterface
+    private interface TopLevelFieldHandler {
+        boolean isSupported(SearchSourceBuilder source, List<String> issues);
+    }
+
+    /**
+     * Handler for fields the converter supports in full — every value is honored, so there is
+     * nothing to validate (e.g. {@code size}, {@code _source}).
+     */
+    private static final TopLevelFieldHandler ALWAYS_SUPPORTED = (source, issues) -> true;
+
+    /**
+     * Handlers for the top-level {@link SearchSourceBuilder} fields we support, keyed by field
+     * name. A field with no handler here is rejected (routed to codec) — reject-unless-supported;
+     * a field with a handler is accepted only if the handler validates its contents. Contents are
+     * validated for {@code query} and {@code aggregations}; {@code size}, {@code from},
+     * {@code _source} and {@code track_total_hits} are supported in full. {@code sort} has no
+     * handler yet, so it still routes to codec until {@code visitSort} lands. Populated in the
+     * constructor because the query/aggregation handlers call instance methods.
+     */
+    private final Map<String, TopLevelFieldHandler> topLevelHandlers;
 
     private final QueryRegistry queryRegistry;
     private final AggregationRegistry aggRegistry;
@@ -83,6 +122,18 @@ public class DslCalciteGrammar {
     public DslCalciteGrammar(QueryRegistry queryRegistry, AggregationRegistry aggRegistry) {
         this.queryRegistry = queryRegistry;
         this.aggRegistry = aggRegistry;
+
+        Map<String, TopLevelFieldHandler> handlers = new HashMap<>();
+        handlers.put(SearchSourceBuilder.QUERY_FIELD.getPreferredName(), (source, issues) -> visitQuery(source.query(), issues));
+        handlers.put(
+            SearchSourceBuilder.AGGREGATIONS_FIELD.getPreferredName(),
+            (source, issues) -> visitAggregationTree(source.aggregations(), issues)
+        );
+        handlers.put(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), ALWAYS_SUPPORTED);
+        handlers.put(SearchSourceBuilder.FROM_FIELD.getPreferredName(), ALWAYS_SUPPORTED);
+        handlers.put(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), ALWAYS_SUPPORTED);
+        handlers.put(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), ALWAYS_SUPPORTED);
+        this.topLevelHandlers = Map.copyOf(handlers);
     }
 
     /**
@@ -100,16 +151,35 @@ public class DslCalciteGrammar {
         }
 
         List<String> issues = new ArrayList<>();
-
-        if (source.query() != null && !visitQuery(source.query(), issues)) {
-            return RouteDecision.rejected(issues);
+        for (String field : topLevelFields(source)) {
+            TopLevelFieldHandler handler = topLevelHandlers.get(field);
+            if (handler == null) {
+                return RouteDecision.rejected(List.of("source." + field));
+            }
+            if (handler.isSupported(source, issues) == false) {
+                return RouteDecision.rejected(issues);
+            }
         }
 
-        if (source.aggregations() != null && !visitAggregationTree(source.aggregations(), issues)) {
-            return RouteDecision.rejected(issues);
-        }
-
+        // Reached when every field the request set had a passing handler, or the request set no
+        // fields at all (empty {} — the loop never ran). Both accept. (A null source is handled
+        // by the early return above.)
         return RouteDecision.accepted();
+    }
+
+    /**
+     * The top-level field names the request actually set. There is no getter that enumerates set
+     * fields, so the source is serialized ({@link SearchSourceBuilder#toXContent} emits only set
+     * fields) and its JSON keys are read — this sees every field, including ones added to
+     * OpenSearch later. Ordered, so a query failure is reported before an aggregation failure.
+     */
+    private static Set<String> topLevelFields(SearchSourceBuilder source) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            source.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), true).v2().keySet();
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to read search source top-level fields", e);
+        }
     }
 
     /**

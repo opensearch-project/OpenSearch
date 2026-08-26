@@ -25,6 +25,8 @@ import org.opensearch.dsl.DslQueryExecutorSettings;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.router.DslCalciteGrammar;
 import org.opensearch.dsl.router.RouteDecision;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,8 +56,23 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
     private final DslCalciteGrammar grammar = mock(DslCalciteGrammar.class);
 
     private SearchActionFilter buildFilter(boolean calciteEnabled) {
-        Settings settings = Settings.builder().put(DslQueryExecutorSettings.CALCITE_ENABLED.getKey(), calciteEnabled).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(DslQueryExecutorSettings.CALCITE_ENABLED));
+        return buildFilter(calciteEnabled, true, true);
+    }
+
+    private SearchActionFilter buildFilter(boolean calciteEnabled, boolean queryEnabled, boolean aggregationEnabled) {
+        Settings settings = Settings.builder()
+            .put(DslQueryExecutorSettings.CALCITE_ENABLED.getKey(), calciteEnabled)
+            .put(DslQueryExecutorSettings.CALCITE_QUERY_ENABLED.getKey(), queryEnabled)
+            .put(DslQueryExecutorSettings.CALCITE_AGGREGATION_ENABLED.getKey(), aggregationEnabled)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(
+                DslQueryExecutorSettings.CALCITE_ENABLED,
+                DslQueryExecutorSettings.CALCITE_QUERY_ENABLED,
+                DslQueryExecutorSettings.CALCITE_AGGREGATION_ENABLED
+            )
+        );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -89,6 +106,47 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
         verify(chain).proceed(task, BulkAction.NAME, request, listener);
         verify(client, never()).execute(any(), any(), any());
         verify(grammar, never()).validate(any());
+    }
+
+    // ---- Layer 1b: per-category toggles ----
+
+    public void testAggregationDisabledSendsAggRequestToCodec() {
+        SearchActionFilter filter = buildFilter(true, true, false); // aggregation off
+        SearchRequest request = new SearchRequest("test-index").source(
+            new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.avg("avg_price").field("price"))
+        );
+
+        filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
+
+        verify(chain).proceed(task, SearchAction.NAME, request, listener);
+        verify(grammar, never()).validate(any());
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testQueryDisabledSendsHitsRequestToCodec() {
+        SearchActionFilter filter = buildFilter(true, false, true); // query/hits off
+        SearchRequest request = new SearchRequest("test-index").source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("brand", "Acme"))
+        );
+
+        filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
+
+        verify(chain).proceed(task, SearchAction.NAME, request, listener);
+        verify(grammar, never()).validate(any());
+    }
+
+    public void testAggregationDisabledStillRoutesHitsRequest() {
+        SearchActionFilter filter = buildFilter(true, true, false); // aggregation off, query on
+        SearchRequest request = new SearchRequest("test-index").source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("brand", "Acme"))
+        );
+        when(grammar.validate(any())).thenReturn(RouteDecision.accepted());
+
+        filter.apply(task, SearchAction.NAME, request, metadata, listener, chain);
+
+        // A hits request is unaffected by the aggregation toggle — grammar consulted, dispatched to Calcite.
+        verify(grammar).validate(request.source());
+        verify(client).execute(eq(DslExecuteAction.INSTANCE), eq(request), any());
     }
 
     // ---- Layer 2: grammar decision ----
@@ -199,7 +257,14 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
 
     public void testDynamicDisableStopsInterception() {
         Settings initial = Settings.builder().put(DslQueryExecutorSettings.CALCITE_ENABLED.getKey(), true).build();
-        ClusterSettings clusterSettings = new ClusterSettings(initial, Set.of(DslQueryExecutorSettings.CALCITE_ENABLED));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            initial,
+            Set.of(
+                DslQueryExecutorSettings.CALCITE_ENABLED,
+                DslQueryExecutorSettings.CALCITE_QUERY_ENABLED,
+                DslQueryExecutorSettings.CALCITE_AGGREGATION_ENABLED
+            )
+        );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(initial);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
