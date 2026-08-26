@@ -44,8 +44,6 @@ public class DateParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        // No POINT_RANGE: the pluggable data format writes no BKD points for date fields, so a mapping
-        // that requests search (index:true) is rejected via the capability path.
         return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER);
     }
 }

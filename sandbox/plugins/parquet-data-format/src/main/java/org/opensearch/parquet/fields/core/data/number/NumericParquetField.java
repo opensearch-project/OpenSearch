@@ -20,9 +20,6 @@ public abstract class NumericParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        // No POINT_RANGE: the pluggable data format writes no BKD points for numeric fields, so the
-        // field is not point-searchable. A mapping that requests search on a numeric field (index:true)
-        // therefore cannot be covered by any configured format and is rejected via the capability path.
         return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER);
     }
 }
