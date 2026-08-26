@@ -232,6 +232,21 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 || !(isInternalEngineIndexer(indexShard.getIndexer()) || indexShard.getIndexer() instanceof DataFormatAwareEngine);
         }
 
+        // Publishing segment metadata and collecting stale segments both mutate state shared with any other live copy
+        // of this shard, and neither is on the acknowledgement path that the fence CAS gates. A superseded copy doing
+        // either can break a legitimate owner: an unfenced publish moves the reference set that collection prunes to,
+        // so the owner's own collection then deletes files it is still hydrating. Both are therefore gated on this copy
+        // still owning the fence. FenceSegmentFlow.tla measures each gate: either one alone is enough to hold
+        // HydrationIntegrity, so this is defence in depth rather than two independently required checks - the model
+        // cannot represent collection at every point in the real shard lifecycle, and the guards sit on different
+        // paths guarding different resources (segments here, the translog in trimUnreferencedReaders). Returning true
+        // rather than requesting a retry is deliberate: a superseded copy will never regain ownership, so retrying
+        // would spin. The setting is checked first so that an unfenced index never pays for the ownership read.
+        if (indexShard.indexSettings().isRemoteStoreFencingEnabled() && indexShard.isRemoteStoreFenceSuperseded()) {
+            logger.info("Skipping segment upload and cleanup: a higher primary term has taken the remote store fence");
+            return true;
+        }
+
         // Extract crypto metadata once at start of sync
         IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
         CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);

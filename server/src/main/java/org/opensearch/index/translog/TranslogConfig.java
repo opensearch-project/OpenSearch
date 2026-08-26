@@ -59,6 +59,8 @@ public final class TranslogConfig {
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
     private final String nodeId;
+    private final String allocationId;
+    private final boolean isRelocationTarget;
     private final boolean seedRemote;
     private boolean downloadRemoteTranslogOnInit = true;
 
@@ -78,7 +80,26 @@ public final class TranslogConfig {
         String nodeId,
         boolean seedRemote
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, seedRemote);
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, null, false, seedRemote);
+    }
+
+    /**
+     * Creates a new TranslogConfig instance carrying the identity of the owning shard copy.
+     * @param allocationId the allocation id of the shard copy this translog belongs to, used as the owner identity of
+     *                     the remote store fence; may be {@code null} when the copy identity is unknown (offline
+     *                     tools), in which case remote store fencing cannot be used
+     */
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        String nodeId,
+        String allocationId,
+        boolean isRelocationTarget,
+        boolean seedRemote
+    ) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, allocationId, isRelocationTarget, seedRemote);
     }
 
     TranslogConfig(
@@ -90,12 +111,28 @@ public final class TranslogConfig {
         String nodeId,
         boolean seedRemote
     ) {
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, nodeId, null, false, seedRemote);
+    }
+
+    TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        String nodeId,
+        String allocationId,
+        boolean isRelocationTarget,
+        boolean seedRemote
+    ) {
+        this.isRelocationTarget = isRelocationTarget;
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
         this.nodeId = nodeId;
+        this.allocationId = allocationId;
         this.seedRemote = seedRemote;
     }
 
@@ -136,6 +173,23 @@ public final class TranslogConfig {
 
     public String getNodeId() {
         return nodeId;
+    }
+
+    /**
+     * The allocation id of the shard copy this translog belongs to, or {@code null} when the copy identity is
+     * unknown (offline tools).
+     */
+    public String getAllocationId() {
+        return allocationId;
+    }
+
+    /**
+     * Whether this copy is a primary relocation target. Such a copy shares a primary term - and so a fence object -
+     * with a source that is still legitimately serving, so it may only take the fence over once the source explicitly
+     * hands ownership to it.
+     */
+    public boolean isRelocationTarget() {
+        return isRelocationTarget;
     }
 
     public boolean shouldSeedRemote() {

@@ -38,7 +38,9 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.io.Streams;
@@ -64,6 +66,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
@@ -152,12 +156,19 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 return FileVisitResult.CONTINUE;
             }
         });
+        // Mirror the delete in the conditional-write version map, so that a blob recreated at the same path later is
+        // a new version: any token issued before the delete must lose its CAS, as it would against a real object
+        // store's ETag semantics.
+        final String containerPrefix = path.toAbsolutePath().toString();
+        CONDITIONAL_WRITE_VERSIONS.keySet().removeIf(key -> key.startsWith(containerPrefix));
         return new DeleteResult(filesDeleted.get(), bytesDeleted.get());
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+        // See delete(): deletion invalidates any previously issued version token for these paths.
+        blobNames.forEach(blobName -> CONDITIONAL_WRITE_VERSIONS.remove(conditionalWriteKey(blobName)));
     }
 
     @Override
@@ -266,6 +277,134 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /**
+     * Fixed set of stripes used to emulate compare-and-swap semantics for conditional writes. Object stores provide
+     * this atomically server-side; on a local filesystem we serialize readers/writers of the same blob within this
+     * JVM. Stripes are keyed by blob path hash, so distinct blobs may share a lock: over-locking only costs
+     * contention, whereas a per-blob map keyed by path would grow without bound as shards and indices come and go.
+     */
+    private static final int CONDITIONAL_WRITE_STRIPES = 64;
+    private static final Object[] CONDITIONAL_WRITE_LOCKS = new Object[CONDITIONAL_WRITE_STRIPES];
+    static {
+        for (int i = 0; i < CONDITIONAL_WRITE_STRIPES; i++) {
+            CONDITIONAL_WRITE_LOCKS[i] = new Object();
+        }
+    }
+
+    private Object conditionalWriteLock(final String blobName) {
+        final int hash = conditionalWriteKey(blobName).hashCode();
+        // Math.floorMod rather than % so that Integer.MIN_VALUE does not yield a negative index.
+        return CONDITIONAL_WRITE_LOCKS[Math.floorMod(hash, CONDITIONAL_WRITE_STRIPES)];
+    }
+
+    /**
+     * Version tokens for conditionally-written blobs, keyed by absolute path. Tokens are random rather than derived
+     * from content: a content hash would make two writes of identical bytes indistinguishable, letting a stale writer
+     * that happens to write the current content pass a CAS it should lose (ABA). The map is JVM-local, matching the
+     * scope of this emulation, and only ever holds blobs touched through the conditional-write API (fence blobs), so
+     * growth is bounded by live conditionally-written blobs rather than by all blobs. Deletions through this
+     * container's delete APIs invalidate the token (best effort, mirroring an object store's new-ETag-on-recreate
+     * semantics); an <b>overwrite</b> through a non-conditional API remains invisible to the version map, which is
+     * acceptable because conditionally-written blobs are, by contract, written exclusively through this API.
+     */
+    private static final Map<String, String> CONDITIONAL_WRITE_VERSIONS = new ConcurrentHashMap<>();
+
+    private String conditionalWriteKey(final String blobName) {
+        return path.resolve(blobName).toAbsolutePath().toString();
+    }
+
+    /**
+     * The current version token of the blob, or {@code null} if it does not exist. Must be called under the blob's
+     * conditional-write lock. A blob that exists on disk but has never been seen by this API (e.g. created before the
+     * JVM started) is assigned a fresh token on first observation.
+     */
+    private String currentVersionToken(final String blobName) {
+        final String key = conditionalWriteKey(blobName);
+        if (Files.exists(path.resolve(blobName)) == false) {
+            CONDITIONAL_WRITE_VERSIONS.remove(key);
+            return null;
+        }
+        return CONDITIONAL_WRITE_VERSIONS.computeIfAbsent(key, k -> UUIDs.randomBase64UUID());
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Emulated, and only within this JVM.</b> A local filesystem offers no atomic compare-and-swap, so the
+     * conditional write below is serialized with in-process locks. That is sufficient for tests and single-node
+     * development, but it is <b>not</b> a cross-node fencing primitive: two nodes writing the same blob on a shared
+     * filesystem can both believe they won the CAS. Only a repository whose backing store enforces the precondition
+     * server-side (such as S3 conditional writes) can fence writers across nodes.
+     */
+    /**
+     * Always {@code false}, even though {@link #writeBlobConditionally} and {@link #readBlobWithVersion} below are
+     * implemented and behave correctly within one JVM. A local filesystem offers no compare-and-swap, so the
+     * precondition is emulated with in-process locks over a JVM-local version map - which means two nodes writing the
+     * same blob on a shared filesystem can both believe they won. Emulation is not support: see
+     * {@link BlobContainer#isConditionalWriteSupported()}. Remote store fencing therefore refuses this container, which
+     * is deliberate, because an emulated fence would report a shard as protected when it is not.
+     * <p>
+     * Integration tests still need to exercise fencing, and their cluster nodes share a single JVM, so the emulation is
+     * genuinely sufficient there. {@code ReloadableFsRepository} overrides this for that purpose alone.
+     */
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return false;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        synchronized (conditionalWriteLock(blobName)) {
+            final Path file = path.resolve(blobName);
+            final String versionToken = currentVersionToken(blobName);
+            try {
+                // Versioned reads materialize the blob in memory and are meant for small control blobs only; refuse
+                // anything larger than the write-side bound rather than risk loading an arbitrarily large file.
+                if (Files.size(file) > blobStore.bufferSizeInBytes()) {
+                    throw new IOException("[" + blobName + "] blob of size [" + Files.size(file) + "] is too large for a versioned read");
+                }
+                final byte[] content = Files.readAllBytes(file);
+                return new VersionedBlob(content, versionToken);
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                throw new NoSuchFileException("[" + blobName + "] blob not found");
+            }
+        }
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        synchronized (conditionalWriteLock(blobName)) {
+            final String currentVersionToken = currentVersionToken(blobName);
+            if (Objects.equals(expectedVersionToken, currentVersionToken) == false) {
+                throw new BlobVersionConflictException(
+                    "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]"
+                );
+            }
+            final byte[] content = inputStream.readAllBytes();
+            final String tempBlob = tempBlobName(blobName);
+            final Path tempBlobPath = path.resolve(tempBlob);
+            try {
+                Files.createDirectories(path);
+                Files.write(tempBlobPath, content);
+                IOUtils.fsync(tempBlobPath, false);
+                moveBlobAtomic(tempBlob, blobName, false);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            } finally {
+                IOUtils.fsync(path, true);
+            }
+            final String newVersionToken = UUIDs.randomBase64UUID();
+            CONDITIONAL_WRITE_VERSIONS.put(conditionalWriteKey(blobName), newVersionToken);
+            return newVersionToken;
+        }
     }
 
     public static String tempBlobName(final String blobName) {

@@ -27,6 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
@@ -62,8 +63,11 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FI
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -104,6 +108,63 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+    }
+
+    /**
+     * The segment-flow gate has to have teeth in code, not only in the model: a superseded copy must not publish
+     * segment metadata or collect garbage, because an unfenced publish moves the reference set collection prunes to and
+     * the legitimate owner's own collection then deletes files it is still hydrating. See FenceSegmentFlow.tla.
+     * <p>
+     * Asserted on the code path rather than on side effects: reaching the catalog snapshot is the first thing
+     * {@code syncSegments} does past the gate, so it is a precise and deterministic signal, independent of whatever the
+     * shard's own internal refresh listeners do.
+     */
+    public void testSegmentSyncIsSkippedWhenSupersededByAHigherTerm() throws Exception {
+        setup(true, 3);
+        IndexShard supersededShard = spy(indexShard);
+        doReturn(true).when(supersededShard).isRemoteStoreFenceSuperseded();
+        doReturn(fencedIndexSettings()).when(supersededShard).indexSettings();
+
+        newRefreshListenerFor(supersededShard).afterRefresh(true);
+
+        // The gate was consulted, and nothing past it ran: syncSegments reads the shard's remote store settings for
+        // the stale-segment cleanup just past the gate, and never gets there.
+        verify(supersededShard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(supersededShard, never()).getRemoteStoreSettings();
+    }
+
+    /** The positive control: with the fence still ours, the same path proceeds past the gate. */
+    public void testSegmentSyncProceedsWhenNotSuperseded() throws Exception {
+        setup(true, 3);
+        IndexShard owningShard = spy(indexShard);
+        doReturn(false).when(owningShard).isRemoteStoreFenceSuperseded();
+        doReturn(fencedIndexSettings()).when(owningShard).indexSettings();
+
+        newRefreshListenerFor(owningShard).afterRefresh(true);
+
+        verify(owningShard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(owningShard, atLeastOnce()).getRemoteStoreSettings();
+    }
+
+    /** Index settings identical to the shard's, except that remote store fencing is on. */
+    private IndexSettings fencedIndexSettings() {
+        IndexMetadata fenced = IndexMetadata.builder(indexShard.indexSettings().getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    .put(indexShard.indexSettings().getIndexMetadata().getSettings())
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            )
+            .build();
+        return new IndexSettings(fenced, indexShard.indexSettings().getNodeSettings());
+    }
+
+    private RemoteStoreRefreshListener newRefreshListenerFor(IndexShard shard) {
+        return new RemoteStoreRefreshListener(
+            shard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId()),
             DefaultRemoteStoreSettings.INSTANCE
         );
     }
