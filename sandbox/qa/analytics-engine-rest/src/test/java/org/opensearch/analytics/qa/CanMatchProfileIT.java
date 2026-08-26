@@ -65,7 +65,7 @@ public class CanMatchProfileIT extends AnalyticsRestTestCase {
         try {
             // Keep only days 11 and 12 (>= 2026-07-11); days 08-10 prune.
             Map<String, Object> canMatch = canMatchBlockFor(
-                "source = " + indices + " | where `@timestamp` >= '2026-07-11 00:00:00' | fields host"
+                "source = " + indices + " | where `@timestamp` >= TIMESTAMP('2026-07-11 00:00:00') | fields host"
             );
             assertNotNull("can_match block expected for a filtered multi-shard query", canMatch);
             assertEquals("total_shards = one per day", TOTAL_DAYS, intField(canMatch, "total_shards"));
@@ -85,7 +85,7 @@ public class CanMatchProfileIT extends AnalyticsRestTestCase {
         applySetting(PRE_FILTER_SETTING, "1");
         try {
             Map<String, Object> canMatch = canMatchBlockFor(
-                "source = " + indices + " | where `@timestamp` >= '2026-07-01 00:00:00' and `@timestamp` <= '2026-07-31 23:59:59' | fields host"
+                "source = " + indices + " | where `@timestamp` >= TIMESTAMP('2026-07-01 00:00:00') and `@timestamp` <= TIMESTAMP('2026-07-31 23:59:59') | fields host"
             );
             assertNotNull("can_match block expected", canMatch);
             assertEquals(TOTAL_DAYS, intField(canMatch, "total_shards"));
@@ -104,7 +104,7 @@ public class CanMatchProfileIT extends AnalyticsRestTestCase {
         applySetting(PRE_FILTER_SETTING, "1");
         try {
             Map<String, Object> canMatch = canMatchBlockFor(
-                "source = " + indices + " | where `@timestamp` >= '2026-09-01 00:00:00' | fields host"
+                "source = " + indices + " | where `@timestamp` >= TIMESTAMP('2026-09-01 00:00:00') | fields host"
             );
             assertNotNull("can_match block expected", canMatch);
             assertEquals(TOTAL_DAYS, intField(canMatch, "total_shards"));
