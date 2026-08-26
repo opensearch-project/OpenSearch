@@ -293,7 +293,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             0,
             false,
             false,
-            /*preferPrimaryFilterAware*/ true,
+            true,
             false,
             null
         );
@@ -319,7 +319,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             0,
             false,
             false,
-            /*preferPrimaryFilterAware*/ true,
+            true,
             false,
             null
         );
@@ -343,7 +343,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             0,
             false,
             false,
-            /*preferPrimaryFilterAware*/ true,
+            true,
             false,
             null
         );
