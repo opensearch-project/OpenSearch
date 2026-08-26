@@ -107,6 +107,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                     0,
                     1,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new WorkloadGroupStats.ResourceStats(0, 0, 0),
@@ -116,6 +117,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 ),
                 WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get(),
                 new WorkloadGroupStats.WorkloadGroupStatsHolder(
+                    0,
                     0,
                     0,
                     0,
@@ -182,6 +184,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                     0,
                     ITERATIONS,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new WorkloadGroupStats.ResourceStats(0, 0, 0),
@@ -191,6 +194,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 ),
                 WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get(),
                 new WorkloadGroupStats.WorkloadGroupStatsHolder(
+                    0,
                     0,
                     0,
                     0,
@@ -217,6 +221,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                     0,
                     0,
                     0,
+                    0,
                     Map.of(
                         ResourceType.CPU,
                         new WorkloadGroupStats.ResourceStats(0, 0, 0),
@@ -229,6 +234,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                     0,
                     0,
                     1,
+                    0,
                     0,
                     Map.of(
                         ResourceType.CPU,

@@ -71,6 +71,15 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
         ClusterState clusterState,
         ActionListener<CreateWorkloadGroupResponse> listener
     ) {
+        try {
+            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+                request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling(),
+                clusterState
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         workloadGroupPersistenceService.persistInClusterStateMetadata(request.getWorkloadGroup(), listener);
     }
 
