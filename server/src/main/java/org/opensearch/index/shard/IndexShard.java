@@ -198,6 +198,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteFsTranslog;
+import org.opensearch.index.translog.RemoteStoreFenceOwnership;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
@@ -384,6 +385,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
+    /**
+     * Set once this copy has claimed the remote store fence ({@link #sealRemoteStoreFence()}); consulted only by
+     * {@link #assertRemoteStoreFenceSealedBeforeRestore()} to assert seal-before-restore ordering.
+     */
+    private volatile boolean remoteStoreFenceSealed;
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final boolean isTimeSeriesIndex;
@@ -510,8 +516,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, seedRemote);
         final String aId = shardRouting.allocationId().getId();
+        this.translogConfig = new TranslogConfig(
+            shardId,
+            shardPath().resolveTranslog(),
+            indexSettings,
+            bigArrays,
+            nodeId,
+            aId,
+            shardRouting.isRelocationTarget(),
+            seedRemote
+        );
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
@@ -1083,20 +1098,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
+                // Hand remote store fence ownership to the target while our uploads are drained, so the transfer is
+                // uncontested. The target may only take the fence over once it observes this, which is what stops it
+                // fencing us if the handoff below aborts; the token retained here is what lets the abort path tell a
+                // target that took over from one that never wrote.
                 try {
-                    consumer.accept(primaryContext);
-                    synchronized (mutex) {
-                        verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under
-                        // mutex
+                    transferRemoteStoreFenceOwnership(targetAllocationId);
+                } catch (IOException e) {
+                    throw new IllegalStateException("failed to hand remote store fence ownership to " + targetAllocationId, e);
+                }
+                // Everything from here on must reclaim fence ownership if it fails, not just the handoff itself:
+                // the cluster keeps this copy as primary on any failure and releases its upload drains below, so a
+                // copy left with a stale token would fail the shard for no reason.
+                try {
+                    final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
+                    try {
+                        consumer.accept(primaryContext);
+                        synchronized (mutex) {
+                            verifyRelocatingState();
+                            replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under
+                            // mutex
+                        }
+                    } catch (final Exception e) {
+                        try {
+                            replicationTracker.abortRelocationHandoff();
+                        } catch (final Exception inner) {
+                            e.addSuppressed(inner);
+                        }
+                        throw e;
                     }
                 } catch (final Exception e) {
-                    try {
-                        replicationTracker.abortRelocationHandoff();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
-                    }
+                    reclaimRemoteStoreFenceOwnership(e);
                     throw e;
                 }
             });
@@ -1113,6 +1145,87 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // upload to resume.
             Releasables.close(releasablesOnHandoffFailures);
             throw ex;
+        }
+    }
+
+    /**
+     * The fence-ownership view of this shard's translog, or {@code null} when there is none to act on - either fencing
+     * is disabled for this index, or the translog is not remote-backed and so has no fence. Consolidating both checks
+     * here is what lets {@code TranslogManager} stay free of fence surface: the capability is narrowed once, at the only
+     * boundary that needs it, instead of every translog manager inheriting defaults it cannot honour.
+     */
+    @Nullable
+    private RemoteStoreFenceOwnership remoteStoreFenceOwnership() {
+        if (indexSettings.isRemoteStoreFencingEnabled() == false) {
+            return null;
+        }
+        return getIndexer().translogManager() instanceof RemoteStoreFenceOwnership ownership ? ownership : null;
+    }
+
+    /**
+     * Hands remote store fence ownership to a primary relocation target. Relocation happens at a constant primary term,
+     * so source and target share one fence object and the term cannot arbitrate between them: the source's recorded
+     * handover is what authorizes the target.
+     */
+    private void transferRemoteStoreFenceOwnership(String targetAllocationId) throws IOException {
+        RemoteStoreFenceOwnership fenceOwnership = remoteStoreFenceOwnership();
+        if (fenceOwnership != null) {
+            fenceOwnership.transferFenceOwnership(targetAllocationId);
+        }
+    }
+
+    /**
+     * Whether a strictly higher primary term has taken the remote store fence, i.e. this copy has been superseded.
+     * <p>
+     * Gates operations that mutate shared remote state without being on the acknowledgement path - publishing segment
+     * metadata, and garbage collection. Those are not covered by the fence CAS, which sits on the translog upload, yet a
+     * superseded copy performing either can break a legitimate owner: an unfenced segment metadata publish moves the
+     * reference set that garbage collection prunes to, so the owner's own collection then deletes files it is still
+     * hydrating. {@code FenceSegmentFlow.tla} measures each gate: either one alone suffices to hold
+     * {@code HydrationIntegrity}, so keeping both is defence in depth rather than two independently required checks.
+     * <p>
+     * Fails OPEN - an unreadable fence reports "not superseded" - because that is the safe direction here: permitting
+     * one more publish at our own term produces an orphan, which is the pre-existing harmless case, whereas failing
+     * closed would silence a healthy shard whenever the repository hiccups. The garbage collection paths make the
+     * opposite choice and fail closed, since a wrongly permitted delete is not recoverable.
+     */
+    public boolean isRemoteStoreFenceSuperseded() {
+        RemoteStoreFenceOwnership fenceOwnership = remoteStoreFenceOwnership();
+        if (fenceOwnership == null) {
+            return false;
+        }
+        try {
+            return fenceOwnership.isRemoteStoreFenceSuperseded();
+        } catch (Exception e) {
+            logger.warn("Could not determine whether the remote store fence was superseded; proceeding", e);
+            return false;
+        }
+    }
+
+    /**
+     * Reclaims remote store fence ownership after an aborted handoff, so that a source the cluster is about to keep as
+     * primary is not left fenced. If the target had already taken the fence up, the handoff effectively completed and
+     * this copy stands down instead - a failure that has to remain fatal, since the target owns the chain now.
+     */
+    private void reclaimRemoteStoreFenceOwnership(Exception handoffFailure) {
+        RemoteStoreFenceOwnership fenceOwnership = remoteStoreFenceOwnership();
+        if (fenceOwnership == null) {
+            return;
+        }
+        try {
+            if (fenceOwnership.revertFenceOwnership()) {
+                logger.info("Reclaimed remote store fence ownership after the relocation handoff failed");
+            } else {
+                // The target took the chain up, so the handoff effectively completed even though this copy saw it fail.
+                // The cluster will otherwise keep this copy as primary on the rethrown failure, and it would serve
+                // until its next upload lost the CAS - so fail it here instead of leaving it to discover that on the
+                // write path. Standing down is not optional: the target owns the chain now.
+                final String reason = "relocation handoff completed at the target, which now owns the remote store fence";
+                logger.warn("{}; failing this copy", reason);
+                failShard(reason, null);
+            }
+        } catch (Exception e) {
+            handoffFailure.addSuppressed(e);
         }
     }
 
@@ -3246,6 +3359,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded()) {
+                // Seal before reading remote state on EITHER flow, translog or segment. Segments are hydrated just
+                // below, and a copy that hydrated before claiming the fence would be reading state that a previous
+                // primary - alive behind a partition - is still free to publish and garbage-collect, so its in-flight
+                // downloads can lose files it has already listed. The translog restore point read further down needs
+                // the same ordering: it either reads the restore point this copy will serve from (directly, or later
+                // when the translog construction downloads it in the snapshot V2 case), or destroys the remote
+                // translog lineage (the snapshot restore delete).
+                if (shardRouting.primary() && indexSettings.isRemoteTranslogStoreEnabled()) {
+                    sealRemoteStoreFenceBeforeRestore();
+                }
                 // Download missing segments from remote segment store.
                 if (syncFromRemote) {
                     syncSegmentsFromRemoteSegmentStore(false);
@@ -5814,6 +5937,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
+                // On replica-to-primary promotion the operation term has already been bumped, and the previous primary
+                // may be alive behind a partition, still holding a valid fence token. Seal before reading the remote
+                // translog restore point, or that primary could keep acknowledging writes landing after it. A primary
+                // relocation target must not seal: the source is still legitimately serving at the same term, and
+                // ordering with it is enforced by the fence CAS once this copy starts uploading.
+                if (shardRouting.isRelocationTarget() == false) {
+                    sealRemoteStoreFence();
+                }
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
             newEngineReference.set(indexerFactory.createIndexer(newEngineConfig(replicationTracker)));
@@ -5925,8 +6056,76 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void syncRemoteTranslogAndUpdateGlobalCheckpoint() throws IOException {
+        assert assertRemoteStoreFenceSealedBeforeRestore();
         syncTranslogFilesFromRemoteTranslog();
         loadGlobalCheckpointToReplicationTracker();
+    }
+
+    /**
+     * Claims the remote store fence for this copy before its translog restore point is read during recovery, so that a
+     * previous primary that is still alive but no longer in the cluster's view cannot acknowledge writes landing after
+     * that restore point. See {@link RemoteFsTranslog#sealFence}.
+     * <p>
+     * Deliberately skipped for peer recovery: a primary relocation target recovers while the source is still serving at
+     * the same primary term, so sealing here would fence a healthy primary mid-handoff. Relocation ordering is instead
+     * enforced by the fence CAS once the target starts uploading.
+     * <p>
+     * Every other recovery source seals. For sources whose shard has a remote translog lineage to take over
+     * (EXISTING_STORE, REMOTE_STORE, in-place SNAPSHOT restore) the seal invalidates any partitioned previous writer.
+     * For sources that begin a fresh lineage under a new index UUID — LOCAL_SHARDS (a shrink/split/clone target) and
+     * SNAPSHOT restore into a new index — the fence key derives from the new UUID, so the seal is simply the fresh
+     * chain's create-if-absent bootstrap; nothing beyond this index's own metadata and the translog repository is
+     * required for the path to resolve.
+     */
+    private void sealRemoteStoreFenceBeforeRestore() throws IOException {
+        if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER) {
+            return;
+        }
+        sealRemoteStoreFence();
+    }
+
+    /**
+     * Claims the remote store fence for this copy at the current operation primary term. Must run before this copy
+     * reads a translog restore point it intends to serve from — whether during recovery
+     * ({@link #sealRemoteStoreFenceBeforeRestore}) or on replica-to-primary promotion
+     * ({@link #resetEngineToGlobalCheckpoint}), where the previous primary may be alive behind a partition and its CAS
+     * token must be invalidated before this copy can acknowledge anything.
+     */
+    private void sealRemoteStoreFence() throws IOException {
+        if (indexSettings.isRemoteStoreFencingEnabled() == false) {
+            return;
+        }
+        TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
+        assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
+        RemoteFsTranslog.sealFence(
+            ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository(),
+            shardId,
+            getThreadPool(),
+            indexSettings.getRemoteStorePathStrategy(),
+            remoteStoreSettings,
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
+            shardRouting.allocationId().getId(),
+            translogConfig.getNodeId(),
+            // Deliberately the operation term rather than the pending term: uploads advance the fence at the operation
+            // term, and the pending term can transiently lead it. Sealing above the term we will upload at would make
+            // the shard fence itself; sealing at or below is safe, since bootstrap seals over at a term >= the fence's.
+            getOperationPrimaryTerm()
+        );
+        remoteStoreFenceSealed = true;
+    }
+
+    /**
+     * The seal-before-restore invariant of {@link org.opensearch.index.translog.transfer.RemoteStoreFence}: a fencing-enabled primary must
+     * have claimed the fence before it reads the remote translog restore point it will serve from, with one exception —
+     * a primary relocation target, whose source is still legitimately serving at the same term and for which ordering
+     * is enforced by the fence CAS once the target starts uploading. Asserted at the read choke point so that any new
+     * code path reaching the remote translog without sealing fails loudly in tests rather than silently reopening the
+     * acked-write-loss window.
+     */
+    private boolean assertRemoteStoreFenceSealedBeforeRestore() {
+        assert indexSettings.isRemoteStoreFencingEnabled() == false || remoteStoreFenceSealed || shardRouting.isRelocationTarget()
+            : "remote translog restore point read without sealing the fence for " + shardRouting;
+        return true;
     }
 
     public void deleteTranslogFilesFromRemoteTranslog() throws IOException {

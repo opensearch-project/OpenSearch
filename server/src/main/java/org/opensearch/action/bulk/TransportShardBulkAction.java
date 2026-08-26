@@ -454,6 +454,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
+            // With remote-store fencing enabled, stale-primary fencing is enforced by a conditional write on the
+            // fence blob during every translog upload (see RemoteStoreFence), so the no-op primary term validation
+            // fanout to replicas is not required and replicas are taken off the write path entirely. With ASYNC
+            // durability the fence is only validated at the upload interval, so the per-op fanout is retained.
+            if (indexShard.indexSettings().isRemoteStoreFencingEnabled()
+                && indexShard.indexSettings().getTranslogDurability() == Translog.Durability.REQUEST) {
+                return ReplicationMode.NO_REPLICATION;
+            }
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);
