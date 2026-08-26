@@ -208,6 +208,7 @@ public class InternalEngine extends Engine {
 
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final DeletionStrategyPlanner deletionStrategyPlanner;
+    private final PrimaryOperationPolicy primaryOperationPolicy;
     private final DocumentCountTracker documentCountTracker;
 
     public InternalEngine(EngineConfig engineConfig) {
@@ -367,6 +368,7 @@ public class InternalEngine extends Engine {
                 documentCountTracker::tryAcquireInFlightDocs,
                 this::incrementVersionLookup
             );
+            this.primaryOperationPolicy = engineConfig.getPrimaryOperationPolicy();
             success = true;
         } finally {
             if (success == false) {
@@ -539,6 +541,12 @@ public class InternalEngine extends Engine {
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+                // This shard's sequence numbers are assigned by an upstream authority, which owns the
+                // sequence-number space; recording no-ops here could collide with operations the
+                // authority has not replicated yet.
+                return 0;
+            }
             return SeqNoGapFiller.fillGaps(localCheckpointTracker, translogManager, primaryTerm, noOp -> innerNoOp(noOp));
         }
     }
@@ -834,15 +842,28 @@ public class InternalEngine extends Engine {
     }
 
     protected boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
-        // sequence number should not be set when operation origin is primary
-        assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was ["
-            + seqNo
-            + "]";
+        if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+            // this primary's sequence numbers are assigned upstream, so an assigned seq no. is expected
+            assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must have a pre-assigned sequence number under policy ["
+                + primaryOperationPolicy
+                + "] but was unassigned";
+        } else {
+            // sequence number should not be set when operation origin is primary
+            assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was ["
+                + seqNo
+                + "]";
+        }
         return true;
     }
 
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
+        if (primaryOperationPolicy.acceptsPreAssignedSeqNos()) {
+            if (operation.seqNo() < 0) {
+                throw new IllegalStateException("expected a pre-assigned sequence number but got [" + operation.seqNo() + "]");
+            }
+            return operation.seqNo();
+        }
         assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: "
             + operation.seqNo();
         return doGenerateSeqNoForOperation(operation);
@@ -1006,7 +1027,7 @@ public class InternalEngine extends Engine {
     }
 
     private IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
-        return indexingStrategyPlanner.planOperationAsPrimary(index);
+        return primaryOperationPolicy.planIndex(indexingStrategyPlanner, index);
     }
 
     protected IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
@@ -1247,7 +1268,7 @@ public class InternalEngine extends Engine {
     }
 
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
-        return deletionStrategyPlanner.planOperationAsPrimary(delete);
+        return primaryOperationPolicy.planDelete(deletionStrategyPlanner, delete);
     }
 
     protected boolean assertNonPrimaryOrigin(final Operation operation) {
