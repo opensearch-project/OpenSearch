@@ -37,7 +37,16 @@ public final class CapabilityResolutionUtils {
             }
         }
         if (result.isEmpty()) {
-            throw new IllegalStateException("No viable backend supports coordinator reduce among " + viableBackends);
+            // A reduce stage consumes exchanged Arrow batches and does not scan the child's
+            // storage format. Permit any registered sink-capable backend to execute it.
+            for (AnalyticsSearchBackendPlugin backend : registry.getBackends()) {
+                if (viableBackends.contains(backend.name()) == false && backend.getExchangeSinkProvider() != null) {
+                    result.add(backend.name());
+                }
+            }
+        }
+        if (result.isEmpty()) {
+            throw new IllegalStateException("No registered backend supports coordinator reduce for " + viableBackends);
         }
         return result;
     }

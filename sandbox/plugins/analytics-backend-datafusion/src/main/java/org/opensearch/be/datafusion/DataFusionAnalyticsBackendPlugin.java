@@ -11,6 +11,8 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -21,6 +23,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.planner.CalciteToArrowSchema;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
@@ -915,6 +918,26 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public boolean supportsArrowBatchSourceExecution() {
         return true;
+    }
+
+    @Override
+    public byte[] compileArrowBatchSourcePlan(RelNode fragment, boolean partialAggregate) {
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, getCapabilityProvider());
+        DataFusionFragmentConvertor convertor = new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+        if (partialAggregate == false) {
+            return convertor.convertFragment(adapted);
+        }
+        if (adapted instanceof Aggregate == false) {
+            throw new IllegalArgumentException("partial Arrow source plan must be rooted at an Aggregate");
+        }
+        Aggregate aggregate = (Aggregate) adapted;
+        return convertor.attachPartialAggOnTop(aggregate, convertor.convertFragment(aggregate.getInput()));
+    }
+
+    @Override
+    public byte[] attachArrowBatchSourcePlan(RelNode fragment, byte[] innerPlanBytes) {
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, getCapabilityProvider());
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions()).attachFragmentOnTop(adapted, innerPlanBytes);
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -64,6 +65,12 @@ public class BackendPlanAdapter {
      */
     public static void adaptAll(QueryDAG dag, CapabilityRegistry registry) {
         adaptStage(dag.rootStage(), registry);
+    }
+
+    /** Applies one backend's adapters to a fragment compiled through a sibling execution engine. */
+    public static RelNode adaptFragment(RelNode fragment, BackendCapabilityProvider capabilityProvider) {
+        Adapters adapters = new Adapters(capabilityProvider.scalarFunctionAdapters(), capabilityProvider.windowFunctionAdapters());
+        return adaptNode(fragment, adapters);
     }
 
     private static void adaptStage(Stage stage, CapabilityRegistry registry) {
@@ -115,7 +122,19 @@ public class BackendPlanAdapter {
             return DistributedAggregateRewriter.rewrite(withAdaptedChildren);
         }
 
-        return childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
+        RelNode current = childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
+        // Sibling-engine compilation receives annotation-stripped LogicalProject/Filter/Sort
+        // nodes. Apply the same adapters to their Rex trees as the normal OpenSearch path.
+        if (current instanceof OpenSearchRelNode == false) {
+            List<FieldStorageInfo> fieldStorage = nearestInputStorage(current);
+            return current.accept(new RexShuttle() {
+                @Override
+                public RexNode visitCall(RexCall call) {
+                    return adaptRex(call, adapters, fieldStorage, current.getCluster());
+                }
+            });
+        }
+        return current;
     }
 
     /**
@@ -314,6 +333,23 @@ public class BackendPlanAdapter {
 
     private static ScalarFunction resolveFunction(RexCall call) {
         return ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
+    }
+
+    private static List<FieldStorageInfo> nearestInputStorage(RelNode node) {
+        if (node.getInputs().isEmpty()) {
+            return List.of();
+        }
+        RelNode current = RelNodeUtils.unwrapHep(node.getInputs().getFirst());
+        while (current != null) {
+            if (current instanceof OpenSearchRelNode openSearchNode) {
+                return openSearchNode.getOutputFieldStorage();
+            }
+            if (current.getInputs().isEmpty()) {
+                break;
+            }
+            current = RelNodeUtils.unwrapHep(current.getInputs().getFirst());
+        }
+        return List.of();
     }
 
     /**

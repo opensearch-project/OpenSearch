@@ -51,7 +51,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.dataformat.DocumentInput;
-import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
@@ -763,7 +762,8 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
-        GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
+        AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
+        GatedCloseable<Reader> gatedReader = backend.acquireReader(shard);
         // A query that requested top-N docs (row-ids) will be followed by a fetch phase that reuses
         // this reader. When it does, close() keeps the reader in the store for the fetch; otherwise
         // close() frees it immediately instead of waiting for the reaper.
@@ -783,7 +783,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                     .stream()
                     .anyMatch(n -> n.type() == org.opensearch.analytics.spi.InstructionType.SETUP_PARTIAL_AGGREGATE)
             );
-            AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
+            ctx.setDelegationThreadTracker(createThreadTracker(task));
 
             backendContext = applyInstructionHandlers(backend, resolved.plan.getInstructions(), ctx);
 
@@ -804,30 +804,10 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
 
-                // Build a thread tracker when task resource tracking is available.
-                DelegationThreadTracker tracker = null;
-                if (taskResourceTrackingService != null) {
-                    long taskId = task.getId();
-                    TaskResourceTrackingService service = taskResourceTrackingService;
-                    tracker = new DelegationThreadTracker() {
-                        @Override
-                        public long trackStart() {
-                            long threadId = Thread.currentThread().threadId();
-                            service.taskExecutionStartedOnThread(taskId, threadId);
-                            return threadId;
-                        }
-
-                        @Override
-                        public void trackEnd(long threadId) {
-                            service.taskExecutionFinishedOnThread(taskId, threadId);
-                        }
-                    };
-                }
-
                 // Register handle and tracker together under the query's contextId so concurrent
                 // queries have isolated FFM callback bindings. The returned cleanup removes the
                 // binding after query execution completes.
-                trackerCleanup = backend.configureFilterDelegation(contextId, handle, tracker, backendContext);
+                trackerCleanup = backend.configureFilterDelegation(contextId, handle, ctx.getDelegationThreadTracker(), backendContext);
             }
 
             // Hash-shuffle producer routing: if the instruction chain produced a
@@ -998,8 +978,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         return backendContext;
     }
 
-    private record ResolvedFragment(IndexReaderProvider readerProvider, FragmentExecutionRequest.PlanAlternative plan, String queryId,
-        int stageId, String shardIdStr) {
+    private record ResolvedFragment(FragmentExecutionRequest.PlanAlternative plan, String queryId, int stageId, String shardIdStr) {
     }
 
     /**
@@ -1017,11 +996,6 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     private ResolvedFragment resolveFragment(FragmentExecutionRequest request, IndexShard shard) {
-        IndexReaderProvider readerProvider = shard.getReaderProvider();
-        if (readerProvider == null) {
-            throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
-        }
-
         // Backend selection happens on the coordinator (PlanAlternativeSelector), so the
         // request typically carries a single alternative. We still iterate to handle the
         // case where a stage genuinely has multiple value-producing alternatives — pick the
@@ -1044,7 +1018,28 @@ public class AnalyticsSearchService implements AutoCloseable {
 
         String shardIdStr = shard.shardId().toString();
         listener.onPreFragmentExecution(request.getQueryId(), request.getStageId(), shardIdStr);
-        return new ResolvedFragment(readerProvider, selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
+        return new ResolvedFragment(selectedPlan, request.getQueryId(), request.getStageId(), shardIdStr);
+    }
+
+    private DelegationThreadTracker createThreadTracker(Task task) {
+        if (taskResourceTrackingService == null || task == null) {
+            return null;
+        }
+        long taskId = task.getId();
+        TaskResourceTrackingService service = taskResourceTrackingService;
+        return new DelegationThreadTracker() {
+            @Override
+            public long trackStart() {
+                long threadId = Thread.currentThread().threadId();
+                service.taskExecutionStartedOnThread(taskId, threadId);
+                return threadId;
+            }
+
+            @Override
+            public void trackEnd(long threadId) {
+                service.taskExecutionFinishedOnThread(taskId, threadId);
+            }
+        };
     }
 
     private ShardScanExecutionContext buildContext(
