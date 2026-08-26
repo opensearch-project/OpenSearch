@@ -18,6 +18,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
@@ -159,7 +160,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings settings = Settings.builder().build();
         ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
-        RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        RestIndicesAction action = new RestIndicesAction(responseLimitSettings, new SystemIndices(Collections.emptyMap()));
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
