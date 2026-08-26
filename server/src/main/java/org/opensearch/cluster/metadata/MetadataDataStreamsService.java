@@ -31,7 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-
 /**
  * Adds or removes backing indices of data streams in a single atomic cluster-state update. These are metadata-only
  * mutations; they never create, delete, restore, open, close, or relocate indices. The write index (and hence the
