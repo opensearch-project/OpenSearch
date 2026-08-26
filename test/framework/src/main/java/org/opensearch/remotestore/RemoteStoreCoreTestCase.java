@@ -138,6 +138,30 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         );
     }
 
+    public void testPeriodicFlushOnUncommittedSegmentBytes() throws Exception {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        // lower the uncommitted segment bytes threshold so that any refreshed but uncommitted segment breaches it;
+        // the condition itself is enabled by default
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(remoteStoreIndexSettings(0))
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+        // each iteration drives one refresh (and hence one remote segments sync publishing the uncommitted bytes)
+        // followed by a write operation which polls the periodic flush condition and triggers the async flush
+        assertBusy(() -> {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
     public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {
         String dataNode = internalCluster().startNodes(1).get(0);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));

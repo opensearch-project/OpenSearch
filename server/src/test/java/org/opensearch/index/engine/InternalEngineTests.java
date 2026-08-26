@@ -6812,6 +6812,66 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
+    public void testShouldPeriodicallyFlushOnUncommittedSegmentBytes() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+        ParsedDocument doc = testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.refresh("test");
+        assertThat("Nothing published yet", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        // simulate the remote segment upload path publishing the post-refresh local file sizes
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap);
+        assertThat(
+            "Uncommitted bytes below the default threshold inherited from the translog flush threshold",
+            engine.shouldPeriodicallyFlush(),
+            equalTo(false)
+        );
+
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        updateIndexSettings(
+            indexSettings,
+            Settings.builder().put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+        );
+        assertThat("Uncommitted bytes breach the lowered threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        updateIndexSettings(
+            indexSettings,
+            Settings.builder()
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), false)
+        );
+        assertThat("Disabling the condition takes effect immediately", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        updateIndexSettings(
+            indexSettings,
+            Settings.builder()
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), true)
+        );
+        assertThat("Re-enabling restores the condition", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.flush();
+        assertThat("Stale commit generation stamp is ignored after flush", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        // republishing against the new commit computes zero uncommitted bytes, hence no flush loop
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap);
+        assertThat("All published files are committed now", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    private static void updateIndexSettings(IndexSettings indexSettings, Settings.Builder settingsBuilder) {
+        indexSettings.updateIndexMetadata(
+            IndexMetadata.builder(indexSettings.getIndexMetadata())
+                .settings(Settings.builder().put(indexSettings.getSettings()).put(settingsBuilder.build()))
+                .build()
+        );
+    }
+
     public void testStressShouldPeriodicallyFlush() throws Exception {
         final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
