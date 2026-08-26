@@ -21,14 +21,17 @@
     ["laptop", 999, "BrandA", 4.5],
     ["phone", 699, "BrandB", 4.2]
   ],
+  "mockCountRow": {
+    "_total": 2
+  },
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 2,
         "relation": "eq"
       },
-      "max_score": 0.0,
+      "max_score": null,
       "hits": []
     }
   }

@@ -34,6 +34,8 @@ package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseBytes;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -131,6 +133,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+@ThreadLeakFilters(filters = ResponseInputStreamTimeoutThreadFilter.class)
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
