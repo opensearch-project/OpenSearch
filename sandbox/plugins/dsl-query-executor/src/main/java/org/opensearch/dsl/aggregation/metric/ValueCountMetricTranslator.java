@@ -8,9 +8,12 @@
 
 package org.opensearch.dsl.aggregation.metric;
 
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
+import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
@@ -52,8 +55,8 @@ public class ValueCountMetricTranslator extends AbstractMetricTranslator<ValueCo
 
     /** value_count only tests value presence — any field type counts, matching classic search. */
     @Override
-    protected boolean requiresNumericField() {
-        return false;
+    protected RelDataTypeField resolveField(ValueCountAggregationBuilder agg, RelDataType rowType) throws ConversionException {
+        return MetricTranslator.resolveField(rowType, agg.field());
     }
 
     /** Null (no matching docs) becomes 0 — a count over nothing is zero. */

@@ -69,24 +69,18 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
      */
     protected abstract String getFieldName(T agg);
 
-    /** Whether the field must be numeric; count-like metrics override to accept any type. */
-    protected boolean requiresNumericField() {
-        return true;
+    /**
+     * Resolves the aggregated field against the index row type. The default requires a
+     * numeric column; metrics legal on any type (value_count) override.
+     */
+    protected RelDataTypeField resolveField(T agg, RelDataType rowType) throws ConversionException {
+        return MetricTranslator.resolveNumericField(rowType, getFieldName(agg), agg.getType());
     }
 
     @Override
     public List<AggregateCall> toAggregateCalls(T agg, RelDataType rowType, LiteralColumnAllocator literals) throws ConversionException {
         MetricTranslator.validateFormat(agg.format(), agg.getName());
-        String fieldName = getFieldName(agg);
-        RelDataTypeField field;
-        if (requiresNumericField()) {
-            field = MetricTranslator.resolveNumericField(rowType, fieldName, agg.getType());
-        } else {
-            field = rowType.getField(fieldName, false, false);
-            if (field == null) {
-                throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
-            }
-        }
+        RelDataTypeField field = resolveField(agg, rowType);
 
         // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
         AggregateCall call = AggregateCall.create(

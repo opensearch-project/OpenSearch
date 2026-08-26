@@ -44,15 +44,28 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      * @throws ConversionException if the field does not exist
      */
     static RelDataTypeField resolveNumericField(RelDataType rowType, String fieldName, String aggregationType) throws ConversionException {
-        RelDataTypeField field = rowType.getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
-        }
+        RelDataTypeField field = resolveField(rowType, fieldName);
         SqlTypeName type = field.getType().getSqlTypeName();
         if (SqlTypeName.NUMERIC_TYPES.contains(type) == false) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + type + "] is not supported for aggregation [" + aggregationType + "]"
             );
+        }
+        return field;
+    }
+
+    /**
+     * Resolves {@code fieldName} against the index row type, accepting any column type.
+     *
+     * @param rowType the index row type
+     * @param fieldName the aggregated field
+     * @return the resolved field
+     * @throws ConversionException if the field does not exist
+     */
+    static RelDataTypeField resolveField(RelDataType rowType, String fieldName) throws ConversionException {
+        RelDataTypeField field = rowType.getField(fieldName, false, false);
+        if (field == null) {
+            throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
         }
         return field;
     }
