@@ -99,11 +99,9 @@ public final class IndexResolution {
     }
 
     /**
-     * Resolves {@code name} against the cluster state using the supplied {@code options} for
-     * wildcard and comma-expression resolution. Literal concrete indices and aliases are resolved
-     * directly (with filter-alias rejection and cross-member schema validation).
+     * Resolves {@code name} to its concrete indices, using {@code options} for wildcard expansion.
      *
-     * @param options controls ignore_unavailable, allow_no_indices, and wildcard expansion semantics
+     * @param options controls wildcard expansion and missing-index handling
      */
     public static IndexResolution resolve(
         String name,

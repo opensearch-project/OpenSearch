@@ -19,18 +19,21 @@ import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.IndexNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -90,7 +93,7 @@ public class OpenSearchSchemaBuilder {
             private final Map<String, Table> tableMap = new HashMap<>() {
                 @Override
                 public Table get(Object key) {
-                    String name = ((String) key).toLowerCase(java.util.Locale.ROOT);
+                    String name = ((String) key).toLowerCase(Locale.ROOT);
                     if (!super.containsKey(name)) {
                         Table resolved = resolveTable(clusterState, resolver, name, options);
                         if (resolved != null) {
@@ -129,39 +132,30 @@ public class OpenSearchSchemaBuilder {
         // Short-circuit literal alias / data stream names so the resolver's lenientExpandOpen
         // (which does not include hidden backings) doesn't filter out data stream backings. The
         // alias / data-stream abstraction already carries the full backing list — use it directly.
-        java.util.SortedMap<String, org.opensearch.cluster.metadata.IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
-        org.opensearch.cluster.metadata.IndexAbstraction abstraction = lookup == null ? null : lookup.get(expression);
+        SortedMap<String, IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
+        IndexAbstraction abstraction = lookup == null ? null : lookup.get(expression);
         List<IndexMetadata> backing;
         if (abstraction != null
-            && (abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS
-                || abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM)) {
-            // WHY: IndexAbstraction.getIndices() returns ALL backings regardless of state.
-            // The schema's column set must never exceed the union of mappings of the indices
-            // the planner will actually target. IndexResolution.resolveAlias/resolveDataStream
-            // UNCONDITIONALLY filters to State.OPEN, so the schema must do the same —
-            // regardless of IndicesOptions. Without this, a closed backing's columns appear in
-            // the union row type even though no shard ever supplies them (phantom-column defect).
+            && (abstraction.getType() == IndexAbstraction.Type.ALIAS || abstraction.getType() == IndexAbstraction.Type.DATA_STREAM)) {
+            // getIndices() returns all backings regardless of state, but IndexResolution filters
+            // aliases to State.OPEN unconditionally — the schema must match or closed backings add
+            // phantom columns that validate but never receive rows.
             List<IndexMetadata> allBackings = abstraction.getIndices();
-            backing = new java.util.ArrayList<>(allBackings.size());
+            backing = new ArrayList<>(allBackings.size());
             for (IndexMetadata idx : allBackings) {
                 if (idx.getState() == IndexMetadata.State.OPEN) {
                     backing.add(idx);
                 }
             }
         } else {
-            String[] concrete;
-            try {
-                // Comma-split first: concreteIndexNames treats each vararg as one expression, and
-                // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
-                // includeDataStreams=true so wildcards / comma-lists that match a data stream NAME
-                // expand to its backings (the resolver normally excludes data streams from
-                // wildcard expansion otherwise). Literal data stream / alias names take the
-                // abstraction short-circuit above and skip the resolver entirely.
-                concrete = resolver.concreteIndexNames(clusterState, options, true, Strings.splitStringByCommaToArray(expression));
-            } catch (IndexNotFoundException e) {
-                return null;
-            }
-            backing = new java.util.ArrayList<>(concrete.length);
+            // Comma-split first: concreteIndexNames treats each vararg as one expression, and
+            // splitting lets the resolver honor exclusions across tokens (e.g. "test*,-test1").
+            // includeDataStreams=true so wildcards / comma-lists that match a data stream NAME
+            // expand to its backings (the resolver normally excludes data streams from
+            // wildcard expansion otherwise). Literal data stream / alias names take the
+            // abstraction short-circuit above and skip the resolver entirely.
+            String[] concrete = resolver.concreteIndexNames(clusterState, options, true, Strings.splitStringByCommaToArray(expression));
+            backing = new ArrayList<>(concrete.length);
             for (String name : concrete) {
                 IndexMetadata index = clusterState.metadata().index(name);
                 if (index != null) {

@@ -95,20 +95,15 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                     throw new IllegalArgumentException("DSL execution requires at least one index expression, but none was specified");
                 }
 
-                // Pre-resolve index expressions to enforce HTTP semantics: IndexNotFoundException
-                // (HTTP 404) for a missing concrete index under default options, and the
-                // zero-resolution empty-response branch for wildcards matching nothing. Without
-                // this call, a missing index would surface as HTTP 400 ("Index not found in
-                // schema") because OpenSearchSchemaBuilder.resolveTable catches
+                // Pre-resolve to enforce HTTP semantics: without this a missing index surfaces as
+                // 400 instead of 404, because OpenSearchSchemaBuilder.resolveTable swallows
                 // IndexNotFoundException and returns null.
                 final ClusterState state = clusterService.state();
                 Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
 
                 if (concreteIndices.length == 0) {
-                    // Zero concrete indices without an exception means the resolver accepted it
-                    // (allow_no_indices=true, the default). Return an empty successful response
-                    // rather than an error — this matches vanilla search behaviour for wildcards
-                    // and patterns that match nothing.
+                    // Resolver accepted it (allow_no_indices=true) — return an empty response,
+                    // matching vanilla search for wildcards that match nothing.
                     listener.onResponse(emptySearchResponse());
                     return;
                 }
@@ -117,9 +112,8 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 rejectFilteringAliases(state, request.indices(), concreteIndices, request.indicesOptions());
                 String expression = String.join(",", indices);
 
-                // IndicesOptions are supplied to both getContext and QueryRequestContext because
-                // schema resolution and planner resolution read them independently — supplying
-                // only one lets the schema and plan disagree on which indices exist.
+                // Options go to both getContext and QueryRequestContext: schema and planner read
+                // them independently, and supplying one lets them disagree on which indices exist.
                 queryCtx = new QueryRequestContext(
                     state,
                     contextProvider.getContext(state, request.indicesOptions()).schema(),
@@ -159,13 +153,12 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     // so this plugin doesn't need its own resolution logic.
 
     /**
-     * Rejects any request whose index expressions involve a filtering alias.
+     * Rejects a request whose expressions resolve to a filtering alias.
      *
-     * <p>Required because the engine's {@code IndexResolution.resolveAlias} only checks filters
-     * for single literal alias names; comma-lists and wildcards bypass that check.
+     * <p>The engine's {@code IndexResolution.resolveAlias} only checks filters for single literal
+     * alias names, so comma-lists and wildcards bypass it — this guard covers them.
      *
-     * @param indicesOptions forwarded to expression resolution so hidden aliases are visible
-     *                       when the request expands hidden wildcards
+     * @param indicesOptions forwarded so hidden filtered aliases are visible under hidden-wildcard expansion
      * @throws IllegalArgumentException if a filtering alias is detected
      */
     private void rejectFilteringAliases(

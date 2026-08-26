@@ -34,6 +34,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.LinkedHashMap;
@@ -1142,5 +1143,48 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
             rowDefault.getFieldCount(),
             rowHidden.getFieldCount()
         );
+    }
+
+    // ===== C2: strict-options missing-index propagation tests =====
+
+    /**
+     * C2 regression: with STRICT {@link IndicesOptions} (ignore_unavailable=false) a MISSING
+     * concrete index name must PROPAGATE {@link IndexNotFoundException} out of the schema's lazy
+     * table lookup rather than being swallowed into a {@code null} table. Swallowing lets the
+     * schema layer ignore the IndicesOptions it was handed: a should-be-404 (missing index under
+     * ignore_unavailable=false) becomes a Calcite missing-table and surfaces to the client as a
+     * 400. Before the fix (a try/catch returning {@code null}) {@code getTable} returns null and
+     * this test FAILS; after the catch is deleted the exception propagates and it passes.
+     */
+    public void testStrictOptionsMissingIndexPropagatesIndexNotFound() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("present_index", Map.of("name", "keyword")));
+        org.opensearch.cluster.metadata.IndexNameExpressionResolver resolver =
+            new org.opensearch.cluster.metadata.IndexNameExpressionResolver(
+                new org.opensearch.common.util.concurrent.ThreadContext(org.opensearch.common.settings.Settings.EMPTY)
+            );
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, resolver, IndicesOptions.strictExpandOpen());
+
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> schema.getTable("missing_index"));
+        assertTrue("IndexNotFoundException must name the missing index; got: " + e.getMessage(), e.getMessage().contains("missing_index"));
+    }
+
+    /**
+     * Companion to {@link #testStrictOptionsMissingIndexPropagatesIndexNotFound}, documenting why
+     * deleting the catch is safe: with {@link IndicesOptions#lenientExpandOpen()}
+     * (ignore_unavailable=true) a missing index resolves to zero concrete names —
+     * {@code concreteIndexNames} returns an empty array and never throws — so the lookup yields a
+     * {@code null} table WITHOUT throwing. The deleted catch therefore only ever fired under
+     * strict options, which is exactly the case where swallowing was wrong.
+     */
+    public void testLenientOptionsMissingIndexDoesNotThrow() throws Exception {
+        ClusterState clusterState = buildClusterState(Map.of("present_index", Map.of("name", "keyword")));
+        org.opensearch.cluster.metadata.IndexNameExpressionResolver resolver =
+            new org.opensearch.cluster.metadata.IndexNameExpressionResolver(
+                new org.opensearch.common.util.concurrent.ThreadContext(org.opensearch.common.settings.Settings.EMPTY)
+            );
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState, resolver, IndicesOptions.lenientExpandOpen());
+
+        Table table = schema.getTable("missing_index");
+        assertNull("Missing index under lenient options must yield a null table, not throw", table);
     }
 }

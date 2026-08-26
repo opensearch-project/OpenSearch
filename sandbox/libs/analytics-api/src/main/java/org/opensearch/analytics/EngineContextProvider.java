@@ -44,14 +44,11 @@ public interface EngineContextProvider {
     }
 
     /**
-     * Options-aware context: builds the schema with the supplied {@code IndicesOptions} so the lazy
-     * table-resolution closure honours the caller's wildcard and index-state preferences.
+     * Options-aware context: builds the schema with the supplied {@code IndicesOptions} so lazy
+     * table resolution honours the caller's wildcard and index-state preferences.
      *
-     * <p>Deliberately abstract rather than defaulted: a default that dropped the options would
-     * silently yield a {@code lenientExpandOpen} schema whose row type disagrees with the indices
-     * the planner targets — the exact mismatch this overload exists to remove. An implementation
-     * that cannot honour the options should pass {@code IndicesOptions.lenientExpandOpen()}
-     * explicitly so the choice is visible at the call site.
+     * <p>Abstract rather than defaulted: a default that dropped the options would yield a
+     * {@code lenientExpandOpen} schema whose row type disagrees with the planner's target indices.
      */
     QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions);
 
