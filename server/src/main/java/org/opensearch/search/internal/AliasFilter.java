@@ -55,6 +55,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     private final String[] aliases;
     private final QueryBuilder filter;
+    private String metadata;
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
@@ -66,6 +67,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
         filter = input.readOptionalNamedWriteable(QueryBuilder.class);
+        metadata = input.readOptionalString();
     }
 
     @Override
@@ -84,6 +86,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
         out.writeOptionalNamedWriteable(filter);
+        out.writeOptionalString(metadata);
     }
 
     /**
@@ -101,21 +104,25 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         return filter;
     }
 
+    public void setMetadata(String metadata) {
+        this.metadata = metadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter) && Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(aliases), filter);
+        return Objects.hash(Arrays.hashCode(aliases), filter, metadata);
     }
 
     @Override
     public String toString() {
-        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
+        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + ", metadata=" + metadata + '}';
     }
 }
