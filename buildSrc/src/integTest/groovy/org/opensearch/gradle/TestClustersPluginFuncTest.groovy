@@ -29,8 +29,11 @@
 
 package org.opensearch.gradle
 
+import org.gradle.testkit.runner.GradleRunner
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import spock.lang.IgnoreIf
+
+import java.security.MessageDigest
 
 import static org.opensearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
@@ -53,10 +56,17 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                     println 'SomeClusterAwareTask executed'
                 }
             }
+
+            class RestartingClusterAwareTask extends DefaultTestClustersTask {
+                @TaskAction void doSomething() {
+                    clusters.each { it.restart() }
+                    println 'RestartingClusterAwareTask executed'
+                }
+            }
         """
     }
 
-    def "test cluster distribution is configured and started"() {
+    def "test cluster distribution is copied into the working directory and started"() {
         given:
         buildFile << """
             testClusters {
@@ -79,7 +89,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("opensearch-keystore script executed!")
         assertOpenSearchStdoutContains("myCluster", "Starting OpenSearch process")
         assertOpenSearchStdoutContains("myCluster", "Stopping node")
-        assertNoCustomDistro('myCluster')
+        assertCustomDistro('myCluster')
     }
 
     def "custom distro folder created for tweaked cluster distribution"() {
@@ -109,23 +119,134 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertCustomDistro('myCluster')
     }
 
+    def "transform cache remains unchanged across repeated builds"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'archive'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+        GradleRunner runner = gradleRunner("myTask", '-i')
+        Map<String, String> transformSnapshotAfterFirstBuild
+        Map<String, String> transformSnapshotAfterSecondBuild
+
+        when:
+        withMockedDistributionDownload(runner) { GradleRunner effectiveRunner ->
+            effectiveRunner.build()
+            transformSnapshotAfterFirstBuild = snapshotTransformedDistribution()
+            def secondBuild = effectiveRunner.build()
+            transformSnapshotAfterSecondBuild = snapshotTransformedDistribution()
+            secondBuild
+        }
+
+        then:
+        assertCustomDistro('myCluster')
+        transformSnapshotAfterSecondBuild == transformSnapshotAfterFirstBuild
+        transformSnapshotAfterSecondBuild.keySet().any { it.endsWith('config/jvm.options') }
+        transformSnapshotAfterSecondBuild.keySet().every { it.contains('logs/gc.log') == false }
+
+    }
+
+    def "three nodes use isolated distros and relative JVM paths across restart"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'archive'
+                numberOfNodes = 3
+              }
+            }
+
+            tasks.register('myTask', RestartingClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.output.contains('RestartingClusterAwareTask executed')
+        (0..<3).each { nodeIndex ->
+            String nodeName = "myCluster-${nodeIndex}"
+            assertCustomDistroForNode(nodeName)
+            assertRelativeJvmOptions(nodeName)
+            assertOpenSearchStdoutCount(nodeName, 'Starting OpenSearch process', 2)
+            assertOpenSearchStdoutCount(nodeName, 'Stopping node', 2)
+        }
+        snapshotTransformedDistribution().keySet().every { it.contains('logs/gc.log') == false }
+    }
+
     boolean assertOpenSearchStdoutContains(String testCluster, String expectedOutput) {
         assert new File(testProjectDir.root,
                 "build/testclusters/${testCluster}-0/logs/opensearch.stdout.log").text.contains(expectedOutput)
         true
     }
 
+    boolean assertOpenSearchStdoutCount(String nodeName, String expectedOutput, int expectedCount) {
+        File stdout = new File(testProjectDir.root, "build/testclusters/${nodeName}/logs/opensearch.stdout.log")
+        assert stdout.readLines().count { it.contains(expectedOutput) } == expectedCount
+        true
+    }
+
     boolean assertCustomDistro(String clusterName) {
-        assert customDistroFolder(clusterName).exists()
+        assertCustomDistroForNode("${clusterName}-0")
+    }
+
+    boolean assertCustomDistroForNode(String nodeName) {
+        File distro = new File(testProjectDir.root, "build/testclusters/${nodeName}/distro")
+        assert distro.isDirectory()
+        assert distro.listFiles().find { new File(it, 'config/jvm.options').isFile() } != null
         true
     }
 
-    boolean assertNoCustomDistro(String clusterName) {
-        assert !customDistroFolder(clusterName).exists()
+    boolean assertRelativeJvmOptions(String nodeName) {
+        File jvmOptions = new File(testProjectDir.root, "build/testclusters/${nodeName}/config/jvm.options")
+        assert jvmOptions.isFile()
+        List<String> outputPathOptions = jvmOptions.readLines().findAll {
+            it.contains('HeapDumpPath') || it.contains('logs/gc.log') || it.contains('ErrorFile')
+        }
+        assert outputPathOptions.any { it == '-XX:HeapDumpPath=logs' }
+        assert outputPathOptions.any { it.contains('file=logs/gc.log') }
+        assert outputPathOptions.any { it == '-XX:ErrorFile=logs/hs_err_pid%p.log' }
+        assert outputPathOptions.every { it.contains(testProjectDir.root.absolutePath) == false }
         true
     }
 
-    private File customDistroFolder(String clusterName) {
-        new File(testProjectDir.root, "build/testclusters/${clusterName}-0/distro")
+    private Map<String, String> snapshotTransformedDistribution() {
+        List<File> jvmOptionsFiles = []
+        testKitDir.eachFileRecurse { file ->
+            if (file.isFile()
+                    && file.name == 'jvm.options'
+                    && file.parentFile.name == 'config'
+                    && file.toPath().any { it.toString().startsWith('transforms') }) {
+                jvmOptionsFiles.add(file)
+            }
+        }
+        Set<File> transformedDistributions = jvmOptionsFiles.collect { it.parentFile.parentFile } as Set
+        assert transformedDistributions.empty == false
+
+        Map<String, String> snapshot = new TreeMap<>()
+        transformedDistributions.each { transformedDistribution ->
+            String distributionPath = testKitDir.toPath().relativize(transformedDistribution.toPath()).toString().replace('\\', '/')
+            snapshot.put(distributionPath, '<directory>')
+            transformedDistribution.eachFileRecurse { file ->
+                String relativePath = transformedDistribution.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+                snapshot.put(distributionPath + '/' + relativePath, file.isDirectory() ? '<directory>' : sha256(file))
+            }
+        }
+        snapshot
+    }
+
+    private static String sha256(File file) {
+        MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString()
     }
 }
