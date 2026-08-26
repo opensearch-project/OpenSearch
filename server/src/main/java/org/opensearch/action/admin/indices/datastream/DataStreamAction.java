@@ -28,7 +28,11 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record DataStreamAction(Type type, String dataStream, String index) implements Writeable, ToXContentObject {
+public final class DataStreamAction implements Writeable, ToXContentObject {
+
+    private final Type type;
+    private final String dataStream;
+    private final String index;
 
     /**
      * The type of modification applied to a data stream.
@@ -68,10 +72,25 @@ public record DataStreamAction(Type type, String dataStream, String index) imple
         }
     }
 
-    public DataStreamAction {
+    public DataStreamAction(Type type, String dataStream, String index) {
         Objects.requireNonNull(type, "[type] is required");
         Objects.requireNonNull(dataStream, "[data_stream] is required");
         Objects.requireNonNull(index, "[index] is required");
+        this.type = type;
+        this.dataStream = dataStream;
+        this.index = index;
+    }
+
+    public Type type() {
+        return type;
+    }
+
+    public String dataStream() {
+        return dataStream;
+    }
+
+    public String index() {
+        return index;
     }
 
     public static DataStreamAction addBackingIndex(String dataStream, String index) {
@@ -139,5 +158,27 @@ public record DataStreamAction(Type type, String dataStream, String index) imple
 
     private static class ActionHolder {
         private DataStreamAction action;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DataStreamAction other = (DataStreamAction) o;
+        return type == other.type && dataStream.equals(other.dataStream) && index.equals(other.index);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, dataStream, index);
+    }
+
+    @Override
+    public String toString() {
+        return "DataStreamAction[type=" + type + ", dataStream=" + dataStream + ", index=" + index + "]";
     }
 }

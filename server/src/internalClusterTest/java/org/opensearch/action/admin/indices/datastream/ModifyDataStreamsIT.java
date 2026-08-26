@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.indices.datastream;
 
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.DataStream;
 
 import java.util.List;

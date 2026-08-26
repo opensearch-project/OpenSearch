@@ -11,7 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.datastream.DataStreamAction;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
@@ -293,7 +293,7 @@ public class MetadataDataStreamsService {
             TimeValue ackTimeout
         ) {
             this.actions = actions;
-            clusterManagerNodeTimeout(clusterManagerNodeTimeout);
+            masterNodeTimeout(clusterManagerNodeTimeout);
             ackTimeout(ackTimeout);
         }
 
