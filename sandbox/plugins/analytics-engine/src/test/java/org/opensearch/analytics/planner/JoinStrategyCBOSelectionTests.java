@@ -437,6 +437,52 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         );
     }
 
+    /**
+     * TPC-H q19 shape: the join condition is an OR of three AND-branches that each REPEAT the same equi
+     * conjunct ({@code p_partkey = l_partkey}) beside a different residual filter. Such a join must still
+     * distribute.
+     *
+     * <p>{@code JoinInfo.analyzeCondition} only finds equi keys among TOP-LEVEL AND conjuncts, so as written
+     * this yields {@code leftKeys=[]} and reads as PURE THETA — every MPP split rule declines and the join is
+     * forced coordinator-centric, gathering both inputs. At sf=10 that gathers {@code lineitem ⋈ part} and dies
+     * with {@code ReduceSizeExceededException} (~1.36 GB vs a ~1.36 GB budget).
+     * {@code OpenSearchJoinConditionFactorRule} factors the shared conjunct out pre-marking, producing
+     * {@code AND(=(..), OR(..))} — the equi-key-plus-residual shape already supported (TPC-H q14).
+     */
+    public void testOrOfAndsSharingEquiKeyStillDistributes() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode left = stubScan(mockTable("big_left", "status", "size"));
+        RelNode right = stubScan(mockTable("big_right", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int leftCols = left.getRowType().getFieldCount();
+        RexNode equi = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        RexNode[] branches = new RexNode[3];
+        for (int i = 0; i < 3; i++) {
+            RexNode residual = rexBuilder.makeCall(
+                SqlStdOperatorTable.GREATER_THAN,
+                rexBuilder.makeInputRef(intType, 1),
+                rexBuilder.makeLiteral(10 * (i + 1), intType, true)
+            );
+            branches[i] = rexBuilder.makeCall(SqlStdOperatorTable.AND, equi, residual);
+        }
+        RexNode orOfAnds = rexBuilder.makeCall(SqlStdOperatorTable.OR, branches[0], branches[1], branches[2]);
+        RelNode logical = LogicalJoin.create(left, right, List.of(), orOfAnds, Set.of(), JoinRelType.INNER);
+
+        RelNode result = runPlanner(logical, context);
+        String plan = org.apache.calcite.plan.RelOptUtil.toString(result);
+        boolean distributed = containsNodeOfType(result, OpenSearchShuffleExchange.class)
+            || containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+        assertTrue("an OR-of-ANDs join sharing an equi key must still distribute:\n" + plan, distributed);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     /** Build a planner context with explicit row counts + multi-data-node cluster + custom

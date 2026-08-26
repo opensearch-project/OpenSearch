@@ -36,6 +36,9 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final List<String> EXPECTED_PHASES = List.of(
         "subquery-remove",
         "literal-agg-extract",
+        // Factors a shared equi conjunct out of an OR'd join condition so analyzeCondition can see it
+        // (TPC-H q19 shape) — must run before marking so every split rule sees the normalised predicate.
+        "factor-join-conditions",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",

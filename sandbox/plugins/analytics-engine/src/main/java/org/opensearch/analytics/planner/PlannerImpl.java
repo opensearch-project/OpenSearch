@@ -47,6 +47,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchJoinConditionFactorRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchLargeJoinDistributionRewriter;
@@ -131,6 +132,7 @@ public class PlannerImpl {
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
+        modifiedRelNode = factorJoinConditions(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
@@ -397,6 +399,19 @@ public class PlannerImpl {
      * Filter sits below the Project — semantically correct but emits operators the
      * Project may not have backend support for.
      */
+    /**
+     * Factors a shared equi conjunct out of an OR'd join condition so {@code JoinInfo.analyzeCondition} can
+     * see it — without this a TPC-H q19-shaped join reads as pure theta and is forced coordinator-centric.
+     * Runs pre-marking so every downstream split rule sees the normalised condition. See
+     * {@link OpenSearchJoinConditionFactorRule}.
+     */
+    private static RelNode factorJoinConditions(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("factor-join-conditions")
+            .bottomUp()
+            .addRuleCollection(List.of(OpenSearchJoinConditionFactorRule.INSTANCE))
+            .run(input, listener);
+    }
+
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
         // NOTE: join reordering does NOT run here — running JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY
         // in the same ARBITRARY pass loops indefinitely (they invert each other). It lives in its own
