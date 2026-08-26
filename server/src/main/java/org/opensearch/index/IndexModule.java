@@ -1274,6 +1274,20 @@ public final class IndexModule {
     }
 
     /**
+     * creates a new mapper service to do administrative work like mapping updates. This *should not* be used for document parsing.
+     * doing so will result in an exception.
+     * <p>
+     * Overload retained for binary compatibility; delegates with no pluggable data format registry.
+     */
+    public MapperService newIndexMapperService(
+        NamedXContentRegistry xContentRegistry,
+        MapperRegistry mapperRegistry,
+        ScriptService scriptService
+    ) throws IOException {
+        return newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, null);
+    }
+
+    /**
      * Forces a certain query cache to use instead of the default one. If this is set
      * and query caching is not disabled with {@code index.queries.cache.enabled}, then
      * the given provider will be used.
