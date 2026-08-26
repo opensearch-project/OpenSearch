@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 org.apache.lucene.search.suggest.document.Completion50PostingsFormat
 org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat
 org.opensearch.index.codec.CriteriaBasedPostingsFormat
