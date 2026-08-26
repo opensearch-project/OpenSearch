@@ -25,6 +25,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+import java.util.Locale;
 
 public class BoolQueryTranslatorTests extends OpenSearchTestCase {
 
@@ -455,7 +456,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
         assertTrue("Message must mention clause count (n)", ex.getMessage().contains("20"));
         assertTrue("Message must mention required count (k)", ex.getMessage().contains("10"));
-        assertTrue("Message must mention exceeds limit", ex.getMessage().toLowerCase().contains("exceed"));
+        assertTrue("Message must mention exceeds limit", ex.getMessage().toLowerCase(Locale.ROOT).contains("exceed"));
     }
 
     public void testVeryLargeLeafOccurrenceCapExceededThrowsConversionException() {
@@ -511,7 +512,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
         assertTrue("Message must mention n=10", ex.getMessage().contains("10"));
         assertTrue("Message must mention k=5", ex.getMessage().contains("5"));
-        assertTrue("Message must mention exceeds limit", ex.getMessage().toLowerCase().contains("exceed"));
+        assertTrue("Message must mention exceeds limit", ex.getMessage().toLowerCase(Locale.ROOT).contains("exceed"));
     }
 
     public void testLeafOccurrenceCapAcceptsModerateCombinationsWithLowK() throws ConversionException {
@@ -862,7 +863,7 @@ public class BoolQueryTranslatorTests extends OpenSearchTestCase {
         BoolQueryBuilder query = QueryBuilders.boolQuery().must(QueryBuilders.termQuery("created_date", 19738));
 
         ConversionException ex = expectThrows(ConversionException.class, () -> translator.convert(query, ctx));
-        assertTrue("Message must identify date fields", ex.getMessage().toLowerCase().contains("date field"));
+        assertTrue("Message must identify date fields", ex.getMessage().toLowerCase(Locale.ROOT).contains("date field"));
         assertTrue("Message must name the offending field", ex.getMessage().contains("created_date"));
     }
 
