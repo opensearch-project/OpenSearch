@@ -218,6 +218,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assert outputPathOptions.any { it.contains('file=logs/gc.log') }
         assert outputPathOptions.any { it == '-XX:ErrorFile=logs/hs_err_pid%p.log' }
         assert outputPathOptions.every { it.contains(testProjectDir.root.absolutePath) == false }
+        assert outputPathOptions.every { it.contains(testKitDir.absolutePath) == false }
         true
     }
 
