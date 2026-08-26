@@ -30,6 +30,7 @@ public class LuceneArrowSourceIT extends AnalyticsRestTestCase {
     private static final String INDEX = "lucene_arrow_source_e2e";
     private static final String FALLBACK_INDEX = "lucene_arrow_source_fallback";
     private static final String MULTI_VALUE_INDEX = "lucene_arrow_source_multi_value";
+    private static final String DOC_VALUES_ONLY_INDEX = "lucene_arrow_source_doc_values_only";
 
     private static final List<Doc> DOCS = List.of(
         new Doc(1L, 10L, "alpha", "2024-01-01T00:00:00Z", 101),
@@ -52,6 +53,7 @@ public class LuceneArrowSourceIT extends AnalyticsRestTestCase {
             ingestLuceneSegments();
             createFallbackIndex();
             createMultiValueIndex();
+            createDocValuesOnlyIndex();
             dataProvisioned = true;
         }
     }
@@ -112,6 +114,27 @@ public class LuceneArrowSourceIT extends AnalyticsRestTestCase {
         assertProjectedRow(rows.get(1), columns, 5L, "gamma", "2024-01-05");
         assertProjectedRow(rows.get(2), columns, 6L, "alpha", "2024-01-06");
         assertStageChoseBackend(executeExplain(ppl), "SHARD_FRAGMENT", "lucene");
+    }
+
+    public void testDocValuesOnlyIndex() throws Exception {
+        String ppl = "source="
+            + DOC_VALUES_ONLY_INDEX
+            + " | stats sum(metric) as total, count(metric) as rows by category | sort category";
+
+        Map<String, Object> response = executePpl(ppl);
+        List<List<Object>> rows = dataRows(response);
+        List<String> columns = extractColumnNames(response);
+        assertEquals(2, rows.size());
+        assertEquals("alpha", rows.get(0).get(columns.indexOf("category")));
+        assertEquals(40L, ((Number) rows.get(0).get(columns.indexOf("total"))).longValue());
+        assertEquals(2L, ((Number) rows.get(0).get(columns.indexOf("rows"))).longValue());
+        assertEquals("beta", rows.get(1).get(columns.indexOf("category")));
+        assertEquals(20L, ((Number) rows.get(1).get(columns.indexOf("total"))).longValue());
+        assertEquals(1L, ((Number) rows.get(1).get(columns.indexOf("rows"))).longValue());
+
+        Map<String, Object> explain = executeExplain(ppl);
+        assertStageChoseBackend(explain, "SHARD_FRAGMENT", "lucene");
+        assertStageChoseBackend(explain, "COORDINATOR_REDUCE", "datafusion");
     }
 
     public void testCountFastPathAndNumericNullFilter() throws Exception {
@@ -180,6 +203,30 @@ public class LuceneArrowSourceIT extends AnalyticsRestTestCase {
             + "}";
         createIndex(MULTI_VALUE_INDEX, body);
         bulkIndex(MULTI_VALUE_INDEX, "{\"index\": {}}\n{\"metric\": [10, 20]}\n");
+    }
+
+    private void createDocValuesOnlyIndex() throws IOException {
+        deleteIfExists(DOC_VALUES_ONLY_INDEX);
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 2,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.composite.primary_data_format\": \"lucene\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"_source\": {\"enabled\": false},"
+            + "  \"properties\": {"
+            + "    \"metric\": {\"type\": \"long\", \"index\": false, \"doc_values\": true},"
+            + "    \"category\": {\"type\": \"keyword\", \"index\": false, \"doc_values\": true}"
+            + "  }"
+            + "}}";
+        createIndex(DOC_VALUES_ONLY_INDEX, body);
+        bulkIndex(
+            DOC_VALUES_ONLY_INDEX,
+            "{\"index\": {}}\n{\"metric\": 10, \"category\": \"alpha\"}\n"
+                + "{\"index\": {}}\n{\"metric\": 20, \"category\": \"beta\"}\n"
+                + "{\"index\": {}}\n{\"metric\": 30, \"category\": \"alpha\"}\n"
+        );
     }
 
     private void createFallbackIndex() throws IOException {

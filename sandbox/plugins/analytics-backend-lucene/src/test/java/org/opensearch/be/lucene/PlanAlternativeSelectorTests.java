@@ -185,6 +185,45 @@ public class PlanAlternativeSelectorTests extends OpenSearchTestCase {
         assertEquals("mock-parquet", alternatives.getFirst().backendId());
     }
 
+    public void testSumOverLongWithoutDocValuesHasNoViableBackend() {
+        TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_metric"
+        );
+        Map<String, Map<String, Object>> mappings = Map.of("metric", Map.of("type", "long", "doc_values", false));
+
+        IllegalStateException failure = expectThrows(
+            IllegalStateException.class,
+            () -> forkAndSelect(aggregate(scan, sum), mappings, true, "lucene")
+        );
+        assertTrue(failure.getMessage(), failure.getMessage().contains("No backend can scan all requested fields"));
+    }
+
+    public void testSumOverLongWithParquetPrimaryDoesNotSelectLuceneDocValues() {
+        TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(0),
+            -1,
+            scan,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "sum_metric"
+        );
+
+        QueryDAG dag = forkAndSelect(aggregate(scan, sum), longMappings(), true, "parquet");
+
+        List<StagePlan> alternatives = leafOf(dag).getPlanAlternatives();
+        assertEquals(1, alternatives.size());
+        assertEquals("mock-parquet", alternatives.getFirst().backendId());
+    }
+
     public void testSumOverLongSelectsLuceneArrowSource() {
         TableScan scan = scanOver("metric", SqlTypeName.BIGINT);
         AggregateCall sum = AggregateCall.create(
