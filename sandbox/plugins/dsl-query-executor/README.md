@@ -37,7 +37,10 @@ _search request
 - **Millisecond Precision**: TIMESTAMP(3) for accurate date comparisons
 
 ### Bool Query
-Converts to Calcite logical expressions with full support for all clauses and `minimum_should_match`.
+Converts to Calcite logical expressions with support for all clauses. `minimum_should_match` is
+supported for 0, 1, and values at or above the should-clause count (optional, OR, and AND
+respectively); intermediate values (greater than 1 and below the should-clause count) are
+unsupported on this path.
 
 **Clauses:**
 - `must` - Required clauses (AND logic)

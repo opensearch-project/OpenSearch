@@ -24,27 +24,15 @@ import java.util.List;
 /**
  * Converts a {@link BoolQueryBuilder} to a Calcite {@link RexNode}.
  *
- * <p>For minimum_should_match with 1 less-than k less-than n, emits an enumerated form:
- * OR over every k-sized subset of the should-children, each subset an AND. The planner
- * recurses only through AND/OR/NOT, so every child must sit in its own AND/OR-delimited
- * leaf for a Lucene-delegated child to resolve a backend in OpenSearchFilterRule.
+ * <p>Supports minimum_should_match of 0, 1, and values at or above the should-clause count
+ * (optional, disjunction, and conjunction respectively). Intermediate values (1 less-than k
+ * less-than n) are unsupported on this path and throw ConversionException.
  *
  * <p>Rejects non-default boost (AbstractQueryBuilder.toQuery wraps in BoostQuery),
  * non-null _name (AbstractQueryBuilder.toQuery registers for matched_queries), and
  * returns FALSE literal for pure-negative bools with adjust_pure_negative=false (legacy match-none).
  */
 public class BoolQueryTranslator implements QueryTranslator {
-
-    /**
-     * Maximum total leaf occurrences in the enumerated minimum_should_match form.
-     * Total = C(n,k) x k. When children are Lucene-delegated relevance calls, every leaf
-     * occurrence becomes a clause in a Lucene BooleanQuery; default max_clause_count is 1024.
-     * Exceeding this cap throws ConversionException so the request falls back to the non-Calcite
-     * execution path. The cap is conservative for native-only children (term predicates never
-     * become Lucene clauses but still count); distinguishing delegated from native children was
-     * deliberately avoided to keep the translator backend-agnostic.
-     */
-    private static final int MAX_LEAF_OCCURRENCES = 1024;
 
     private final QueryRegistry queryRegistry;
 
@@ -167,99 +155,15 @@ public class BoolQueryTranslator implements QueryTranslator {
             return RexUtil.composeDisjunction(ctx.getRexBuilder(), shouldConditions);
         }
 
-        return createMinimumMatchCondition(shouldConditions, requiredMatches, ctx);
-    }
-
-    /**
-     * Creates the enumerated form for minimum_should_match when 1 less-than required less-than n.
-     *
-     * @throws ConversionException if leaf-occurrence count C(n,k) x k exceeds MAX_LEAF_OCCURRENCES
-     */
-    private RexNode createMinimumMatchCondition(List<RexNode> conditions, int required, ConversionContext ctx) throws ConversionException {
-        int n = conditions.size();
-        int k = required;
-
-        long combinations = computeCombinationsCapped(n, k);
-        long leafOccurrences = combinations * k;
-        if (leafOccurrences > MAX_LEAF_OCCURRENCES) {
-            throw new ConversionException(
-                "minimum_should_match leaf-occurrence count exceeds limit: C("
-                    + n
-                    + ", "
-                    + k
-                    + ") = "
-                    + combinations
-                    + ", leaf occurrences = "
-                    + leafOccurrences
-                    + " exceeds maximum "
-                    + MAX_LEAF_OCCURRENCES
-            );
-        }
-
-        var rexBuilder = ctx.getRexBuilder();
-
-        List<RexNode> subsets = new ArrayList<>((int) combinations);
-        int[] indices = new int[k];
-        for (int i = 0; i < k; i++) {
-            indices[i] = i;
-        }
-
-        while (true) {
-            List<RexNode> andChildren = new ArrayList<>(k);
-            for (int idx : indices) {
-                andChildren.add(conditions.get(idx));
-            }
-            RexNode andNode = RexUtil.composeConjunction(rexBuilder, andChildren);
-            subsets.add(andNode);
-
-            if (!nextCombination(indices, n)) {
-                break;
-            }
-        }
-
-        // composeDisjunction deduplicates operands and absorbs FALSE literals — duplicate
-        // should-clauses produce fewer than C(n,k) operands (identical subsets collapse).
-        // Correct: the logical truth table is unchanged when duplicates are present.
-        return RexUtil.composeDisjunction(rexBuilder, subsets);
-    }
-
-    /** Advances indices to the next k-subset in lexicographic order; returns false if exhausted. */
-    private boolean nextCombination(int[] indices, int n) {
-        int k = indices.length;
-        int i = k - 1;
-        while (i >= 0 && indices[i] == n - k + i) {
-            i--;
-        }
-        if (i < 0) {
-            return false;
-        }
-        indices[i]++;
-        for (int j = i + 1; j < k; j++) {
-            indices[j] = indices[j - 1] + 1;
-        }
-        return true;
-    }
-
-    /**
-     * Computes C(n,k) with early bail when result x k exceeds MAX_LEAF_OCCURRENCES.
-     *
-     * <p>Uses binomial symmetry C(n,k) = C(n, n-k) so the incremental running value never
-     * peaks at C(n, n/2) — without this, an early bail could reject a case whose final value
-     * is under the cap.
-     */
-    private long computeCombinationsCapped(int n, int k) {
-        int kOrig = k;
-        if (k > n - k) {
-            k = n - k;
-        }
-        long result = 1;
-        for (int i = 0; i < k; i++) {
-            result = result * (n - i) / (i + 1);
-            // Overflow-safe: kOrig >= 2 on the enumerated path (1 < k < n).
-            if (result > MAX_LEAF_OCCURRENCES / kOrig) {
-                return result;
-            }
-        }
-        return result;
+        // Intermediate minimum_should_match (1 < k < n) has no flat AND/OR/NOT form; the
+        // exception routes the request to the codec / non-Calcite execution path once that lands.
+        throw new ConversionException(
+            "Bool query does not support minimum_should_match between 1 and the number of should clauses"
+                + " (resolved minimum_should_match = "
+                + requiredMatches
+                + ", should clauses = "
+                + shouldConditions.size()
+                + ")"
+        );
     }
 }
