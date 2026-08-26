@@ -96,6 +96,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -190,6 +191,7 @@ import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -2282,6 +2284,21 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return getRewriteContext(nowInMillis, false);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} whose async actions issue their requests as children of
+     * {@code parentTaskId}. Rewriting can issue real requests -- a terms lookup with a subquery runs a search -- and
+     * without a parent those look like fresh top-level requests to anything that tracks the task tree.
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, TaskId parentTaskId) {
+        return new BaseQueryRewriteContext(
+            xContentRegistry,
+            namedWriteableRegistry,
+            parentTaskId != null && parentTaskId.isSet() ? new ParentTaskAssigningClient(client, parentTaskId) : client,
+            nowInMillis,
+            false
+        );
     }
 
     /**

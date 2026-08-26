@@ -36,12 +36,16 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
+
+import java.util.Set;
 
 /**
  * Perform the search scroll
@@ -54,6 +58,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final ThreadPool threadPool;
+    private final WorkloadGroupService workloadGroupService;
 
     @Inject
     public TransportSearchScrollAction(
@@ -62,21 +67,33 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        WorkloadGroupService workloadGroupService
     ) {
         super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
         this.threadPool = threadPool;
+        this.workloadGroupService = workloadGroupService;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        // Holds the throttle permit release once one is acquired, so every exit below (including the catch) frees it.
+        ActionListener<SearchResponse> throttledListener = listener;
         try {
 
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                // A scroll continuation occupies the node like any other search, so it draws on the same node-level
+                // budget. Exempting it would make node_limit evadable by appending ?scroll= to a query.
+                // A scroll continuation issues no nested coordinator search of its own, so there is no ancestor bucket
+                // to inherit; see TransportSearchAction#bucketsHeldByAncestors.
+                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, Set.of());
+                if (throttlePermit != null) {
+                    throttledListener = ActionListener.runAfter(throttledListener, throttlePermit::close);
+                }
             }
 
             ParsedScrollId scrollId = request.parseScrollId();
@@ -91,7 +108,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        listener
+                        throttledListener
                     );
                     break;
                 case ParsedScrollId.QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
@@ -103,7 +120,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        listener
+                        throttledListener
                     );
                     break;
                 default:
@@ -111,7 +128,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             }
             action.run();
         } catch (Exception e) {
-            listener.onFailure(e);
+            throttledListener.onFailure(e);
         }
     }
 }
