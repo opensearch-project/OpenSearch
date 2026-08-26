@@ -1149,7 +1149,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             excludeList.append("node").append(i);
         }
         settingsBuilder.put("cluster.routing.allocation.exclude._id", excludeList.toString());
-        settingsBuilder.put("cluster.routing.allocation.balance.prefer_primary.filter_aware", true);
+        settingsBuilder.put("cluster.routing.allocation.balance.filter_aware", true);
 
         AllocationService strategy = createAllocationService(settingsBuilder.build(), new TestGatewayAllocator());
 

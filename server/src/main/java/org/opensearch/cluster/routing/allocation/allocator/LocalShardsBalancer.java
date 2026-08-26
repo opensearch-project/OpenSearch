@@ -72,7 +72,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Metadata metadata;
 
     private final float avgPrimaryShardsPerNode;
-    private final int primaryBalanceNodeCount;
+    private final int balanceNodeCount;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
     private final Supplier<Boolean> timedOutFunc;
@@ -86,7 +86,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
-        boolean preferPrimaryFilterAware,
+        boolean preferFilterAwareBalance,
         boolean ignoreThrottleInRestore,
         Supplier<Boolean> timedOutFunc
     ) {
@@ -97,8 +97,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         int primarySum = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
-        int primaryBalanceNodeCount = routingNodes.size();
-        if (preferPrimaryFilterAware) {
+        int balanceNodeCount = routingNodes.size();
+        if (preferFilterAwareBalance) {
             int eligibleNodeCount = 0;
             for (RoutingNode routingNode : routingNodes) {
                 if (allocation.deciders().canAllocateAnyShardToNode(routingNode, allocation).type() != Decision.Type.NO) {
@@ -106,11 +106,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
             }
             if (eligibleNodeCount > 0) {
-                primaryBalanceNodeCount = eligibleNodeCount;
+                balanceNodeCount = eligibleNodeCount;
             }
         }
-        this.primaryBalanceNodeCount = primaryBalanceNodeCount;
-        avgPrimaryShardsPerNode = ((float) primarySum) / primaryBalanceNodeCount;
+        this.balanceNodeCount = balanceNodeCount;
+        avgPrimaryShardsPerNode = ((float) primarySum) / balanceNodeCount;
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -133,12 +133,12 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode(String index) {
-        return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
+        return ((float) metadata.index(index).getTotalNumberOfShards()) / balanceNodeCount;
     }
 
     @Override
     public float avgPrimaryShardsPerNode(String index) {
-        return ((float) metadata.index(index).getNumberOfShards()) / primaryBalanceNodeCount;
+        return ((float) metadata.index(index).getNumberOfShards()) / balanceNodeCount;
     }
 
     @Override
@@ -151,7 +151,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode() {
-        return totalShardCount / nodes.size();
+        return ((float) totalShardCount) / balanceNodeCount;
     }
 
     /**
