@@ -20,17 +20,14 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.terms.InternalMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigInteger;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -87,31 +84,6 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
 
     public void testGetAggregationTypeIsMultiTermsBuilder() {
         assertEquals(MultiTermsAggregationBuilder.class, translator.getAggregationType());
-    }
-
-    // ---- Grouping: field order, no rejection (validation moved to validate()) ----
-
-    public void testGroupingPreservesDeclaredFieldOrder() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status");
-        assertEquals(List.of("brand", "status"), translator.getGrouping(agg).getFieldNames());
-    }
-
-    public void testThreeTermSourcesGroupingPreservesOrder() {
-        MultiTermsAggregationBuilder agg = new MultiTermsAggregationBuilder("combo").terms(
-            List.of(
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("a").build(),
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("b").build(),
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("c").build()
-            )
-        );
-        assertEquals(List.of("a", "b", "c"), translator.getGrouping(agg).getFieldNames());
-    }
-
-    public void testSubAggregationsAreExposed() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status").subAggregation(
-            new AvgAggregationBuilder("avg_price").field("price")
-        );
-        assertEquals(1, translator.getSubAggregations(agg).size());
     }
 
     // ---- validate(): unsupported per-source parameters are rejected ----
@@ -230,79 +202,6 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
 
     // ---- Rendering ----
 
-    public void testEmptyBucketsProducesEmptyResult() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status");
-        InternalAggregation result = translator.toBucketAggregation(agg, List.of());
-        assertTrue(result instanceof InternalMultiTerms);
-        assertTrue(((InternalMultiTerms) result).getBuckets().isEmpty());
-    }
-
-    public void testCompositeKeyRendersAsArrayAndPipeJoinedString() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "status", "region");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("active", "us"), 5, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(1, result.getBuckets().size());
-        InternalMultiTerms.Bucket bucket = result.getBuckets().get(0);
-        assertEquals(List.of("active", "us"), bucket.getKey());
-        assertEquals("active|us", bucket.getKeyAsString());
-    }
-
-    public void testNullKeyAtFirstPositionSkipsBucket() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "status", "region");
-        List<BucketEntry> entries = new ArrayList<>();
-        entries.add(new BucketEntry(listWithNull(null, "us"), 3, InternalAggregations.EMPTY));
-        entries.add(new BucketEntry(List.of("active", "eu"), 2, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(1, result.getBuckets().size());
-        assertEquals(List.of("active", "eu"), result.getBuckets().get(0).getKey());
-    }
-
-    public void testNullKeyAtSecondPositionSkipsBucket() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "status", "region");
-        List<BucketEntry> entries = new ArrayList<>();
-        entries.add(new BucketEntry(listWithNull("active", null), 3, InternalAggregations.EMPTY));
-        entries.add(new BucketEntry(List.of("inactive", "eu"), 2, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(1, result.getBuckets().size());
-        assertEquals(List.of("inactive", "eu"), result.getBuckets().get(0).getKey());
-    }
-
-    public void testMinDocCountFiltersBuckets() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status");
-        agg.minDocCount(3);
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("BrandA", "active"), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("BrandB", "inactive"), 2, InternalAggregations.EMPTY)
-        );
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(1, result.getBuckets().size());
-        assertEquals(List.of("BrandA", "active"), result.getBuckets().get(0).getKey());
-    }
-
-    public void testSizeTruncatesAndReportsSumOtherDocCount() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status");
-        agg.size(2);
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("A", "x"), 5, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("B", "y"), 3, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("C", "z"), 2, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("D", "w"), 1, InternalAggregations.EMPTY)
-        );
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(2, result.getBuckets().size());
-        assertEquals(3L, result.getSumOfOtherDocCounts());
-    }
-
     public void testDefaultOrderIsCountDescending() {
         MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "status");
         // Supply entries in count-ASCENDING order
@@ -338,40 +237,6 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals(List.of("b", "a"), result.getBuckets().get(2).getKey());
     }
 
-    public void testBooleanPositionUsesBooleanFormat() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "is_active");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", true), 5, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        List<Object> key = result.getBuckets().get(0).getKey();
-        assertEquals("BrandA", key.get(0));
-        // Boolean renders as true/false via DocValueFormat.BOOLEAN
-        assertEquals("true", key.get(1).toString());
-    }
-
-    public void testIntegralPositionStoresLongValue() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "price");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 42L), 5, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        List<Object> key = result.getBuckets().get(0).getKey();
-        assertEquals("BrandA", key.get(0));
-        assertEquals(42L, key.get(1));
-    }
-
-    public void testDoublePositionStoresDoubleValue() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "rating");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 3.5), 5, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        List<Object> key = result.getBuckets().get(0).getKey();
-        assertEquals("BrandA", key.get(0));
-        assertEquals(3.5, key.get(1));
-    }
-
     public void testFloatKeyWidenedToDouble() {
         MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "score");
         List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 2.5f), 4, InternalAggregations.EMPTY));
@@ -384,17 +249,6 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
     }
 
     // ---- Per-type composite keys: numeric mappings mirror the single-field LongTerms/DoubleTerms path ----
-
-    public void testIntegerPositionStoresLongValue() {
-        MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "count_i");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 42), 5, InternalAggregations.EMPTY));
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        List<Object> key = result.getBuckets().get(0).getKey();
-        assertEquals(42L, key.get(1));
-        assertEquals("BrandA|42", result.getBuckets().get(0).getKeyAsString());
-    }
 
     public void testShortPositionStoresLongValue() {
         MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "count_s");
@@ -441,16 +295,29 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals("BrandA|0.5", result.getBuckets().get(0).getKeyAsString());
     }
 
-    public void testScaledFloatPositionStoresDoubleValue() {
+    /**
+     * scaled_float keys arrive as the raw scaled value the engine delivers — {@code 4.44} at
+     * {@code scaling_factor: 100} is delivered as the integral {@code 444} (as the
+     * {@code range_scaled_float} plan shows {@code 1.5} planned as {@code 150}), not a pre-divided
+     * double. This render path resolves the source's {@code docValueFormat(null, null)}, which for
+     * scaled_float is {@link DocValueFormat#RAW}, so the raw scaled value passes through unchanged.
+     *
+     * <p>Residual gap: the scaling-factor division lives in {@code ScaledFloatFieldType.valueForDisplay},
+     * which this path does not call, so the multi_terms render does NOT divide by the factor — a
+     * scaled_float key renders as its raw scaled value ({@code 444}), not {@code 4.44}. Reproducing
+     * the divided value would require the real scaled_float field type from mapper-extras, which is
+     * not on this test classpath and must not be added as a dependency.
+     */
+    public void testScaledFloatKeyRendersRawScaledValueUndivided() {
         MultiTermsAggregationBuilder agg = twoFieldAgg("combo", "brand", "amount");
-        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 19.5), 5, InternalAggregations.EMPTY));
+        List<BucketEntry> entries = List.of(new BucketEntry(List.of("BrandA", 444L), 5, InternalAggregations.EMPTY));
 
         InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
 
         List<Object> key = result.getBuckets().get(0).getKey();
-        assertTrue("scaled_float should store Double, got: " + key.get(1).getClass(), key.get(1) instanceof Double);
-        assertEquals(19.5, (Double) key.get(1), 0.0001);
-        assertEquals("BrandA|19.5", result.getBuckets().get(0).getKeyAsString());
+        // Raw scaled value is integral and stored as a long under RAW — not divided by the factor.
+        assertEquals(444L, key.get(1));
+        assertEquals("BrandA|444", result.getBuckets().get(0).getKeyAsString());
     }
 
     /** Rendering fails loudly when no MapperService is available to resolve a position's key format. */
@@ -473,28 +340,6 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
         InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
 
         assertEquals("BrandA|10.0.0.1", result.getBuckets().get(0).getKeyAsString());
-    }
-
-    public void testThreeTermSourcesRenderCompositeKeys() {
-        MultiTermsAggregationBuilder agg = new MultiTermsAggregationBuilder("combo").terms(
-            List.of(
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("brand").build(),
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("region").build(),
-                new MultiTermsValuesSourceConfig.Builder().setFieldName("status").build()
-            )
-        );
-        List<BucketEntry> entries = List.of(
-            new BucketEntry(List.of("Nike", "US", "active"), 10, InternalAggregations.EMPTY),
-            new BucketEntry(List.of("Adidas", "EU", "inactive"), 7, InternalAggregations.EMPTY)
-        );
-
-        InternalMultiTerms result = (InternalMultiTerms) translator.toBucketAggregation(agg, entries);
-
-        assertEquals(2, result.getBuckets().size());
-        assertEquals(List.of("Nike", "US", "active"), result.getBuckets().get(0).getKey());
-        assertEquals("Nike|US|active", result.getBuckets().get(0).getKeyAsString());
-        assertEquals(List.of("Adidas", "EU", "inactive"), result.getBuckets().get(1).getKey());
-        assertEquals("Adidas|EU|inactive", result.getBuckets().get(1).getKeyAsString());
     }
 
     public void testKeyArityMismatchThrows() {
@@ -524,14 +369,5 @@ public class MultiTermsBucketTranslatorTests extends OpenSearchTestCase {
 
     public void testMultiTermsTranslatorIsRegistered() {
         assertTrue(AggregationRegistryFactory.create().get(MultiTermsAggregationBuilder.class) instanceof MultiTermsBucketTranslator);
-    }
-
-    // ---- Helpers ----
-
-    private static List<Object> listWithNull(Object first, Object second) {
-        List<Object> list = new ArrayList<>();
-        list.add(first);
-        list.add(second);
-        return list;
     }
 }

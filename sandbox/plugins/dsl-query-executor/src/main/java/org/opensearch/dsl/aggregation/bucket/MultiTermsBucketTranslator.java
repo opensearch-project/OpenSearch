@@ -8,8 +8,6 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
-import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
@@ -27,10 +25,7 @@ import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuil
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
@@ -255,8 +250,8 @@ public class MultiTermsBucketTranslator implements BucketTranslator<MultiTermsAg
      * Converts a single key position into the raw value {@link InternalMultiTerms.Bucket} stores,
      * matching {@link InternalMultiTerms#formatObject}: booleans become 1/0 as a {@code long},
      * floating-point numbers widen to {@code double}, other numbers narrow to {@code long}, and
-     * binary/string keys become a {@link BytesRef}. Under {@link DocValueFormat#RAW} a binary
-     * (ip) key is pre-rendered as its address string, since RAW would otherwise print raw bytes.
+     * binary/string keys are converted by {@link BinaryTermKeys#termBytes} (ip address string under
+     * {@link DocValueFormat#RAW}, encoded bytes otherwise).
      */
     private static Object termValue(Object key, DocValueFormat format) {
         if (key instanceof Boolean bool) {
@@ -268,23 +263,7 @@ public class MultiTermsBucketTranslator implements BucketTranslator<MultiTermsAg
         if (key instanceof Number number) {
             return number.longValue();
         }
-        if (key instanceof BytesRef ref) {
-            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(ref.bytes)) : ref;
-        }
-        if (key instanceof byte[] bytes) {
-            return format == DocValueFormat.RAW ? new BytesRef(binaryKeyString(bytes)) : new BytesRef(bytes);
-        }
-        return new BytesRef(key.toString());
-    }
-
-    /** Binary keys are ip columns: render the address string like classic ip terms. */
-    private static String binaryKeyString(byte[] bytes) {
-        try {
-            return NetworkAddress.format(InetAddress.getByAddress(bytes));
-        } catch (UnknownHostException e) {
-            // Not a 4/16-byte address; fall back to a printable, deterministic form.
-            return Base64.getEncoder().encodeToString(bytes);
-        }
+        return BinaryTermKeys.termBytes(key, format);
     }
 
     /** Resolves a term-source field's mapping, or null when the MapperService or mapping is unavailable. */
