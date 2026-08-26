@@ -17,6 +17,7 @@ import org.opensearch.dsl.aggregation.LiteralColumnAllocator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
@@ -115,8 +116,11 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
         return Collections.singletonList(agg.getName());
     }
 
-    /** Extracts this metric's single output cell ({@code null} when the map is null or the cell is SQL NULL). */
-    protected Object singleValue(T agg, Map<String, Object> values) {
+    /**
+     * Returns this metric's result value from the execution output ({@code null} when
+     * execution produced no row or the value is SQL NULL).
+     */
+    static Object getResult(AggregationBuilder agg, Map<String, Object> values) {
         return values == null ? null : values.get(agg.getName());
     }
 

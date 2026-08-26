@@ -49,8 +49,8 @@ public class MinMetricTranslator extends AbstractMetricTranslator<MinAggregation
     /** Null (no matching docs) becomes +Infinity — legacy sentinel, rendered as {@code "value": null}. */
     @Override
     public InternalAggregation toInternalAggregation(MinAggregationBuilder agg, Map<String, Object> values) {
-        Object value = singleValue(agg, values);
-        double min = value == null ? Double.POSITIVE_INFINITY : toDouble(value);
+        Object result = getResult(agg, values);
+        double min = result == null ? Double.POSITIVE_INFINITY : toDouble(result);
         return new InternalMin(agg.getName(), min, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }

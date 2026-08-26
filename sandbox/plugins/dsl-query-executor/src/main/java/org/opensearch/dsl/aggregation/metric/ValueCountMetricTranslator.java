@@ -62,8 +62,8 @@ public class ValueCountMetricTranslator extends AbstractMetricTranslator<ValueCo
     /** Null (no matching docs) becomes 0 — a count over nothing is zero. */
     @Override
     public InternalAggregation toInternalAggregation(ValueCountAggregationBuilder agg, Map<String, Object> values) {
-        Object value = singleValue(agg, values);
-        long count = value == null ? 0 : ((Number) value).longValue();
+        Object result = getResult(agg, values);
+        long count = result == null ? 0 : ((Number) result).longValue();
         return new InternalValueCount(agg.getName(), count, AggregationTranslator.userMetadata(agg));
     }
 }

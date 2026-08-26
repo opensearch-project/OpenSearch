@@ -49,8 +49,8 @@ public class MaxMetricTranslator extends AbstractMetricTranslator<MaxAggregation
     /** Null (no matching docs) becomes -Infinity — legacy sentinel, rendered as {@code "value": null}. */
     @Override
     public InternalAggregation toInternalAggregation(MaxAggregationBuilder agg, Map<String, Object> values) {
-        Object value = singleValue(agg, values);
-        double max = value == null ? Double.NEGATIVE_INFINITY : toDouble(value);
+        Object result = getResult(agg, values);
+        double max = result == null ? Double.NEGATIVE_INFINITY : toDouble(result);
         return new InternalMax(agg.getName(), max, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }

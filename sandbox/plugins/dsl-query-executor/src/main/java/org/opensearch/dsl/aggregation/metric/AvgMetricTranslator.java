@@ -56,10 +56,10 @@ public class AvgMetricTranslator extends AbstractMetricTranslator<AvgAggregation
     public InternalAggregation toInternalAggregation(AvgAggregationBuilder agg, Map<String, Object> values) {
         DocValueFormat format = resolveFormat(agg);
         Map<String, Object> metadata = AggregationTranslator.userMetadata(agg);
-        Object value = singleValue(agg, values);
-        if (value == null) {
+        Object result = getResult(agg, values);
+        if (result == null) {
             return new InternalAvg(agg.getName(), 0.0, 0, format, metadata);
         }
-        return new InternalAvg(agg.getName(), toDouble(value), 1, format, metadata);
+        return new InternalAvg(agg.getName(), toDouble(result), 1, format, metadata);
     }
 }

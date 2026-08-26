@@ -49,8 +49,8 @@ public class SumMetricTranslator extends AbstractMetricTranslator<SumAggregation
     /** Null (no matching docs) becomes 0.0 — legacy sum-of-nothing semantics. */
     @Override
     public InternalAggregation toInternalAggregation(SumAggregationBuilder agg, Map<String, Object> values) {
-        Object value = singleValue(agg, values);
-        double sum = value == null ? 0.0 : toDouble(value);
+        Object result = getResult(agg, values);
+        double sum = result == null ? 0.0 : toDouble(result);
         return new InternalSum(agg.getName(), sum, resolveFormat(agg), AggregationTranslator.userMetadata(agg));
     }
 }
