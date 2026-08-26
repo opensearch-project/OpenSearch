@@ -32,8 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
-import software.amazon.awssdk.core.ResponseBytes;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
