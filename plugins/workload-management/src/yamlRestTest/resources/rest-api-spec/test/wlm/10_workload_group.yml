@@ -161,3 +161,127 @@
         name: "analytics2"
 
   - match: { acknowledged: true }
+
+---
+"test throttling field on the WorkloadGroup API":
+  - skip:
+      version: " - 3.8.99"
+      reason: "throttling was added to workload groups in 3.9"
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            wlm.workload_group.mode: "enabled"
+
+  # create with throttling: the limit round-trips as a JSON number, not a string
+  - do:
+      create_workload_group_context:
+        body:
+          {
+            "name": "throttled",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "throttling": {
+              "attribute": "group",
+              "node_limit": 5
+            }
+          }
+
+  - match: { name: "throttled" }
+  - match: { throttling.attribute: "group" }
+  - match: { throttling.node_limit: 5 }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - match: { workload_groups.0.throttling.attribute: "group" }
+  - match: { workload_groups.0.throttling.node_limit: 5 }
+
+  # a partial update keeps the key it does not mention
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 9
+            }
+          }
+
+  - match: { throttling.attribute: "group" }
+  - match: { throttling.node_limit: 9 }
+
+  # an unknown throttle key is rejected
+  - do:
+      catch: /Unknown throttle setting/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "not_a_real_limit": 1
+            }
+          }
+
+  # an invalid attribute is rejected
+  - do:
+      catch: /throttling.attribute must be one of/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "attribute": "index"
+            }
+          }
+
+  # username/role keying needs a principal attribute provider; without one the limit could never be enforced, so the
+  # config is rejected rather than silently accepted and ignored
+  - do:
+      catch: /needs a principal attribute provider/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "attribute": "username"
+            }
+          }
+
+  # a negative limit is rejected
+  - do:
+      catch: /must be non-negative/
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": -1
+            }
+          }
+
+  # "throttling": null disables throttling entirely, and the field is then omitted
+  - do:
+      update_workload_group_context:
+        name: "throttled"
+        body:
+          {
+            "throttling": null
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "throttled"
+
+  - is_false: workload_groups.0.throttling
+
+  - do:
+      delete_workload_group_context:
+        name: "throttled"
+
+  - match: { acknowledged: true }
