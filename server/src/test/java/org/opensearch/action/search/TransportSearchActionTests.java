@@ -1374,7 +1374,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
         assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
-        // Pin the resolved id (not DEFAULT/null, which rejectIfNeeded would silently skip) since the stub matches anyString().
+        // A rejected task must not be tagged, otherwise onTaskCompleted would count it as a phantom completion.
+        assertFalse("rejected task must not have its workload group id set", task.isWorkloadGroupSet());
+        // Admission reads the header directly (before setWorkloadGroupId); pin that value since the stub matches anyString().
         verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
     }
 }

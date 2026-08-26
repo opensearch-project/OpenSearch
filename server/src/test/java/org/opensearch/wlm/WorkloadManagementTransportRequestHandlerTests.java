@@ -21,7 +21,7 @@ import org.opensearch.transport.TransportRequestHandler;
 
 import java.util.Collections;
 
-import static org.mockito.Mockito.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -51,17 +51,23 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
     public void testMessageReceivedForSearchWorkload_nonRejectionCase() throws Exception {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         WorkloadGroupTask spyTask = getSpyTask();
-        doNothing().when(workloadGroupService).rejectIfNeeded(anyString());
+        doNothing().when(workloadGroupService).rejectIfNeeded(any());
         sut.messageReceived(request, mock(TransportChannel.class), spyTask);
         assertTrue(sut.isSearchWorkloadRequest(spyTask));
+        // Admitted task is tagged and forwarded to the wrapped handler.
+        assertTrue(spyTask.isWorkloadGroupSet());
+        assertEquals(1, actualHandler.invokeCount);
     }
 
     public void testMessageReceivedForSearchWorkload_RejectionCase() throws Exception {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         WorkloadGroupTask spyTask = getSpyTask();
-        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(anyString());
+        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(any());
 
         assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.messageReceived(request, mock(TransportChannel.class), spyTask));
+        // A rejected task must not be tagged (else onTaskCompleted would count it as a phantom completion) and must not be forwarded.
+        assertFalse(spyTask.isWorkloadGroupSet());
+        assertEquals(0, actualHandler.invokeCount);
     }
 
     public void testMessageReceivedForNonSearchWorkload() throws Exception {

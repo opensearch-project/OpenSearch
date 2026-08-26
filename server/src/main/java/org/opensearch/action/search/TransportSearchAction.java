@@ -491,15 +491,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
-            if (task instanceof WorkloadGroupTask) {
-                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // Coordinator-task admission point; must run before onRequestStart to keep in-flight gauges balanced.
+            if (task instanceof WorkloadGroupTask workloadGroupTask) {
+                // Coordinator-task admission point. Runs before onRequestStart (keeps the in-flight gauge balanced) and
+                // before setWorkloadGroupId (so a rejected task is not counted in total_completions on task completion).
                 try {
-                    workloadGroupService.rejectIfNeeded(((WorkloadGroupTask) task).getWorkloadGroupId());
+                    workloadGroupService.rejectIfNeeded(
+                        threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER)
+                    );
                 } catch (OpenSearchRejectedExecutionException e) {
                     updatedListener.onFailure(e);
                     return;
                 }
+                workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
             }
 
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
