@@ -146,8 +146,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             isServerSideEncryptionEnabled,
             indexSettings().isRemoteStoreFencingEnabled(),
             config.getAllocationId(),
-            config.getNodeId(),
-            config.isRelocationTarget()
+            config.getNodeId()
         );
         try {
             if (config.downloadRemoteTranslogOnInit()) {
@@ -373,38 +372,6 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
         String fenceOwnerAllocationId,
         String fenceOwnerNodeId
     ) {
-        return buildTranslogTransferManager(
-            blobStoreRepository,
-            threadPool,
-            shardId,
-            fileTransferTracker,
-            tracker,
-            pathStrategy,
-            remoteStoreSettings,
-            isTranslogMetadataEnabled,
-            isServerSideEncryptionEnabled,
-            fencingEnabled,
-            fenceOwnerAllocationId,
-            fenceOwnerNodeId,
-            false
-        );
-    }
-
-    public static TranslogTransferManager buildTranslogTransferManager(
-        BlobStoreRepository blobStoreRepository,
-        ThreadPool threadPool,
-        ShardId shardId,
-        FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker tracker,
-        RemoteStorePathStrategy pathStrategy,
-        RemoteStoreSettings remoteStoreSettings,
-        boolean isTranslogMetadataEnabled,
-        boolean isServerSideEncryptionEnabled,
-        boolean fencingEnabled,
-        String fenceOwnerAllocationId,
-        String fenceOwnerNodeId,
-        boolean isRelocationTarget
-    ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
@@ -434,7 +401,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 fenceOwnerAllocationId,
                 fenceOwnerNodeId,
                 // Every translog instance requires RECORDED OWNERSHIP to arbitrate an existing equal-term path, not
-                // only a relocation target's (isRelocationTarget). This is the second of the two claims a takeover makes: the
+                // only a relocation target's. This is the second of the two claims a takeover makes: the
                 // recovery seal (sealFence below) claimed via a throwaway instance and recorded this copy's
                 // allocation id, the restore point was read with no live token held, and this instance re-adopts on
                 // its first upload. Unguarded, the re-adoption would take the chain back from an equal-term twin that

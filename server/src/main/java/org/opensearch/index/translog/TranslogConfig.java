@@ -60,7 +60,6 @@ public final class TranslogConfig {
     private final ByteSizeValue bufferSize;
     private final String nodeId;
     private final String allocationId;
-    private final boolean isRelocationTarget;
     private final boolean seedRemote;
     private boolean downloadRemoteTranslogOnInit = true;
 
@@ -80,7 +79,7 @@ public final class TranslogConfig {
         String nodeId,
         boolean seedRemote
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, null, false, seedRemote);
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, null, seedRemote);
     }
 
     /**
@@ -96,10 +95,9 @@ public final class TranslogConfig {
         BigArrays bigArrays,
         String nodeId,
         String allocationId,
-        boolean isRelocationTarget,
         boolean seedRemote
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, allocationId, isRelocationTarget, seedRemote);
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId, allocationId, seedRemote);
     }
 
     TranslogConfig(
@@ -111,7 +109,7 @@ public final class TranslogConfig {
         String nodeId,
         boolean seedRemote
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, nodeId, null, false, seedRemote);
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, nodeId, null, seedRemote);
     }
 
     TranslogConfig(
@@ -122,10 +120,8 @@ public final class TranslogConfig {
         ByteSizeValue bufferSize,
         String nodeId,
         String allocationId,
-        boolean isRelocationTarget,
         boolean seedRemote
     ) {
-        this.isRelocationTarget = isRelocationTarget;
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
@@ -181,15 +177,6 @@ public final class TranslogConfig {
      */
     public String getAllocationId() {
         return allocationId;
-    }
-
-    /**
-     * Whether this copy is a primary relocation target. Such a copy shares a primary term - and so a fence object -
-     * with a source that is still legitimately serving, so it may only take the fence over once the source explicitly
-     * hands ownership to it.
-     */
-    public boolean isRelocationTarget() {
-        return isRelocationTarget;
     }
 
     public boolean shouldSeedRemote() {

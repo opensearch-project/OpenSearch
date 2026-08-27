@@ -517,16 +517,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         final String aId = shardRouting.allocationId().getId();
-        this.translogConfig = new TranslogConfig(
-            shardId,
-            shardPath().resolveTranslog(),
-            indexSettings,
-            bigArrays,
-            nodeId,
-            aId,
-            shardRouting.isRelocationTarget(),
-            seedRemote
-        );
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, aId, seedRemote);
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);

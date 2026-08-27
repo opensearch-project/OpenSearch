@@ -458,6 +458,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // fence blob during every translog upload (see RemoteStoreFence), so the no-op primary term validation
             // fanout to replicas is not required and replicas are taken off the write path entirely. With ASYNC
             // durability the fence is only validated at the upload interval, so the per-op fanout is retained.
+            // Durability is a dynamic index setting, and this decision is not atomic with the ack-time sync: an
+            // operation that reads REQUEST here (dropping the fanout) can be acknowledged after a concurrent flip to
+            // ASYNC skips its sync, leaving that one operation checked against neither witness until the next upload.
+            // That is accepted rather than defended against - flipping to ASYNC is an explicit request for
+            // interval-bounded durability, and every acknowledgement under it carries the same exposure.
             if (indexShard.indexSettings().isRemoteStoreFencingEnabled()
                 && indexShard.indexSettings().getTranslogDurability() == Translog.Durability.REQUEST) {
                 return ReplicationMode.NO_REPLICATION;

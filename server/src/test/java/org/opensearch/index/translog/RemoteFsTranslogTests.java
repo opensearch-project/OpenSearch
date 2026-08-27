@@ -256,17 +256,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // To simulate that the node is remote backed
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
-        return new TranslogConfig(
-            shardId,
-            path,
-            indexSettings,
-            NON_RECYCLING_INSTANCE,
-            bufferSize,
-            nodeId,
-            allocationIdOf(nodeId),
-            false,
-            false
-        );
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, nodeId, allocationIdOf(nodeId), false);
     }
 
     /** Allocation ids in these tests are derived from the node id so both identities stay legible in assertions. */
