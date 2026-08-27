@@ -21,9 +21,9 @@ import java.util.List;
  * <p>The suite's purpose is to map what the parquet/composite engine can and cannot serve. Every type
  * is treated as <b>expected-to-work</b>: a type is green only when its live response matches its golden.
  * Types the engine cannot handle today — geo/nested field mappings (rejected at index creation),
- * multi-valued keyword arrays (rejected at ingest), custom {@code _id}s (rejected by
- * {@code append_only}) — therefore surface as <b>red</b>, which is the finding we want to expose, not
- * hide. There is no per-type "expected outcome" guesswork: the golden is the single source of truth.
+ * multi-valued keyword arrays (rejected at ingest) — therefore surface as <b>red</b>, which is the
+ * finding we want to expose, not hide. There is no per-type "expected outcome" guesswork: the golden
+ * is the single source of truth.
  */
 public final class DslQueryTypeCatalog {
 

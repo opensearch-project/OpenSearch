@@ -55,13 +55,11 @@ public class DslSearchBehaviorIT extends OpenSearchRestTestCase {
     }
 
     /**
-     * REST equivalent of {@code SimpleSearchIT.testSearchRandomPreference}: run {@code match_all}
-     * repeatedly with randomized {@code preference} values and assert the hit count is stably the
-     * full document count (5) every time. Unlike the transport-client original — which uses
-     * {@code indexRandom(...).setId(...)} — the parquet/composite index sets
-     * {@code index.append_only.enabled} (custom ids rejected), so the dataset is bulk-ingested with
-     * auto-generated ids via {@link DatasetProvisioner}. A golden snapshot cannot express this
-     * repeat-with-random-parameter invariant, which is why it lives here rather than in the sweep.
+     * Runs {@code match_all} repeatedly with randomized {@code preference} values and asserts the hit
+     * count is stably the full document count (5) every time — i.e. {@code preference} routing never
+     * changes the result set. This repeat-with-random-parameter invariant cannot be expressed as a
+     * single-shot golden snapshot, which is why it lives here rather than in {@link DslQueryTypesIT}.
+     * The dataset is bulk-ingested with auto-generated document ids via {@link DatasetProvisioner}.
      */
     public void testMatchAllStableCountWithRandomPreference() throws IOException {
         int iters = scaledRandomIntBetween(10, 20);

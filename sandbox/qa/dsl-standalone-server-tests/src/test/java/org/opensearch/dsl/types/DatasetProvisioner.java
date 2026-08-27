@@ -76,9 +76,9 @@ public final class DatasetProvisioner {
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson").build());
         Response bulkResponse = client.performRequest(bulkRequest);
         assertEquals("bulk ingest failed for " + dataset.indexName, 200, bulkResponse.getStatusLine().getStatusCode());
-        // The _bulk API returns HTTP 200 even when individual items fail (e.g. a parquet/composite
-        // index sets index.append_only.enabled, which rejects custom document ids). Fail loudly on
-        // per-item errors so a silent zero-ingest can't masquerade as a successful provision.
+        // The _bulk API returns HTTP 200 even when individual items fail (e.g. a document rejected by
+        // the parquet/composite backend). Fail loudly on per-item errors so a silent zero-ingest can't
+        // masquerade as a successful provision.
         String bulkBody = new String(bulkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
         if (bulkBody.contains("\"errors\":true")) {
             throw new IOException("bulk ingest reported item errors for " + dataset.indexName + ": " + bulkBody);
