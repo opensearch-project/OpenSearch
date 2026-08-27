@@ -104,7 +104,10 @@ public class NativeMemoryRebalancer implements Runnable {
     }
 
     void rebalance() {
-        Set<String> allPools = allocator.getAllPoolNames();
+        // Managed pools only: unmanaged/special pools (e.g. the unbounded POOL_QUERY) are excluded so
+        // their Long.MAX_VALUE limit is never treated as idle capacity to redistribute, and they are
+        // never shrunk/grown.
+        Set<String> allPools = allocator.getManagedPoolNames();
         if (allPools.isEmpty()) return;
 
         long budget = budgetSupplier.get();

@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.common.SetOnce;
@@ -53,6 +54,8 @@ public class ArrowNativeAllocator implements NativeAllocator {
     private final ConcurrentMap<String, ArrowPoolHandle> pools = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, VirtualPoolHandleImpl> virtualPools = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, PoolConfig> poolConfigs = new ConcurrentHashMap<>();
+    /** Pools excluded from budget validation, the rebalancer, and pool-group limit sums. */
+    private final Set<String> unmanagedPools = ConcurrentHashMap.newKeySet();
     private final ConcurrentMap<PoolGroup, List<Consumer<Long>>> poolGroupLimitListeners = new ConcurrentHashMap<>();
     private final List<Runnable> statsRefreshers = new CopyOnWriteArrayList<>();
     private volatile Supplier<long[]> nativeMemoryStatsSupplier;
@@ -267,6 +270,44 @@ public class ArrowNativeAllocator implements NativeAllocator {
         });
     }
 
+    /**
+     * Registers an unbounded pool excluded from budget validation, the rebalancer, and pool-group
+     * limit sums. Intended for POOL_QUERY: its bytes are zero-copy foreign wraps of pre-existing
+     * native memory, so limiting it would leak imported batches. Real enforcement lives Rust-side.
+     *
+     * @param poolName name of the pool
+     * @param group    pool group (for stats/reporting only; excluded from group limit sums)
+     * @throws IllegalStateException if a managed pool with this name already exists
+     */
+    public PoolHandle registerUnmanagedPool(String poolName, PoolGroup group) {
+        if (pools.containsKey(poolName)) {
+            throw new IllegalStateException(
+                "Pool ["
+                    + poolName
+                    + "] already exists as a managed pool and cannot be re-registered as unmanaged; "
+                    + "its child allocator has a bounded limit. Register it unmanaged from the start."
+            );
+        }
+        unmanagedPools.add(poolName);
+        poolConfigs.putIfAbsent(poolName, new PoolConfig(0, Long.MAX_VALUE, group));
+        return pools.computeIfAbsent(poolName, name -> {
+            BufferAllocator child = root.newChildAllocator(name, 0, Long.MAX_VALUE);
+            return new ArrowPoolHandle(child);
+        });
+    }
+
+    /** Whether a pool is a special/unmanaged unbounded pool (excluded from sizing math). */
+    public boolean isUnmanagedPool(String poolName) {
+        return unmanagedPools.contains(poolName);
+    }
+
+    /** Pool names the rebalancer should manage — all pools minus the unmanaged/special ones. */
+    public Set<String> getManagedPoolNames() {
+        Set<String> managed = new HashSet<>(getAllPoolNames());
+        managed.removeAll(unmanagedPools);
+        return Collections.unmodifiableSet(managed);
+    }
+
     @Override
     public void setPoolLimit(String poolName, long newLimit) {
         PoolConfig config = poolConfigs.get(poolName);
@@ -375,6 +416,9 @@ public class ArrowNativeAllocator implements NativeAllocator {
      */
     public void resetAllPoolsToMax() {
         for (String name : getAllPoolNames()) {
+            if (unmanagedPools.contains(name)) {
+                continue; // special unbounded pool — nothing to reset
+            }
             PoolConfig config = poolConfigs.get(name);
             long max = config != null ? config.max : Long.MAX_VALUE;
             long current = getEffectiveLimit(name);
@@ -646,7 +690,9 @@ public class ArrowNativeAllocator implements NativeAllocator {
 
         long groupSum = 0;
         for (var entry : poolConfigs.entrySet()) {
-            if (entry.getValue().group == group) {
+            // Skip unmanaged/special pools: their Long.MAX_VALUE effective limit would swamp the
+            // grouped total that group listeners (e.g. the DataFusion pool sizer) consume.
+            if (entry.getValue().group == group && unmanagedPools.contains(entry.getKey()) == false) {
                 groupSum += getEffectiveLimit(entry.getKey());
             }
         }
@@ -655,13 +701,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
             try {
                 listener.accept(finalSum);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new org.apache.logging.log4j.message.ParameterizedMessage(
-                        "Pool group limit listener failed for group [{}]",
-                        group
-                    ),
-                    e
-                );
+                logger.warn(() -> new ParameterizedMessage("Pool group limit listener failed for group [{}]", group), e);
             }
         }
     }
@@ -672,9 +712,14 @@ public class ArrowNativeAllocator implements NativeAllocator {
         if (budget == Long.MAX_VALUE || budget <= 0) {
             return;
         }
+        // Unmanaged/special pools (e.g. POOL_QUERY) are unbounded by design; their Long.MAX_VALUE
+        // "max" is not real budget consumption and must not be summed against the node budget.
+        if (unmanagedPools.contains(newPoolName)) {
+            return;
+        }
         long sumMaxes = newPoolMax;
         for (var entry : poolConfigs.entrySet()) {
-            if (entry.getKey().equals(newPoolName) == false) {
+            if (entry.getKey().equals(newPoolName) == false && unmanagedPools.contains(entry.getKey()) == false) {
                 sumMaxes += entry.getValue().max;
             }
         }
