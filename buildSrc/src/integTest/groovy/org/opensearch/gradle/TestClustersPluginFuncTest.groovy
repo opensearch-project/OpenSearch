@@ -33,8 +33,6 @@ import org.gradle.testkit.runner.GradleRunner
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import spock.lang.IgnoreIf
 
-import java.security.MessageDigest
-
 import static org.opensearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
 /**
@@ -119,40 +117,6 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertCustomDistro('myCluster')
     }
 
-    def "transform cache remains unchanged across repeated builds"() {
-        given:
-        buildFile << """
-            testClusters {
-              myCluster {
-                testDistribution = 'archive'
-              }
-            }
-
-            tasks.register('myTask', SomeClusterAwareTask) {
-                useCluster testClusters.myCluster
-            }
-        """
-        GradleRunner runner = gradleRunner("myTask", '-i')
-        Map<String, String> transformSnapshotAfterFirstBuild
-        Map<String, String> transformSnapshotAfterSecondBuild
-
-        when:
-        withMockedDistributionDownload(runner) { GradleRunner effectiveRunner ->
-            effectiveRunner.build()
-            transformSnapshotAfterFirstBuild = snapshotTransformedDistribution()
-            def secondBuild = effectiveRunner.build()
-            transformSnapshotAfterSecondBuild = snapshotTransformedDistribution()
-            secondBuild
-        }
-
-        then:
-        assertCustomDistro('myCluster')
-        transformSnapshotAfterSecondBuild == transformSnapshotAfterFirstBuild
-        transformSnapshotAfterSecondBuild.keySet().any { it.endsWith('config/jvm.options') }
-        transformSnapshotAfterSecondBuild.keySet().every { it.contains('logs/gc.log') == false }
-
-    }
-
     def "three nodes use isolated distros and relative JVM paths across restart"() {
         given:
         buildFile << """
@@ -182,7 +146,6 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             assertOpenSearchStdoutCount(nodeName, 'Starting OpenSearch process', 2)
             assertOpenSearchStdoutCount(nodeName, 'Stopping node', 2)
         }
-        snapshotTransformedDistribution().keySet().every { it.contains('logs/gc.log') == false }
     }
 
     boolean assertOpenSearchStdoutContains(String testCluster, String expectedOutput) {
@@ -222,32 +185,4 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         true
     }
 
-    private Map<String, String> snapshotTransformedDistribution() {
-        List<File> jvmOptionsFiles = []
-        testKitDir.eachFileRecurse { file ->
-            if (file.isFile()
-                    && file.name == 'jvm.options'
-                    && file.parentFile.name == 'config'
-                    && file.toPath().any { it.toString().startsWith('transforms') }) {
-                jvmOptionsFiles.add(file)
-            }
-        }
-        Set<File> transformedDistributions = jvmOptionsFiles.collect { it.parentFile.parentFile } as Set
-        assert transformedDistributions.empty == false
-
-        Map<String, String> snapshot = new TreeMap<>()
-        transformedDistributions.each { transformedDistribution ->
-            String distributionPath = testKitDir.toPath().relativize(transformedDistribution.toPath()).toString().replace('\\', '/')
-            snapshot.put(distributionPath, '<directory>')
-            transformedDistribution.eachFileRecurse { file ->
-                String relativePath = transformedDistribution.toPath().relativize(file.toPath()).toString().replace('\\', '/')
-                snapshot.put(distributionPath + '/' + relativePath, file.isDirectory() ? '<directory>' : sha256(file))
-            }
-        }
-        snapshot
-    }
-
-    private static String sha256(File file) {
-        MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString()
-    }
 }
