@@ -8,22 +8,49 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.datastream.DataStreamAction;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
 
@@ -385,5 +412,440 @@ public class MetadataDataStreamsServiceTests extends OpenSearchTestCase {
             () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.addBackingIndex("logs-b", "shared-idx")))
         );
         assertThat(forward.getMessage(), containsString("more than one data stream"));
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Timestamp-field mapping validation: every shape that leaves `type` null must be rejected.
+    // ------------------------------------------------------------------------------------------------------------
+
+    /** An index named {@code name} carrying the given raw mapping source, or no mapping at all when {@code null}. */
+    private static IndexMetadata.Builder indexWithRawMapping(String name, String mappingSource) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(name)
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        if (mappingSource != null) {
+            try {
+                builder.putMapping(mappingSource);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+        return builder;
+    }
+
+    /** A stream {@code DS} at generation 1 (single convention-named write index) plus one standalone candidate index. */
+    private ClusterState stateWithCandidate(IndexMetadata candidate) {
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
+        metadata.put(writeIndex, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(writeIndex.getIndex()), 1));
+        metadata.put(candidate, false);
+        return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+    }
+
+    private void expectTimestampMappingRejection(IndexMetadata candidate) {
+        ClusterState state = stateWithCandidate(candidate);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                state,
+                List.of(DataStreamAction.addBackingIndex(DS, candidate.getIndex().getName()))
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index ["
+                    + candidate.getIndex().getName()
+                    + "] cannot be added as a backing index because it does not have a [@timestamp] field mapped as a date type"
+            )
+        );
+    }
+
+    public void testAddIndexWithNoMappingAtAllFails() {
+        // mapping() is null: the whole property lookup is skipped and `type` stays null.
+        IndexMetadata candidate = indexWithRawMapping("no-mapping-idx", null).build();
+        assertThat(candidate.mapping(), nullValue());
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testAddIndexWhoseMappingHasNoPropertiesFails() {
+        // A mapping exists but carries no "properties" block at all.
+        IndexMetadata candidate = indexWithRawMapping("no-properties-idx", "{\"_meta\":{\"origin\":\"manual\"}}").build();
+        assertThat(candidate.mapping(), notNullValue());
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testAddIndexWhosePropertiesIsNotAnObjectFails() {
+        // "properties" is present but is a scalar, so the `properties instanceof Map` guard rejects it.
+        IndexMetadata candidate = indexWithRawMapping("scalar-properties-idx", "{\"properties\":\"oops\"}").build();
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testAddIndexWhoseMappingLacksTimestampFieldFails() {
+        // "properties" exists but has no @timestamp entry at all.
+        IndexMetadata candidate = indexWithRawMapping("other-field-idx", "{\"properties\":{\"other\":{\"type\":\"date\"}}}").build();
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testAddIndexWhoseTimestampFieldIsNotAnObjectFails() {
+        // @timestamp is present but is a scalar, so the `field instanceof Map` guard rejects it.
+        IndexMetadata candidate = indexWithRawMapping("scalar-timestamp-idx", "{\"properties\":{\"@timestamp\":\"date\"}}").build();
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testAddIndexWhoseTimestampFieldHasNoTypeFails() {
+        // @timestamp is an object but declares no "type", so `type` is null.
+        IndexMetadata candidate = indexWithRawMapping("untyped-timestamp-idx", "{\"properties\":{\"@timestamp\":{\"index\":true}}}")
+            .build();
+        expectTimestampMappingRejection(candidate);
+    }
+
+    public void testValidateTimestampFieldMappingAcceptsBothDateTypes() throws IOException {
+        // The accepting side of both halves of the `date`/`date_nanos` condition, exercised directly.
+        MetadataDataStreamsService.validateTimestampFieldMapping(arbitraryIndex("d", "date").build(), "@timestamp");
+        MetadataDataStreamsService.validateTimestampFieldMapping(arbitraryIndex("dn", "date_nanos").build(), "@timestamp");
+        // A stream whose timestamp field is not the default name is validated against that name.
+        IndexMetadata custom = IndexMetadata.builder("custom-ts")
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("event.ingested", "date"))
+            .build();
+        MetadataDataStreamsService.validateTimestampFieldMapping(custom, "event.ingested");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.validateTimestampFieldMapping(custom, "@timestamp")
+        );
+        assertThat(e.getMessage(), containsString("does not have a [@timestamp] field mapped as a date type"));
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Remove-backing-index guards.
+    // ------------------------------------------------------------------------------------------------------------
+
+    public void testRemoveLastBackingIndexFails() {
+        // Size-1 check runs before the write-index check, so the message must be the "last backing index" one even
+        // though the single index is also the write index.
+        ClusterState state = state(1, List.of(1));
+        String only = DataStream.getDefaultBackingIndexName(DS, 1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(state, List.of(DataStreamAction.removeBackingIndex(DS, only)))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot remove backing index ["
+                    + only
+                    + "] of data stream ["
+                    + DS
+                    + "] because it is the last backing index; delete the data stream instead"
+            )
+        );
+    }
+
+    public void testRemoveAlreadyVisibleBackingIndexLeavesSettingsUntouched() {
+        // A backing index that is not hidden takes the false side of the unhide guard: no settings write at all.
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata writeIndex = createBackingIndex(DS, 1).build();
+        IndexMetadata visible = IndexMetadata.builder("legacy-visible")
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT).put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        metadata.put(writeIndex, false);
+        metadata.put(visible, false);
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(visible.getIndex(), writeIndex.getIndex()), 1));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        long settingsVersionBefore = state.metadata().index("legacy-visible").getSettingsVersion();
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.removeBackingIndex(DS, "legacy-visible"))
+        );
+
+        assertThat(backingIndexNames(updated), contains(DataStream.getDefaultBackingIndexName(DS, 1)));
+        assertThat(IndexMetadata.INDEX_HIDDEN_SETTING.get(updated.metadata().index("legacy-visible").getSettings()), equalTo(false));
+        // The settings version is untouched, proving the unhide branch was skipped rather than re-applied.
+        assertThat(updated.metadata().index("legacy-visible").getSettingsVersion(), equalTo(settingsVersionBefore));
+    }
+
+    public void testRemoveBackingIndexWithNoIndexMetadataSkipsUnhide() {
+        // Defensive path: the stream references indices for which no IndexMetadata exists (Metadata skips data stream
+        // lookup building entirely when there are no indices), so metadataBuilder.get(...) returns null.
+        Index first = new Index(DataStream.getDefaultBackingIndexName(DS, 1), "uuid-1");
+        Index writeIndex = new Index(DataStream.getDefaultBackingIndexName(DS, 2), "uuid-2");
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(new DataStream(DS, createTimestampField("@timestamp"), List.of(first, writeIndex), 2));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        assertThat(state.metadata().index(first.getName()), nullValue());
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.removeBackingIndex(DS, first.getName()))
+        );
+
+        assertThat(backingIndexNames(updated), contains(writeIndex.getName()));
+        assertThat(updated.metadata().indices().size(), equalTo(0));
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Shared-backing-index validation.
+    // ------------------------------------------------------------------------------------------------------------
+
+    public void testIndexNameListedTwiceWithinOneStreamIsNotReportedAsShared() {
+        // The shared-index check keys on index name, so a stream that lists the same name twice would collide with
+        // itself; the owner-equality half of the guard must let that through instead of failing the whole update.
+        IndexMetadata a1 = createBackingIndex("logs-a", 1).build();
+        IndexMetadata b1 = createBackingIndex("logs-b", 1).build();
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(a1, false);
+        metadata.put(b1, false);
+        // logs-a lists .ds-logs-a-000001 twice (same name, different UUIDs).
+        metadata.put(
+            new DataStream(
+                "logs-a",
+                createTimestampField("@timestamp"),
+                List.of(new Index(a1.getIndex().getName(), "other-uuid"), a1.getIndex()),
+                1
+            )
+        );
+        metadata.put(new DataStream("logs-b", createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        // Any action re-runs the full shared-index validation across every stream, including logs-a.
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(DataStreamAction.addBackingIndex("logs-b", b1.getIndex().getName()))
+        );
+
+        assertThat(updated.metadata().dataStreams().get("logs-a").getIndices().size(), equalTo(2));
+        assertThat(backingIndexNames(updated, "logs-b"), contains(b1.getIndex().getName()));
+    }
+
+    public void testSeveralActionsAcrossTwoStreamsComposeInOneUpdate() {
+        // One request, four actions, two streams: each stream's intermediate result feeds the next action on it.
+        IndexMetadata a1 = createBackingIndex("logs-a", 1).build();
+        IndexMetadata a2 = createBackingIndex("logs-a", 2).build();
+        IndexMetadata b1 = createBackingIndex("logs-b", 1).build();
+        IndexMetadata shared = arbitraryIndex("roaming-idx", "date").build();
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(a1, false);
+        metadata.put(a2, false);
+        metadata.put(b1, false);
+        metadata.put(shared, false);
+        metadata.put(
+            new DataStream("logs-a", createTimestampField("@timestamp"), List.of(shared.getIndex(), a1.getIndex(), a2.getIndex()), 2)
+        );
+        metadata.put(new DataStream("logs-b", createTimestampField("@timestamp"), List.of(b1.getIndex()), 1));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        ClusterState updated = MetadataDataStreamsService.modifyDataStream(
+            state,
+            List.of(
+                DataStreamAction.removeBackingIndex("logs-a", "roaming-idx"),
+                DataStreamAction.removeBackingIndex("logs-a", a1.getIndex().getName()),
+                DataStreamAction.addBackingIndex("logs-b", "roaming-idx"),
+                DataStreamAction.addBackingIndex("logs-b", a1.getIndex().getName())
+            )
+        );
+
+        assertThat(backingIndexNames(updated, "logs-a"), contains(a2.getIndex().getName()));
+        // The arbitrary name sorts first; .ds-logs-a-000001 is not a logs-b convention name so it also sorts first.
+        assertThat(backingIndexNames(updated, "logs-b").size(), equalTo(3));
+        assertThat(backingIndexNames(updated, "logs-b").get(2), equalTo(b1.getIndex().getName()));
+        assertThat(updated.metadata().dataStreams().get("logs-b").getGeneration(), equalTo(1L));
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Service entry points: request handling and the submitted cluster-manager task.
+    // ------------------------------------------------------------------------------------------------------------
+
+    /** Captures whichever ActionListener callback fires, so both success and failure can be asserted. */
+    private static final class CapturingListener implements ActionListener<AcknowledgedResponse> {
+        private AcknowledgedResponse response;
+        private Exception failure;
+
+        @Override
+        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            this.response = acknowledgedResponse;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            this.failure = e;
+        }
+    }
+
+    private ClusterManagerTaskThrottler.ThrottlingKey throttlingKey;
+
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        throttlingKey = mock(ClusterManagerTaskThrottler.ThrottlingKey.class);
+        when(clusterService.registerClusterManagerTask(anyString(), anyBoolean())).thenReturn(throttlingKey);
+        return clusterService;
+    }
+
+    @SuppressWarnings("unchecked")
+    private AckedClusterStateUpdateTask<ClusterStateUpdateResponse> captureSubmittedTask(ClusterService clusterService) {
+        ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        verify(clusterService).submitStateUpdateTask(eq("update-data-streams"), captor.capture());
+        return (AckedClusterStateUpdateTask<ClusterStateUpdateResponse>) captor.getValue();
+    }
+
+    public void testConstructorRegistersThrottledClusterManagerTask() {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        assertThat(service, notNullValue());
+        verify(clusterService).registerClusterManagerTask("modify-data-stream", true);
+    }
+
+    public void testEmptyActionListIsAcknowledgedWithoutSubmittingAnyTask() {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        CapturingListener listener = new CapturingListener();
+
+        service.modifyDataStream(
+            new MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest(
+                Collections.emptyList(),
+                TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30)
+            ),
+            listener
+        );
+
+        assertThat(listener.failure, nullValue());
+        assertThat(listener.response.isAcknowledged(), equalTo(true));
+        verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+    }
+
+    public void testSubmittedTaskCarriesRequestConfigurationAndAppliesActions() throws Exception {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        CapturingListener listener = new CapturingListener();
+        String toRemove = DataStream.getDefaultBackingIndexName(DS, 1);
+
+        service.modifyDataStream(
+            new MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest(
+                List.of(DataStreamAction.removeBackingIndex(DS, toRemove)),
+                TimeValue.timeValueSeconds(11),
+                TimeValue.timeValueSeconds(22)
+            ),
+            listener
+        );
+
+        AckedClusterStateUpdateTask<ClusterStateUpdateResponse> task = captureSubmittedTask(clusterService);
+        assertThat(task.priority(), equalTo(Priority.HIGH));
+        assertThat(task.timeout(), equalTo(TimeValue.timeValueSeconds(11)));
+        assertThat(task.ackTimeout(), equalTo(TimeValue.timeValueSeconds(22)));
+        assertThat(task.getClusterManagerThrottlingKey(), sameInstance(throttlingKey));
+
+        // The task's execute() is the same metadata mutation the static helper performs.
+        ClusterState updated = task.execute(state(2, List.of(1, 2)));
+        assertThat(backingIndexNames(updated), contains(DataStream.getDefaultBackingIndexName(DS, 2)));
+
+        // Nothing is reported to the caller until the state update is acked.
+        assertThat(listener.response, nullValue());
+        task.onAllNodesAcked(null);
+        assertThat(listener.response.isAcknowledged(), equalTo(true));
+    }
+
+    public void testAckedWithExceptionAndAckTimeoutBothYieldUnacknowledged() {
+        // Both non-happy acknowledgement paths map to an unacknowledged AcknowledgedResponse rather than a failure.
+        ClusterService ackTimeoutClusterService = mockClusterService();
+        CapturingListener ackTimeoutListener = new CapturingListener();
+        new MetadataDataStreamsService(ackTimeoutClusterService).modifyDataStream(
+            List.of(DataStreamAction.removeBackingIndex(DS, DataStream.getDefaultBackingIndexName(DS, 1))),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(5),
+            ackTimeoutListener
+        );
+        captureSubmittedTask(ackTimeoutClusterService).onAckTimeout();
+        assertThat(ackTimeoutListener.failure, nullValue());
+        assertThat(ackTimeoutListener.response.isAcknowledged(), equalTo(false));
+
+        ClusterService ackFailureClusterService = mockClusterService();
+        CapturingListener ackFailureListener = new CapturingListener();
+        new MetadataDataStreamsService(ackFailureClusterService).modifyDataStream(
+            List.of(DataStreamAction.removeBackingIndex(DS, DataStream.getDefaultBackingIndexName(DS, 1))),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(5),
+            ackFailureListener
+        );
+        captureSubmittedTask(ackFailureClusterService).onAllNodesAcked(new OpenSearchException("ack failed"));
+        assertThat(ackFailureListener.failure, nullValue());
+        assertThat(ackFailureListener.response.isAcknowledged(), equalTo(false));
+    }
+
+    public void testConvenienceOverloadPassesTimeoutsThrough() throws Exception {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        CapturingListener listener = new CapturingListener();
+
+        service.modifyDataStream(
+            List.of(DataStreamAction.addBackingIndex(DS, DataStream.getDefaultBackingIndexName(DS, 2))),
+            TimeValue.timeValueSeconds(7),
+            TimeValue.timeValueSeconds(13),
+            listener
+        );
+
+        AckedClusterStateUpdateTask<ClusterStateUpdateResponse> task = captureSubmittedTask(clusterService);
+        assertThat(task.timeout(), equalTo(TimeValue.timeValueSeconds(7)));
+        assertThat(task.ackTimeout(), equalTo(TimeValue.timeValueSeconds(13)));
+        // Idempotent add: the stream is unchanged but the task still runs.
+        assertThat(backingIndexNames(task.execute(state(2, List.of(1, 2)))).size(), equalTo(2));
+    }
+
+    public void testTaskFailurePropagatesToTheCallersListener() {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        CapturingListener listener = new CapturingListener();
+
+        service.modifyDataStream(
+            List.of(DataStreamAction.removeBackingIndex(DS, "nope")),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(5),
+            listener
+        );
+
+        AckedClusterStateUpdateTask<ClusterStateUpdateResponse> task = captureSubmittedTask(clusterService);
+        // A rejected action surfaces from execute() and is reported through onFailure.
+        IllegalArgumentException thrown = expectThrows(IllegalArgumentException.class, () -> task.execute(state(2, List.of(1, 2))));
+        assertThat(thrown.getMessage(), containsString("is not part of data stream"));
+
+        task.onFailure("update-data-streams", thrown);
+        assertThat(listener.response, nullValue());
+        assertThat(listener.failure, sameInstance(thrown));
+    }
+
+    public void testEmptyActionListPathDoesNotTouchTheClusterServiceBeyondRegistration() {
+        ClusterService clusterService = mockClusterService();
+        MetadataDataStreamsService service = new MetadataDataStreamsService(clusterService);
+        verify(clusterService).registerClusterManagerTask(anyString(), anyBoolean());
+
+        service.modifyDataStream(
+            Collections.emptyList(),
+            TimeValue.timeValueSeconds(1),
+            TimeValue.timeValueSeconds(1),
+            new CapturingListener()
+        );
+
+        verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testUpdateRequestExposesItsActionsAndTimeouts() {
+        List<DataStreamAction> actions = List.of(DataStreamAction.addBackingIndex(DS, "a"), DataStreamAction.removeBackingIndex(DS, "b"));
+        MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest request =
+            new MetadataDataStreamsService.ModifyDataStreamsClusterStateUpdateRequest(
+                actions,
+                TimeValue.timeValueSeconds(3),
+                TimeValue.timeValueSeconds(9)
+            );
+
+        assertThat(request.getActions(), equalTo(actions));
+        assertThat(request.masterNodeTimeout(), equalTo(TimeValue.timeValueSeconds(3)));
+        assertThat(request.ackTimeout(), equalTo(TimeValue.timeValueSeconds(9)));
     }
 }

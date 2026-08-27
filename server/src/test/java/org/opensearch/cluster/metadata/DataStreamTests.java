@@ -168,6 +168,15 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertNull(DataStream.parseDataStreamName(".ds-logs-foo"));
     }
 
+    public void testParseDataStreamNameWithEmptyCounter() {
+        // Trailing dash: the counter substring is empty. Without the isEmpty() guard the empty suffix would fall
+        // through the digit loop and the name would be (wrongly) accepted as a backing index.
+        assertNull(DataStream.parseDataStreamName(".ds-logs-foo-"));
+        assertNull(DataStream.parseDataStreamName(".ds-a-"));
+        // And an arbitrary index whose name ends in a dash must not be treated as belonging to any stream.
+        assertThat(DataStream.backingIndexCounterOrMin("logs-foo", ".ds-logs-foo-"), equalTo(Long.MIN_VALUE));
+    }
+
     public void testAddBackingIndexWithCounterAboveIntMax() {
         // A counter beyond Integer.MAX_VALUE must still parse: generation is a long, and parseDataStreamName accepts a
         // numeric suffix of any length, so backingIndexCounterOrMin must not overflow an int.

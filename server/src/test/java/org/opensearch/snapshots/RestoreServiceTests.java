@@ -205,6 +205,38 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("does not have a [@timestamp] field mapped as a date type"));
     }
 
+    public void testAttachSkipsWhenRestoredIndexIsNotInMetadata() {
+        // The restored name parses to an existing stream, but no IndexMetadata was built for it: the
+        // restoredIndexMetadata == null side of the guard must be taken, leaving the stream untouched.
+        String ds = "logs-attach";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        Metadata.Builder metadata = Metadata.builder().put(b1, false);
+        DataStream original = new DataStream(ds, createTimestampField("@timestamp"), List.of(b1.getIndex()), 1);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+        updatedDataStreams.put(ds, original);
+
+        String absentButConventionNamed = DataStream.getDefaultBackingIndexName(ds, 2);
+        assertNull(metadata.get(absentButConventionNamed));
+
+        RestoreService.attachRestoredBackingIndices(Set.of(absentButConventionNamed), metadata, updatedDataStreams);
+
+        assertEquals(original, updatedDataStreams.get(ds));
+        assertEquals(1L, updatedDataStreams.get(ds).getGeneration());
+    }
+
+    public void testAttachWithNoRestoredIndicesIsANoOp() {
+        String ds = "logs-attach";
+        IndexMetadata b1 = backingIndex(ds, 1);
+        Metadata.Builder metadata = Metadata.builder().put(b1, false);
+        DataStream original = new DataStream(ds, createTimestampField("@timestamp"), List.of(b1.getIndex()), 1);
+        Map<String, DataStream> updatedDataStreams = new HashMap<>();
+        updatedDataStreams.put(ds, original);
+
+        RestoreService.attachRestoredBackingIndices(Collections.emptySet(), metadata, updatedDataStreams);
+
+        assertEquals(original, updatedDataStreams.get(ds));
+    }
+
     public void testValidateReplicationTypeRestoreSettings_WhenSnapshotIsDocument_RestoreToDocument() {
         SnapshotId snapshotId = new SnapshotId("snapshotId", "123");
         Snapshot snapshot = new Snapshot("testRepo", snapshotId);
