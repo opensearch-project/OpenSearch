@@ -136,7 +136,22 @@ public class OpenSearchFilterRule extends RelOptRule {
         // every declared FilterCapability has a matching serializer registered, and reject
         // the plugin otherwise — fail-fast at boot rather than at first dual-viable query.
         // Needs revisiting.
-        return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
+        return new AnnotatedPredicate(
+            rexCall.getType(),
+            rexCall,
+            viableBackends,
+            context.nextAnnotationId(),
+            referencesDerivedField(rexCall, fieldStorageInfos) == false
+        );
+    }
+
+    private boolean referencesDerivedField(RexCall predicate, List<FieldStorageInfo> fieldStorageInfos) {
+        PredicateContents contents = new PredicateContents(new HashSet<>(), new ArrayList<>());
+        collect(predicate, contents);
+        return contents.fieldIndices()
+            .stream()
+            .map(i -> FieldStorageInfo.resolve(fieldStorageInfos, i))
+            .anyMatch(FieldStorageInfo::isDerived);
     }
 
     /**
