@@ -378,6 +378,10 @@ public final class EngineConfig {
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
             .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
+            .dataFormatRegistry(this.dataFormatRegistry)
+            .mapperService(this.mapperService)
+            .committerFactory(this.committerFactory)
+            .checksumStrategies(this.checksumStrategies)
             .documentLookupProvider(this.documentLookupProvider)
             .documentMetadataResolver(this.documentMetadataResolver);
     }
