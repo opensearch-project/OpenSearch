@@ -36,13 +36,7 @@ public class AggregationRegistry {
         translators.put(translator.getAggregationType(), translator);
     }
 
-    /**
-     * Returns {@code true} when a translator is registered for the given aggregation type. Used
-     * by routing (grammar) to decide whether a request can be sent to the Calcite path before
-     * any conversion work is attempted.
-     *
-     * @param type the concrete {@link AggregationBuilder} class
-     */
+    /** True if a translator is registered for the given aggregation type. */
     public boolean hasTranslator(Class<? extends AggregationBuilder> type) {
         return translators.containsKey(type);
     }

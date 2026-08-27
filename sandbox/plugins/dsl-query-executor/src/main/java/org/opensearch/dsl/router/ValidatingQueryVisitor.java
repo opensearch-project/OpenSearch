@@ -18,13 +18,9 @@ import org.opensearch.index.query.QueryBuilderVisitor;
 import java.util.List;
 
 /**
- * Validates every query node the {@link QueryBuilder#visit} walk reaches: the node's type must have
- * a registered translator (else rejected), which then validates that node's own parameters — child
- * recursion is {@code visit}'s job. {@link #getChildVisitor} returns {@code this}, so one instance
- * validates the whole tree with shared {@code failed}/{@code issues} state.
- *
- * <p>First failing node wins: once a reason is recorded, later {@link #accept} calls no-op (the walk
- * cannot be stopped mid-traversal).
+ * Validates each query node the {@link QueryBuilder#visit} walk reaches: the node's type must have a
+ * translator (else rejected), which validates that node's own parameters. {@link #getChildVisitor}
+ * returns {@code this}, so one instance validates the whole tree; the first failing node wins.
  */
 final class ValidatingQueryVisitor implements QueryBuilderVisitor {
 

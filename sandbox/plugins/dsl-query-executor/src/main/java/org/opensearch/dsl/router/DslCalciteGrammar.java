@@ -34,40 +34,24 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decides whether a {@link SearchSourceBuilder} can run on the Calcite path.
+ * Decides whether a {@link SearchSourceBuilder} can run on the Calcite path (else codec).
  *
- * <p>Reject-unless-supported: a request is accepted only if every top-level field has a handler and
- * every query and aggregation type has a translator that accepts its parameters — otherwise it
- * routes to codec. Parameter validation is delegated to the translators, so routing and conversion
- * agree. Query-tree recursion is driven by {@link QueryBuilder#visit}, so a nested query in any
- * container type is always reached without a hand-maintained list; nested aggregation trees are
- * blanket-rejected for now, pending performance validation.
- *
- * <p>Reject reasons are short codes (e.g. {@code "query:function_score"}, {@code "terms.min_doc_count"})
- * for observability without leaking user data.
+ * <p>Reject-unless-supported: accepted only if every top-level field, query type and aggregation
+ * type is affirmatively supported — parameter validation is delegated to the translators. Query-tree
+ * recursion uses {@link QueryBuilder#visit}; nested aggregation trees are rejected for now.
  */
 public class DslCalciteGrammar {
 
-    /**
-     * Validates the contents of one top-level field. Returns {@code true} if supported; otherwise
-     * adds a reason code to {@code issues} and returns {@code false}.
-     */
+    /** Validates one top-level field: {@code true} if supported, else adds a reason to {@code issues}. */
     @FunctionalInterface
     private interface TopLevelFieldHandler {
         boolean isSupported(SearchSourceBuilder source, List<String> issues);
     }
 
-    /**
-     * Handler for fields the converter supports in full — every value is honored, so there is
-     * nothing to validate (e.g. {@code size}, {@code _source}).
-     */
+    /** Handler for fields honored in full — nothing to validate (e.g. {@code size}, {@code _source}). */
     private static final TopLevelFieldHandler ALWAYS_SUPPORTED = (source, issues) -> true;
 
-    /**
-     * Supported top-level fields keyed by name: a field with no handler is rejected (routed to
-     * codec), one with a handler is accepted only if the handler validates its contents. Populated
-     * in the constructor because the query/aggregation handlers call instance methods.
-     */
+    /** Supported top-level fields keyed by name; a field with no handler is rejected. */
     private final Map<String, TopLevelFieldHandler> topLevelHandlers;
 
     private final QueryRegistry queryRegistry;
@@ -95,12 +79,10 @@ public class DslCalciteGrammar {
     }
 
     /**
-     * Validates a search source, returning a routing decision; short-circuits at the first failing
-     * field.
+     * Validates a search source, short-circuiting at the first failing field.
      *
      * @param source the request body; a {@code null} source (bodyless {@code _search}) is accepted
-     *        as an implicit match_all — {@link org.opensearch.dsl.converter.SearchSourceConverter}
-     *        normalizes it to an empty source
+     *        as an implicit match_all
      */
     public RouteDecision validate(SearchSourceBuilder source) {
         if (source == null) {
@@ -124,10 +106,8 @@ public class DslCalciteGrammar {
     }
 
     /**
-     * The top-level field names the request actually set. There is no getter that enumerates set
-     * fields, so the source is serialized ({@link SearchSourceBuilder#toXContent} emits only set
-     * fields) and its JSON keys are read — this sees every field, including ones added to
-     * OpenSearch later. Ordered, so a query failure is reported before an aggregation failure.
+     * The top-level field names the request set. No getter enumerates them, so the source is
+     * serialized and its JSON keys read — ordered, so a query failure is reported before an agg one.
      */
     private static Set<String> topLevelFields(SearchSourceBuilder source) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -148,10 +128,7 @@ public class DslCalciteGrammar {
         return visitor.failed() == false;
     }
 
-    /**
-     * Entry point for the aggregation section: rejects top-level pipeline aggregations, then
-     * walks each top-level regular aggregation.
-     */
+    /** Walks the aggregation tree: rejects top-level pipeline aggs, then each regular aggregation. */
     private boolean visitAggregationTree(AggregatorFactories.Builder aggs, List<String> issues) {
         return visitPipelineAggregations(aggs.getPipelineAggregatorFactories(), issues)
             && visitAggregations(aggs.getAggregatorFactories(), issues);
@@ -162,13 +139,7 @@ public class DslCalciteGrammar {
         return aggs == null || aggs.stream().allMatch(agg -> visitAggregation(agg, issues));
     }
 
-    /**
-     * Pipeline aggregations have no Calcite equivalent — any presence is a hard reject. Called at
-     * each level, since pipelines can be siblings of regular aggregations.
-     *
-     * <p>TODO: replace the blanket reject with a registry + per-type validation once pipeline aggs
-     * are supported.
-     */
+    /** Pipeline aggregations have no Calcite equivalent — always rejected. Called at each level. */
     private boolean visitPipelineAggregations(Collection<PipelineAggregationBuilder> pipelines, List<String> issues) {
         if (pipelines == null || pipelines.isEmpty()) {
             return true;
@@ -188,9 +159,8 @@ public class DslCalciteGrammar {
             return reject("agg.nested", issues);
         }
 
-        // Delegate to the same validate() the converter uses, so routing and conversion agree.
-        // Schema-dependent checks (e.g. terms on a date field) need a MapperService the routing
-        // layer lacks, so they no-op here and stay enforced in convert().
+        // Same validate() the converter uses. Schema-dependent checks (e.g. terms on a date field)
+        // need a MapperService the routing layer lacks, so they no-op here and stay in convert().
         ValidationResult validationResult = ((AggregationTranslator<AggregationBuilder>) translator).validate(agg);
         if (validationResult.isAccepted() == false) {
             return reject(validationResult.reasonCode(), issues);

@@ -35,24 +35,16 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * Intercepts {@code _search} requests and, when Calcite routing is enabled, decides between
- * the Calcite path and the codec path.
+ * Intercepts {@code _search} and routes it to the Calcite path or the codec path.
  *
- * <p>Layer 1: {@link DslQueryExecutorSettings#CALCITE_ENABLED} — defaults to {@code true};
- * setting it to {@code false} forces every request through the codec path unchanged. The
- * per-category switches {@link DslQueryExecutorSettings#CALCITE_QUERY_ENABLED} and
- * {@link DslQueryExecutorSettings#CALCITE_AGGREGATION_ENABLED} additionally route just the
- * hits/search or aggregation category to codec while leaving the other on Calcite.
+ * <p>Master switch {@link DslQueryExecutorSettings#CALCITE_ENABLED} (default true) sends everything
+ * to codec when off; {@link DslQueryExecutorSettings#CALCITE_QUERY_ENABLED} and
+ * {@link DslQueryExecutorSettings#CALCITE_AGGREGATION_ENABLED} independently send just the
+ * hits/search or aggregation category to codec.
  *
- * <p>Layer 2 (only when the request's category is still on Calcite):
- * <ul>
- *   <li>{@link DslCalciteGrammar#validate} classifies the request. Grammar-rejected requests
- *       fall back to the codec path.</li>
- *   <li>Grammar-accepted requests are dispatched to {@link DslExecuteAction}. A
- *       {@link ConversionException} during execution triggers codec fallback (schema-side
- *       checks the grammar can't run may still fail at conversion time). Non-conversion
- *       errors surface to the caller unchanged.</li>
- * </ul>
+ * <p>Otherwise {@link DslCalciteGrammar#validate} decides: rejected requests fall back to codec;
+ * accepted ones go to {@link DslExecuteAction}, and a {@link ConversionException} there (a
+ * schema-dependent check the grammar cannot run) also falls back. Other errors surface to the caller.
  */
 public class SearchActionFilter implements ActionFilter {
 
@@ -64,11 +56,8 @@ public class SearchActionFilter implements ActionFilter {
     private final NodeClient client;
     private final DslCalciteGrammar grammar;
     /**
-     * Routing switches, kept in sync with their settings via cluster-settings update consumers so
-     * a {@code PUT _cluster/settings} change propagates without any per-request settings lookup.
-     * {@code calciteEnabled} is the master; {@code queryEnabledOnCalcite}/{@code aggregationEnabledOnCalcite} gate
-     * the hits/search and aggregation categories. {@code volatile} because updates land on the
-     * cluster-state-applier thread while reads happen on transport/search threads.
+     * Routing switches, kept live via cluster-settings update consumers (no per-request lookup).
+     * {@code volatile}: updates land on the cluster-state-applier thread, reads on transport threads.
      */
     private volatile boolean calciteEnabled;
     private volatile boolean queryEnabledOnCalcite;
@@ -135,9 +124,6 @@ public class SearchActionFilter implements ActionFilter {
             return;
         }
 
-        // Explicit listener, not ActionListener.wrap: wrap routes an exception thrown while
-        // delivering the success response into onFailure, double-completing the caller's listener.
-        // Forwarding onResponse directly means only a genuine Calcite failure reaches onFailure.
         ActionListener<SearchResponse> calciteListener = new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse response) {
@@ -169,14 +155,6 @@ public class SearchActionFilter implements ActionFilter {
         return (usesAggs && aggregationEnabledOnCalcite == false) || (usesQuery && queryEnabledOnCalcite == false);
     }
 
-    /**
-     * Only fall back on failures that mean "Calcite can't handle this request" — grammar
-     * gaps or schema mismatches the grammar can't see. Runtime engine errors, timeouts,
-     * and other operational failures must surface to the caller so they can be diagnosed.
-     *
-     * <p>Uses an identity-based seen set to defend against pathological self-referential
-     * or cyclic exception chains (e.g. legacy code that calls {@code initCause(this)}).
-     */
     private static boolean isFallbackable(Throwable e) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Throwable t = e; t != null && seen.add(t); t = t.getCause()) {

@@ -23,11 +23,8 @@ public interface QueryTranslator {
     Class<? extends QueryBuilder> getQueryType();
 
     /**
-     * Validates the query builder's request shape before routing/conversion.
-     *
-     * <p>Reject-unless-supported: the default <em>rejects</em>, so a translator whose type may run on
-     * the Calcite path must override this to accept (and to reject any parameter it cannot honor).
-     * Schema-dependent checks stay in {@link #convert(QueryBuilder, ConversionContext)}.
+     * Validates the query's parameters before routing. Defaults to reject (reject-unless-supported):
+     * a supported type must override this to accept. Schema-dependent checks stay in {@link #convert}.
      *
      * @param query the query builder to validate
      * @return the validation result; rejected by default
