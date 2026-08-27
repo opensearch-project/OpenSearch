@@ -29,7 +29,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexSettings;
@@ -75,6 +78,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
@@ -152,6 +157,64 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         assertThat(bucket.getKeyAsString(), notNullValue());
                     }
                 }
+            }
+        }
+    }
+
+    public void testCandidateBucketsUseRequestCircuitBreaker() throws Exception {
+        AtomicBoolean breakAllocations = new AtomicBoolean();
+        AtomicLong breakerBytes = new AtomicLong();
+        CircuitBreaker requestBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (breakAllocations.get()) {
+                    throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
+                }
+                return breakerBytes.addAndGet(bytes);
+            }
+
+            @Override
+            public long addWithoutBreaking(long bytes) {
+                return breakerBytes.addAndGet(bytes);
+            }
+        };
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(requestBreaker);
+
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+            for (String value : List.of("apple", "banana", "cherry")) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef(value)));
+                indexWriter.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+                SearchContext searchContext = createSearchContext(
+                    indexSearcher,
+                    createIndexSettings(),
+                    null,
+                    new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS, requestBreaker),
+                    breakerService,
+                    fieldType
+                );
+                when(searchContext.isStreamSearch()).thenReturn(true);
+                when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
+                StreamStringTermsAggregator aggregator = createAggregator(aggregationBuilder, searchContext);
+
+                aggregator.preCollection();
+                indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                aggregator.postCollection();
+
+                long baselineBytes = breakerBytes.get();
+                aggregator.buildAggregations(new long[] { 0 });
+                assertEquals("candidate storage must be released", baselineBytes, breakerBytes.get());
+
+                breakAllocations.set(true);
+                assertThrows(CircuitBreakingException.class, () -> aggregator.buildAggregations(new long[] { 0 }));
+                assertEquals("failed candidate allocation must be released", baselineBytes, breakerBytes.get());
             }
         }
     }

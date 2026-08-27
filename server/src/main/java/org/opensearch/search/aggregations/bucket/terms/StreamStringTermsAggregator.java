@@ -16,8 +16,10 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntroSelector;
+import org.apache.lucene.util.IntroSorter;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -255,8 +257,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         /**
          * Collect candidate bucket ords for {@code owningBucketOrd}, pick the top
          * {@code segmentSize} according to the active ordering, and emit final buckets.
-         * Each candidate entry carries both the bucket ordinal (into docCounts) and the
-         * underlying segment ordinal (for docvalues term lookup).
          */
         private SelectionResult<B> selectTopBuckets(long owningBucketOrd, int segmentSize, BucketCountThresholds thresholds)
             throws IOException {
@@ -265,105 +265,103 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
                 return new SelectionResult<>(new ArrayList<>(), 0L);
             }
 
-            // Pair up each candidate as (bucketOrd, segmentOrdinal). We keep them in two
-            // parallel arrays sized bucketsForOwner.
-            long[] candidateBucketOrds = new long[Math.toIntExact(bucketsForOwner)];
-            long[] candidateSegmentOrds = new long[candidateBucketOrds.length];
-
-            int cnt = 0;
-            long totalDocCount = 0;
-            LongKeyedBucketOrds.BucketOrdsEnum enumerator = bucketOrds.ordsEnum(owningBucketOrd);
-            while (enumerator.next()) {
-                long bucketOrd = enumerator.ord();
-                long segmentOrd = enumerator.value();
-                long docCount = bucketDocCount(bucketOrd);
-                totalDocCount += docCount;
-                if (docCount >= thresholds.getMinDocCount()) {
-                    candidateBucketOrds[cnt] = bucketOrd;
-                    candidateSegmentOrds[cnt] = segmentOrd;
-                    cnt++;
-                }
-            }
-
-            int effectiveSegmentSize = Math.min(segmentSize, cnt);
-
-            if (cnt <= effectiveSegmentSize) {
-                List<B> result = new ArrayList<>(cnt);
-                long selectedDocCount = 0;
-                for (int i = 0; i < cnt; i++) {
-                    long bucketOrd = candidateBucketOrds[i];
-                    long segmentOrd = candidateSegmentOrds[i];
+            try (LongArray candidateBucketOrds = context.bigArrays().newLongArray(Math.toIntExact(bucketsForOwner), false)) {
+                int cnt = 0;
+                long totalDocCount = 0;
+                LongKeyedBucketOrds.BucketOrdsEnum enumerator = bucketOrds.ordsEnum(owningBucketOrd);
+                while (enumerator.next()) {
+                    long bucketOrd = enumerator.ord();
                     long docCount = bucketDocCount(bucketOrd);
-                    result.add(buildFinalBucket(bucketOrd, segmentOrd, docCount));
+                    totalDocCount += docCount;
+                    if (docCount >= thresholds.getMinDocCount()) {
+                        candidateBucketOrds.set(cnt++, bucketOrd);
+                    }
+                }
+
+                int effectiveSegmentSize = Math.min(segmentSize, cnt);
+
+                if (cnt <= effectiveSegmentSize) {
+                    List<B> result = new ArrayList<>(cnt);
+                    long selectedDocCount = 0;
+                    for (int i = 0; i < cnt; i++) {
+                        long bucketOrd = candidateBucketOrds.get(i);
+                        long docCount = bucketDocCount(bucketOrd);
+                        result.add(buildFinalBucket(bucketOrd, bucketOrds.get(bucketOrd), docCount));
+                        selectedDocCount += docCount;
+                    }
+                    return new SelectionResult<>(result, totalDocCount - selectedDocCount);
+                }
+
+                ensureOrdinalComparator();
+                new IntroSelector() {
+                    long pivotBucketOrd;
+                    long pivotSegmentOrd;
+
+                    @Override
+                    protected void swap(int i, int j) {
+                        long tmp = candidateBucketOrds.get(i);
+                        candidateBucketOrds.set(i, candidateBucketOrds.get(j));
+                        candidateBucketOrds.set(j, tmp);
+                    }
+
+                    @Override
+                    protected void setPivot(int i) {
+                        pivotBucketOrd = candidateBucketOrds.get(i);
+                        pivotSegmentOrd = bucketOrds.get(pivotBucketOrd);
+                    }
+
+                    @Override
+                    protected int comparePivot(int j) {
+                        long candidateBucketOrd = candidateBucketOrds.get(j);
+                        long left;
+                        long right;
+                        if (isKeyOrder(order)) {
+                            left = bucketOrds.get(candidateBucketOrd);
+                            right = pivotSegmentOrd;
+                        } else {
+                            left = candidateBucketOrd;
+                            right = pivotBucketOrd;
+                        }
+                        if (ordinalComparator != null) {
+                            return -ordinalComparator.compare(left, right);
+                        }
+                        return Long.compare(bucketDocCount(candidateBucketOrd), bucketDocCount(pivotBucketOrd));
+                    }
+                }.select(0, cnt, effectiveSegmentSize);
+
+                // Match the historical emit order (ascending by segment ordinal, i.e.
+                // alphabetical) so downstream reduce ordering assumptions hold.
+                new IntroSorter() {
+                    long pivotBucketOrd;
+
+                    @Override
+                    protected void swap(int i, int j) {
+                        long tmp = candidateBucketOrds.get(i);
+                        candidateBucketOrds.set(i, candidateBucketOrds.get(j));
+                        candidateBucketOrds.set(j, tmp);
+                    }
+
+                    @Override
+                    protected void setPivot(int i) {
+                        pivotBucketOrd = candidateBucketOrds.get(i);
+                    }
+
+                    @Override
+                    protected int comparePivot(int j) {
+                        return Long.compare(bucketOrds.get(pivotBucketOrd), bucketOrds.get(candidateBucketOrds.get(j)));
+                    }
+                }.sort(0, effectiveSegmentSize);
+
+                List<B> result = new ArrayList<>(effectiveSegmentSize);
+                long selectedDocCount = 0;
+                for (int i = 0; i < effectiveSegmentSize; i++) {
+                    long bucketOrd = candidateBucketOrds.get(i);
+                    long docCount = bucketDocCount(bucketOrd);
+                    result.add(buildFinalBucket(bucketOrd, bucketOrds.get(bucketOrd), docCount));
                     selectedDocCount += docCount;
                 }
                 return new SelectionResult<>(result, totalDocCount - selectedDocCount);
             }
-
-            ensureOrdinalComparator();
-            final long[] bucketOrdsRef = candidateBucketOrds;
-            final long[] segmentOrdsRef = candidateSegmentOrds;
-            IntroSelector selector = new IntroSelector() {
-                long pivotBucketOrd;
-                long pivotSegmentOrd;
-
-                @Override
-                protected void swap(int i, int j) {
-                    long tmp = bucketOrdsRef[i];
-                    bucketOrdsRef[i] = bucketOrdsRef[j];
-                    bucketOrdsRef[j] = tmp;
-                    tmp = segmentOrdsRef[i];
-                    segmentOrdsRef[i] = segmentOrdsRef[j];
-                    segmentOrdsRef[j] = tmp;
-                }
-
-                @Override
-                protected void setPivot(int i) {
-                    pivotBucketOrd = bucketOrdsRef[i];
-                    pivotSegmentOrd = segmentOrdsRef[i];
-                }
-
-                @Override
-                protected int comparePivot(int j) {
-                    long left, right;
-                    if (isKeyOrder(order)) {
-                        // Compare segment ordinals (alphabetical proxy)
-                        left = segmentOrdsRef[j];
-                        right = pivotSegmentOrd;
-                    } else {
-                        // Compare bucket ordinals (so bucketDocCount reads per-owner counts)
-                        left = bucketOrdsRef[j];
-                        right = pivotBucketOrd;
-                    }
-                    if (ordinalComparator != null) {
-                        return -ordinalComparator.compare(left, right);
-                    }
-                    long leftDocCount = bucketDocCount(bucketOrdsRef[j]);
-                    long rightDocCount = bucketDocCount(pivotBucketOrd);
-                    return Long.compare(leftDocCount, rightDocCount);
-                }
-            };
-
-            selector.select(0, cnt, effectiveSegmentSize);
-
-            // Match the historical emit order (ascending by segment ordinal, i.e.
-            // alphabetical) so downstream reduce ordering assumptions hold.
-            Integer[] indices = new Integer[effectiveSegmentSize];
-            for (int i = 0; i < effectiveSegmentSize; i++) {
-                indices[i] = i;
-            }
-            Arrays.sort(indices, (a, b) -> Long.compare(candidateSegmentOrds[a], candidateSegmentOrds[b]));
-
-            List<B> result = new ArrayList<>(effectiveSegmentSize);
-            long selectedDocCount = 0;
-            for (int idx : indices) {
-                long bucketOrd = candidateBucketOrds[idx];
-                long segmentOrd = candidateSegmentOrds[idx];
-                long docCount = bucketDocCount(bucketOrd);
-                result.add(buildFinalBucket(bucketOrd, segmentOrd, docCount));
-                selectedDocCount += docCount;
-            }
-            return new SelectionResult<>(result, totalDocCount - selectedDocCount);
         }
 
         @Override
