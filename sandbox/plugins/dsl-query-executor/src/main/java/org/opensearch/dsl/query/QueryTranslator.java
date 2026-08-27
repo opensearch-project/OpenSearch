@@ -25,14 +25,18 @@ public interface QueryTranslator {
     /**
      * Validates the query builder's request shape before routing/conversion.
      *
-     * <p>Schema-dependent checks should remain in {@link #convert(QueryBuilder, ConversionContext)},
-     * since the routing layer does not have schema context.
+     * <p>Reject-unless-supported: the default <em>rejects</em>, so a translator whose type may run on
+     * the Calcite path must override this to accept (and to reject any parameter it cannot honor).
+     * Schema-dependent checks stay in {@link #convert(QueryBuilder, ConversionContext)}.
      *
      * @param query the query builder to validate
-     * @return the validation result
+     * @return the validation result; rejected by default
      */
     default ValidationResult validate(QueryBuilder query) {
-        return ValidationResult.accepted();
+        return ValidationResult.rejected(
+            query.getName() + ".unvalidated",
+            query.getName() + " query has no validate() override; its parameters are not vetted for the Calcite path"
+        );
     }
 
     /**

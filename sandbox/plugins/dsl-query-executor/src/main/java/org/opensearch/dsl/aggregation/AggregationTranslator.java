@@ -8,7 +8,7 @@
 
 package org.opensearch.dsl.aggregation;
 
-import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.search.aggregations.AggregationBuilder;
 
 import java.util.Map;
@@ -24,17 +24,14 @@ public interface AggregationTranslator<T extends AggregationBuilder> {
     Class<T> getAggregationType();
 
     /**
-     * Rejects requests carrying parameters this translator does not implement. Called once per
-     * aggregation, before any plan is built.
-     *
-     * <p>An unimplemented parameter must be rejected rather than ignored: ignoring it returns
-     * a well-formed response whose numbers differ from classic search. A translator that
-     * honors every parameter of its aggregation type provides an empty implementation.
+     * Validates the aggregation's request shape, rejecting parameters this translator does not
+     * implement — ignoring one would return a response whose numbers differ from classic search.
+     * Called once per aggregation, before any plan is built.
      *
      * @param agg the aggregation builder to validate
-     * @throws ConversionException if the aggregation carries an unsupported parameter
+     * @return the validation result; {@link ValidationResult#accepted()} when every parameter is supported
      */
-    void validate(T agg) throws ConversionException;
+    ValidationResult validate(T agg);
 
     /**
      * Returns the user-supplied {@code meta} map from the request, or null when absent so the

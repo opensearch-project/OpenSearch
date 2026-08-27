@@ -39,6 +39,12 @@ public class TermQueryTranslator implements QueryTranslator {
         return TermQueryBuilder.class;
     }
 
+    /** Accepts every term query: {@link #convert} rejects no parameter, so routing mirrors conversion. */
+    @Override
+    public ValidationResult validate(QueryBuilder query) {
+        return ValidationResult.accepted();
+    }
+
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         TermQueryBuilder termQuery = (TermQueryBuilder) query;

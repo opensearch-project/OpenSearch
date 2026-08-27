@@ -10,7 +10,7 @@ package org.opensearch.dsl.aggregation.bucket;
 
 import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
-import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -80,19 +80,22 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
      * bucket set or key rendering relative to classic search if ignored.
      */
     @Override
-    public void validate(TermsAggregationBuilder agg) throws ConversionException {
+    public ValidationResult validate(TermsAggregationBuilder agg) {
         if (agg.includeExclude() != null) {
-            throw new ConversionException(
+            return ValidationResult.rejected(
+                "terms.include_exclude",
                 "[include]/[exclude] on terms aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
             );
         }
         if (agg.script() != null) {
-            throw new ConversionException(
+            return ValidationResult.rejected(
+                "terms.script",
                 "[script] on terms aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
             );
         }
         if (agg.minDocCount() == 0) {
-            throw new ConversionException(
+            return ValidationResult.rejected(
+                "terms.min_doc_count",
                 "[min_doc_count: 0] on terms aggregation ["
                     + agg.getName()
                     + "] is not supported by the DSL execution path — zero-count buckets require enumerating the index term "
@@ -103,7 +106,8 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
         if (fieldType != null
             && (DateFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
                 || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(fieldType.typeName()))) {
-            throw new ConversionException(
+            return ValidationResult.rejected(
+                "terms.date_field",
                 "terms aggregation ["
                     + agg.getName()
                     + "] on date field ["
@@ -111,6 +115,7 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
                     + "] is not supported by the DSL execution path — date bucket keys cannot yet be rendered with mapping formats"
             );
         }
+        return ValidationResult.accepted();
     }
 
     @Override

@@ -20,7 +20,6 @@ import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.PipelineAggregatorBuilders;
@@ -49,6 +48,11 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
             @Override
             public Class<? extends QueryBuilder> getQueryType() {
                 return queryType;
+            }
+
+            @Override
+            public ValidationResult validate(QueryBuilder query) {
+                return ValidationResult.accepted();
             }
 
             @Override
@@ -103,18 +107,26 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
         assertEquals("query:match", decision.rejectionReasons().get(0));
     }
 
-    public void testBoolRecursesIntoRegisteredChildren() {
+    public void testBoolRejectedWithoutTranslator() {
+        // Invariant: supported <=> has a translator. bool has none on this branch (pending its own
+        // BoolQueryTranslator), so a bool is rejected at its own node — before its children are seen.
         SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).filter(QueryBuilders.existsQuery("price"))
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme"))
         );
-        assertTrue(grammar.validate(source).supported());
+        RouteDecision decision = grammar.validate(source);
+        assertFalse(decision.supported());
+        assertEquals("query:bool", decision.rejectionReasons().get(0));
     }
 
-    public void testBoolRejectsIfAnyChildRejected() {
+    public void testWalkDescendsIntoCompoundChildren() {
+        // A stub stands in for a compound translator (bool gets a real one in #22604): once the
+        // compound node is accepted, QueryBuilder#visit descends and the unsupported "match" child is
+        // found and rejected. Asserting a rejection proves the descent without implying bool is routable.
+        DslCalciteGrammar g = grammarWith(acceptingTranslatorFor(BoolQueryBuilder.class));
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).must(QueryBuilders.matchQuery("desc", "fast")) // unregistered
         );
-        RouteDecision decision = grammar.validate(source);
+        RouteDecision decision = g.validate(source);
         assertFalse(decision.supported());
         assertEquals("query:match", decision.rejectionReasons().get(0));
     }
@@ -131,40 +143,39 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
     }
 
     public void testDeeplyNestedUnsupportedLeafRejected() {
-        // bool -> bool -> match: the unregistered "match" leaf sits two bool levels deep and must
-        // still be found and rejected (structural recursion, not a hardcoded switch).
+        // bool -> bool -> match: with a stub bool translator so the walk descends, the unregistered
+        // "match" leaf two bool levels deep is still found and rejected (QueryBuilder#visit descends).
+        DslCalciteGrammar g = grammarWith(acceptingTranslatorFor(BoolQueryBuilder.class));
         BoolQueryBuilder inner = QueryBuilders.boolQuery();
         inner.must(QueryBuilders.termQuery("brand", "Acme"));
         inner.should(QueryBuilders.matchQuery("desc", "fast"));
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(inner));
-        RouteDecision decision = grammar.validate(source);
+        RouteDecision decision = g.validate(source);
         assertFalse(decision.supported());
         assertEquals("query:match", decision.rejectionReasons().get(0));
     }
 
-    public void testDeeplyNestedSupportedTreeAccepted() {
-        // bool -> bool with only registered leaves at depth is accepted.
-        SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.boolQuery()
-                .must(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).filter(QueryBuilders.existsQuery("price")))
-        );
-        assertTrue(grammar.validate(source).supported());
-    }
+    // ---- reject-unless-validated ----
 
-    // ---- translator-backed leaf validation ----
-
-    public void testRangeSupported() {
-        DslCalciteGrammar g = grammarWith(acceptingTranslatorFor(RangeQueryBuilder.class));
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.rangeQuery("price").gt(100).lt(500));
-        assertTrue(g.validate(source).supported());
-    }
-
-    public void testRangeUsesTranslatorValidationReason() {
-        DslCalciteGrammar g = grammarWith(rejectingTranslatorFor(RangeQueryBuilder.class, "range.boost"));
-        RangeQueryBuilder q = QueryBuilders.rangeQuery("price").gt(100).boost(2.0f);
-        RouteDecision decision = g.validate(new SearchSourceBuilder().query(q));
+    public void testRangeRejectedUntilItValidates() {
+        // Reject-unless-supported: RangeQueryTranslator has no validate() override yet, so the
+        // reject-by-default contract routes range to codec until range validation is implemented.
+        RouteDecision decision = grammar.validate(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("price").gt(100)));
         assertFalse(decision.supported());
-        assertEquals("range.boost", decision.rejectionReasons().get(0));
+        assertEquals("range.unvalidated", decision.rejectionReasons().get(0));
+    }
+
+    public void testCompoundTranslatorParamRejectionHonored() {
+        // A compound's own translator.validate() runs on the node before the walk descends; when it
+        // rejects, first-failing-node-wins surfaces the compound's reason, not a child's. (Stub stands
+        // in for a compound translator such as bool's, arriving in #22604.)
+        DslCalciteGrammar g = grammarWith(rejectingTranslatorFor(BoolQueryBuilder.class, "bool.minimum_should_match"));
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("brand", "Acme")).minimumShouldMatch(1)
+        );
+        RouteDecision decision = g.validate(source);
+        assertFalse(decision.supported());
+        assertEquals("bool.minimum_should_match", decision.rejectionReasons().get(0));
     }
 
     // ---- terms query per-param ----
@@ -232,6 +243,26 @@ public class DslCalciteGrammarTests extends OpenSearchTestCase {
     public void testTopLevelBucketAggSupported() {
         SearchSourceBuilder source = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("by_brand").field("brand"));
         assertTrue(grammar.validate(source).supported());
+    }
+
+    public void testMetricAggUnsupportedParamRejected() {
+        // 'missing' is unsupported on metric aggs; the grammar runs the same validate() the converter
+        // does and rejects up front (to codec) with the translator's per-parameter reason code.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(AggregationBuilders.avg("avg_price").field("price").missing(0));
+        RouteDecision d = grammar.validate(source);
+        assertFalse(d.supported());
+        assertEquals("avg.missing", d.rejectionReasons().get(0));
+    }
+
+    public void testBucketAggUnsupportedParamRejected() {
+        // min_doc_count:0 is unsupported on terms (zero-count buckets need the term dictionary);
+        // rejected up front to codec with the translator's reason code.
+        SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+            .aggregation(AggregationBuilders.terms("by_brand").field("brand").minDocCount(0));
+        RouteDecision d = grammar.validate(source);
+        assertFalse(d.supported());
+        assertEquals("terms.min_doc_count", d.rejectionReasons().get(0));
     }
 
     public void testUnregisteredAggRejected() {

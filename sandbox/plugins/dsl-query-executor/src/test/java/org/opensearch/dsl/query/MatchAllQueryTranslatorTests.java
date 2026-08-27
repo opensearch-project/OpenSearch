@@ -32,4 +32,9 @@ public class MatchAllQueryTranslatorTests extends OpenSearchTestCase {
         MatchAllQueryTranslator translator = new MatchAllQueryTranslator();
         assertEquals(MatchAllQueryBuilder.class, translator.getQueryType());
     }
+
+    public void testValidateAcceptsMatchAll() {
+        // match_all's validate() is a blanket accept: convert() rejects no parameter.
+        assertTrue(new MatchAllQueryTranslator().validate(QueryBuilders.matchAllQuery()).isAccepted());
+    }
 }
