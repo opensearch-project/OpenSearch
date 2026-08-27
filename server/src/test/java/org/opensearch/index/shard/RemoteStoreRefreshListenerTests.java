@@ -140,12 +140,43 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         setup(true, 3);
         IndexShard owningShard = spy(indexShard);
         doReturn(false).when(owningShard).isRemoteStoreFenceSuperseded();
+        doReturn(false).when(owningShard).isRemoteStoreFenceSupersededFailingClosed();
         doReturn(fencedIndexSettings()).when(owningShard).indexSettings();
 
         newRefreshListenerFor(owningShard).afterRefresh(true);
 
         verify(owningShard, atLeastOnce()).isRemoteStoreFenceSuperseded();
         verify(owningShard, atLeastOnce()).getRemoteStoreSettings();
+    }
+
+    /**
+     * The two gates must fail in OPPOSITE directions, independently: an unreadable fence lets the publication proceed
+     * (fail open - the worst case is an orphan) but must skip the stale-segment collection (fail closed - a wrongly
+     * permitted delete is unrecoverable). A single shared fail-open check would relax both at once, which is the
+     * combination {@code FenceSegmentFlow.tla} proves violates HydrationIntegrity.
+     */
+    public void testStaleSegmentCleanupFailsClosedWhileThePublishGateFailsOpen() throws Exception {
+        setup(true, 3);
+        IndexShard shard = spy(indexShard);
+        // An unreadable fence: the publish gate reports "not superseded" (fail open), the collection gate reports
+        // "superseded" (fail closed).
+        doReturn(false).when(shard).isRemoteStoreFenceSuperseded();
+        doReturn(true).when(shard).isRemoteStoreFenceSupersededFailingClosed();
+        doReturn(fencedIndexSettings()).when(shard).indexSettings();
+        RemoteStoreSettings settingsSpy = spy(indexShard.getRemoteStoreSettings());
+        // Force the collection decision to be reached once anything has been uploaded.
+        doReturn(0).when(settingsSpy).getUploadedSegmentsCleanupThreshold();
+        doReturn(settingsSpy).when(shard).getRemoteStoreSettings();
+
+        RemoteStoreRefreshListener listener = newRefreshListenerFor(shard);
+        listener.afterRefresh(true); // first sync populates the uploaded-segments map
+        listener.afterRefresh(true); // second sync reaches the collection decision
+
+        // The sync proceeded past the publish gate and reached the collection decision...
+        verify(shard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(shard, atLeastOnce()).isRemoteStoreFenceSupersededFailingClosed();
+        // ...but the collection itself did not run: its retention argument is read only at the deletion call site.
+        verify(settingsSpy, never()).getMinRemoteSegmentMetadataFiles();
     }
 
     /** Index settings identical to the shard's, except that remote store fencing is on. */

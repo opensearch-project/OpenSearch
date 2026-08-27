@@ -301,12 +301,21 @@ public class RemoteStoreFence {
      * "did not land", which is the retryable direction and never fences.
      */
     private boolean adoptOwnWriteIfItLanded(long primaryTerm, long attemptedSeq) {
+        return adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, ownerAllocationId);
+    }
+
+    /**
+     * As above, for writes that record a different allocation id than this instance's own - the ownership transfer of
+     * a relocation handoff records the target's. The node id stays ours on every write this instance issues, so the
+     * (term, seq, recorded allocation id, node id) tuple still identifies the write uniquely.
+     */
+    private boolean adoptOwnWriteIfItLanded(long primaryTerm, long attemptedSeq, String recordedAllocationId) {
         try {
             VersionedBlob current = blobContainer.readBlobWithVersion(fenceBlobName(primaryTerm));
             FenceState remote = readRemoteState(current.content());
             if (remote.seq == attemptedSeq
                 && remote.term == primaryTerm
-                && ownerAllocationId.equals(remote.allocationId)
+                && recordedAllocationId.equals(remote.allocationId)
                 && ownerNodeId.equals(remote.nodeId)) {
                 this.versionToken = current.versionToken();
                 this.term = primaryTerm;
@@ -545,10 +554,19 @@ public class RemoteStoreFence {
                 )
             );
         }
+        final long attemptedSeq = seq + 1;
         try {
-            cas(primaryTerm, versionToken, seq + 1, targetAllocationId);
+            cas(primaryTerm, versionToken, attemptedSeq, targetAllocationId);
         } catch (BlobVersionConflictException e) {
             throw fencedException(e);
+        } catch (IOException e) {
+            // Ambiguous, exactly as on the ack path: the transfer may have landed with only the response lost. Left
+            // unresolved, this copy would keep a stale token, and an aborted handoff's revert would then wrongly
+            // conclude the target took over. Resolve by identity: a blob recording the target at exactly the
+            // attempted seq, written from this node, can only be this transfer.
+            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, targetAllocationId) == false) {
+                throw e;
+            }
         }
         logger.info("Fence ownership handed to allocation [{}] at term [{}]", targetAllocationId, primaryTerm);
     }
@@ -565,14 +583,22 @@ public class RemoteStoreFence {
         if (fenced || versionToken == null || primaryTerm != term) {
             return false;
         }
+        final long attemptedSeq = seq + 1;
         try {
-            cas(primaryTerm, versionToken, seq + 1, ownerAllocationId);
+            cas(primaryTerm, versionToken, attemptedSeq, ownerAllocationId);
         } catch (BlobVersionConflictException e) {
             logger.info(
                 "Fence ownership at term [{}] is no longer ours - the target took it up, or a higher term swept it; standing down",
                 primaryTerm
             );
             return false;
+        } catch (IOException e) {
+            // Ambiguous: the revert may have landed with only the response lost. If it did, adopt its token so this
+            // copy resumes with the current chain rather than a stale one; if it cannot be resolved, rethrow - the
+            // caller treats a failed revert conservatively, and the next upload settles ownership either way.
+            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, ownerAllocationId) == false) {
+                throw e;
+            }
         }
         logger.info("Fence ownership reclaimed at term [{}] after an aborted relocation handoff", primaryTerm);
         return true;

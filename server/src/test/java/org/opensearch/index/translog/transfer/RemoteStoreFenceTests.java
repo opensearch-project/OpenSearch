@@ -417,6 +417,74 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         expectThrows(TranslogFencedException.class, () -> stranger.transferOwnershipTo(1, allocationIdOf("node-target")));
     }
 
+    /**
+     * An ownership transfer whose response is lost must not leave the source holding a stale token. The write landed -
+     * the object records the target - so the source adopts the resulting token by identity, exactly as the ack path
+     * does. What makes this matter is the abort path: with a stale token, an aborted handoff's revert would lose its
+     * CAS and wrongly conclude the target took over, standing down a healthy source.
+     */
+    public void testLostResponseOnTheTransferDoesNotStrandTheSource() throws IOException {
+        final AtomicBoolean swallowNextResponse = new AtomicBoolean();
+        final FsBlobContainer losingResponses = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, java.io.InputStream in, long size, String expectedToken)
+                throws IOException {
+                final String token = super.writeBlobConditionally(blobName, in, size, expectedToken);
+                if (swallowNextResponse.compareAndSet(true, false)) {
+                    throw new IOException("connection reset before the response was read");
+                }
+                return token;
+            }
+        };
+        final RemoteStoreFence source = new RemoteStoreFence(
+            losingResponses,
+            allocationIdOf("node-source"),
+            "node-source",
+            shardId,
+            threadPool
+        );
+        source.validateAndAdvance(1);
+
+        // The transfer lands but its response is lost: it must be reported as complete, with the token adopted.
+        swallowNextResponse.set(true);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        // The abort path can now genuinely distinguish the outcomes: the target never wrote, so the revert succeeds
+        // and the source resumes - instead of losing a CAS against its own transfer and standing down for no reason.
+        assertTrue("the revert must succeed against the adopted token", source.revertOwnership(1));
+        source.validateAndAdvance(1);
+    }
+
+    /** The revert twin: a revert that lands with a lost response reports reclaimed, with the token adopted. */
+    public void testLostResponseOnTheRevertDoesNotStandTheSourceDown() throws IOException {
+        final AtomicBoolean swallowNextResponse = new AtomicBoolean();
+        final FsBlobContainer losingResponses = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, java.io.InputStream in, long size, String expectedToken)
+                throws IOException {
+                final String token = super.writeBlobConditionally(blobName, in, size, expectedToken);
+                if (swallowNextResponse.compareAndSet(true, false)) {
+                    throw new IOException("connection reset before the response was read");
+                }
+                return token;
+            }
+        };
+        final RemoteStoreFence source = new RemoteStoreFence(
+            losingResponses,
+            allocationIdOf("node-source"),
+            "node-source",
+            shardId,
+            threadPool
+        );
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        swallowNextResponse.set(true);
+        assertTrue("a revert that landed must be reported as reclaimed", source.revertOwnership(1));
+        // And the source serves on, holding the current token.
+        source.validateAndAdvance(1);
+    }
+
     /** A fence instance requiring recorded ownership, as every translog instance does - see RemoteFsTranslog#buildFence. */
     private RemoteStoreFence newTranslogInstance(String ownerNodeId) {
         return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool, true);

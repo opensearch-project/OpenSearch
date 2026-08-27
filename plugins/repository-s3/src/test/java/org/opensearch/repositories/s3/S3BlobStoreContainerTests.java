@@ -359,7 +359,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             // 412 is unambiguous, with or without an error code
             (S3Exception) S3Exception.builder().statusCode(412).message("precondition failed").build(),
             s3Exception(412, "PreconditionFailed"),
-            s3Exception(409, "ConditionalRequestConflict") };
+            s3Exception(409, "PreconditionFailed") };
         for (S3Exception conflict : conflicts) {
             final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
             final S3BlobContainer blobContainer = conditionalWriteContainer(
@@ -381,6 +381,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     public void testWriteBlobConditionallyDoesNotTreatRetryableConflictsAsLostCas() {
         final S3Exception[] retryable = new S3Exception[] {
             s3Exception(409, "OperationAborted"),
+            // a conflicting conditional write IN PROGRESS: the outcome of this request's precondition is unknown,
+            // so it must be retried - the retry answers definitively (412 = genuinely lost, success = not lost)
+            s3Exception(409, "ConditionalRequestConflict"),
             // an unlabelled 409 is not evidence that the precondition failed
             (S3Exception) S3Exception.builder().statusCode(409).message("conflict").build() };
         for (S3Exception error : retryable) {

@@ -321,9 +321,12 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     /**
      * Distinguishes a genuinely lost compare-and-swap from a transient conflict. Losing the CAS is fatal for a fenced
-     * writer, so it is classified on the error code rather than the status code alone: 409 is also returned for
-     * retryable conditions such as {@code OperationAborted}, which must surface as an ordinary
-     * {@link IOException} and be retried rather than fencing the shard.
+     * writer, so only errors that prove the precondition was evaluated and NOT MET are classified as a lost CAS:
+     * a 412, with or without an error code, or a 409 carrying {@code PreconditionFailed}. Every other 409 - including
+     * {@code ConditionalRequestConflict}, which S3 returns when a concurrent conditional write on the same key is
+     * still in flight and the outcome of this request's precondition is therefore UNKNOWN - must surface as an
+     * ordinary {@link IOException} and be retried: the retry resolves it definitively (a 412 if the CAS was genuinely
+     * lost, success if it was not), whereas classifying it as lost would fence a healthy writer whose rival lost.
      */
     private static boolean isConditionFailure(S3Exception e) {
         // 412 Precondition Failed is unambiguous: the If-Match/If-None-Match condition was not met.
@@ -334,11 +337,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             return false;
         }
         final String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
-        // An unlabelled 409 is not evidence that the precondition failed, so it is not treated as a lost CAS.
+        // Neither an unlabelled 409 nor a retryable conflict code is evidence that the precondition failed.
         return errorCode != null && CONDITIONAL_WRITE_CONFLICT_ERROR_CODES.contains(errorCode);
     }
 
-    private static final Set<String> CONDITIONAL_WRITE_CONFLICT_ERROR_CODES = Set.of("ConditionalRequestConflict", "PreconditionFailed");
+    private static final Set<String> CONDITIONAL_WRITE_CONFLICT_ERROR_CODES = Set.of("PreconditionFailed");
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {

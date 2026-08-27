@@ -236,12 +236,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // of this shard, and neither is on the acknowledgement path that the fence CAS gates. A superseded copy doing
         // either can break a legitimate owner: an unfenced publish moves the reference set that collection prunes to,
         // so the owner's own collection then deletes files it is still hydrating. Both are therefore gated on this copy
-        // still owning the fence. FenceSegmentFlow.tla measures each gate: either one alone is enough to hold
-        // HydrationIntegrity, so this is defence in depth rather than two independently required checks - the model
-        // cannot represent collection at every point in the real shard lifecycle, and the guards sit on different
-        // paths guarding different resources (segments here, the translog in trimUnreferencedReaders). Returning true
-        // rather than requesting a retry is deliberate: a superseded copy will never regain ownership, so retrying
-        // would spin. The setting is checked first so that an unfenced index never pays for the ownership read.
+        // still owning the fence - but on SEPARATE checks with OPPOSITE failure directions. This one gates the
+        // publication and fails OPEN (an unreadable fence proceeds - the worst case is an orphan, the pre-existing
+        // harmless case); the stale-segment collection below has its own fail-CLOSED gate, as do the translog trims.
+        // FenceSegmentFlow.tla measures why the separation matters: relaxing the publication gate alone is safe and
+        // relaxing a collection gate alone is safe, but relaxing both violates HydrationIntegrity - so one shared
+        // fail-open check would turn a single unreadable-fence event into exactly that unsafe combination. Returning
+        // true rather than requesting a retry is deliberate: a superseded copy will never regain ownership, so
+        // retrying would spin. The setting is checked first so that an unfenced index never pays for the ownership
+        // read.
         if (indexShard.indexSettings().isRemoteStoreFencingEnabled() && indexShard.isRemoteStoreFenceSuperseded()) {
             logger.info("Skipping segment upload and cleanup: a higher primary term has taken the remote store fence");
             return true;
@@ -266,7 +269,19 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
                 // to prevent unbounded memory growth when flushes do not happen.
                 if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
+                    // Collection fails CLOSED, on its own gate, unlike the publication gate at the top of this sync
+                    // (which fails open - an unreadable fence there costs at most an orphan). The two directions must
+                    // sit on separate checks: FenceSegmentFlow.tla measures that relaxing the publication gate alone
+                    // is safe and relaxing a collection gate alone is safe, but relaxing BOTH violates
+                    // HydrationIntegrity - and a single shared fail-open check would relax both on one
+                    // unreadable-fence event, a perfectly correlated failure. A skipped cycle is retried on the next
+                    // commit-refresh; a wrongly permitted delete is not recoverable.
+                    if (indexShard.indexSettings().isRemoteStoreFencingEnabled()
+                        && indexShard.isRemoteStoreFenceSupersededFailingClosed()) {
+                        logger.info("Skipping stale segment cleanup: remote store fence ownership is superseded or unreadable");
+                    } else {
+                        remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
+                    }
                 }
 
                 try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {

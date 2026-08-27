@@ -1098,19 +1098,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                // Hand remote store fence ownership to the target while our uploads are drained, so the transfer is
-                // uncontested. The target may only take the fence over once it observes this, which is what stops it
-                // fencing us if the handoff below aborts; the token retained here is what lets the abort path tell a
-                // target that took over from one that never wrote.
+                // Everything from here on - INCLUDING the ownership handover itself - must reclaim fence ownership if
+                // it fails: the cluster keeps this copy as primary on any failure and releases its upload drains
+                // below, so a copy left with a stale token would fail the shard for no reason. The handover is inside
+                // this scope because its own failure can be ambiguous - the write may have landed with only the
+                // response lost - and the reclaim path is what resolves that: a successful revert proves the target
+                // never took over, and a failed one stands this copy down instead of letting it serve on a stale
+                // token until its next upload.
                 try {
-                    transferRemoteStoreFenceOwnership(targetAllocationId);
-                } catch (IOException e) {
-                    throw new IllegalStateException("failed to hand remote store fence ownership to " + targetAllocationId, e);
-                }
-                // Everything from here on must reclaim fence ownership if it fails, not just the handoff itself:
-                // the cluster keeps this copy as primary on any failure and releases its upload drains below, so a
-                // copy left with a stale token would fail the shard for no reason.
-                try {
+                    // Hand remote store fence ownership to the target while our uploads are drained, so the transfer
+                    // is uncontested. The target may only take the fence over once it observes this, which is what
+                    // stops it fencing us if the handoff below aborts; the token retained here is what lets the abort
+                    // path tell a target that took over from one that never wrote.
+                    try {
+                        transferRemoteStoreFenceOwnership(targetAllocationId);
+                    } catch (IOException e) {
+                        throw new IllegalStateException("failed to hand remote store fence ownership to " + targetAllocationId, e);
+                    }
                     final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
                     try {
                         consumer.accept(primaryContext);
@@ -1199,6 +1203,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             logger.warn("Could not determine whether the remote store fence was superseded; proceeding", e);
             return false;
+        }
+    }
+
+    /**
+     * The fail-CLOSED twin of {@link #isRemoteStoreFenceSuperseded()}, for the garbage collection paths: an
+     * unreadable fence reports "superseded", so the caller skips the deletion. A wrongly permitted delete is not
+     * recoverable, whereas a skipped collection cycle is retried on the next one - the opposite trade to the publish
+     * gate. Keeping the two directions on separate methods is what makes them genuinely independent: a single
+     * unreadable-fence event must never relax the publication gate and a collection gate at once, which is exactly
+     * the combination {@code FenceSegmentFlow.tla} measures as unsafe.
+     */
+    public boolean isRemoteStoreFenceSupersededFailingClosed() {
+        RemoteStoreFenceOwnership fenceOwnership = remoteStoreFenceOwnership();
+        if (fenceOwnership == null) {
+            return false;
+        }
+        try {
+            return fenceOwnership.isRemoteStoreFenceSuperseded();
+        } catch (Exception e) {
+            logger.warn("Could not determine whether the remote store fence was superseded; treating as superseded (fail closed)", e);
+            return true;
         }
     }
 
