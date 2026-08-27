@@ -118,7 +118,16 @@ public final class OpenSearchSortPushdownRewriter {
         return pushed ? union.copy(union.getTraitSet(), arms, union.all) : null;
     }
 
-    /** ER with the shard Sort inserted between it and its input. */
+    /**
+     * ER with the shard Sort inserted between it and its input.
+     *
+     * <p>The shard Sort is marked {@code perPartition} — it runs per-shard BELOW the gather, so it must
+     * stay there. {@code DistributionEnforcementPass} otherwise treats a non-{@code DistributionAware}
+     * Sort as a coordinator op and re-gathers its input, hoisting this Sort above the ER and leaving the
+     * shard fragment a bare scan that ships every row (measured: `sort … | head 10` over 10M rows went
+     * 51ms → 5391ms with mpp on). {@link OpenSearchTopKRewriter} already marks its aggregate-path shard
+     * Sort the same way.
+     */
     private static RelNode pushBelow(OpenSearchExchangeReducer er, OpenSearchSort collated, RexNode fetch) {
         RelNode erInput = er.getInput();
         OpenSearchSort shardSort = new OpenSearchSort(
@@ -128,7 +137,8 @@ public final class OpenSearchSortPushdownRewriter {
             collated.getCollation(),
             null,
             fetch,
-            collated.getViableBackends()
+            collated.getViableBackends(),
+            /* perPartition */ true
         );
         return er.copy(er.getTraitSet(), List.of(shardSort));
     }

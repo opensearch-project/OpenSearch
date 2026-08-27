@@ -1464,6 +1464,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY,
                 id,
+                null,
                 VersionType.INTERNAL,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0
@@ -1473,7 +1474,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id, null);
             shard.sync(); // advance local checkpoint
         }
         return result;

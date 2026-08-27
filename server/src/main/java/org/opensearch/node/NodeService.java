@@ -34,6 +34,7 @@ package org.opensearch.node;
 
 import org.opensearch.Build;
 import org.opensearch.Version;
+import org.opensearch.action.ActionConcurrencyLimiterStats;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
@@ -118,6 +119,7 @@ public class NodeService implements Closeable {
      */
     @Nullable
     private final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
+    private final Supplier<ActionConcurrencyLimiterStats> concurrencyLimiterStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -146,7 +148,8 @@ public class NodeService implements Closeable {
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
         CacheService cacheService,
-        @Nullable Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
+        @Nullable Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier,
+        @Nullable Supplier<ActionConcurrencyLimiterStats> concurrencyLimiterStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -177,6 +180,7 @@ public class NodeService implements Closeable {
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
         this.nativeAllocatorStatsSupplier = nativeAllocatorStatsSupplier;
+        this.concurrencyLimiterStatsSupplier = concurrencyLimiterStatsSupplier;
     }
 
     public NodeInfo info(
@@ -263,7 +267,8 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
-        boolean nativeMemory
+        boolean nativeMemory,
+        boolean concurrencyLimiter
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -301,6 +306,7 @@ public class NodeService implements Closeable {
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
             nativeMemory ? collectNativeAllocatorStats() : null,
+            concurrencyLimiter ? collectConcurrencyLimiterStats() : null,
             // Always capture the process-level native memory estimate on this data node.
             // Serialized over the wire so the coordinator renders the source node's value,
             // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is
@@ -312,6 +318,11 @@ public class NodeService implements Closeable {
     @Nullable
     private NativeAllocatorPoolStats collectNativeAllocatorStats() {
         return nativeAllocatorStatsSupplier != null ? nativeAllocatorStatsSupplier.get() : null;
+    }
+
+    @Nullable
+    private ActionConcurrencyLimiterStats collectConcurrencyLimiterStats() {
+        return concurrencyLimiterStatsSupplier != null ? concurrencyLimiterStatsSupplier.get() : null;
     }
 
     public IngestService getIngestService() {

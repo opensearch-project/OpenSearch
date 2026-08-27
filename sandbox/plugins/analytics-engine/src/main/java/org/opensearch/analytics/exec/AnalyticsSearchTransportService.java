@@ -17,6 +17,8 @@ import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.WorkerFragmentExecutionAction;
+import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
 import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
@@ -43,6 +45,8 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -87,6 +91,10 @@ public class AnalyticsSearchTransportService {
         this.transportService = transportService;
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.streamingTransportService, searchService, indicesService);
+        // MPP hash-shuffle worker fragments ride the STREAM transport (batched results), same as the
+        // shard fragment handler — upstream renamed the stream-transport field to
+        // streamingTransportService when it introduced the regular transport for can-match.
+        registerWorkerFragmentHandler(this.streamingTransportService, searchService);
         registerFetchByRowIdsHandler(this.streamingTransportService, searchService, indicesService);
         // Can-match is a unary RPC — regular transport, not the stream transport (batches only).
         registerCanMatchHandler(this.transportService, searchService, indicesService);
@@ -126,6 +134,48 @@ public class AnalyticsSearchTransportService {
                     )
                 );
             }
+        );
+    }
+
+    /**
+     * Registers the worker-fragment streaming handler. Sibling of
+     * {@link #registerStreamingFragmentHandler}, but for fragments that have no shard scan —
+     * the handler skips {@code IndicesService.getShard} and reader acquisition entirely.
+     */
+    private static void registerWorkerFragmentHandler(StreamTransportService transportService, AnalyticsSearchService searchService) {
+        transportService.registerRequestHandler(
+            WorkerFragmentExecutionAction.NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            WorkerFragmentRequest::new,
+            (request, channel, task) -> searchService.executeWorkerFragmentStreamingAsync(
+                request,
+                (AnalyticsShardTask) task,
+                new AnalyticsSearchService.StreamingFragmentResponseHandler() {
+                    @Override
+                    public void onBatch(EngineResultBatch batch) throws Exception {
+                        channel.sendResponseBatch(new FragmentExecutionArrowResponse(batch.getArrowRoot()));
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        channel.completeStream();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof StreamException se && se.getErrorCode() == StreamErrorCode.CANCELLED) {
+                            return;
+                        }
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception ignored) {}
+                    }
+                },
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+            )
         );
     }
 
@@ -290,6 +340,109 @@ public class AnalyticsSearchTransportService {
     }
 
     /**
+     * Dispatches a worker-fragment request to the target node. Sibling of
+     * {@link #dispatchFragmentStreaming} but for the {@link WorkerFragmentExecutionAction}
+     * channel — the response shape is identical (Arrow streaming), only the request differs.
+     */
+    public void dispatchWorkerFragmentStreaming(
+        WorkerFragmentRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
+        TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
+            @Override
+            public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
+                return new FragmentExecutionArrowResponse(in);
+            }
+
+            @Override
+            public boolean skipsDeserialization() {
+                return true;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+                try {
+                    FragmentExecutionArrowResponse current;
+                    FragmentExecutionArrowResponse last = null;
+                    while ((current = stream.nextResponse()) != null) {
+                        if (last != null) {
+                            listener.onStreamResponse(last, false);
+                        }
+                        last = current;
+                    }
+                    if (last != null) {
+                        listener.onStreamResponse(last, true);
+                    } else {
+                        // Worker fragments may have an empty response stream when their output
+                        // is fully consumed by the coord-reduce sink rather than streamed back.
+                        // Synthesize a final null-payload, isLast=true response so the
+                        // coordinator's stage-execution listener fires onResponse(null) and the
+                        // stage transitions to SUCCEEDED.
+                        listener.onStreamResponse(new FragmentExecutionArrowResponse((VectorSchemaRoot) null), true);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                } finally {
+                    try {
+                        stream.close();
+                    } catch (Exception ignore) {}
+                    pending.finishAndRunNext();
+                }
+            }
+
+            @Override
+            public void handleResponse(FragmentExecutionArrowResponse response) {
+                try {
+                    listener.onStreamResponse(response, true);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+
+            @Override
+            public void handleException(TransportException e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+        };
+
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
+        pending.tryRun(() -> {
+            try {
+                Transport.Connection connection = getConnection(targetNode);
+                streamingTransportService.sendChildRequest(
+                    connection,
+                    WorkerFragmentExecutionAction.NAME,
+                    request,
+                    parentTask,
+                    options,
+                    handler
+                );
+            } catch (Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    pending.finishAndRunNext();
+                }
+            }
+            // Permit consumed — a worker dispatch always attempts the send (no stillNeeded gate),
+            // so it never declines back to PendingExecutions.
+            return true;
+        });
+    }
+
+    /**
      * Dispatches a fragment-execution RPC to {@code targetNode}, subject to {@code pending}'s
      * per-node concurrency window.
      *
@@ -372,6 +525,15 @@ public class AnalyticsSearchTransportService {
                 boolean terminatedCleanly = false;
                 try {
                     last = stream.nextResponse();
+                    if (last == null) {
+                        // Hash-shuffle producer / worker fragments stream zero responses (their
+                        // output goes peer-to-peer via AnalyticsShuffleDataAction, or is fully
+                        // consumed by the coord-reduce sink rather than streamed back). Synthesize
+                        // a final null-payload isLast=true so the stage's response listener still
+                        // fires onResponse(null) and the producer stage transitions to SUCCEEDED.
+                        listener.onStreamResponse(new FragmentExecutionArrowResponse((VectorSchemaRoot) null), true);
+                        return;
+                    }
                     while (last != null) {
                         // Profiling sentinel: 0 rows with metadata attached. Deliver metrics and exit.
                         if (last.getRoot() != null && last.getRoot().getRowCount() == 0 && last.getMetadata() != null) {

@@ -48,6 +48,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import io.netty.util.internal.PlatformDependent;
+
 /**
  * Top-level plugin that owns the unified Arrow-backed native memory allocator.
  *
@@ -436,10 +438,32 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     static String derivePoolMaxDefault(Settings settings, int percent) {
         ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
-        if (nativeLimit.getBytes() <= 0) {
-            return Long.toString(Long.MAX_VALUE);
+        if (nativeLimit.getBytes() > 0) {
+            return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
         }
-        return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
+        // node.native_memory.limit could not be derived (e.g. a restricted container where physical-memory
+        // probing returns 0). Falling back to Long.MAX_VALUE would leave the pool UNBOUNDED, so the pool's
+        // own limit stops guarding allocations and the only remaining ceiling is the JVM-wide direct-memory
+        // budget (MaxDirectMemorySize). A burst of concurrent allocations then exhausts that shared budget
+        // and fails as a hard OutOfDirectMemoryError instead of a contained, per-pool OutOfMemoryException.
+        // Fall back to the same percentage of MaxDirectMemorySize (always known - it is a JVM setting) so the
+        // pool stays bounded strictly below the wall and over-budget allocations circuit-break within the pool.
+        long maxDirect = maxDirectMemoryBytes();
+        if (maxDirect > 0) {
+            return Long.toString(Math.max(0L, maxDirect * percent / 100));
+        }
+        // MaxDirectMemorySize itself is unavailable (should not happen on a supported JVM); preserve the
+        // historical unbounded behaviour rather than accidentally pinning the pool to 0.
+        return Long.toString(Long.MAX_VALUE);
+    }
+
+    /** JVM {@code -XX:MaxDirectMemorySize} in bytes, or -1 when it cannot be determined. */
+    static long maxDirectMemoryBytes() {
+        try {
+            return PlatformDependent.maxDirectMemory();
+        } catch (Throwable t) {
+            return -1L;
+        }
     }
 
     static String derivePoolMinDefault(Settings settings, int percent) {

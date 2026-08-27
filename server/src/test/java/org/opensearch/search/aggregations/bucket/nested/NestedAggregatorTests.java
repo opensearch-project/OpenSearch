@@ -1137,7 +1137,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
         if (aggTestThreadPool == null) {
             aggTestThreadPool = new TestThreadPool("nested_agg_test");
-            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
+            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY);
         }
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
             indexSettings,

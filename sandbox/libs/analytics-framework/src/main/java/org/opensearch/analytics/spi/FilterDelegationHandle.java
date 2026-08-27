@@ -62,13 +62,17 @@ public interface FilterDelegationHandle extends Closeable {
      * <p>Bit layout: word {@code i} contains matches for docs
      * {@code [minDoc + i*64, minDoc + (i+1)*64)}, LSB-first within each word.
      *
+     * <p>Return value packs two fields: upper 32 bits = next matching docId beyond
+     * maxDoc (or {@code Integer.MAX_VALUE} if exhausted), lower 32 bits = words written.
+     * Callers can use the nextDoc to skip subsequent RGs where {@code nextDoc >= rgMax}.
+     *
      * @param collectorKey key returned by {@link #createCollector(int, long, int, int)}
      * @param minDoc inclusive lower bound
      * @param maxDoc exclusive upper bound
      * @param out destination buffer; implementation writes up to {@code out.byteSize() / 8} words
-     * @return number of words written, or {@code -1} on error
+     * @return packed long: upper 32 = nextDoc, lower 32 = wordsWritten; or {@code -1} on error
      */
-    int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out);
+    long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out);
 
     /**
      * Release resources for a collector.

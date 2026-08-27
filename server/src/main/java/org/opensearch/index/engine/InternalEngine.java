@@ -1173,7 +1173,8 @@ public class InternalEngine extends Engine {
                         delete.origin(),
                         delete.startTime(),
                         delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm()
+                        delete.getIfPrimaryTerm(),
+                        delete.routing()
                     );
 
                     advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
@@ -1257,7 +1258,7 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id(), delete.routing());
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.version);
