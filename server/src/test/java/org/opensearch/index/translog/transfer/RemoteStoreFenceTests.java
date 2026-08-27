@@ -417,6 +417,46 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         expectThrows(TranslogFencedException.class, () -> stranger.transferOwnershipTo(1, allocationIdOf("node-target")));
     }
 
+    /** A fence instance requiring recorded ownership, as every translog instance does - see RemoteFsTranslog#buildFence. */
+    private RemoteStoreFence newTranslogInstance(String ownerNodeId) {
+        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool, true);
+    }
+
+    /**
+     * The two-take regression, straight from the {@code FenceTakeoverTwoTake.tla} counterexample. The recovery seal
+     * (take 1) is a throwaway instance whose token is discarded, the restore point is read with no live token held,
+     * and the translog instance re-adopts the chain on its first upload (take 2). If an equal-term twin legitimately
+     * claimed the chain during that window, the re-adoption must be REFUSED: taking the chain back would serve from a
+     * restore point read before the twin's acknowledgements, and those acknowledged writes would be lost.
+     */
+    public void testTranslogInstanceMustNotReAdoptAChainAnEqualTermTwinClaimed() throws IOException {
+        // Take 1: the seal instance claims at term 1, recording this copy's allocation id, and is discarded.
+        newFence("node-1").validateAndAdvance(1);
+
+        // The window: an equal-term twin arbitrates the chain over and acknowledges a write through it.
+        RemoteStoreFence twin = newFence("node-twin");
+        twin.validateAndAdvance(1);
+        twin.validateAndAdvance(1);
+
+        // Take 2: this copy's translog instance is not the recorded owner any more, so it must be fenced - never
+        // steal the chain back.
+        RemoteStoreFence translogInstance = newTranslogInstance("node-1");
+        TranslogFencedException e = expectThrows(TranslogFencedException.class, () -> translogInstance.validateAndAdvance(1));
+        assertTrue(e.getMessage(), e.getMessage().contains("not the recorded owner"));
+
+        // The twin - the legitimate owner whose acknowledged write would have been lost - is untouched.
+        twin.validateAndAdvance(1);
+    }
+
+    /** The normal two-take flow: the seal recorded this copy as owner, so its translog instance adopts the chain. */
+    public void testTranslogInstanceAdoptsTheChainItsOwnSealRecorded() throws IOException {
+        newFence("node-1").validateAndAdvance(1); // take 1: the seal records this copy's allocation id
+        RemoteStoreFence translogInstance = newTranslogInstance("node-1");
+        translogInstance.validateAndAdvance(1); // take 2: adopts the chain
+        translogInstance.validateAndAdvance(1); // and acknowledges through it
+        assertEquals(1, translogInstance.getTerm());
+    }
+
     public void testValidateAndAdvanceAsync() throws Exception {
         RemoteStoreFence fence = newFence("node-1");
         assertNull(advanceAsync(fence, 1));

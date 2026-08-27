@@ -433,7 +433,17 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 isServerSideEncryptionEnabled,
                 fenceOwnerAllocationId,
                 fenceOwnerNodeId,
-                isRelocationTarget
+                // Every translog instance requires RECORDED OWNERSHIP to arbitrate an existing equal-term path, not
+                // only a relocation target's (isRelocationTarget). This is the second take of the two-take claim: the
+                // recovery seal (sealFence below) claimed via a throwaway instance and recorded this copy's
+                // allocation id, the restore point was read with no live token held, and this instance re-adopts on
+                // its first upload. Unguarded, the re-adoption would take the chain back from an equal-term twin that
+                // legitimately claimed it during that window and then serve from a restore point read before the
+                // twin's acknowledgements - losing them. FenceTakeoverTwoTake.tla exhibits that trace unguarded and
+                // proves the guard restores NoAckedWriteLoss. For a relocation target the same check is what defers
+                // adoption until the source's explicit ownership transfer. Only the seal path itself (sealFence)
+                // arbitrates unguarded, so a new incarnation can still take over a dead incumbent's path.
+                true
             );
         }
         return new TranslogTransferManager(
@@ -476,7 +486,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
         boolean isServerSideEncryptionEnabled,
         String fenceOwnerAllocationId,
         String fenceOwnerNodeId,
-        boolean isRelocationTarget
+        boolean requireRecordedOwnership
     ) {
         // Fail fast at the single fence-construction funnel: the fence records the owning copy's identity, and a
         // caller without one (e.g. an offline tool constructing a TranslogConfig without an allocation id) must be
@@ -507,7 +517,14 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                     + " on another node. Use a repository whose store evaluates the precondition itself, such as s3."
             );
         }
-        return new RemoteStoreFence(fenceContainer, fenceOwnerAllocationId, fenceOwnerNodeId, shardId, threadPool, isRelocationTarget);
+        return new RemoteStoreFence(
+            fenceContainer,
+            fenceOwnerAllocationId,
+            fenceOwnerNodeId,
+            shardId,
+            threadPool,
+            requireRecordedOwnership
+        );
     }
 
     /**
@@ -549,6 +566,9 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             isServerSideEncryptionEnabled,
             fenceOwnerAllocationId,
             fenceOwnerNodeId,
+            // The seal arbitrates UNGUARDED: a brand-new legitimate incarnation (failover promotion, store recovery,
+            // in-place snapshot restore) must be able to take over a dead incumbent's path, whose recorded owner it
+            // can never match. This is the first take; the translog instance's guarded re-adoption is the second.
             false
         ).validateAndAdvance(primaryTerm);
     }

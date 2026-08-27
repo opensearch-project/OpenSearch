@@ -173,12 +173,27 @@ public class RemoteStoreFence {
      */
     private boolean fenced;
     /**
-     * Set for a primary relocation target. Such a copy shares a term - and therefore an object - with a source that is
-     * still legitimately serving, so it may only take the chain over when the source has explicitly handed ownership to
-     * it ({@link #transferOwnershipTo}). Claiming blindly is what fences a healthy source whose handoff later aborts.
-     * Other equal-term claimants, such as a restore over a closed index, keep the ordinary arbitration.
+     * Set for every fence instance whose arbitration must be authorized by RECORDED OWNERSHIP: the equal-term
+     * take-over in {@link #arbitrateSameTerm} is refused unless the object already records this copy's allocation id
+     * as its owner. Two kinds of instance require it, for the same reason - an equal-term twin may legitimately hold
+     * the chain, and taking it from that twin loses the twin's acknowledged writes:
+     * <ul>
+     * <li>A primary relocation target shares a term - and therefore an object - with a source that is still
+     * legitimately serving, so it may only take the chain over once the source has explicitly handed ownership to it
+     * ({@link #transferOwnershipTo}). Claiming blindly is what fences a healthy source whose handoff later aborts.</li>
+     * <li>An ordinary copy's translog instance performs the SECOND take of the two-take claim: the recovery seal
+     * ({@code RemoteFsTranslog#sealFence}) claims via a throwaway instance and records this copy's allocation id, the
+     * restore point is read with no live token held, and the translog instance re-adopts the chain on its first
+     * upload. An unguarded re-adoption would take the chain back from an equal-term twin that legitimately claimed it
+     * during that window - and then serve from a restore point read before the twin's acknowledgements, losing them.
+     * {@code FenceTakeoverTwoTake.tla} exhibits that trace with the guard off and proves the guard restores
+     * NoAckedWriteLoss.</li>
+     * </ul>
+     * Only the seal instance itself arbitrates unguarded ({@code false}): a brand-new legitimate incarnation - a
+     * failover promotion, a store recovery, an in-place snapshot restore - must be able to take over a dead
+     * incumbent's path whose recorded owner it can never match.
      */
-    private final boolean requireTransferredOwnership;
+    private final boolean requireRecordedOwnership;
 
     public RemoteStoreFence(
         BlobContainer blobContainer,
@@ -196,9 +211,9 @@ public class RemoteStoreFence {
         String ownerNodeId,
         ShardId shardId,
         ThreadPool threadPool,
-        boolean requireTransferredOwnership
+        boolean requireRecordedOwnership
     ) {
-        this.requireTransferredOwnership = requireTransferredOwnership;
+        this.requireRecordedOwnership = requireRecordedOwnership;
         this.blobContainer = blobContainer;
         this.ownerAllocationId = Objects.requireNonNull(ownerAllocationId, "fence owner allocation id");
         this.ownerNodeId = Objects.requireNonNull(ownerNodeId, "fence owner node id");
@@ -467,12 +482,6 @@ public class RemoteStoreFence {
             try {
                 blob = blobContainer.readBlobWithVersion(fenceBlobName(primaryTerm));
             } catch (NoSuchFileException e) {
-                if (requireTransferredOwnership) {
-                    fenced = true;
-                    throw new TranslogFencedException(
-                        String.format(Locale.ROOT, "primary relocation target found no fence to adopt at term [%d]", primaryTerm)
-                    );
-                }
                 // Nothing left to arbitrate for: the twin withdrew, or a successor swept the path. Fence, as
                 // ArbitrateSameTerm does in FenceTakeover.tla, rather than recreating the object. Recreating would be
                 // reachable legitimately only when the twin genuinely withdrew, and it buys nothing there - this copy
@@ -488,15 +497,17 @@ public class RemoteStoreFence {
                 );
             }
             FenceState remote = readRemoteState(blob.content());
-            if (requireTransferredOwnership && ownerAllocationId.equals(remote.allocationId) == false) {
-                // A relocation source either has not handed ownership over yet, or has reclaimed it after aborting the
-                // handoff. Either way this copy is not the sanctioned owner and must not take the chain: doing so would
-                // fence a source that is still serving.
+            if (requireRecordedOwnership && ownerAllocationId.equals(remote.allocationId) == false) {
+                // This copy is not the recorded owner, so the chain is not its to take. For a relocation target the
+                // source has not handed ownership over (or reclaimed it after aborting); for an ordinary copy's
+                // translog instance an equal-term twin claimed the chain after this copy's seal - and taking it back
+                // would serve from a restore point read before the twin's acknowledgements, losing them
+                // (FenceTakeoverTwoTake.tla). Either way the recorded owner is legitimate and must not be fenced.
                 fenced = true;
                 throw new TranslogFencedException(
                     String.format(
                         Locale.ROOT,
-                        "primary relocation target not granted the fence at term [%d]: owned by [%s]",
+                        "primary fenced by remote store: not the recorded owner of the acknowledgement path at term [%d]: owned by [%s]",
                         primaryTerm,
                         remote.describeOwner()
                     )
