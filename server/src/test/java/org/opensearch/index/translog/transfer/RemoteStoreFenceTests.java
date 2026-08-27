@@ -423,7 +423,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
     }
 
     /**
-     * The two-take regression, straight from the {@code FenceTakeoverTwoTake.tla} counterexample. The recovery seal
+     * The two-take regression, straight from the {@code FenceTakeover.tla} counterexample. The recovery seal
      * (take 1) is a throwaway instance whose token is discarded, the restore point is read with no live token held,
      * and the translog instance re-adopts the chain on its first upload (take 2). If an equal-term twin legitimately
      * claimed the chain during that window, the re-adoption must be REFUSED: taking the chain back would serve from a

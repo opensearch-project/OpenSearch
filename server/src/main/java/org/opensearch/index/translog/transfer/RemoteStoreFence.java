@@ -186,7 +186,7 @@ public class RemoteStoreFence {
      * restore point is read with no live token held, and the translog instance re-adopts the chain on its first
      * upload. An unguarded re-adoption would take the chain back from an equal-term twin that legitimately claimed it
      * during that window - and then serve from a restore point read before the twin's acknowledgements, losing them.
-     * {@code FenceTakeoverTwoTake.tla} exhibits that trace with the guard off and proves the guard restores
+     * {@code FenceTakeover.tla} exhibits that trace with the guard off and proves the guard restores
      * NoAckedWriteLoss.</li>
      * </ul>
      * Only the seal instance itself arbitrates unguarded ({@code false}): a brand-new legitimate incarnation - a
@@ -502,7 +502,7 @@ public class RemoteStoreFence {
                 // source has not handed ownership over (or reclaimed it after aborting); for an ordinary copy's
                 // translog instance an equal-term twin claimed the chain after this copy's seal - and taking it back
                 // would serve from a restore point read before the twin's acknowledgements, losing them
-                // (FenceTakeoverTwoTake.tla). Either way the recorded owner is legitimate and must not be fenced.
+                // (FenceTakeover.tla). Either way the recorded owner is legitimate and must not be fenced.
                 fenced = true;
                 throw new TranslogFencedException(
                     String.format(

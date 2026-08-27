@@ -55,7 +55,12 @@ and a restore point `restore(w)` read from the store; and a global set
    `F.owner ≠ ⊥ ∧ hasRead(F.owner) ⇒ acked ⊆ restore(F.owner) ∪ ackedBy(F.owner)`
 
    Put another way: nothing a superseded writer acknowledged lands after
-   the restore point its successor serves from.
+   the restore point its successor serves from. The models set
+   `restore(w) = acked` exactly, while the implementation's restore point —
+   the latest translog metadata — can be a strict *superset*: a fenced
+   writer's orphan metadata file names operations that were never
+   acknowledged. The invariant is a `⊆`, so surfacing a never-acknowledged
+   operation is always permitted; that direction is load-bearing.
 
 3. **Ack attribution.** `⋃_w ackedBy(w) = acked`, and the `ackedBy(w)` are
    pairwise disjoint — every ack belongs to exactly one writer.
@@ -103,7 +108,7 @@ Four modules, each modeling the protocol **as implemented**:
 | Module | Question | Bound | States |
 |---|---|---|---|
 | `RemoteStoreFence.tla` | seal ordering and acked-write loss | 3 writers, 3 terms, 3 ops | 19,846 |
-| `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic? | 4 writers, 4 terms, 3 ops, symmetry | 1,593,658 |
+| `FenceTakeover.tla` | cross-term takeover and the two-take claim: is a higher-term victory deterministic, and is the tokenless hydration window safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,460,896 |
 | `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss | 4 ops, 3 attempts | 591 |
 | `FenceSegmentFlow.tla` | the segment flow as a second path needing the fence, plus garbage collection | 3 writers, 3 files, 3 terms | 20,008 |
 
@@ -115,7 +120,7 @@ within these bounds. Larger bounds were probed out of band:
 - **Takeover saturates in `MaxTerm`.** With N writers the failover chain can reach at most term N,
   since each appointment consumes one unborn writer, so `MaxTerm ≥ |Writers|` adds no reachable
   behaviour. Confirmed exactly: 4 writers at `MaxTerm` 4, 5 and 8 each explore the *identical*
-  1,593,658 distinct states (3,032,893 generated, 0 left on queue, depth 30), all clean.
+  4,460,896 distinct states (9,616,026 generated, 0 left on queue, depth 38), all clean.
   **Writers, not terms, is the scaling dimension.**
 - **5 writers exceeds this machine**, not the protocol. The run was still exploring with ~18M
   states queued when it was stopped. That is a resource limit and *not* a violation: no invariant
@@ -146,6 +151,39 @@ term, so a lower-term writer cannot touch a higher-term writer's acknowledgement
 comes from the key space rather than from winning a race. Cluster coordination supplies the
 authority — it issues the term, the term names the key, and create-if-absent plus name ordering let
 the object store order grants it cannot interpret — while performing no I/O itself.
+
+#### The two-take claim, and the recorded-ownership rule
+
+The implementation takes the chain **twice** per takeover, and the module models both takes. The
+recovery seal claims through a *throwaway* fence instance (`RemoteFsTranslog#sealFence`) whose token
+is discarded once the claim returns; the translog restore point is then read holding **no live
+token** (state `read` in the module); and the shard's own translog instance re-adopts the same-term
+path on its first upload (`ReAdoptList`/`ReAdoptTake`). An equal-term twin may appear and arbitrate
+the chain over *during* that tokenless hydration window — the module admits appointments while the
+incumbent is hydrating for exactly this reason.
+
+The re-adoption is authorized by **recorded ownership**: the seal recorded this copy's allocation
+id, and the re-adoption is refused unless the path still records it. This is the same
+recorded-ownership mechanism the relocation target uses to defer adoption until the source's
+transfer, applied uniformly to every translog instance. Only the seal itself arbitrates unguarded,
+so a brand-new incarnation can still take over a dead incumbent's path, whose recorded owner it can
+never match.
+
+The guard's necessity was **measured** rather than assumed, in the same way as the segment-flow
+gates: relax it — let the re-adoption take over whatever token the path carries, which is what the
+code did before the guard — and TLC violates `NoAckedWriteLoss` with a 17-state trace. A copy seals
+and reads its restore point; an equal-term twin arbitrates the chain over and acknowledges a write;
+the first copy's unguarded re-adoption *steals the chain back* and serves as the live owner from a
+restore point read before the twin's acknowledgement, which is thereby lost. With the guard, the
+first copy is fenced at the re-adoption instead, fails its shard, and recovers at a higher term —
+the acknowledged write survives.
+
+One deliberate code-faithfulness point: `DeleteLowerPaths` is guarded on having taken the path
+(`wTook`), **not** on still holding its current token, because the implementation sweeps straight
+after its create/arbitration without re-verifying possession. A twin may take the path over between
+the two, and the sweep still runs. The module explores that ordering rather than assuming it away;
+it is safe because destructive acts stay strictly below the sweeper's own term, and both twins want
+those paths gone.
 
 ### Relocation handoff — `FenceHandoff.tla`
 

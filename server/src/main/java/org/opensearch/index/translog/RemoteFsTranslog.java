@@ -439,7 +439,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 // allocation id, the restore point was read with no live token held, and this instance re-adopts on
                 // its first upload. Unguarded, the re-adoption would take the chain back from an equal-term twin that
                 // legitimately claimed it during that window and then serve from a restore point read before the
-                // twin's acknowledgements - losing them. FenceTakeoverTwoTake.tla exhibits that trace unguarded and
+                // twin's acknowledgements - losing them. FenceTakeover.tla exhibits that trace unguarded and
                 // proves the guard restores NoAckedWriteLoss. For a relocation target the same check is what defers
                 // adoption until the source's explicit ownership transfer. Only the seal path itself (sealFence)
                 // arbitrates unguarded, so a new incarnation can still take over a dead incumbent's path.
