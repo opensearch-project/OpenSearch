@@ -108,7 +108,7 @@ Four modules, each modeling the protocol **as implemented**:
 | Module | Question | Bound | States |
 |---|---|---|---|
 | `RemoteStoreFence.tla` | seal ordering and acked-write loss | 3 writers, 3 terms, 3 ops | 19,846 |
-| `FenceTakeover.tla` | cross-term takeover and the two-take claim: is a higher-term victory deterministic, and is the tokenless hydration window safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,460,896 |
+| `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic, and is the window between the seal claim and the translog's re-adoption safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,460,896 |
 | `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss | 4 ops, 3 attempts | 591 |
 | `FenceSegmentFlow.tla` | the segment flow as a second path needing the fence, plus garbage collection | 3 writers, 3 files, 3 terms | 20,008 |
 
@@ -152,9 +152,9 @@ comes from the key space rather than from winning a race. Cluster coordination s
 authority — it issues the term, the term names the key, and create-if-absent plus name ordering let
 the object store order grants it cannot interpret — while performing no I/O itself.
 
-#### The two-take claim, and the recorded-ownership rule
+#### The fence is claimed twice, and re-adoption requires recorded ownership
 
-The implementation takes the chain **twice** per takeover, and the module models both takes. The
+The implementation claims the fence **twice** per takeover, and the module models both claims. The
 recovery seal claims through a *throwaway* fence instance (`RemoteFsTranslog#sealFence`) whose token
 is discarded once the claim returns; the translog restore point is then read holding **no live
 token** (state `read` in the module); and the shard's own translog instance re-adopts the same-term

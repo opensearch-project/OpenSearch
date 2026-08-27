@@ -181,7 +181,7 @@ public class RemoteStoreFence {
      * <li>A primary relocation target shares a term - and therefore an object - with a source that is still
      * legitimately serving, so it may only take the chain over once the source has explicitly handed ownership to it
      * ({@link #transferOwnershipTo}). Claiming blindly is what fences a healthy source whose handoff later aborts.</li>
-     * <li>An ordinary copy's translog instance performs the SECOND take of the two-take claim: the recovery seal
+     * <li>An ordinary copy's translog instance performs the second of the two claims a takeover makes: the recovery seal
      * ({@code RemoteFsTranslog#sealFence}) claims via a throwaway instance and records this copy's allocation id, the
      * restore point is read with no live token held, and the translog instance re-adopts the chain on its first
      * upload. An unguarded re-adoption would take the chain back from an equal-term twin that legitimately claimed it

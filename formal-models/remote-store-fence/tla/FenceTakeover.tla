@@ -20,10 +20,11 @@
 (* therefore comes from the key space rather than from winning a race,      *)
 (* which is what NoHigherTermDefeat below states.                           *)
 (*                                                                          *)
-(* THE TWO-TAKE CLAIM. The implementation takes the chain TWICE per         *)
-(* takeover. The recovery seal claims through a THROWAWAY fence instance    *)
-(* (RemoteFsTranslog.sealFence) whose token is discarded once the claim     *)
-(* returns; the translog restore point is then read holding NO live token;  *)
+(* THE FENCE IS CLAIMED TWICE per takeover: by the seal, and again by the   *)
+(* translog's re-adoption. The recovery seal claims through a THROWAWAY     *)
+(* fence instance (RemoteFsTranslog.sealFence) whose token is discarded     *)
+(* once the claim returns; the translog restore point is then read holding  *)
+(* NO live token;                                                           *)
 (* and the shard's own translog instance RE-ADOPTS the same-term path on    *)
 (* its first upload. ReadRestorePoint, ReAdoptList and ReAdoptTake below    *)
 (* model exactly that. The re-adoption is authorized by RECORDED            *)
@@ -162,7 +163,7 @@ AppointStaleTerm(w) ==
                  wFencedTerm, restore, hasRead, acked, ackedBy, nextOp>>
 
 (* "read" is included on purpose: an equal-term twin may appear while the incumbent is HYDRATING,
-   holding no live token - the exact window the two-take structure opens. *)
+   holding no live token - the exact window between the two claims. *)
 AppointRelocation(w) ==
   /\ wState[w] = "unborn"
   /\ \E v \in Writers :
@@ -173,7 +174,7 @@ AppointRelocation(w) ==
                  wFencedTerm, restore, hasRead, acked, ackedBy, nextOp>>
 
 (***************************************************************************)
-(* Claim, step by step. This is TAKE 1, performed by the throwaway seal     *)
+(* Claim, step by step. This is the SEAL'S claim, performed by a throwaway  *)
 (* instance - which is why its equal-term arbitration is UNGUARDED: a       *)
 (* brand-new legitimate incarnation must be able to take over a dead        *)
 (* incumbent's path, whose recorded owner it can never match.               *)
@@ -209,7 +210,7 @@ CreatePath(w) ==
          /\ UNCHANGED wObserved
   /\ UNCHANGED <<wTerm, wState, wListed, wFencedTerm, restore, hasRead, acked, ackedBy, nextOp>>
 
-(* Equal-term arbitration of the seal (take 1). The loser is defeated by an equal term, which
+(* Equal-term arbitration of the seal claim. The loser is defeated by an equal term, which
    counts as legitimate arbitration rather than a lower-term defeat. *)
 ArbitrateSameTerm(w) ==
   /\ wState[w] = "fresh"
@@ -268,10 +269,11 @@ VerifyClaim(w) ==
 (***************************************************************************)
 (* Seal, then restore, then RE-ADOPT, then acknowledge.                     *)
 (*                                                                          *)
-(* TAKE 1 ends at ReadRestorePoint: the seal was performed by a throwaway   *)
+(* The seal claim ends at ReadRestorePoint: it was performed by a throwaway *)
 (* instance whose token is discarded (wHeld := 0) the moment the restore    *)
 (* point is read. The writer then hydrates in state "read", holding no      *)
-(* live token, until its translog instance performs TAKE 2.                 *)
+(* live token, until its translog instance claims again (the ReAdopt        *)
+(* actions below).                                                          *)
 (***************************************************************************)
 ReadRestorePoint(w) ==
   /\ wState[w] = "sealed"
@@ -282,7 +284,7 @@ ReadRestorePoint(w) ==
   /\ UNCHANGED <<paths, pathToken, pathOwner, wTerm, wObserved, wCreated, wTook, wListed,
                  wFencedTerm, acked, ackedBy, nextOp>>
 
-(* TAKE 2, step 1: the translog instance's claim reaches equal-term arbitration (create-if-absent
+(* The re-adoption, step 1: the translog instance's claim reaches equal-term arbitration (create-if-absent
    loses to the seal's own object), which reads the blob. A strictly higher term refuses the claim
    at its pre-listing; an own path that no longer exists was swept by one, so that branch is
    unreachable behind the first check and fences defensively. The RECORDED-OWNERSHIP rule is
@@ -309,7 +311,7 @@ ReAdoptList(w) ==
             /\ UNCHANGED <<paths, pathToken, pathOwner, wTerm, wHeld, wObserved, wCreated, wTook,
                            wListed, restore, hasRead, acked, ackedBy, nextOp>>
 
-(* TAKE 2, step 2: the arbitration CAS against the observed token. A lost CAS re-observes,
+(* The re-adoption, step 2: the arbitration CAS against the observed token. A lost CAS re-observes,
    modeling the implementation's retry; the bounded give-up is a liveness policy and irrelevant
    to the safety checked here. *)
 ReAdoptTake(w) ==

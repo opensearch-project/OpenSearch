@@ -434,7 +434,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 fenceOwnerAllocationId,
                 fenceOwnerNodeId,
                 // Every translog instance requires RECORDED OWNERSHIP to arbitrate an existing equal-term path, not
-                // only a relocation target's (isRelocationTarget). This is the second take of the two-take claim: the
+                // only a relocation target's (isRelocationTarget). This is the second of the two claims a takeover makes: the
                 // recovery seal (sealFence below) claimed via a throwaway instance and recorded this copy's
                 // allocation id, the restore point was read with no live token held, and this instance re-adopts on
                 // its first upload. Unguarded, the re-adoption would take the chain back from an equal-term twin that
@@ -568,7 +568,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             fenceOwnerNodeId,
             // The seal arbitrates UNGUARDED: a brand-new legitimate incarnation (failover promotion, store recovery,
             // in-place snapshot restore) must be able to take over a dead incumbent's path, whose recorded owner it
-            // can never match. This is the first take; the translog instance's guarded re-adoption is the second.
+            // can never match. This is the first of the two claims; the translog instance's guarded re-adoption is the second.
             false
         ).validateAndAdvance(primaryTerm);
     }
