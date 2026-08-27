@@ -28,6 +28,7 @@ import org.opensearch.index.mapper.BinaryFieldMapper.BinaryFieldType;
 import org.opensearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper.IpFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -305,6 +306,15 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
         for (Map.Entry<String, ParquetField> dataField : new CoreDataFieldPlugin().getParquetFields().entrySet()) {
+            // Skip flat_object: it is the one registered type that is NOT primitive. Its Arrow field is a
+            // MAP<Utf8,Utf8> whose children (the key_value struct) are built by
+            // ArrowSchemaBuilder.buildMapField — getFieldType() alone is a nominal type only, so building
+            // a Field from it with null children yields "Maps have one List child. Found: none". Its values
+            // also arrive via DocumentInput.addMapEntry rather than the scalar createField path these
+            // round-trip tests exercise.
+            if (FlatObjectFieldMapper.CONTENT_TYPE.equals(dataField.getKey())) {
+                continue;
+            }
             fields.add(new Field(dataField.getKey() + "_field", dataField.getValue().getFieldType(), null));
         }
         fields.addAll(metadataFields());

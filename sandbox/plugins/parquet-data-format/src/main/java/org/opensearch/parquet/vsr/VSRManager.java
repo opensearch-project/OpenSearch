@@ -25,6 +25,7 @@ import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -265,6 +266,7 @@ public class VSRManager implements AutoCloseable {
                 writtenFields++;
             }
             writeNestedChildren(doc, activeVSR, rowIndex);
+            writeTopLevelMaps(doc, activeVSR, rowIndex);
             BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
             if (rowIdVector != null) {
                 rowIdVector.setSafe(rowIndex, doc.getRowId());
@@ -329,6 +331,16 @@ public class VSRManager implements AutoCloseable {
                 }
                 setLeafValue(leafVector, elemIndex, pair.getValue());
             }
+            // map children of this element (e.g. a flat_object `attributes`). Write EVERY map child of
+            // the struct — even when this element has no entries for it — so each element's offset is
+            // written explicitly and deterministically rather than relying on Arrow's implicit
+            // back-fill for skipped indices.
+            for (FieldVector childVector : structVector.getChildrenFromFields()) {
+                if (childVector instanceof MapVector mapVector) {
+                    String mapFullName = path + "." + mapVector.getName();
+                    writeMapChild(mapVector, elemIndex, child.mapEntries.getOrDefault(mapFullName, java.util.List.of()));
+                }
+            }
             // deeper nested elements (e.g. replies inside a comment), grouped by their path
             if (child.children.isEmpty() == false) {
                 java.util.Map<String, java.util.List<ParquetDocumentInput.NestedChild>> byPath = new java.util.LinkedHashMap<>();
@@ -347,6 +359,45 @@ public class VSRManager implements AutoCloseable {
             }
         }
         listVector.endValue(rowIndex, children.size());
+    }
+
+    /**
+     * Writes document-root MAP columns (a top-level {@code flat_object}) at {@code rowIndex}. Iterates
+     * every top-level MAP vector so each row's offset is set explicitly — empty when the document has no
+     * entries for that field — instead of leaving skipped rows to Arrow's implicit offset back-fill.
+     * <p>
+     * Consequence: a document that omits the field yields an EMPTY (non-null) map, which is
+     * indistinguishable from an explicit {@code "attributes": {}}. That is a deliberate simplification.
+     */
+    private void writeTopLevelMaps(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
+        for (Field field : activeVSR.getSchema().getFields()) {
+            if (activeVSR.getVector(field.getName()) instanceof MapVector mapVector) {
+                writeMapChild(mapVector, rowIndex, doc.getTopLevelMapEntries().getOrDefault(mapVector.getName(), java.util.List.of()));
+            }
+        }
+    }
+
+    /**
+     * Writes one {@code MAP<Utf8,Utf8>} value at {@code index}: each buffered (key,value) becomes one map
+     * entry (a {@code key_value} struct). A null value leaves the entry's value null; an empty list writes
+     * an empty (non-null) map. Keys/values are stringified to UTF-8.
+     */
+    private static void writeMapChild(MapVector mapVector, int index, java.util.List<java.util.Map.Entry<String, Object>> entries) {
+        int start = mapVector.startNewValue(index);
+        StructVector entriesStruct = (StructVector) mapVector.getDataVector();
+        VarCharVector keyVector = (VarCharVector) entriesStruct.getChild(MapVector.KEY_NAME);
+        VarCharVector valueVector = (VarCharVector) entriesStruct.getChild(MapVector.VALUE_NAME);
+        for (int i = 0; i < entries.size(); i++) {
+            int pos = start + i;
+            entriesStruct.setIndexDefined(pos);
+            java.util.Map.Entry<String, Object> entry = entries.get(i);
+            keyVector.setSafe(pos, entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Object value = entry.getValue();
+            if (value != null) {
+                valueVector.setSafe(pos, value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        mapVector.endValue(index, entries.size());
     }
 
     /** Writes a single scalar into a struct-child vector at the given element index. */

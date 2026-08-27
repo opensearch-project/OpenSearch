@@ -276,9 +276,10 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertTrue("nested column keeps the 'score' child field: " + commentsRepr, commentsRepr.contains("score"));
     }
 
-    public void testFlatObjectFieldUnsupported() {
+    public void testFlatObjectFieldSupported() {
         startCluster();
-        assertIndexCreationFails("test-flat-object", "field", "type=flat_object");
+        // flat_object is now ingested as a Parquet MAP<utf8,utf8> column, so index creation succeeds.
+        assertIndexCreationSucceeds("test-flat-object", "field", "type=flat_object");
     }
 
     public void testWildcardFieldUnsupported() {

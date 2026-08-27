@@ -103,6 +103,17 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         }
     }
 
+    @Override
+    public void addMapEntry(MappedFieldType mapField, String key, Object value) {
+        // Broadcast each map key/value to every format so each builds its map representation from the
+        // SAME parse-order signal stream (Parquet fills a MAP<Utf8,Utf8> column; formats with no map
+        // notion no-op via the DocumentInput default).
+        primaryDocumentInput.addMapEntry(mapField, key, value);
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.addMapEntry(mapField, key, value);
+        }
+    }
+
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;

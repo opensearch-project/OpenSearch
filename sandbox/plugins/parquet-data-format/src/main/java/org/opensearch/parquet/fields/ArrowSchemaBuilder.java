@@ -41,6 +41,9 @@ public final class ArrowSchemaBuilder {
 
     private static final Logger logger = LogManager.getLogger(ArrowSchemaBuilder.class);
 
+    /** OpenSearch mapper type whose open key space is stored as one Arrow {@code MAP<Utf8,Utf8>} column. */
+    private static final String FLAT_OBJECT_TYPE = "flat_object";
+
     private ArrowSchemaBuilder() {}
 
     /**
@@ -69,6 +72,12 @@ public final class ArrowSchemaBuilder {
                 }
                 if (owningNestedPath(mapper.name(), nestedPaths) != null) {
                     // handled below as part of the nested LIST<STRUCT> tree
+                    continue;
+                }
+
+                if (FLAT_OBJECT_TYPE.equals(mapper.typeName())) {
+                    // Open key space -> one MAP<Utf8,Utf8> column (top-level flat_object).
+                    fields.add(buildMapField(mapper.name()));
                     continue;
                 }
 
@@ -127,9 +136,15 @@ public final class ArrowSchemaBuilder {
                 continue;
             }
             if (path.equals(owningNestedPath(mapper.name(), nestedPaths))) {
+                String leafName = mapper.name().substring(path.length() + 1);
+                if (FLAT_OBJECT_TYPE.equals(mapper.typeName())) {
+                    // A flat_object inside a nested field (e.g. events.attributes) becomes a
+                    // MAP<Utf8,Utf8> child of the element struct — the open attribute key space.
+                    structChildren.add(buildMapField(leafName));
+                    continue;
+                }
                 ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
                 if (parquetField != null) {
-                    String leafName = mapper.name().substring(path.length() + 1);
                     structChildren.add(new Field(leafName, parquetField.getFieldType(), null));
                 }
             }
@@ -152,6 +167,22 @@ public final class ArrowSchemaBuilder {
         structChildren.sort(Comparator.comparing(Field::getName));
         Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
         return new Field(path, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
+    }
+
+    /**
+     * Builds an Arrow {@code MAP<Utf8,Utf8>} field for a flat_object's open key space. Matches the
+     * canonical parquet MAP layout — {@code Map("key_value": non-null Struct("key": non-null Utf8,
+     * "value": nullable Utf8), unsorted)} — rather than Arrow Java's default {@code entries} group name,
+     * so the arrow-rs writer and the DataFusion read path see the group name the parquet spec prescribes.
+     * <p>
+     * Shared by the top-level column path and {@link #buildNestedListField} so a flat_object gets the
+     * same shape whether it sits at the document root or inside a nested element's struct.
+     */
+    private static Field buildMapField(String name) {
+        Field key = new Field("key", new FieldType(false, ArrowType.Utf8.INSTANCE, null), null);
+        Field value = new Field("value", FieldType.nullable(ArrowType.Utf8.INSTANCE), null);
+        Field entries = new Field("key_value", new FieldType(false, ArrowType.Struct.INSTANCE, null), List.of(key, value));
+        return new Field(name, FieldType.nullable(new ArrowType.Map(false)), List.of(entries));
     }
 
     private static void handleNormalizedField(Mapper mapper, DocumentMapper documentMapper, List<Field> fields, ParquetField parquetField) {
