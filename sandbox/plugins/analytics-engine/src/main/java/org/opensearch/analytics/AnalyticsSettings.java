@@ -136,6 +136,38 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Per-slot in-flight window for the pipelined shuffle consumer: the maximum bytes that may sit
+     * queued-but-undrained on one (buffer, slot) before admission returns a retryable reject, pacing
+     * producers to the consumer's drain rate.
+     *
+     * <p><b>DISABLED by default (0), and it must stay that way until backpressure is a real PAUSE.</b>
+     * The intent is to bound peak residency independently of partition size. As implemented, a full
+     * window is signalled by a retryable REJECT, and that DEADLOCKS: {@code HashJoinExec} reads its
+     * inputs sequentially, so the probe-side drain blocks at the native channel's capacity until the
+     * build completes, the probe window fills, and its producers enter a re-send storm on the bounded
+     * GENERIC pool — contending with the very work that would release them. Measured at sf=10: all seven
+     * probe queries hung to the harness's 150s cap with a 64MB window; with the window off the same
+     * build passed q5/q11/q13/q19/q21 with no regressions.
+     *
+     * <p>Streaming alone (this window disabled) still lowers peak residency, because the drain starts on
+     * the first chunk instead of after a barrier, so on-heap bytes are consumed as they arrive rather than
+     * accumulated — q18's heap fell 63% => 42%, q5's to 6%. The absolute backstop remains
+     * {@link #MPP_SHUFFLE_NODE_BUDGET_PERCENT}.
+     *
+     * <p>Enabling this needs the producer to STOP PULLING while the window is full (ClickHouse's
+     * {@code StreamingExchangeSink}: "Propagate back-pressure upstream: don't pull until there's room",
+     * returning {@code Status::Async}), not to re-send. A pause cannot fail; a re-send storm can.
+     */
+    public static final Setting<ByteSizeValue> MPP_SHUFFLE_STREAM_WINDOW = Setting.byteSizeSetting(
+        "analytics.mpp.shuffle.stream_window",
+        new ByteSizeValue(0L),
+        new ByteSizeValue(0L),
+        new ByteSizeValue(Long.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Size floor for distributing an operator onto a worker tier (
      * the only MPP scheduler): a join/aggregate is distributed onto a worker tier only when its larger scan
      * subtree exceeds this many rows (or a deeper operator already distributed — the cascade continues upward
@@ -402,6 +434,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
+        MPP_SHUFFLE_STREAM_WINDOW,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
