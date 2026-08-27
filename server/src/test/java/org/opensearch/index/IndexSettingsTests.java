@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -591,6 +592,55 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
+    }
+
+    public void testFlushOnUncommittedSegmentsThresholdSize() {
+        // defaults to the index's translog flush threshold via setting fallback
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "128mb")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(new ByteSizeValue(128, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        // a dynamic update of only the fallback setting is reflected
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb").build()
+            )
+        );
+        assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        // an explicit value wins over the fallback
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
+                    .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "64mb")
+                    .build()
+            )
+        );
+        assertEquals(new ByteSizeValue(64, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
+        // zero and negative values are rejected: they would flush on every successful segments sync
+        for (String invalid : new String[] { "0b", "-1" }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new IndexSettings(
+                    newIndexMeta(
+                        "index",
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), invalid)
+                            .build()
+                    ),
+                    Settings.EMPTY
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse value [" + invalid + "]"));
+        }
     }
 
     public void testTranslogGenerationSizeThreshold() {

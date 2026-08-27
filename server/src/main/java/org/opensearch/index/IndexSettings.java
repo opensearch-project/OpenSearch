@@ -905,6 +905,10 @@ public final class IndexSettings {
         .byteSizeSetting(
             "index.remote_store.flush_on_uncommitted_segments.threshold_size",
             INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+            // a zero or negative threshold would flush on every successful segments sync; disablement has its own
+            // explicit setting above
+            new ByteSizeValue(1, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             Property.Dynamic,
             Property.IndexScope
         );
