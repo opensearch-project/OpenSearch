@@ -317,6 +317,33 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         expectThrows(NoSuchFileException.class, () -> blobContainer.readBlobWithVersion("missing"));
     }
 
+    /** Transport-level SDK failures (no HTTP response at all) surface as plain retryable IOExceptions on both paths. */
+    public void testConditionalPathsTranslateSdkTransportFailuresToIOException() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+
+        final S3Client client = mock(S3Client.class);
+        when(client.getObjectAsBytes(any(GetObjectRequest.class))).thenThrow(SdkException.builder().message("no route").build());
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(
+            SdkException.builder().message("no route").build()
+        );
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+        final IOException read = expectThrows(IOException.class, () -> blobContainer.readBlobWithVersion("fence"));
+        assertFalse(read instanceof BlobVersionConflictException);
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 64));
+        final IOException write = expectThrows(
+            IOException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, null)
+        );
+        assertFalse(write instanceof BlobVersionConflictException);
+    }
+
     public void testWriteBlobConditionallyCreateIfAbsentSetsIfNoneMatch() throws IOException {
         final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
         final String eTag = "\"" + UUID.randomUUID() + "\"";

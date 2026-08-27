@@ -305,6 +305,31 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         return new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.cleanPath(), path);
     }
 
+    /**
+     * Deleting a container must invalidate only ITS OWN blobs' version tokens, never a sibling's whose directory name
+     * merely shares the prefix (idx-1 vs idx-10). An over-matched invalidation makes the sibling's live writer lose a
+     * CAS it should win - which, for the remote store fence, spuriously fences an unrelated shard.
+     */
+    public void testDeleteDoesNotInvalidateVersionTokensOfPrefixSiblingContainers() throws IOException {
+        final Path root = PathUtils.get(createTempDir().toString());
+        final FsBlobStore store = new FsBlobStore(randomIntBetween(1, 8) * 1024, root, false);
+        final Path victimPath = root.resolve("idx-1");
+        final Path siblingPath = root.resolve("idx-10");
+        Files.createDirectories(victimPath);
+        Files.createDirectories(siblingPath);
+        final FsBlobContainer victim = new FsBlobContainer(store, BlobPath.cleanPath().add("idx-1"), victimPath);
+        final FsBlobContainer sibling = new FsBlobContainer(store, BlobPath.cleanPath().add("idx-10"), siblingPath);
+
+        final byte[] content = "fence".getBytes(StandardCharsets.UTF_8);
+        victim.writeBlobConditionally("fence", new ByteArrayInputStream(content), content.length, null);
+        final String siblingToken = sibling.writeBlobConditionally("fence", new ByteArrayInputStream(content), content.length, null);
+
+        victim.delete();
+
+        // The sibling's chain is untouched: its token still wins the CAS.
+        sibling.writeBlobConditionally("fence", new ByteArrayInputStream(content), content.length, siblingToken);
+    }
+
     private void testListBlobsByPrefixInSortedOrder(int limit, BlobContainer.BlobNameSortOrder blobNameSortOrder) throws IOException {
 
         final Path path = PathUtils.get(createTempDir().toString());

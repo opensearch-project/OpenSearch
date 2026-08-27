@@ -404,6 +404,31 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), any());
     }
 
+    /**
+     * The fence wrappers answer for both configurations. With no fence (fencing disabled) callers get the safe
+     * defaults - never superseded, a handoff transfer is a no-op, an aborted handoff may resume - so gating code
+     * never needs to know whether the feature is on. With a fence they delegate to it.
+     */
+    public void testFenceOwnershipWrappers() throws Exception {
+        // Fencing disabled: no fence.
+        TranslogTransferManager unfenced = fencedTransferManager(null, tracker);
+        assertFalse(unfenced.isFenceSuperseded(primaryTerm));
+        unfenced.transferFenceOwnership(primaryTerm, "target-alloc"); // no fence to hand over: a no-op
+        assertTrue(unfenced.revertFenceOwnership(primaryTerm));
+
+        // Fencing enabled: delegation to the fence.
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId, threadPool);
+        fence.validateAndAdvance(primaryTerm);
+        TranslogTransferManager fenced = fencedTransferManager(fence, tracker);
+        assertFalse(fenced.isFenceSuperseded(primaryTerm));
+        fenced.transferFenceOwnership(primaryTerm, "target-alloc");
+        assertTrue("the target never wrote, so the revert reclaims ownership", fenced.revertFenceOwnership(primaryTerm));
+        // A strictly higher term supersedes this copy.
+        new RemoteStoreFence(container, "node-2-alloc", "node-2", shardId, threadPool).validateAndAdvance(primaryTerm + 1);
+        assertTrue(fenced.isFenceSuperseded(primaryTerm));
+    }
+
     private FsBlobContainer fenceContainer() throws IOException {
         Path repoPath = createTempDir();
         FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);

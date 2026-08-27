@@ -2019,6 +2019,27 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     /**
+     * A superseded copy must not delete remote generations: the trim's remote phase is gated fail-closed on fence
+     * ownership (see FenceSegmentFlow.tla). The call itself stays safe - it skips, it does not throw.
+     */
+    public void testTrimUnreferencedReadersSkipsRemoteDeletionWhenSuperseded() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog fenced = createFencedTranslog("node-old", fencedRepository)) {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            // A higher term takes the fence out of band.
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId, threadPool).validateAndAdvance(
+                primaryTerm.get() + 1
+            );
+
+            assertTrue(fenced.isRemoteStoreFenceSuperseded());
+            fenced.trimUnreferencedReaders(); // gated: skips the remote deletion, does not throw
+        }
+    }
+
+    /**
      * A copy that begins a fresh lineage - a resize (shrink/split/clone) target, or a snapshot restore into a new
      * index UUID - seals against a repository holding no fence for its shard. The seal is then simply the fresh
      * chain's create-if-absent bootstrap: nothing beyond the shard's own identity and the repository is required.

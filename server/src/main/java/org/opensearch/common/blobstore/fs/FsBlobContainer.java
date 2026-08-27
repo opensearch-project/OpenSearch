@@ -158,8 +158,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
         });
         // Mirror the delete in the conditional-write version map, so that a blob recreated at the same path later is
         // a new version: any token issued before the delete must lose its CAS, as it would against a real object
-        // store's ETag semantics.
-        final String containerPrefix = path.toAbsolutePath().toString();
+        // store's ETag semantics. The trailing separator is load-bearing: without it, deleting the container at
+        // /repo/idx-1 would also invalidate live tokens under a sibling like /repo/idx-10, spuriously fencing an
+        // unrelated shard.
+        final String containerPrefix = path.toAbsolutePath().toString() + path.getFileSystem().getSeparator();
         CONDITIONAL_WRITE_VERSIONS.keySet().removeIf(key -> key.startsWith(containerPrefix));
         return new DeleteResult(filesDeleted.get(), bytesDeleted.get());
     }

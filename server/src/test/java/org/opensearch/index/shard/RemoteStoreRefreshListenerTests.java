@@ -135,6 +135,13 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         verify(supersededShard, never()).getRemoteStoreSettings();
     }
 
+    /** With fencing disabled there is no fence to consult: both failure directions answer "not superseded". */
+    public void testFenceOwnershipQueriesWithoutFencingEnabled() throws Exception {
+        setup(true, 1);
+        assertFalse(indexShard.isRemoteStoreFenceSuperseded());
+        assertFalse(indexShard.isRemoteStoreFenceSupersededFailingClosed());
+    }
+
     /** The positive control: with the fence still ours, the same path proceeds past the gate. */
     public void testSegmentSyncProceedsWhenNotSuperseded() throws Exception {
         setup(true, 3);
