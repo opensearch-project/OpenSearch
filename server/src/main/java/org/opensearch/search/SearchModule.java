@@ -1122,6 +1122,18 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(DisMaxQueryBuilder.NAME, DisMaxQueryBuilder::new, DisMaxQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(IdsQueryBuilder.NAME, IdsQueryBuilder::new, IdsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
+        // RankDocsQueryBuilder is built in-process by the retriever framework on the coordinator and set on
+        // the SearchSourceBuilder directly. It is registered (NamedWriteable + NamedXContent) so it serializes
+        // to data nodes and can be inspected via the profile API. It is purely internal: authoring it directly
+        // in a _search body is impossible because RankDocsQueryBuilder.fromXContent always rejects. The internal
+        // retriever path reconstructs it on data nodes over the binary stream, never via fromXContent.
+        registerQuery(
+            new QuerySpec<>(
+                org.opensearch.search.retriever.RankDocsQueryBuilder.NAME,
+                org.opensearch.search.retriever.RankDocsQueryBuilder::new,
+                org.opensearch.search.retriever.RankDocsQueryBuilder::fromXContent
+            )
+        );
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoolQueryBuilder.NAME, BoolQueryBuilder::new, BoolQueryBuilder::fromXContent));
@@ -1213,6 +1225,16 @@ public class SearchModule {
         registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
         registerSort(new SortSpec<>(ShardDocSortBuilder.NAME, ShardDocSortBuilder::new, ShardDocSortBuilder::fromXContent));
+        // Internal to the retriever framework: registered so it serializes to data nodes and builds the
+        // per-shard RankDocsSortField. It is purely internal — authoring it in a _search body is impossible
+        // because RankDocsSortBuilder.fromXContent always rejects.
+        registerSort(
+            new SortSpec<>(
+                org.opensearch.search.retriever.RankDocsSortBuilder.NAME,
+                org.opensearch.search.retriever.RankDocsSortBuilder::new,
+                org.opensearch.search.retriever.RankDocsSortBuilder::fromXContent
+            )
+        );
     }
 
     private void registerIntervalsSourceProviders() {
