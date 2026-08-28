@@ -5492,10 +5492,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns true if this shards is search idle
+     * Returns true if this shard is search idle
      */
     public final boolean isSearchIdle() {
-        return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
+        long searchIdleAfter = indexSettings.getSearchIdleAfter().getMillis();
+        return searchIdleAfter >= 0 && (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= searchIdleAfter;
     }
 
     /**
