@@ -359,26 +359,73 @@ public class RestControllerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Reproducer for opensearch-project/OpenSearch#22311 Bug B: a second {@link RestChannel#sendResponse} after the
-     * first must not throw when the circuit-breaker-backed channel is already closed.
+     * Reproducer for opensearch-project/OpenSearch#22311: when the first {@link RestChannel#sendResponse} fails inside
+     * the channel nothing has reached the client yet, so the failure response must still be delivered over the same
+     * channel rather than being rejected because the breaker reservation was already released.
      */
-    public void testResourceHandlingChannelCloseIsIdempotent() {
-        restController.registerHandler(RestRequest.Method.GET, "/repro-bug-b", (request, channel, client) -> {
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            channel.sendResponse(
-                new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+    public void testFailureResponseIsSentWhenFirstSendResponseFails() {
+        restController.registerHandler(RestRequest.Method.GET, "/failing-send", (request, channel, client) -> {
+            // The channel rejects the first response, standing in for a body that cannot be serialized.
+            expectThrows(
+                IllegalStateException.class,
+                () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
             );
+            try {
+                channel.sendResponse(
+                    new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                );
+            } catch (IllegalStateException e) {
+                // Reported as an Error on purpose. RestController catches Exception and would otherwise resend over the
+                // raw channel, hiding the fact that this channel rejected the failure response.
+                throw new AssertionError("failure response was rejected after the first send failed", e);
+            }
         });
-        int contentLength = BREAKER_LIMIT.bytesAsInt();
-        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
-        RestRequest request = testRestRequest("/repro-bug-b", content, MediaTypeRegistry.JSON);
-        MultiResponseChannel channel = new MultiResponseChannel(request, true);
+        RestRequest request = testRestRequest("/failing-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        RecordingChannel channel = new RecordingChannel(request, true, true);
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
-        assertEquals(2, channel.getResponseCount());
+        assertEquals(2, channel.getAttemptCount());
+        assertEquals(1, channel.getAcceptedCount());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getLastStatus());
         assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    /**
+     * A second {@link RestChannel#sendResponse} after one the delegate accepted is a handler bug, so it must still fail
+     * loudly instead of writing two responses onto the same connection.
+     */
+    public void testSendResponseAfterSuccessfulSendIsRejected() {
+        AtomicReference<IllegalStateException> rejection = new AtomicReference<>();
+        restController.registerHandler(RestRequest.Method.GET, "/double-send", (request, channel, client) -> {
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            rejection.set(
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> channel.sendResponse(
+                        new BytesRestResponse(RestStatus.ACCEPTED, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                    )
+                )
+            );
+        });
+        RestRequest request = testRestRequest("/double-send", breakerFillingContent(), MediaTypeRegistry.JSON);
+        RecordingChannel channel = new RecordingChannel(request, true, false);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertNotNull(rejection.get());
+        assertThat(rejection.get().getMessage(), containsString("already sent"));
+        assertEquals(1, channel.getAcceptedCount());
+        assertEquals(RestStatus.OK, channel.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    /**
+     * Content sized to reserve the whole breaker limit, so that a missed release would be visible.
+     */
+    private String breakerFillingContent() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        return randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
     }
 
     public void testDispatchRequestLimitsBytes() {
@@ -828,23 +875,38 @@ public class RestControllerTests extends OpenSearchTestCase {
 
     }
 
-    public static final class MultiResponseChannel extends AbstractRestChannel {
+    /**
+     * Records every response the delegate accepts, and can be told to fail its first send - standing in for a response
+     * body that cannot be serialized, which is where opensearch-project/OpenSearch#22311 starts.
+     */
+    public static final class RecordingChannel extends AbstractRestChannel {
 
         private final AtomicReference<RestStatus> lastStatus = new AtomicReference<>();
-        private int responseCount;
+        private final boolean failFirstSend;
+        private int attemptCount;
+        private int acceptedCount;
 
-        public MultiResponseChannel(RestRequest request, boolean detailedErrorsEnabled) {
+        public RecordingChannel(RestRequest request, boolean detailedErrorsEnabled, boolean failFirstSend) {
             super(request, detailedErrorsEnabled);
+            this.failFirstSend = failFirstSend;
         }
 
         @Override
         public void sendResponse(RestResponse response) {
-            responseCount++;
+            attemptCount++;
+            if (failFirstSend && attemptCount == 1) {
+                throw new IllegalStateException("response body could not be serialized");
+            }
+            acceptedCount++;
             lastStatus.set(response.status());
         }
 
-        int getResponseCount() {
-            return responseCount;
+        int getAttemptCount() {
+            return attemptCount;
+        }
+
+        int getAcceptedCount() {
+            return acceptedCount;
         }
 
         RestStatus getLastStatus() {

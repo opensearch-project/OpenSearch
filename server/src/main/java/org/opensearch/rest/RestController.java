@@ -607,7 +607,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        /** Guards the in-flight-requests breaker release, which must happen exactly once. */
         private final AtomicBoolean closed = new AtomicBoolean();
+        /** Guards the response itself. Set only after the delegate has accepted a response. */
+        private final AtomicBoolean responseSent = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
@@ -657,8 +660,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
+            if (responseSent.get()) {
+                throw new IllegalStateException("A response was already sent on this channel");
+            }
             close();
             delegate.sendResponse(response);
+            // Only record the response as sent once the delegate has accepted it. If the delegate throws, nothing was
+            // written to the client, so the failure response must still be allowed through this channel.
+            responseSent.set(true);
         }
 
         private void close() {
@@ -672,7 +681,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final StreamingRestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        /** Guards the in-flight-requests breaker release, which must happen exactly once. */
         private final AtomicBoolean closed = new AtomicBoolean();
+        /** Guards the response itself. Set once the send has been handed to the delegate's subscription. */
+        private final AtomicBoolean responseSent = new AtomicBoolean();
         private final AtomicBoolean subscribed = new AtomicBoolean();
 
         StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
@@ -723,6 +735,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
+            if (responseSent.get()) {
+                throw new IllegalStateException("A response was already sent on this channel");
+            }
             close();
 
             // Check if subscribe() is already called, the headers and status are going to be sent
@@ -732,6 +747,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
+            // The delegate is invoked from the subscription above rather than inline, so a later failure is not
+            // observable here. Handing the response to the subscription is the strongest signal available.
+            responseSent.set(true);
         }
 
         @Override
