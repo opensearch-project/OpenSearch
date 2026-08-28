@@ -136,6 +136,28 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Whether a hash-shuffle consumer drains CONCURRENTLY with its producers (default) or waits for all
+     * of them to finish first.
+     *
+     * <p>Enabled by default: the barrier it removes is what forces a whole partition to be resident
+     * twice over — once as buffered chunks and again as decoded batches — which is the dominant peak in
+     * shuffle-heavy plans. Streaming makes peak residency a function of arrival rate instead of
+     * partition size.
+     *
+     * <p>Kept as a switch purely so the streaming path can be ruled out when diagnosing a shuffle
+     * failure, since it changes the timing of every producer/consumer interaction. Turning it off is a
+     * memory regression, not a safe default: correctness is identical either way, and a stalled producer
+     * fails loudly on both paths rather than short-reading. Distinct from
+     * {@link #MPP_SHUFFLE_STREAM_WINDOW}, which paces producers WITHIN the streaming path.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_PIPELINED_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle.pipelined.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Per-slot in-flight window for the pipelined shuffle consumer: the maximum bytes that may sit
      * queued-but-undrained on one (buffer, slot) before admission returns a retryable reject, pacing
      * producers to the consumer's drain rate.
@@ -435,6 +457,7 @@ public final class AnalyticsSettings {
         MPP_SHUFFLE_RECV_TIMEOUT,
         MPP_SHUFFLE_NODE_BUDGET_PERCENT,
         MPP_SHUFFLE_STREAM_WINDOW,
+        MPP_SHUFFLE_PIPELINED_ENABLED,
         MPP_SHUFFLE_AGGREGATE_ENABLED,
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
