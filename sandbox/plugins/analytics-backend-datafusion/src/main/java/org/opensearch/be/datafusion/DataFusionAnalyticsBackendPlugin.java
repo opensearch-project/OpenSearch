@@ -1079,7 +1079,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BigIntVector rowIdVector,
         String[] columns,
         BufferAllocator allocator,
-        long contextId
+        long contextId,
+        BufferAllocator importStagingAllocator
     ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
@@ -1115,7 +1116,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
-        return new DatafusionResultStream(streamHandle, allocator);
+        return new DatafusionResultStream(streamHandle, allocator, importStagingAllocator);
     }
 
     @Override
