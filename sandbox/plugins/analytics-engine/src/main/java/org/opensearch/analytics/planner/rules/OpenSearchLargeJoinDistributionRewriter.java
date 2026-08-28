@@ -10,6 +10,9 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -59,6 +62,8 @@ import java.util.Optional;
  * @opensearch.internal
  */
 public final class OpenSearchLargeJoinDistributionRewriter {
+
+    private static final Logger LOGGER = LogManager.getLogger(OpenSearchLargeJoinDistributionRewriter.class);
 
     private OpenSearchLargeJoinDistributionRewriter() {}
 
@@ -162,6 +167,19 @@ public final class OpenSearchLargeJoinDistributionRewriter {
         if (minRows > 0 && estimated > 0 && estimated < minRows) {
             return join;
         }
+        // Second floor, on what would ACTUALLY be shipped. The scan floor above deliberately digs past every
+        // Filter/Join to the base table, so a query that scans a large table but ships a small FILTERED result
+        // clears it and then pays a full shuffle round-trip for nothing — the promotion's whole justification is
+        // the size of what crosses the gather, not the size of the tables underneath. Estimating the input
+        // EXPRESSION sees the reduction that the scan walk cannot.
+        //
+        // Layered as an EXTRA veto rather than a replacement, because the two estimators fail in opposite
+        // directions: a missing index statistic leaves a scan at Calcite's default row count, which the scan
+        // floor already reads as small, whereas replacing the scan floor outright would make an un-estimatable
+        // plan look small and silently stop distributing the queries this rewrite exists for.
+        if (minRows > 0 && estimated > 0 && shippedRowsBelow(join, leftContent, rightContent, minRows)) {
+            return join;
+        }
         int partitionCount = MppShufflePartitions.resolve(
             context.getSettings(),
             context.getClusterState(),
@@ -202,6 +220,68 @@ public final class OpenSearchLargeJoinDistributionRewriter {
             return er.hasOverrideRowType() ? null : RelNodeUtils.unwrapHep(er.getInput(0));
         }
         return input;
+    }
+
+    /**
+     * True when BOTH inputs are estimated to ship fewer than {@code minRows} rows, i.e. the shuffle would move
+     * less data than the floor considers worth a round-trip.
+     *
+     * <p>Reads the cluster's {@link RelMetadataQuery}, which is the OpenSearch subclass that corrects Calcite's
+     * no-statistics equi-join estimate, so a join input is estimated from its own keys rather than as a near
+     * cartesian product. Uses {@code max} of the two sides to mirror the scan floor: one large side is enough
+     * to justify distributing, since both sides get shuffled either way.
+     *
+     * <p>Declines to veto whenever the estimate is unusable — absent, non-finite, or non-positive. An estimator
+     * that cannot answer must never be read as "small", or a metadata gap would silently switch distribution
+     * off for the plans that need it most.
+     *
+     * <p><b>Why this reads the estimate as-is.</b> The estimate cannot see a filter applied to a join's SMALLER
+     * side, because the FK correction in {@code OpenSearchRelMetadataQuery} is {@code max(left, right)} and a
+     * selective dimension predicate never moves the max. Two attempts to re-apply that missing factor both
+     * regressed a multi-way query: correcting it inside the metadata query fed the broadcast split rule's
+     * pre-flight byte gate and let an over-sized build through, and correcting it locally here had to compound
+     * survival ratios up a long join chain, which collapsed the estimate and vetoed a promotion that query
+     * needed. A single row floor cannot separate "scans much, gathers little" from "scans much, gathers much
+     * through a deep chain" — that needs the memory/spill term in exchange cost named in this class's exit
+     * condition, not a better row guess.
+     */
+    private static boolean shippedRowsBelow(OpenSearchJoin join, RelNode leftContent, RelNode rightContent, long minRows) {
+        RelMetadataQuery mq = join.getCluster().getMetadataQuery();
+        if (mq == null) {
+            return false;
+        }
+        Double left = safeRowCount(mq, leftContent);
+        Double right = safeRowCount(mq, rightContent);
+        LOGGER.debug(
+            "[LargeJoinDistribution] shipped-row estimate for {} join: left={} right={} minRows={} scanFloorLeft={} scanFloorRight={}",
+            join.getJoinType(),
+            left,
+            right,
+            minRows,
+            RelNodeUtils.subtreeMaxScanRows(leftContent),
+            RelNodeUtils.subtreeMaxScanRows(rightContent)
+        );
+        if (left == null || right == null) {
+            return false;
+        }
+        return Math.max(left, right) < minRows;
+    }
+
+    /** {@code mq.getRowCount} guarded against a null/NaN/infinite/non-positive answer and metadata failures. */
+    private static Double safeRowCount(RelMetadataQuery mq, RelNode rel) {
+        try {
+            Double rows = mq.getRowCount(rel);
+            if (rows == null || rows.isNaN() || rows.isInfinite() || rows <= 0.0) {
+                return null;
+            }
+            return rows;
+        } catch (RuntimeException e) {
+            // A metadata handler can throw on an unusual node (a cyclic-metadata guard, a missing handler for a
+            // custom rel). Treat that as "no estimate" rather than letting it fail the whole query, since this
+            // is only a cost heuristic.
+            LOGGER.debug("[LargeJoinDistribution] row-count estimate unavailable, not vetoing promotion", e);
+            return null;
+        }
     }
 
     /**
