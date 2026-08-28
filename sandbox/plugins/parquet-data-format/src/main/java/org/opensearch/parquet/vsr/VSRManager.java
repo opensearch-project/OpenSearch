@@ -13,8 +13,19 @@ import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BaseLargeVariableWidthVector;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
+import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -253,6 +264,7 @@ public class VSRManager implements AutoCloseable {
                 parquetField.createField(fieldType, activeVSR, pair.getValue());
                 writtenFields++;
             }
+            writeNestedChildren(doc, activeVSR, rowIndex);
             BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector(DocumentInput.ROW_ID_FIELD);
             if (rowIdVector != null) {
                 rowIdVector.setSafe(rowIndex, doc.getRowId());
@@ -267,6 +279,105 @@ public class VSRManager implements AutoCloseable {
             // rethrow keeps addDocument's throws clause unchanged.
             scrubPartialRow(doc, activeVSR, rowIndex, writtenFields, rowIdWritten);
             throw e;
+        }
+    }
+
+    /**
+     * Writes the document's buffered nested children into their LIST&lt;STRUCT&gt; vectors at
+     * {@code rowIndex}. Children of the same path form one list; each child becomes one struct
+     * element in parse order. Rows without a nested field leave the list null.
+     */
+    private void writeNestedChildren(ParquetDocumentInput doc, ManagedVSR activeVSR, int rowIndex) {
+        if (doc.getNestedChildren().isEmpty()) {
+            return;
+        }
+        // Group top-level children by nested path, preserving parse order within each path.
+        java.util.Map<String, java.util.List<ParquetDocumentInput.NestedChild>> byPath = new java.util.LinkedHashMap<>();
+        for (ParquetDocumentInput.NestedChild child : doc.getNestedChildren()) {
+            byPath.computeIfAbsent(child.path, k -> new java.util.ArrayList<>()).add(child);
+        }
+        for (var entry : byPath.entrySet()) {
+            FieldVector vector = activeVSR.getVector(entry.getKey());
+            if (vector instanceof ListVector listVector) {
+                writeChildList(listVector, rowIndex, entry.getKey(), entry.getValue());
+            } else {
+                logger.warn("Nested: no LIST vector for nested path [{}] — skipping", entry.getKey());
+            }
+        }
+    }
+
+    /** Writes one list of child elements at {@code rowIndex} of {@code listVector}, recursing into inner lists. */
+    private void writeChildList(
+        ListVector listVector,
+        int rowIndex,
+        String path,
+        java.util.List<ParquetDocumentInput.NestedChild> children
+    ) {
+        int startOffset = listVector.startNewValue(rowIndex);
+        StructVector structVector = (StructVector) listVector.getDataVector();
+        for (int i = 0; i < children.size(); i++) {
+            int elemIndex = startOffset + i;
+            ParquetDocumentInput.NestedChild child = children.get(i);
+            structVector.setIndexDefined(elemIndex);
+            // leaf fields of this element
+            for (FieldValuePair pair : child.fields) {
+                String leafName = pair.getFieldType().name().substring(path.length() + 1);
+                FieldVector leafVector = structVector.getChild(leafName);
+                if (leafVector == null) {
+                    logger.warn("Nested: struct [{}] has no child vector [{}] — skipping", path, leafName);
+                    continue;
+                }
+                setLeafValue(leafVector, elemIndex, pair.getValue());
+            }
+            // deeper nested elements (e.g. replies inside a comment), grouped by their path
+            if (child.children.isEmpty() == false) {
+                java.util.Map<String, java.util.List<ParquetDocumentInput.NestedChild>> byPath = new java.util.LinkedHashMap<>();
+                for (ParquetDocumentInput.NestedChild inner : child.children) {
+                    byPath.computeIfAbsent(inner.path, k -> new java.util.ArrayList<>()).add(inner);
+                }
+                for (var entry : byPath.entrySet()) {
+                    String innerLeaf = entry.getKey().substring(path.length() + 1);
+                    FieldVector innerVector = structVector.getChild(innerLeaf);
+                    if (innerVector instanceof ListVector innerList) {
+                        writeChildList(innerList, elemIndex, entry.getKey(), entry.getValue());
+                    } else {
+                        logger.warn("Nested: struct [{}] has no inner LIST child [{}] — skipping", path, innerLeaf);
+                    }
+                }
+            }
+        }
+        listVector.endValue(rowIndex, children.size());
+    }
+
+    /** Writes a single scalar into a struct-child vector at the given element index. */
+    private static void setLeafValue(FieldVector vector, int index, Object value) {
+        if (value == null) {
+            return; // leave null
+        }
+        if (vector instanceof VarCharVector v) {
+            v.setSafe(index, value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } else if (vector instanceof IntVector v) {
+            v.setSafe(index, ((Number) value).intValue());
+        } else if (vector instanceof BigIntVector v) {
+            v.setSafe(index, ((Number) value).longValue());
+        } else if (vector instanceof Float8Vector v) {
+            v.setSafe(index, ((Number) value).doubleValue());
+        } else if (vector instanceof Float4Vector v) {
+            v.setSafe(index, ((Number) value).floatValue());
+        } else if (vector instanceof BitVector v) {
+            v.setSafe(index, Boolean.TRUE.equals(value) || "true".equals(value) ? 1 : 0);
+        } else if (vector instanceof SmallIntVector v) {
+            v.setSafe(index, ((Number) value).shortValue());
+        } else if (vector instanceof TinyIntVector v) {
+            v.setSafe(index, ((Number) value).byteValue());
+        } else if (vector instanceof TimeStampMilliVector v) {
+            v.setSafe(index, ((Number) value).longValue());
+        } else if (vector instanceof TimeStampNanoVector v) {
+            v.setSafe(index, ((Number) value).longValue());
+        } else {
+            throw new IllegalArgumentException(
+                "Unsupported struct-leaf vector type [" + vector.getClass().getSimpleName() + "] for nested field"
+            );
         }
     }
 
@@ -367,7 +478,8 @@ public class VSRManager implements AutoCloseable {
         boolean changed = false;
         for (Field schemaField : newSchema.getFields()) {
             if (activeVSR.getVector(schemaField.getName()) == null) {
-                Field field = new Field(schemaField.getName(), schemaField.getFieldType(), null);
+                // Preserve children so LIST<STRUCT> fields keep their struct tree.
+                Field field = new Field(schemaField.getName(), schemaField.getFieldType(), schemaField.getChildren());
                 activeVSR.addFieldVector(field);
                 changed = true;
             }

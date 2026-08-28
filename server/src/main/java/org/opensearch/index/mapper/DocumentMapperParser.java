@@ -171,11 +171,13 @@ public class DocumentMapperParser {
         }
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
+        // createindexmark9
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
             (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext),
             mapperService,
             Mapper.isPluggableDataFormatEnabled(mapperService.getIndexSettings().getSettings()) ? dataFormatRegistry : null
         );
+        // createindexmark19
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while (iterator.hasNext()) {
@@ -205,7 +207,9 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
+        // createindexmark20
         final DocumentMapper documentMapper = docBuilder.build(mapperService);
+        // createindexmark21
         if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
             documentMapper.root().canDeriveSource();
         }

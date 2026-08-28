@@ -328,6 +328,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
             }
             Object compositeField = null;
+            // createindexmark16
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -346,6 +347,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (compositeField != null) {
                 parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
             }
+            // createindexmark17
             return builder;
         }
 
@@ -399,6 +401,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else if (!(fieldNode instanceof Map)) {
                     throw new OpenSearchParseException("properties must be a map type");
                 } else {
+                    // createindexmark12
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
                 return true;
@@ -427,9 +430,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (type.equals(CONTENT_TYPE)) {
                     builder.nested = Nested.NO;
                 } else if (type.equals(NESTED_CONTENT_TYPE)) {
-                    if (isPluggableDataFormatEnabled(parserContext.getSettings())) {
-                        throw new MapperParsingException("nested type is not supported with pluggable data format on field [" + name + "]");
-                    }
+                    // Nested mappings are supported under the pluggable (composite) data format: the
+                    // Parquet primary stores each nested document as a LIST<STRUCT> column; secondary
+                    // formats with no nested notion (e.g. Lucene) simply skip fields inside the nested
+                    // scope rather than indexing them.
                     nested = true;
                 } else {
                     throw new MapperParsingException(
@@ -636,6 +640,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                    // createindexmark13
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
@@ -644,6 +649,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     // and don't create intermediate object mappers
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
                         // Use the full field name as-is without splitting
+                        // createindexmark14
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                         objBuilder.add(fieldBuilder);
                     } else {
@@ -654,16 +660,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
                             throw new MapperParsingException("Invalid field name " + fieldName);
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                        // createindexmark15
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
+                        // createindexmark17
                         objBuilder.add(fieldBuilder);
                     }
                     propNode.remove("type");
                     DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
+                    // createindexmark18
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
@@ -700,6 +709,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
+    // Captured once at construction so canDeriveSource() (which takes no arguments, per the shared
+    // Mapper interface) can tell whether it's validating a nested mapper under the pluggable
+    // (composite) data format, where Parquet's LIST<STRUCT> derives its own nested source, versus a
+    // vanilla index, where the generic per-mapper deriveSource() loop below does NOT read from
+    // nested child docs and would silently reconstruct nested arrays incorrectly.
+    private final boolean pluggableDataFormatEnabled;
+
     ObjectMapper(
         String name,
         String fullPath,
@@ -725,6 +741,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
+        this.pluggableDataFormatEnabled = isPluggableDataFormatEnabled(settings);
         Version version = IndexMetadata.indexCreated(settings);
         if (version.before(Version.V_2_0_0)) {
             this.nestedTypePath = "__" + fullPath;
@@ -1085,8 +1102,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void canDeriveSource() {
-        if (!this.enabled.value() || this.nested.isNested()) {
-            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        // createindexmark22
+        if (this.enabled.value() == false) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled");
+        }
+        // Nested is only permitted under derived-source mode when the pluggable (composite) data
+        // format is active: Parquet's LIST<STRUCT> column is what actually derives nested source
+        // there. On a vanilla index, deriveSource()'s generic per-mapper loop below does not read
+        // from nested child docs at all, so allowing it here would silently reconstruct nested
+        // arrays incorrectly — keep rejecting that case. The per-child-field validation below still
+        // runs either way, to catch unsupported leaf types within the nested object.
+        if (this.nested.isNested() && this.pluggableDataFormatEnabled == false) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is nested");
         }
         for (final Mapper mapper : this.mappers.values()) {
             mapper.canDeriveSource();

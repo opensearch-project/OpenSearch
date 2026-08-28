@@ -194,18 +194,86 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         assertIndexCreationFails("test-completion", "field", "type=completion");
     }
 
-    public void testNestedFieldUnsupported() {
+    public void testNestedFieldSupported() {
         startCluster();
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
-            () -> client().admin()
-                .indices()
-                .prepareCreate("test-nested")
-                .setSettings(dfaSettings())
-                .setMapping("field", "type=nested")
+        assertIndexCreationSucceeds("test-nested", "field", "type=nested");
+    }
+
+    /**
+     * Verifies the Lucene-skips-nested-data behavior: a nested doc still becomes exactly one
+     * Parquet row with its array packed into a {@code LIST<STRUCT>} column, but Lucene writes
+     * exactly one physical document (never a block) and carries none of the nested leaf fields —
+     * {@code comments.author}/{@code comments.score} exist only in Parquet.
+     */
+    public void testNestedFieldIndexSkipsLuceneKeepsParquet() throws Exception {
+        startCluster();
+        String indexName = "test-nested-lucene-skip";
+        String mapping = "{\n"
+            + "  \"properties\": {\n"
+            + "    \"title\": { \"type\": \"keyword\" },\n"
+            + "    \"comments\": {\n"
+            + "      \"type\": \"nested\",\n"
+            + "      \"properties\": {\n"
+            + "        \"author\": { \"type\": \"keyword\" },\n"
+            + "        \"score\": { \"type\": \"integer\" }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(dfaSettings())
+            .setMapping(mapping)
+            .get();
+        assertTrue(response.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(indexName)
+                .setSource(
+                    "title",
+                    "First post",
+                    "comments",
+                    List.of(Map.of("author", "alice", "score", 5), Map.of("author", "bob", "score", 3))
+                )
                 .get()
+                .status()
         );
-        assertTrue(ex.getMessage().contains("nested type is not supported with pluggable data format"));
+
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).get();
+
+        assertDocCount(indexName, 1);
+
+        // Lucene: exactly one physical document, no nested leaf fields, no block-join markers.
+        Path luceneDir = getPrimaryShard(indexName).shardPath().resolveIndex();
+        assertEquals("Lucene must write exactly 1 doc per source doc, not an N+1 block", 1, getLuceneMaxDoc(luceneDir));
+        Set<String> luceneFields = getLuceneFields(luceneDir);
+        assertTrue("Lucene should still have the flat 'title' field", luceneFields.contains("title"));
+        assertFalse("Lucene must not carry nested leaf field 'comments.author'", luceneFields.contains("comments.author"));
+        assertFalse("Lucene must not carry nested leaf field 'comments.score'", luceneFields.contains("comments.score"));
+        assertFalse("Lucene must not carry '_nested_path'", luceneFields.contains("_nested_path"));
+
+        // Parquet: still 1 row, comments still packed as LIST<STRUCT> with both elements.
+        Path parquetDir = getPrimaryShard(indexName).shardPath().getDataPath().resolve("parquet");
+        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetDir, getPrimaryShard(indexName));
+        assertEquals(1, parquetRows.size());
+        assertEquals("First post", parquetRows.get(0).get("title"));
+        // RustBridge.readAsJson (this test's Parquet->JSON dump tool) cannot render LIST<STRUCT>
+        // columns — it emits a placeholder describing the Arrow type instead of decoding it. That
+        // placeholder is still enough to prove the column exists, untouched, with the right shape:
+        // List(Struct("author": Utf8, "score": Int32), ...).
+        Object comments = parquetRows.get(0).get("comments");
+        assertNotNull("Parquet still carries the nested array column", comments);
+        String commentsRepr = comments.toString();
+        assertTrue(
+            "nested column keeps its List<Struct> shape: " + commentsRepr,
+            commentsRepr.contains("List") && commentsRepr.contains("Struct")
+        );
+        assertTrue("nested column keeps the 'author' child field: " + commentsRepr, commentsRepr.contains("author"));
+        assertTrue("nested column keeps the 'score' child field: " + commentsRepr, commentsRepr.contains("score"));
     }
 
     public void testFlatObjectFieldUnsupported() {
@@ -842,6 +910,13 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
             )
         ) {
             return parser.list().stream().map(o -> (Map<String, Object>) o).collect(Collectors.toList());
+        }
+    }
+
+    /** Total physical Lucene document count across all leaves — 1 per source doc if there's no block-join. */
+    private int getLuceneMaxDoc(Path luceneDir) throws IOException {
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            return reader.maxDoc();
         }
     }
 

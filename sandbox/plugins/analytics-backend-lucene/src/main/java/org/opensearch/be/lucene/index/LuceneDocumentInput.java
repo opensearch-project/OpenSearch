@@ -45,6 +45,14 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private long rowId = -1L;
 
+    // ── Nested handling ──
+    // Lucene does not represent nested structure at all (no per-element child docs, no block-join) —
+    // every source document is always exactly one Lucene document. `nestedDepth` just tracks whether
+    // we're currently "inside" a nested object per the parser's startNestedChild/endNestedChild
+    // signals, so addField can skip fields that live under a nested object (Parquet is the sole
+    // source of truth for those). Fields added outside any nested scope land on the root document.
+    private int nestedDepth = 0;
+
     /**
      * Creates a new LuceneDocumentInput with the default field factory registry.
      */
@@ -80,13 +88,19 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      * for this field according to {@link MappedFieldType#getCapabilityMap()}. Fields with
      * an empty capability map (no format declared support) and fields owned by other
      * formats are silently skipped, mirroring the per-format self-filtering used by
-     * {@code ParquetDocumentInput}.
+     * {@code ParquetDocumentInput}. Fields added while inside a nested scope (between a
+     * {@link #startNestedChild} and its matching {@link #endNestedChild}) are skipped
+     * unconditionally — Lucene does not carry nested data at all.
      *
      * @param fieldType the OpenSearch mapped field type
      * @param value     the field value
      */
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
+        if (nestedDepth > 0) {
+            // Nested data lives only in Parquet's LIST<STRUCT> column; Lucene never represents it.
+            return;
+        }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap().getOrDefault(LucenePlugin.DATA_FORMAT, Set.of());
         if (capabilities.isEmpty()) {
             // nothing to support on this format for this field.
@@ -146,6 +160,25 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;
+    }
+
+    /**
+     * Enters a nested scope for {@code nestedPath}. Does not materialize anything — just marks that
+     * subsequent {@link #addField} calls, until the matching {@link #endNestedChild()}, must be
+     * skipped. Depth-counted so nesting composes to arbitrary depth.
+     */
+    @Override
+    public void startNestedChild(String nestedPath) {
+        nestedDepth++;
+    }
+
+    /** Leaves the innermost open nested scope. */
+    @Override
+    public void endNestedChild() {
+        if (nestedDepth <= 0) {
+            throw new IllegalStateException("endNestedChild called with no open nested child");
+        }
+        nestedDepth--;
     }
 
     @Override

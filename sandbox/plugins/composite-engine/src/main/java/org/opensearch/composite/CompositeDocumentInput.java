@@ -85,6 +85,24 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         this.rowId = rowId;
     }
 
+    @Override
+    public void startNestedChild(String nestedPath) {
+        // Broadcast the nested-child open to every format so each builds its nested representation
+        // from the SAME parse-order signal stream (e.g. Parquet begins a LIST<STRUCT> element).
+        primaryDocumentInput.startNestedChild(nestedPath);
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.startNestedChild(nestedPath);
+        }
+    }
+
+    @Override
+    public void endNestedChild() {
+        primaryDocumentInput.endNestedChild();
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.endNestedChild();
+        }
+    }
+
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;
