@@ -21,6 +21,7 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
@@ -133,7 +134,7 @@ public final class ShuffleEnrichment {
         QueryContext ctx,
         ClusterService clusterService,
         CapabilityRegistry capabilityRegistry,
-        long sortMergeJoinMinRows
+        long sortMergeJoinMinBytes
     ) {
         for (WorkerLevel level : levels) {
             Stage worker = level.worker();
@@ -188,7 +189,20 @@ public final class ShuffleEnrichment {
             // scan subtree.
             Stage buildProducer = level.inputs().getLast().producer();
             long buildRows = subtreeMaxScanRows(buildProducer.getFragment());
-            boolean preferHashJoin = buildRows < sortMergeJoinMinRows;
+            // Compare BYTES, not rows: the constraint is the operator pool, and the same row count spans
+            // more than an order of magnitude of footprint depending on column count and type widths. Width
+            // comes from the row type, so it needs no statistics — it is the reliable half of the estimate,
+            // and reusing the broadcast gate's heuristic keeps one definition of "how wide is a row".
+            //
+            // 0 rows means NO REACHABLE SCAN, i.e. UNKNOWN — never "small". Treating it as small picks the
+            // hash join, whose build has no escape to disk, for exactly the builds we know least about: an
+            // upper worker tier whose build is a derived relation (a lower join or aggregate) has no table
+            // scan beneath it and so always estimates 0. Those are the largest builds in a multi-tier plan,
+            // and the failure is a hard allocation error rather than a spill. An unknown build therefore
+            // takes the SPILLABLE join: the cost of sorting a build that turns out small is bounded, while
+            // the cost of hash-building one that turns out huge is the query.
+            long buildBytes = estimatedBuildBytes(buildProducer, buildRows);
+            boolean preferHashJoin = buildRows > 0 && buildBytes > 0 && buildBytes < sortMergeJoinMinBytes;
 
             // The worker consumes every producer's partitions. enrichWorkerAlternatives prepends a setup
             // placeholder and appends per-(partition,slot) scans; a producer instruction (added above when
@@ -206,16 +220,39 @@ public final class ShuffleEnrichment {
 
             LOGGER.debug(
                 "[ShuffleEnrichment] level worker={} producers={} partitions={} expectedSenders={} "
-                    + "buildRows={} preferHashJoin={} targets={}",
+                    + "buildRows={} buildBytes={} preferHashJoin={} targets={}",
                 workerStageId,
                 producerStageIdBySlot,
                 partitionCount,
                 expectedBySlot,
                 buildRows,
+                buildBytes,
                 preferHashJoin,
                 targets
             );
         }
+    }
+
+    /**
+     * Estimated bytes the build side will materialise: {@code rows x summed per-column type widths}.
+     * Returns 0 when it cannot be estimated, which the caller reads as unknown (spillable join), never as
+     * small.
+     *
+     * <p>Width is taken from the build fragment's row type via the same heuristic the broadcast size gate
+     * uses, deliberately: two independent width estimators in one engine would let the broadcast gate and
+     * the join-algorithm gate disagree about the size of the very same relation.
+     */
+    private static long estimatedBuildBytes(Stage buildProducer, long buildRows) {
+        if (buildRows <= 0 || buildProducer.getFragment() == null) {
+            return 0L;
+        }
+        double width = OpenSearchBroadcastJoinSplitRule.estimateRowWidthBytes(buildProducer.getFragment().getRowType());
+        if (width <= 0) {
+            return 0L;
+        }
+        double bytes = buildRows * width;
+        // Saturate rather than overflow: a build wide enough to wrap a long is unambiguously not "small".
+        return bytes >= Long.MAX_VALUE ? Long.MAX_VALUE : (long) bytes;
     }
 
     /**

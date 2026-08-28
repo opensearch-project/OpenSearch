@@ -90,20 +90,20 @@ public final class UnifiedDispatch {
     private final ClusterService clusterService;
     private final CapabilityRegistry capabilityRegistry;
     private final boolean preferMetadataDriver;
-    private final long sortMergeJoinMinRows;
+    private final long sortMergeJoinMinBytes;
 
     public UnifiedDispatch(
         QueryScheduler scheduler,
         ClusterService clusterService,
         CapabilityRegistry capabilityRegistry,
         boolean preferMetadataDriver,
-        long sortMergeJoinMinRows
+        long sortMergeJoinMinBytes
     ) {
         this.scheduler = scheduler;
         this.clusterService = clusterService;
         this.capabilityRegistry = capabilityRegistry;
         this.preferMetadataDriver = preferMetadataDriver;
-        this.sortMergeJoinMinRows = sortMergeJoinMinRows;
+        this.sortMergeJoinMinBytes = sortMergeJoinMinBytes;
     }
 
     /**
@@ -160,7 +160,7 @@ public final class UnifiedDispatch {
                 (levelIndex, partitionCount) -> resolveTargetWorkerNodeIds(partitionCount)
             );
             QueryDAG finalDag = postRewrite.apply(rewritten.dag());
-            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinRows);
+            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinBytes);
             QueryExecution exec = scheduler.execute(ctx.withDag(finalDag), terminal);
             if (queryExecutionSink != null) {
                 queryExecutionSink.accept(exec);

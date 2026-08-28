@@ -209,7 +209,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
      * variable-width CHAR/VARCHAR/BINARY capped). Unknown column types contribute a conservative
      * default so a partially-typed row still estimates non-zero rather than collapsing to 0.
      */
-    private static double estimateRowWidthBytes(org.apache.calcite.rel.type.RelDataType rowType) {
+    public static double estimateRowWidthBytes(org.apache.calcite.rel.type.RelDataType rowType) {
         double total = 0d;
         for (org.apache.calcite.rel.type.RelDataTypeField field : rowType.getFieldList()) {
             total += averageTypeWidthBytes(field.getType());

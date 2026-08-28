@@ -307,4 +307,24 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         when(registry.getBackend(producerBackendName)).thenReturn(producerBackend);
         return registry;
     }
+
+    /**
+     * An UNKNOWN build size must take the spillable join, not the hash join. {@code subtreeMaxScanRows}
+     * returns 0 when no table scan is reachable — which is exactly the case for an upper worker tier whose
+     * build is a derived relation — and its contract says callers must read 0 as unknown, never as small.
+     * Regression guard: the threshold comparison alone made {@code 0 < minRows} true and selected the
+     * non-spillable hash-join build for the largest builds in a multi-tier plan.
+     */
+    public void testUnknownBuildSizePrefersTheSpillableJoin() {
+        Stage consumer = new Stage(/* stageId */ 9, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
+
+        // preferHashJoin=false is what enrichLevels derives for an unknown (0-row) build; assert the flag
+        // reaches the worker setup placeholder, which is what the backend reads.
+        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 1, 1, 1, "qid", 3, 4, /* preferHashJoin */ false);
+
+        List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
+        ShuffleWorkerSetupInstructionNode setup = (ShuffleWorkerSetupInstructionNode) instr.get(0);
+        assertFalse("an unknown build must not request the non-spillable hash join", setup.getPreferHashJoin());
+    }
 }

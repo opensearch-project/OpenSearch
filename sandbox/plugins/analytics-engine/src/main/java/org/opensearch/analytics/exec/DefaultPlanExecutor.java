@@ -666,8 +666,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // Read the worker sort-merge-join floor live (dynamic-aware) so a PUT /_cluster/settings update
         // takes effect without a restart; UnifiedDispatch hands it to ShuffleEnrichment, which sets
         // prefer_hash_join=false on a worker join whose estimated build exceeds it.
-        long sortMergeJoinMinRows = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS);
-        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinRows).run(
+        long sortMergeJoinMinBytes = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_BYTES);
+        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinBytes).run(
             context,
             dag,
             UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService),
