@@ -380,7 +380,10 @@ public final class UnifiedDispatch {
                         // buildSideIndex 0: informational only — the NamedScan resolves by name on the data node.
                         merged.add(new BroadcastInjectionInstructionNode("broadcast-" + e.getKey(), 0, e.getValue()));
                     }
-                    enriched.add(sp.withInstructions(merged));
+                    // The injection REGISTERS the build's payload as a table, so it must precede any
+                    // aggregate preparation already on the chain — that step plans the fragment and would
+                    // otherwise fail to resolve the broadcast table.
+                    enriched.add(sp.withInstructions(InstructionOrdering.aggregatePreparationLast(merged)));
                 }
                 stage.setPlanAlternatives(enriched);
             }

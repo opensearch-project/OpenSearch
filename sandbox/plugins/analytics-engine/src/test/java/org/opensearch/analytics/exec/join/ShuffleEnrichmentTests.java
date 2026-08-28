@@ -14,8 +14,10 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
 import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
@@ -159,6 +161,50 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         assertEquals("input-12", right2.getNamedInputId());
         assertEquals(2, left2.getShufflePartitionIndex());
         assertEquals(2, right2.getShufflePartitionIndex());
+    }
+
+    /**
+     * An aggregate-preparing instruction must be ordered AFTER the shuffle scans. Preparing a partial (or
+     * final) aggregate builds a PHYSICAL PLAN from the fragment bytes, which resolves every table the
+     * fragment names; on a worker tier those names are the shuffle inputs the scan instructions register.
+     * Regression guard: the preparation used to keep its original position ahead of the scans, so the
+     * fragment was planned against an empty catalog and the shard failed with
+     * "Error during planning: No table named 'input-&lt;id&gt;'". Instructions that only register data or
+     * state must NOT be reordered — they have to precede the scans.
+     */
+    public void testAggregatePreparationIsDeferredPastTheShuffleScans() {
+        Stage consumer = new Stage(/* stageId */ 9, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(
+            List.of(
+                new StagePlan(null, "df").withInstructions(
+                    List.of(
+                        new BroadcastInjectionInstructionNode("broadcast-0", 0, new byte[] { 7 }),
+                        new PartialAggregateInstructionNode()
+                    )
+                )
+            )
+        );
+
+        ShuffleEnrichment.enrichWorkerAlternatives(
+            consumer,
+            /* partitionCount */ 2,
+            /* leftExpectedSenders */ 3,
+            /* rightExpectedSenders */ 3,
+            /* queryId */ "qid",
+            /* leftProducerStageId */ 7,
+            /* rightProducerStageId */ 8,
+            /* preferHashJoin */ true
+        );
+
+        List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
+        // setup + broadcast injection + (2 partitions × 2 sides) scans + deferred partial-aggregate prep.
+        assertEquals(7, instr.size());
+        assertTrue(instr.get(0) instanceof ShuffleWorkerSetupInstructionNode);
+        assertTrue("a table-registering instruction stays ahead of the scans", instr.get(1) instanceof BroadcastInjectionInstructionNode);
+        for (int i = 2; i < 6; i++) {
+            assertTrue("scans occupy the middle", instr.get(i) instanceof ShuffleScanInstructionNode);
+        }
+        assertTrue("aggregate preparation must run last", instr.get(6) instanceof PartialAggregateInstructionNode);
     }
 
     public void testWorkerSetupCarriesBothSidesExpectedSenders() {

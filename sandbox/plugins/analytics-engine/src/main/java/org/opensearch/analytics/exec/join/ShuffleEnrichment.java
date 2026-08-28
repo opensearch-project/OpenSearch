@@ -125,7 +125,8 @@ public final class ShuffleEnrichment {
     /**
      * Enriches each worker level bottom-up with its shuffle producer / scan / worker instructions. A
      * producer feeding an intermediate worker may itself be a worker (its instructions already carry
-     * setup+scan); the producer instruction is appended so the order stays {@code [setup, scan…, producer]}.
+     * setup+scan); the producer instruction is appended so the order stays
+     * {@code [setup, register…, scan…, prepare…, producer]}.
      */
     public static void enrichLevels(
         List<WorkerLevel> levels,
@@ -403,7 +404,9 @@ public final class ShuffleEnrichment {
                     );
                 }
             }
-            enriched.add(sp.withInstructions(merged));
+            // The scans just appended register this worker's shuffle inputs, so any aggregate preparation
+            // already on the chain has to move behind them before it can plan the fragment.
+            enriched.add(sp.withInstructions(InstructionOrdering.aggregatePreparationLast(merged)));
         }
         workerStage.setPlanAlternatives(enriched);
     }

@@ -18,12 +18,11 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
-import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
-import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
@@ -106,7 +105,16 @@ public final class OpenSearchPartialAggregatePushdownRewriter {
         if (!(n instanceof OpenSearchAggregate agg) || agg.getMode() != AggregateMode.SINGLE) {
             return n;
         }
+        // Look through row-transparent Projects between the aggregate and the gather. Requiring the reducer
+        // to be the aggregate's DIRECT child is too strict: when an aggregate's argument is a computed
+        // expression, a Project computing it sits in between, and declining there leaves the aggregate SINGLE
+        // so the coordinator's peak scales with input ROWS rather than GROUP COUNT.
+        List<RelNode> passThrough = new ArrayList<>();
         RelNode belowAgg = RelNodeUtils.unwrapHep(n.getInput(0));
+        while (belowAgg instanceof OpenSearchProject ptp && !ptp.containsOver() && ptp.getInputs().size() == 1) {
+            passThrough.add(belowAgg);
+            belowAgg = RelNodeUtils.unwrapHep(belowAgg.getInput(0));
+        }
         if (!(belowAgg instanceof OpenSearchExchangeReducer reducer)) {
             return n;
         }
@@ -120,22 +128,24 @@ public final class OpenSearchPartialAggregatePushdownRewriter {
         if (!isPartitioned(OpenSearchRelNode.distributionOf(gatherInput.getTraitSet()))) {
             return n;
         }
-        // A BROADCAST below the gather must not have a PARTIAL pushed into it. UnifiedDispatch injects each
-        // captured build's IPC as an instruction on the consumer stage located via
-        // OpenSearchBroadcastScan.getBuildStageId(); inserting an aggregate changes the fragment DAGBuilder
-        // cuts, so the injected table no longer reaches the fragment that reads it and the shard fails with
-        // "Error during planning: No table named 'broadcast-0'". Measured by bisection: with this rewriter ON
-        // and the large-join one OFF, 6 JoinCommandIT tests fail that way; with both OFF, 12/12 pass.
-        if (containsBroadcastScan(gatherInput)) {
-            return n;
-        }
         // Shared correctness gates with the CBO-side split: STATE_EXPANDING / DISTINCT / cross-family
         // non-prefix group sets cannot be decomposed into PARTIAL+FINAL and must stay single-stage.
         if (OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(agg)) {
             return n;
         }
         changed[0] = true;
-        return split(agg, gatherInput, traitDef);
+        // Rebuild the looked-through Projects below the gather, innermost first. Each keeps its OWN traitSet,
+        // which still carries the gathered distribution it was planned at — so the PARTIAL built on top of
+        // them inherits that trait rather than the partitioned one it actually runs at. That is inert:
+        // staging cuts on the reducer NODE and worker promotion reads the join's shuffle leaves, neither
+        // consults this trait. Re-stamping the child's distribution here would be more faithful but changes
+        // what the nodes compare equal to, so it is left alone until something reads it.
+        RelNode partialInput = gatherInput;
+        for (int i = passThrough.size() - 1; i >= 0; i--) {
+            RelNode pt = passThrough.get(i);
+            partialInput = pt.copy(pt.getTraitSet(), List.of(partialInput));
+        }
+        return split(agg, partialInput, traitDef);
     }
 
     /** Builds {@code FINAL(ExchangeReducer(PARTIAL(partitionedInput)))} for {@code agg}. */
@@ -184,24 +194,6 @@ public final class OpenSearchPartialAggregatePushdownRewriter {
         );
         // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
         return OpenSearchAggregateSplitRule.wrapWithCastIfNeeded(finalAgg, agg);
-    }
-
-    /** True when an {@link OpenSearchBroadcastScan} appears anywhere in {@code rel}'s subtree — a broadcast
-     *  build/consumer binding that re-staging would break. */
-    private static boolean containsBroadcastScan(RelNode rel) {
-        RelNode n = RelNodeUtils.unwrapHep(rel);
-        // BOTH representations: OpenSearchBroadcastExchange is what CBO emits and what these post-CBO
-        // rewriters actually see; OpenSearchBroadcastScan is the placeholder DAGBuilder.cutBroadcast
-        // substitutes LATER. Checking only the Scan form made this guard a no-op at this phase.
-        if (n instanceof OpenSearchBroadcastExchange || n instanceof OpenSearchBroadcastScan) {
-            return true;
-        }
-        for (RelNode input : n.getInputs()) {
-            if (containsBroadcastScan(input)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** True when {@code dist} describes data spread across shards or worker partitions. */
