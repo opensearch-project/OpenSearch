@@ -213,6 +213,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         applyShuffleStreamWindow(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW, this::applyShuffleStreamWindow);
+        applyShufflePipelined(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PIPELINED_ENABLED));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_PIPELINED_ENABLED, this::applyShufflePipelined);
         // Resolve the spill root once from the environment's first data path (settings default ""
         // means "use <path.data>/shuffle_spill"); a non-empty setting overrides it. Then wire the
         // spill config from settings (initial value + dynamic updates). Default OFF — when disabled
@@ -278,6 +281,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         long bytes = window == null ? 0L : window.getBytes();
         shuffleBufferManager.setStreamWindowBytes(bytes);
         logger.info("[analytics] hash-shuffle in-flight window set to {} bytes ({})", bytes, bytes <= 0 ? "disabled" : "enabled");
+    }
+
+    /**
+     * Apply the pipelined-shuffle kill switch. Enabled by default; disabling makes a consumer wait for
+     * all of its producers before draining, which restores partition-sized residency. Called at startup
+     * and on dynamic updates.
+     */
+    private void applyShufflePipelined(boolean enabled) {
+        shuffleBufferManager.setPipelinedEnabled(enabled);
+        logger.info("[analytics] hash-shuffle pipelined drain {}", enabled ? "enabled" : "disabled (waits for producers)");
     }
 
     /**
