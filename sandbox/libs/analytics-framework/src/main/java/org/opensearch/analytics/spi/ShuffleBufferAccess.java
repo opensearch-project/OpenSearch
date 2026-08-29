@@ -86,19 +86,6 @@ public interface ShuffleBufferAccess {
         return wrap(getData(slot).iterator());
     }
 
-    /**
-     * {@link #drain(String)} with an explicit per-chunk liveness timeout.
-     *
-     * <p>Under pipelined shuffle the returned iterator is CONCURRENT with the producers: it blocks for
-     * the next chunk rather than being created after the partition is complete, and terminates at the
-     * stream's end-of-stream marker. {@code timeoutMillis} therefore bounds the wait for ONE chunk, not
-     * for the whole partition, and a timeout means the producers have stalled — implementations must
-     * fail rather than report a clean end-of-stream, or the consumer would silently under-deliver.
-     */
-    default CloseableIterator<byte[]> drain(String slot, long timeoutMillis) {
-        return drain(slot);
-    }
-
     /** {@link #getData(String)} for the {@link ShuffleSlots#LEFT} slot. */
     default List<byte[]> getLeftData() {
         return getData(ShuffleSlots.LEFT);

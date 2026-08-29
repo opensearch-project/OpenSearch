@@ -123,27 +123,39 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
         // slot's awaitReady call blocks. Declaring them per-slot here would deadlock — a later
         // slot's count would be set only AFTER an earlier slot's handler had already blocked.
 
-        LOGGER.debug(
-            "ShuffleScanHandler: opening partition stream queryId={}, stage={}, partition={}, slot={}, expectedSenders={}",
-            node.getQueryId(),
-            node.getTargetStageId(),
-            node.getShufflePartitionIndex(),
-            slot,
-            node.getExpectedSenders()
-        );
+        try {
+            LOGGER.debug(
+                "ShuffleScanHandler: awaiting partition stream queryId={}, stage={}, partition={}, slot={}, expectedSenders={}",
+                node.getQueryId(),
+                node.getTargetStageId(),
+                node.getShufflePartitionIndex(),
+                slot,
+                node.getExpectedSenders()
+            );
+            // Block here until EVERY declared slot's producers have all reported isLast for this
+            // partition. The handler runs once per slot and each invocation waits for all of them, so
+            // every invocation agrees the buffer is fully populated before any returns. A handler
+            // drains only its own slot, but it must wait for all of them because the producer-side
+            // dispatch fires concurrently and other slots' IPC bytes race into the same buffer.
+            if (!buffer.awaitReady(DEFAULT_AWAIT_READY_TIMEOUT_MS)) {
+                throw new RuntimeException(
+                    "ShuffleScanHandler: timed out waiting for shuffle producers to finish for "
+                        + inputId
+                        + " (timeout="
+                        + DEFAULT_AWAIT_READY_TIMEOUT_MS
+                        + "ms)"
+                );
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("ShuffleScanHandler: interrupted while awaiting shuffle producers for " + inputId, e);
+        }
 
-        // PIPELINED drain: no barrier. The previous implementation blocked here (awaitReady) until every
-        // declared slot's producers had all reported isLast, which forced the ENTIRE partition to be
-        // resident — once on-heap as byte[] and again as Arrow buffers once the drain finally ran. That
-        // double residency is what exhausted the Arrow query pool (q17) and the DataFusion pool (q18).
-        //
-        // Now the iterator is concurrent with the producers: it blocks only for the NEXT chunk and ends
-        // at the stream's end-of-stream marker, which the buffer publishes exactly when this slot's
-        // declared senders have all reported isLast. Peak residency becomes the in-flight window rather
-        // than the partition size. The per-chunk timeout is a liveness bound (stalled producers), and it
-        // FAILS rather than reporting a clean end-of-stream so a stall can never under-deliver rows.
+        // LAZY drain: pull chunks one at a time. With spill, only ONE chunk is heap-resident at a
+        // time — the rest stream from the spill file — so an over-budget partition drains without
+        // re-materializing (the whole point of disk spill). The iterator owns the spill-file handle.
         BufferAllocator alloc = shardCtx.getAllocator();
-        CloseableIterator<byte[]> chunks = buffer.drain(slot, DEFAULT_AWAIT_READY_TIMEOUT_MS);
+        CloseableIterator<byte[]> chunks = buffer.drain(slot);
 
         // Peek the first chunk for the schema (one chunk in heap is fine). No first chunk → empty
         // partition: register an empty memtable and return. Close the iterator on every path here.

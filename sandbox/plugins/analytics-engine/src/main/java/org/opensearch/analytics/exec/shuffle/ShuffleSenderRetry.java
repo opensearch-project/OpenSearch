@@ -10,12 +10,10 @@ package org.opensearch.analytics.exec.shuffle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.exec.action.AnalyticsShuffleDataRequest;
 import org.opensearch.analytics.exec.action.AnalyticsShuffleDataResponse;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 /**
@@ -36,32 +34,9 @@ public final class ShuffleSenderRetry {
 
     private static final Logger LOGGER = LogManager.getLogger(ShuffleSenderRetry.class);
 
-    /**
-     * Backoff for a TRANSIENT backpressure reject: 8 attempts, 50ms doubling to a 5s cap (~15s total).
-     *
-     * <p>These are the original values, deliberately chosen for the case a reject actually represents
-     * today — another query momentarily filled the node budget. Failing a contended query reasonably
-     * fast is safer than queueing behind an accumulation that could OOM the node.
-     *
-     * <p>They were briefly raised (500 attempts, then unbounded with a 30-minute ceiling) to serve the
-     * in-flight window's pacing, where a full window is a NORMAL steady state rather than a blip. That
-     * pacing scheme is disabled ({@code analytics.mpp.shuffle.stream_window} defaults to 0) because it
-     * deadlocks — see that setting. Raising these again is only correct alongside a real producer-side
-     * pause; a re-send storm on the bounded GENERIC pool is what hung all seven probe queries at sf=10.
-     */
     private static final int DEFAULT_MAX_ATTEMPTS = 8;
     private static final long DEFAULT_INITIAL_BACKOFF_MILLIS = 50;
     private static final long DEFAULT_MAX_BACKOFF_MILLIS = 5_000;
-
-    /**
-     * Wall-clock ceiling on backpressure waiting, independent of the attempt count.
-     *
-     * <p>Kept as a second bound because attempts alone do not bound TIME (the backoff grows), and a
-     * caller must not wait unboundedly on a consumer that will never drain. 2 minutes is well past the
-     * ~15s the attempt budget allows, so in practice the attempt count is what trips first; this is the
-     * backstop for a pathologically slow scheduler.
-     */
-    private static final long DEFAULT_MAX_TOTAL_WAIT_MILLIS = TimeUnit.MINUTES.toMillis(2);
 
     private ShuffleSenderRetry() {}
 
@@ -82,51 +57,7 @@ public final class ShuffleSenderRetry {
         BiConsumer<Long, Runnable> scheduler,
         ActionListener<AnalyticsShuffleDataResponse> finalListener
     ) {
-        sendWithRetry(
-            request,
-            sender,
-            scheduler,
-            finalListener,
-            DEFAULT_MAX_ATTEMPTS,
-            DEFAULT_INITIAL_BACKOFF_MILLIS,
-            1,
-            System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DEFAULT_MAX_TOTAL_WAIT_MILLIS)
-        );
-    }
-
-    /** {@link #sendWithRetry} with an explicit wait ceiling. Visible for tests, which must not inherit
-     *  the production ceiling when driving the loop with an inline scheduler. */
-    static void sendWithRetry(
-        AnalyticsShuffleDataRequest request,
-        BiConsumer<AnalyticsShuffleDataRequest, ActionListener<AnalyticsShuffleDataResponse>> sender,
-        BiConsumer<Long, Runnable> scheduler,
-        ActionListener<AnalyticsShuffleDataResponse> finalListener,
-        long maxTotalWaitMillis
-    ) {
-        sendWithRetry(request, sender, scheduler, finalListener, maxTotalWaitMillis, DEFAULT_MAX_ATTEMPTS);
-    }
-
-    /** {@link #sendWithRetry} with an explicit wait ceiling AND attempt budget. Visible for tests so the
-     *  backoff arithmetic can be driven past the shift width that used to overflow, independently of the
-     *  production budget. */
-    static void sendWithRetry(
-        AnalyticsShuffleDataRequest request,
-        BiConsumer<AnalyticsShuffleDataRequest, ActionListener<AnalyticsShuffleDataResponse>> sender,
-        BiConsumer<Long, Runnable> scheduler,
-        ActionListener<AnalyticsShuffleDataResponse> finalListener,
-        long maxTotalWaitMillis,
-        int maxAttempts
-    ) {
-        sendWithRetry(
-            request,
-            sender,
-            scheduler,
-            finalListener,
-            maxAttempts,
-            DEFAULT_INITIAL_BACKOFF_MILLIS,
-            1,
-            System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(maxTotalWaitMillis)
-        );
+        sendWithRetry(request, sender, scheduler, finalListener, DEFAULT_MAX_ATTEMPTS, DEFAULT_INITIAL_BACKOFF_MILLIS, 1);
     }
 
     private static void sendWithRetry(
@@ -136,8 +67,7 @@ public final class ShuffleSenderRetry {
         ActionListener<AnalyticsShuffleDataResponse> finalListener,
         int maxAttempts,
         long initialBackoffMillis,
-        int attempt,
-        long deadlineNanos
+        int attempt
     ) {
         sender.accept(request, new ActionListener<>() {
             @Override
@@ -146,30 +76,18 @@ public final class ShuffleSenderRetry {
                     finalListener.onResponse(response);
                     return;
                 }
-                // Give up on TIME, not on attempt count (see DEFAULT_MAX_TOTAL_WAIT_MILLIS): a paced
-                // producer legitimately waits out the consumer's whole build phase.
-                boolean outOfTime = deadlineNanos - System.nanoTime() <= 0;
-                if (outOfTime || attempt >= maxAttempts) {
+                if (attempt >= maxAttempts) {
                     LOGGER.warn(
-                        new ParameterizedMessage(
-                            "Shuffle sender gave up after {} attempts ({}) for query={}, stage={}, partition={}",
-                            attempt,
-                            outOfTime ? "wait ceiling reached" : "attempt ceiling reached",
-                            request.getQueryId(),
-                            request.getTargetStageId(),
-                            request.getPartitionIndex()
-                        )
+                        "Shuffle sender gave up after {} attempts for query={}, stage={}, partition={}",
+                        attempt,
+                        request.getQueryId(),
+                        request.getTargetStageId(),
+                        request.getPartitionIndex()
                     );
                     finalListener.onResponse(response);
                     return;
                 }
-                // Clamp the shift exponent. Java's << on a long uses only the LOW 6 BITS of the shift
-                // count, so `initial << (attempt-1)` silently wraps once attempt-1 >= 64 and overflows
-                // NEGATIVE well before that — producing `duration cannot be negative` from the
-                // scheduler and failing the query. This was unreachable at the old 8-attempt budget
-                // (shift <= 7) and became reachable the moment the budget grew for pacing.
-                int shift = Math.min(attempt - 1, 32);
-                long backoff = Math.min(DEFAULT_MAX_BACKOFF_MILLIS, initialBackoffMillis << shift);
+                long backoff = Math.min(DEFAULT_MAX_BACKOFF_MILLIS, initialBackoffMillis << (attempt - 1));
                 LOGGER.debug(
                     "Shuffle backpressure-rejected, retrying in {}ms (attempt {}/{}): query={}, stage={}, partition={}",
                     backoff,
@@ -181,16 +99,7 @@ public final class ShuffleSenderRetry {
                 );
                 scheduler.accept(
                     backoff,
-                    () -> sendWithRetry(
-                        request,
-                        sender,
-                        scheduler,
-                        finalListener,
-                        maxAttempts,
-                        initialBackoffMillis,
-                        attempt + 1,
-                        deadlineNanos
-                    )
+                    () -> sendWithRetry(request, sender, scheduler, finalListener, maxAttempts, initialBackoffMillis, attempt + 1)
                 );
             }
 

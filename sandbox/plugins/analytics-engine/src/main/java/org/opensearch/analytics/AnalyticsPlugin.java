@@ -58,7 +58,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -210,9 +209,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
-        applyShuffleStreamWindow(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_STREAM_WINDOW, this::applyShuffleStreamWindow);
         // Resolve the spill root once from the environment's first data path (settings default ""
         // means "use <path.data>/shuffle_spill"); a non-empty setting overrides it. Then wire the
         // spill config from settings (initial value + dynamic updates). Default OFF — when disabled
@@ -267,17 +263,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
         shuffleBufferManager.setBudgets(budget, budget);
         logger.info("[analytics] hash-shuffle node budget set to {}% of max heap = {} bytes", percent, budget);
-    }
-
-    /**
-     * Apply the pipelined-shuffle in-flight window. Unlike the node budget above (an absolute OOM
-     * backstop sized off heap), this is the drain-rate-coupled bound that keeps peak shuffle residency
-     * independent of partition size. Called at startup and on dynamic updates.
-     */
-    private void applyShuffleStreamWindow(ByteSizeValue window) {
-        long bytes = window == null ? 0L : window.getBytes();
-        shuffleBufferManager.setStreamWindowBytes(bytes);
-        logger.info("[analytics] hash-shuffle in-flight window set to {} bytes ({})", bytes, bytes <= 0 ? "disabled" : "enabled");
     }
 
     /**

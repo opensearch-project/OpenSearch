@@ -27,7 +27,6 @@ import org.opensearch.core.action.ActionListener;
 import java.io.ByteArrayOutputStream;
 import java.nio.channels.Channels;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -76,23 +75,6 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
     private final ShuffleCompression.Config compression;
 
     private final AtomicInteger pending = new AtomicInteger(0);
-
-    /**
-     * How long {@code close()} waits for outstanding sends before giving up.
-     *
-     * <p>Was 60s, which was ample when a shuffle send only ever queued briefly. Under the pipelined
-     * consumer it is not: admission rejects while a slot's in-flight window is full, and a probe-side
-     * send legitimately waits out the consumer's ENTIRE build phase, because {@code HashJoinExec} reads
-     * its inputs sequentially. At sf=10 that is minutes, so the 60s wait expired routinely, phase 1's
-     * "all data before any isLast" guarantee broke, and the outstanding rows were dropped — 27,499 late
-     * admits on one worker.
-     *
-     * <p>Kept comfortably ABOVE {@code ShuffleSenderRetry}'s ceiling so the two agree: a send that is
-     * still retrying has not yet exhausted its own budget, so close() must not give up first. The
-     * important change is not the number but that it now fails CLOSED (below) — the old 60s wait logged
-     * a warning and shipped isLast anyway, dropping whatever was still in flight.
-     */
-    private static final long PENDING_DRAIN_DEADLINE_MILLIS = TimeUnit.MINUTES.toMillis(3);
     private final AtomicReference<Throwable> firstError = new AtomicReference<>();
     private volatile boolean closed;
     private long batchesFed;
@@ -352,10 +334,10 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
      * names the wave being drained for the timeout log.
      */
     private void awaitPendingDrain(String phase) {
-        long deadlineMs = System.currentTimeMillis() + PENDING_DRAIN_DEADLINE_MILLIS;
+        long deadlineMs = System.currentTimeMillis() + 60_000;
         while (pending.get() > 0 && System.currentTimeMillis() < deadlineMs) {
             try {
-                Thread.sleep(5);
+                Thread.sleep(1);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
@@ -363,27 +345,7 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             }
         }
         if (pending.get() > 0) {
-            // FAIL CLOSED. This used to warn and continue, which silently broke the phase-1 guarantee:
-            // shipping isLast with data still in flight lets the consumer reach end-of-stream while rows
-            // are outstanding, and those rows are then dropped — a wrong answer with no error. Stamping
-            // firstError makes close() rethrow, so the producer fragment fails the query instead.
-            //
-            // isLast is still shipped (phase 2 continues) on purpose: withholding it would leave the
-            // consumer blocked until its own liveness timeout, turning a fast loud failure into a slow
-            // one. The consumer is independently protected — a late admit invalidates its slot.
-            IllegalStateException e = new IllegalStateException(
-                "DatafusionPartitionedSink: timed out draining "
-                    + phase
-                    + " for "
-                    + logTag
-                    + " after "
-                    + PENDING_DRAIN_DEADLINE_MILLIS
-                    + "ms ("
-                    + pending.get()
-                    + " sends still pending) — shipping isLast now would drop those rows"
-            );
-            firstError.compareAndSet(null, e);
-            LOGGER.error(e.getMessage());
+            LOGGER.warn("DatafusionPartitionedSink: timed out draining {} for {} ({} sends still pending)", phase, logTag, pending.get());
         }
     }
 }
