@@ -11,7 +11,6 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
 import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
@@ -175,12 +174,7 @@ public class AnalyticsSearchTransportService {
                         } catch (Exception ignored) {}
                     }
                 },
-                // Worker fragments get their OWN pool, never SEARCH: a worker blocks in its shuffle scan
-                // until its producers deliver, and those producers need a thread too. Sharing SEARCH
-                // deadlocks once a node's worker tasks outnumber that pool -- every thread held by a
-                // consumer waiting on a producer queued behind it. Shard-scan fragments stay on SEARCH
-                // precisely so consumers can never crowd the producers out.
-                transportService.getThreadPool().executor(AnalyticsPlugin.WORKER_THREAD_POOL_NAME)
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             )
         );
     }
