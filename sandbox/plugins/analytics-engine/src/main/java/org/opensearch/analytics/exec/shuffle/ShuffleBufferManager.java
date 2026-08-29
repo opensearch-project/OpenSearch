@@ -123,17 +123,6 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
     private final Map<String, AtomicLong> perQueryBytes = new ConcurrentHashMap<>();
 
     /**
-     * Whether a streaming drain overlaps its producers (default) or waits for them first.
-     *
-     * <p>ON: the consumer reads chunks as they arrive, so peak residency is the in-flight window rather
-     * than the whole partition. OFF: the drain blocks until every declared sender has finished, which is
-     * the pre-streaming behaviour and holds the entire partition — once as buffered chunks and again as
-     * decoded batches. Exists as an operator kill switch for the streaming path; correctness does not
-     * depend on which side it is on, only peak memory and how early rows start flowing.
-     */
-    private volatile boolean pipelinedEnabled = true;
-
-    /**
      * Disk-spill configuration (default OFF). When {@link #spillEnabled} is true and a chunk would
      * breach the PER-QUERY on-heap budget, {@link #tryAdmit} evicts oldest in-memory chunks of the
      * target side to a per-(query,stage,partition,side) spill file under {@link #spillDir} instead of
@@ -245,23 +234,6 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
     /** Current per-slot in-flight window in bytes (for observability/tests). */
     public long getStreamWindowBytes() {
         return streamWindowBytes;
-    }
-
-    /**
-     * Enables or disables pipelined draining (see {@link #pipelinedEnabled}). Applies to buffers that
-     * already exist as well as new ones, so the switch takes effect on in-flight queries rather than
-     * only the next one — the point of a kill switch is to act on the query that is misbehaving.
-     */
-    public void setPipelinedEnabled(boolean enabled) {
-        this.pipelinedEnabled = enabled;
-        for (ShuffleBuffer buffer : buffers.values()) {
-            buffer.setPipelined(enabled);
-        }
-    }
-
-    /** Whether pipelined draining is active (for observability/tests). */
-    public boolean isPipelinedEnabled() {
-        return pipelinedEnabled;
     }
 
     /**
@@ -454,7 +426,6 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      */
     private ShuffleBuffer newBuffer(String queryId, int targetStageId, int partitionIndex) {
         ShuffleBuffer buffer = new ShuffleBuffer();
-        buffer.setPipelined(pipelinedEnabled);
         if (spillEnabled && spillDir != null) {
             buffer.enableSpill(this, spillDir, queryId, targetStageId, partitionIndex);
         }
@@ -944,20 +915,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          */
         private volatile boolean draining;
 
-        /**
-         * Mirror of the manager's pipelining switch (see
-         * {@link ShuffleBufferManager#setPipelinedEnabled(boolean)}). Held per-buffer because this is a
-         * static nested class with no implicit manager reference, and the existing {@code owner} field is
-         * wired only on the spill path.
-         */
-        private volatile boolean pipelined = true;
-
         public ShuffleBuffer() {}
-
-        /** Sets whether a drain on this buffer overlaps its producers. */
-        void setPipelined(boolean enabled) {
-            this.pipelined = enabled;
-        }
 
         /**
          * Wires this buffer's spill identity (lazy — no file is opened here). Once set, a per-query
@@ -1353,40 +1311,12 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
 
         @Override
         public CloseableIterator<byte[]> drain(String slot, long timeoutMillis) {
-            // Kill switch: barrier FIRST, so the iterator only ever sees a completed partition. That
-            // restores the pre-streaming contract (whole partition resident before any row is read) for
-            // an operator who needs to rule the streaming path out. Pipelining is the default because the
-            // barrier is what forces partition-sized residency — the cost this exists to avoid.
-            if (!pipelined) {
-                awaitCompleteOrThrow(timeoutMillis, slot);
-            }
             beginDrain();
             // slotFor (not slots.get): the consumer can now start draining BEFORE any producer has
             // touched this slot, so the slot may not exist yet. Creating it here is what lets the
             // stream block for the first chunk instead of mis-reporting an empty partition.
             Slot s = slotFor(ShuffleSlots.validate(slot));
             return new StreamingSlotIterator(s, timeoutMillis, slot);
-        }
-
-        /**
-         * Blocks until every declared slot's senders have finished, for the non-pipelined path. Failing
-         * loudly on timeout is deliberate: returning here with producers still in flight would let the
-         * iterator report a clean end-of-stream over a partial partition, i.e. silently drop rows.
-         */
-        private void awaitCompleteOrThrow(long timeoutMillis, String slot) {
-            try {
-                if (!awaitReady(timeoutMillis)) {
-                    throw new IllegalStateException(
-                        "ShuffleBufferManager: timed out after "
-                            + timeoutMillis
-                            + "ms waiting for shuffle producers to finish before a non-pipelined drain of slot "
-                            + slot
-                    );
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("ShuffleBufferManager: interrupted awaiting shuffle producers for slot " + slot, e);
-            }
         }
 
         /**
