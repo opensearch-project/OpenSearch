@@ -53,7 +53,7 @@ pub async fn build_segments(
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
     writer_generations: &[i64],
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
     sort_fields: &[String],
 ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
     if object_metas.len() != writer_generations.len() {
@@ -293,7 +293,7 @@ mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow_array::{Int32Array, RecordBatch, StringArray};
-    use datafusion::execution::cache::DefaultFilesMetadataCache;
+    use datafusion::execution::cache::default_cache::DefaultCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
     use object_store::{
@@ -303,8 +303,8 @@ mod tests {
 
     /// Mirror of what `CacheManager::try_new` auto-installs when no custom
     /// metadata cache is configured.
-    fn default_metadata_cache() -> Arc<dyn FileMetadataCache> {
-        Arc::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024))
+    fn default_metadata_cache() -> Arc<FileMetadataCache> {
+        Arc::new(DefaultCache::new(50 * 1024 * 1024))
     }
 
     /// Write a parquet file with the given schema + arrays into `dir`

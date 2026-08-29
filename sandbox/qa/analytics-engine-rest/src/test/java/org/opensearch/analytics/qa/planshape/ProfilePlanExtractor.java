@@ -54,24 +54,23 @@ public final class ProfilePlanExtractor {
     // controlled axis (captured per segment layout), so it's deterministic and worth asserting.
 
     // DataSourceExec DynamicFilter predicate: the TopK optimization pushes a boundary filter down into
-    // DataSourceExec as `predicate=DynamicFilter [ <boundary expr> ]`. The boundary is a runtime value
-    // that depends on data seen so far by the TopK heap — in multi-shard configs, each shard sees
-    // different data and arrives at a different boundary, so both the DynamicFilter body AND its
-    // derived pruning_predicate diverge across shards. We scrub:
-    //   (a) Pure DynamicFilter predicate: when the entire predicate= is a DynamicFilter (no static
-    //       WHERE clause), the pruning_predicate is entirely derived from it — scrub both.
-    //   (b) Mixed predicate: when DynamicFilter is appended to static predicates (e.g.
-    //       "predicate=X AND DynamicFilter [ empty ]"), only the DynamicFilter body is scrubbed;
-    //       the static predicates and their pruning_predicate remain for assertion.
-    private static final Pattern PURE_DYNAMIC_FILTER_PREDICATE = Pattern.compile(
-        "predicate=DynamicFilter \\[[^\\]]*], pruning_predicate=[^,]*, ");
-    private static final String PURE_DYNAMIC_FILTER_SCRUBBED =
-        "predicate=DynamicFilter [ " + SCRUBBED + " ], pruning_predicate=" + SCRUBBED + ", ";
-
-    private static final Pattern MIXED_DYNAMIC_FILTER_BODY = Pattern.compile(
-        "DynamicFilter \\[[^\\]]*]");
-    private static final String MIXED_DYNAMIC_FILTER_BODY_SCRUBBED =
-        "DynamicFilter [ " + SCRUBBED + " ]";
+    // DataSourceExec as `predicate=DynamicFilter [ <boundary expr> ]`, and DF55 also renders its derived
+    // `pruning_predicate=...` inline (plus the structural marker `, dynamic_rg_pruning=eligible`). The
+    // TopK boundary value is a runtime artifact (a per-partition heap max under preserve_partitioning),
+    // but it is DETERMINISTIC per test combo: fixed data + fixed target_partitions + fixed shard/segment
+    // layout => byte-stable. Verified empirically across 11 query shapes (50 runs each, back-to-back AND
+    // under concurrent load; v54==v55 to the digit) — see analysis/dynamic-filter-value-determinism-stress.md.
+    //
+    // We therefore KEEP the whole DynamicFilter body + pruning_predicate VERBATIM rather than scrubbing
+    // the boundary value. Keeping it (a) asserts the full planner signal — the dynamic filter fired, is
+    // wired to the right columns/operators, and `dynamic_rg_pruning` is eligible — and (b) avoids a
+    // value-scrubber that could over-scrub real structure on future shapes: DF renders string boundaries
+    // UNQUOTED (e.g. `SearchPhrase_min@5 < data fusion`, or a value with commas/parens), so any
+    // value-isolating regex is inherently fragile. A future DF bump that changes the boundary with
+    // identical structure is an ordinary re-bless, like any other plan line.
+    //
+    // (The SortExec inline `filter=[...]` carrying the same boundary is still stripped above — its
+    // PRESENCE flips with segment count — but the value is asserted on this DataSourceExec line instead.)
 
     // Constant-folded aggregates: when an aggregate (e.g. min/max) can be resolved at plan-time from
     // parquet metadata, DataFusion folds the entire subtree to a ProjectionExec of literal constants
@@ -203,10 +202,8 @@ public final class ProfilePlanExtractor {
     private static String scrub(String physicalPlan) {
         String scrubbed = FILE_GROUPS.matcher(physicalPlan).replaceAll(FILE_GROUPS_SCRUBBED);
         scrubbed = TOPK_DYNAMIC_FILTER.matcher(scrubbed).replaceAll(TOPK_DYNAMIC_FILTER_KEPT);
-        // DynamicFilter scrub: pure first (scrubs both predicate + pruning_predicate), then mixed
-        // (scrubs only the DynamicFilter body, leaving static predicates intact).
-        scrubbed = PURE_DYNAMIC_FILTER_PREDICATE.matcher(scrubbed).replaceAll(PURE_DYNAMIC_FILTER_SCRUBBED);
-        scrubbed = MIXED_DYNAMIC_FILTER_BODY.matcher(scrubbed).replaceAll(MIXED_DYNAMIC_FILTER_BODY_SCRUBBED);
+        // The DataSourceExec DynamicFilter body + pruning_predicate are kept VERBATIM (the TopK boundary
+        // is deterministic per combo — see the pattern-block comment above); we do NOT scrub the value.
         scrubbed = scrubConstantFoldedProjections(scrubbed);
         return scrubbed;
     }

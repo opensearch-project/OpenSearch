@@ -11,11 +11,12 @@
 //! # Why this exists
 //!
 //! The listing-table path (`ShardTableProvider` / vanilla `ListingTable`) uses
-//! DataFusion's default reader factory, so when page pruning is enabled the
-//! `ParquetOpener` loads the **entire** page index (`ColumnIndex` + `OffsetIndex`
-//! for *every* column) of each surviving file, every query, and caches none of
-//! it. On wide schemas the `ColumnIndex` (per-page string min/max) dominates the
-//! native heap.
+//! DataFusion's default reader factory. DataFusion 55 now caches the parquet page
+//! index in its metadata cache (warmed via the statistics path), so the problem is
+//! no longer *re-decoding every query* — it is that DataFusion can only load/cache
+//! the **entire** page index (`ColumnIndex` + `OffsetIndex` for *every* column;
+//! parquet-59 has no public column-subset decode, arrow-rs#8643). On wide schemas
+//! the all-column `ColumnIndex` (per-page string min/max) dominates the native heap.
 //!
 //! This factory closes that gap using the unified scoped cache
 //! ([`crate::cache::page_index`]). The seam is DataFusion's
@@ -92,7 +93,7 @@ use crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta;
 #[derive(Debug)]
 pub struct ScopedPageIndexReaderFactory {
     store: Arc<dyn ObjectStore>,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
     /// File-column names referenced by the query predicate. Empty means "no
     /// scoping" — `get_metadata` returns footer-only and the opener loads the
     /// page index on demand as usual.
@@ -113,7 +114,7 @@ pub struct ScopedPageIndexReaderFactory {
 impl ScopedPageIndexReaderFactory {
     pub fn new(
         store: Arc<dyn ObjectStore>,
-        metadata_cache: Arc<dyn FileMetadataCache>,
+        metadata_cache: Arc<FileMetadataCache>,
         predicate_column_names: Vec<String>,
         projection_column_names: Vec<String>,
         predicate: Option<Arc<dyn PhysicalExpr>>,
@@ -158,7 +159,7 @@ impl ParquetFileReaderFactory for ScopedPageIndexReaderFactory {
 
 struct ScopedPageIndexReader {
     store: Arc<dyn ObjectStore>,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
     predicate_column_names: Arc<Vec<String>>,
     projection_column_names: Arc<Vec<String>>,
     file_schema: SchemaRef,
@@ -318,9 +319,9 @@ mod tests {
         (store, loc, size)
     }
 
-    fn fresh_cache() -> Arc<dyn FileMetadataCache> {
+    fn fresh_cache() -> Arc<FileMetadataCache> {
         Arc::new(crate::cache::MutexFileMetadataCache::new(
-            datafusion::execution::cache::DefaultFilesMetadataCache::new(64 * 1024 * 1024),
+            datafusion::execution::cache::default_cache::DefaultCache::new(64 * 1024 * 1024),
         ))
     }
 

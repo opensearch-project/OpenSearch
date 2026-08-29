@@ -12,18 +12,16 @@ use dashmap::DashMap;
 use datafusion::common::stats::{ColumnStatistics, Precision};
 use datafusion::common::ScalarValue;
 use datafusion::common::TableReference;
-use datafusion::execution::cache::cache_manager::{
-    CachedFileMetadata, FileStatisticsCache, FileStatisticsCacheEntry,
-};
-use datafusion::execution::cache::CacheAccessor;
-use datafusion::execution::cache::TableScopedPath;
+use datafusion::execution::cache::cache_manager::CachedFileMetadata;
+use datafusion::execution::cache::{Cache, CacheEntryInfo, SchemaFingerprint, TableScopedPath};
 use datafusion::physical_plan::Statistics;
 use object_store::{path::Path, ObjectMeta};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use arrow_schema::SchemaRef;
+use arrow_schema::{Schema, SchemaRef};
 use parquet::file::metadata::ParquetMetaData;
 use std::fs::File;
 
@@ -312,14 +310,38 @@ impl CustomStatisticsCache {
         Ok(freed_size)
     }
 
-    /// Convenience method: put statistics with associated metadata (replaces old put_with_extra)
+    /// Convenience method: put statistics with associated metadata.
+    ///
+    /// DF55's `CachedFileMetadata` requires a `SchemaFingerprint` (used by
+    /// `is_valid_for` when DataFusion validates a cache hit against the query's
+    /// `file_schema`). Callers that have the schema at hand should prefer
+    /// [`put_statistics_with_fingerprint`]; this convenience overload stores an
+    /// empty-schema fingerprint and is intended for direct-access callers/tests
+    /// that never route through DataFusion's validation path.
     pub fn put_statistics(
         &self,
         k: &Path,
         stats: Arc<Statistics>,
         meta: &ObjectMeta,
     ) -> Option<CachedFileMetadata> {
-        let cached = CachedFileMetadata::new(meta.clone(), stats, None);
+        self.put_statistics_with_fingerprint(
+            k,
+            stats,
+            meta,
+            Arc::new(SchemaFingerprint::from_schema(&Schema::empty())),
+        )
+    }
+
+    /// Put statistics with the fingerprint of the `file_schema` they were
+    /// computed from, so a later `is_valid_for` check matches on schema.
+    pub fn put_statistics_with_fingerprint(
+        &self,
+        k: &Path,
+        stats: Arc<Statistics>,
+        meta: &ObjectMeta,
+        schema_fingerprint: Arc<SchemaFingerprint>,
+    ) -> Option<CachedFileMetadata> {
+        let cached = CachedFileMetadata::new(meta.clone(), schema_fingerprint, stats, None);
         self.put(k, cached)
     }
 
@@ -457,10 +479,11 @@ impl CustomStatisticsCache {
     }
 }
 
-// DF54 `FileStatisticsCache: CacheAccessor<TableScopedPath, CachedFileMetadata>`.
+// DF55 `FileStatisticsCache = dyn Cache<TableScopedPath, CachedFileMetadata>`.
 // Storage stays Path-keyed (see inherent methods above); this delegates via
-// `&key.path`. The table scope is not used by this cache.
-impl CacheAccessor<TableScopedPath, CachedFileMetadata> for CustomStatisticsCache {
+// `&key.path`. The table scope is not used by this cache. DF55 merged the DF54
+// `CacheAccessor` + `FileStatisticsCache` traits into this single `Cache` impl.
+impl Cache<TableScopedPath, CachedFileMetadata> for CustomStatisticsCache {
     fn get(&self, k: &TableScopedPath) -> Option<CachedFileMetadata> {
         CustomStatisticsCache::get(self, &k.path)
     }
@@ -488,26 +511,29 @@ impl CacheAccessor<TableScopedPath, CachedFileMetadata> for CustomStatisticsCach
     fn name(&self) -> String {
         CustomStatisticsCache::name(self)
     }
-}
 
-impl FileStatisticsCache for CustomStatisticsCache {
     fn cache_limit(&self) -> usize {
         self.size_limit.load(Ordering::Relaxed)
     }
 
     fn update_cache_limit(&self, _limit: usize) {}
 
-    fn list_entries(&self) -> std::collections::HashMap<TableScopedPath, FileStatisticsCacheEntry> {
-        std::collections::HashMap::new()
+    fn cache_ttl(&self) -> Option<Duration> {
+        None
     }
 
-    fn drop_table_entries(
-        &self,
-        _table_ref: &Option<TableReference>,
-    ) -> datafusion::common::Result<()> {
+    fn update_cache_ttl(&self, _ttl: Option<Duration>) {}
+
+    fn drop_table_entries(&self, _table_ref: &TableReference) -> datafusion::common::Result<()> {
         // This cache does not track table scope, so there are no per-table
         // entries to drop. No-op.
         Ok(())
+    }
+
+    fn list_entries(
+        &self,
+    ) -> datafusion::common::HashMap<TableScopedPath, CacheEntryInfo<CachedFileMetadata>> {
+        datafusion::common::HashMap::new()
     }
 }
 
@@ -532,36 +558,32 @@ pub fn compute_parquet_statistics_from_metadata(
     Ok(statistics)
 }
 
-/// Compute statistics from a parquet file using DataFusion's built-in functionality
-pub fn compute_parquet_statistics(
+/// Compute statistics from a parquet file, returning both the `Statistics` and the
+/// arrow `file_schema` they were computed against. The schema is needed to build the
+/// DF55 `SchemaFingerprint` so `is_valid_for` validates cache hits against the query's
+/// file_schema (without it, DF-registered stats-cache lookups always miss).
+pub fn compute_parquet_statistics_with_schema(
     file_path: &str,
-) -> Result<Statistics, Box<dyn std::error::Error>> {
+) -> Result<(Statistics, SchemaRef), Box<dyn std::error::Error>> {
     use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
     use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-    use object_store::local::LocalFileSystem;
-    use object_store::path::Path;
 
     let file = File::open(file_path)?;
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
     let metadata = builder.metadata();
     let schema = builder.schema().clone();
 
-    // Create ObjectStore and ObjectMeta for the file
-    let _store: Arc<dyn object_store::ObjectStore> = Arc::new(LocalFileSystem::new());
-    let path = Path::from(file_path);
-    let file_metadata = std::fs::metadata(file_path)?;
-    let _object_meta = ObjectMeta {
-        location: path,
-        last_modified: chrono::DateTime::from(file_metadata.modified()?),
-        size: file_metadata.len(),
-        e_tag: None,
-        version: None,
-    };
-
-    // Use DataFusion's method to extract statistics from parquet metadata
-    // statistics_from_parquet_metadata is an associated function that takes metadata and schema
+    // Use DataFusion's method to extract statistics from parquet metadata.
+    // statistics_from_parquet_metadata is an associated function that takes metadata and schema.
     let statistics = DFParquetMetadata::statistics_from_parquet_metadata(metadata, &schema)?;
-    Ok(statistics)
+    Ok((statistics, schema))
+}
+
+/// Compute statistics from a parquet file using DataFusion's built-in functionality.
+pub fn compute_parquet_statistics(
+    file_path: &str,
+) -> Result<Statistics, Box<dyn std::error::Error>> {
+    Ok(compute_parquet_statistics_with_schema(file_path)?.0)
 }
 
 #[cfg(test)]

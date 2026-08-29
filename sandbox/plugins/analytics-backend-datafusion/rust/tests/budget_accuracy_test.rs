@@ -106,9 +106,8 @@ fn create_parquet_data(dir: &std::path::Path, num_rows: usize, num_files: usize)
 async fn build_substrait(dir: &str, sql: &str) -> Vec<u8> {
     let ctx = SessionContext::new();
     let url = ListingTableUrl::parse(dir).unwrap();
-    let opts = ListingOptions::new(Arc::new(ParquetFormat::new()))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
+    // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
+    let opts = ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
     let schema = opts.infer_schema(&ctx.state(), &url).await.unwrap();
     let cfg = ListingTableConfig::new(url)
         .with_listing_options(opts)
@@ -211,7 +210,9 @@ async fn validate_budget_accuracy_inner(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.target_partitions = target_partitions;
-    config.options_mut().execution.batch_size = batch_size;
+    config.options_mut().execution.batch_size =
+        datafusion::common::config::ConfigNonZeroUsize::try_new(batch_size)
+            .expect("batch size must be greater than zero");
 
     let state = SessionStateBuilder::new()
         .with_config(config)
@@ -221,9 +222,8 @@ async fn validate_budget_accuracy_inner(
     let ctx = SessionContext::new_with_state(state);
 
     let url = ListingTableUrl::parse(dir).unwrap();
-    let opts = ListingOptions::new(Arc::new(ParquetFormat::new()))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true);
+    // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
+    let opts = ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
     let inferred_schema = opts.infer_schema(&ctx.state(), &url).await.unwrap();
     let cfg = ListingTableConfig::new(url)
         .with_listing_options(opts)

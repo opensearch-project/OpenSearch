@@ -545,6 +545,23 @@ impl ExecutionPlan for QueryShardExec {
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
         vec![]
     }
+    /// Expose the residual `predicate` and any accepted runtime `dynamic_filters`
+    /// as physical-expression roots. Required (DF55) so dynamic-filter producers
+    /// (e.g. a parent TopK `SortExec`) can discover — via `plan_contains_expression_id`
+    /// — that this scan still holds the filter they pushed for statistics pruning.
+    fn apply_expressions(
+        &self,
+        f: &mut dyn FnMut(
+            &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+        ) -> Result<datafusion::common::tree_node::TreeNodeRecursion>,
+    ) -> Result<datafusion::common::tree_node::TreeNodeRecursion> {
+        let mut roots: Vec<&Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+        if let Some(predicate) = &self.predicate {
+            roots.push(predicate);
+        }
+        roots.extend(self.dynamic_filters.iter());
+        datafusion::physical_plan::apply_expression_roots(roots, f)
+    }
     fn with_new_children(
         self: Arc<Self>,
         _children: Vec<Arc<dyn ExecutionPlan>>,

@@ -62,11 +62,11 @@ use crate::scoped_page_index_reader::ScopedPageIndexReaderFactory;
 #[derive(Debug)]
 pub struct ScopedPageIndexOptimizer {
     store: Arc<dyn ObjectStore>,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
 }
 
 impl ScopedPageIndexOptimizer {
-    pub fn new(store: Arc<dyn ObjectStore>, metadata_cache: Arc<dyn FileMetadataCache>) -> Self {
+    pub fn new(store: Arc<dyn ObjectStore>, metadata_cache: Arc<FileMetadataCache>) -> Self {
         Self {
             store,
             metadata_cache,
@@ -187,7 +187,7 @@ mod tests {
     use crate::cache::page_index;
     use crate::parquet_page_cache::{clear_scoped_cache_for_test, scoped_cache_stats};
     use arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::execution::cache::DefaultFilesMetadataCache;
+    use datafusion::execution::cache::default_cache::DefaultCache;
     use datafusion::execution::object_store::ObjectStoreUrl;
     use datafusion::logical_expr::Operator;
     use datafusion::physical_expr::expressions::{lit, BinaryExpr, Column};
@@ -202,10 +202,10 @@ mod tests {
         ]))
     }
 
-    fn deps() -> (Arc<dyn ObjectStore>, Arc<dyn FileMetadataCache>) {
+    fn deps() -> (Arc<dyn ObjectStore>, Arc<FileMetadataCache>) {
         (
             Arc::new(InMemory::new()),
-            Arc::new(DefaultFilesMetadataCache::new(64 * 1024 * 1024)),
+            Arc::new(DefaultCache::new(64 * 1024 * 1024)),
         )
     }
 
@@ -410,8 +410,7 @@ mod tests {
             ListingTableUrl::parse(format!("file://{}", dir.to_str().unwrap())).unwrap();
         ctx.register_object_store(table_url.as_ref(), Arc::clone(&store));
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-            .with_file_extension(".parquet")
-            .with_collect_stat(true);
+            .with_file_extension(".parquet");
         let resolved = listing_options
             .infer_schema(&ctx.state(), &table_url)
             .await

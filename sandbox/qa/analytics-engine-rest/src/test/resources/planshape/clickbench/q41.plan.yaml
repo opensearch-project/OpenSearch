@@ -54,8 +54,8 @@ plans:
       ProjectionExec: expr=[sum(input-0.PageViews)@0 as PageViews, URLHash@1 as URLHash, EventDate@2 as EventDate]
         GlobalLimitExec: skip=2, fetch=10
           SortPreservingMergeExec: [sum(input-0.PageViews)@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], fetch=12
-            SortExec: TopK(fetch=12), expr=[sum(input-0.PageViews)@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[sum(input-0.PageViews)@2 as sum(input-0.PageViews), URLHash@0 as URLHash, EventDate@1 as EventDate]
+            ProjectionExec: expr=[sum(input-0.PageViews)@2 as sum(input-0.PageViews), URLHash@0 as URLHash, EventDate@1 as EventDate]
+              SortExec: TopK(fetch=12), expr=[sum(input-0.PageViews)@2 DESC NULLS LAST, URLHash@0 ASC, EventDate@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[sum(input-0.PageViews)]
                   RepartitionExec: partitioning=Hash([URLHash@0, EventDate@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[sum(input-0.PageViews)]
@@ -83,8 +83,8 @@ plans:
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, URLHash@1 as URLHash, EventDate@2 as EventDate]
         GlobalLimitExec: skip=2, fetch=10
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], fetch=12
-            SortExec: TopK(fetch=12), expr=[count(Int64(1))@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), URLHash@0 as URLHash, EventDate@1 as EventDate]
+            ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), URLHash@0 as URLHash, EventDate@1 as EventDate]
+              SortExec: TopK(fetch=12), expr=[count(Int64(1))@2 DESC NULLS LAST, URLHash@0 ASC, EventDate@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[count(Int64(1))]
                   RepartitionExec: partitioning=Hash([URLHash@0, EventDate@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[count(Int64(1))]
@@ -95,8 +95,8 @@ plans:
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, URLHash@1 as URLHash, EventDate@2 as EventDate]
         GlobalLimitExec: skip=2, fetch=10
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], fetch=12
-            SortExec: TopK(fetch=12), expr=[count(Int64(1))@0 DESC NULLS LAST, URLHash@1 ASC, EventDate@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), URLHash@0 as URLHash, EventDate@1 as EventDate]
+            ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), URLHash@0 as URLHash, EventDate@1 as EventDate]
+              SortExec: TopK(fetch=12), expr=[count(Int64(1))@2 DESC NULLS LAST, URLHash@0 ASC, EventDate@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[count(Int64(1))]
                   RepartitionExec: partitioning=Hash([URLHash@0, EventDate@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[URLHash@0 as URLHash, EventDate@1 as EventDate], aggr=[count(Int64(1))]
