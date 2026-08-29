@@ -113,6 +113,10 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * cap: producers pace to the consumer, and peak residency becomes a function of the window rather
      * than of partition size.
      *
+     * <p>The bound is SOFT: an empty slot admits one chunk of any size, so residency per slot is
+     * window + one chunk. That escape is what stops the window from deadlocking a chunk larger than
+     * itself — see {@link #tryAdmit}.
+     *
      * <p>Enforced via REJECT_RETRY rather than by blocking on a bounded queue on purpose: admission
      * runs on a transport thread, and parking transport threads to apply backpressure risks starving
      * the node's thread pool. {@link ShuffleSenderRetry} already implements bounded producer-side
@@ -394,7 +398,17 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             }
             // In-flight window full: the consumer has not drained this slot fast enough. Soft, retryable
             // — room frees as the drain advances. This is the pacing signal that keeps residency bounded.
-            if (buffer.queuedBytes(ShuffleSlots.validate(side)) + size > streamWindowBytes) {
+            //
+            // An EMPTY slot always admits, however large the chunk. Without that escape a chunk bigger
+            // than the window is rejected forever: nothing is queued, so no drain can ever free room, and
+            // the producer retries until it exhausts its budget and fails the query. A window that can
+            // reach zero admissible items is not backpressure, it is a deadlock — so the invariant is that
+            // at least one chunk is always admissible, which keeps the drain fed and therefore keeps room
+            // becoming available. The cost is that residency is bounded by window + one chunk rather than
+            // by the window exactly; that is the same soft bound Spark and Presto accept for the same
+            // reason.
+            long queued = buffer.queuedBytes(ShuffleSlots.validate(side));
+            if (queued > 0 && queued + size > streamWindowBytes) {
                 buffer.recordRejected();
                 return AdmitResult.REJECT_RETRY;
             }
@@ -454,6 +468,10 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      */
     private ShuffleBuffer newBuffer(String queryId, int targetStageId, int partitionIndex) {
         ShuffleBuffer buffer = new ShuffleBuffer();
+        // Identity for diagnostics. A truncation abort has to name WHICH slot mis-declared its sender
+        // count, otherwise the error says a count is wrong without saying whose, and the level that
+        // declared it cannot be identified from the message alone.
+        buffer.bufferKey = key(queryId, targetStageId, partitionIndex);
         buffer.setPipelined(pipelinedEnabled);
         if (spillEnabled && spillDir != null) {
             buffer.enableSpill(this, spillDir, queryId, targetStageId, partitionIndex);
@@ -835,6 +853,9 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * {@link #awaitReady} returns. Byte-budget enforcement lives in the enclosing manager, not here.
      */
     public static class ShuffleBuffer implements ShuffleBufferAccess {
+
+        /** {@code queryId:targetStageId:partitionIndex}, for error messages. Null only in unit tests. */
+        private volatile String bufferKey;
 
         /**
          * Per-slot accumulation + completion state. One entry per input stream the consumer will
@@ -1348,7 +1369,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // streaming consumer opts in explicitly via drain(slot, timeoutMillis).
             beginDrain();
             Slot s = slotFor(ShuffleSlots.validate(slot));
-            return new StreamingSlotIterator(s, 0L, slot);
+            return new StreamingSlotIterator(s, 0L, slot, bufferKey);
         }
 
         @Override
@@ -1365,7 +1386,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // touched this slot, so the slot may not exist yet. Creating it here is what lets the
             // stream block for the first chunk instead of mis-reporting an empty partition.
             Slot s = slotFor(ShuffleSlots.validate(slot));
-            return new StreamingSlotIterator(s, timeoutMillis, slot);
+            return new StreamingSlotIterator(s, timeoutMillis, slot, bufferKey);
         }
 
         /**
@@ -1406,14 +1427,16 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             private final Slot slot;
             private final long timeoutMillis;
             private final String slotLabel;
+            private final String bufferKey;
             private Iterator<byte[]> spilled;
             private byte[] pending;
             private boolean eof;
 
-            StreamingSlotIterator(Slot slot, long timeoutMillis, String slotLabel) {
+            StreamingSlotIterator(Slot slot, long timeoutMillis, String slotLabel, String bufferKey) {
                 this.slot = slot;
                 this.timeoutMillis = timeoutMillis;
                 this.slotLabel = slotLabel;
+                this.bufferKey = bufferKey;
                 // Spilled chunks were written before the drain began and are immutable now, so reading
                 // them back eagerly is safe. Only pre-drain accumulation can spill (spillToMakeRoom
                 // skips draining buffers), so this list is bounded by whatever arrived before the
@@ -1480,12 +1503,15 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                         throw new IllegalStateException(
                             "Shuffle drain aborted on slot "
                                 + slotLabel
+                                + " of buffer "
+                                + bufferKey
                                 + " — data arrived after end-of-stream, so this partition is truncated "
                                 + "(declared "
                                 + slot.expectedSenders
                                 + " senders, "
                                 + slot.doneCount.get()
-                                + " reported done)"
+                                + " reported done). The declared count is too LOW: more senders shipped to "
+                                + "this slot than the consumer was told to expect."
                         );
                     }
                     return false;

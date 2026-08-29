@@ -117,6 +117,80 @@ public class ShuffleStreamingConsumerTests extends OpenSearchTestCase {
         assertEquals(60L, buf.queuedBytes(LEFT));
     }
 
+    /**
+     * A chunk LARGER than the window must still be admitted into an empty slot.
+     *
+     * <p>Without this escape the window is a deadlock, not backpressure: nothing is queued, so no drain
+     * can free room, so the reject can never clear. The producer retries until its budget runs out and
+     * the query fails — with a "consumer too slow" signal, when in truth the consumer was never given
+     * anything to consume. The window is a pacing device, and pacing has to admit a first item.
+     */
+    public void testChunkLargerThanTheWindowIsAdmittedIntoAnEmptySlot() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        mgr.setStreamWindowBytes(100);
+        ShuffleBufferManager.ShuffleBuffer buf = mgr.getOrCreateBuffer(Q, 0, 0);
+        buf.setExpectedSenders(1, -1);
+
+        assertEquals(
+            "an empty slot must admit a chunk of any size; rejecting it can never be retried successfully",
+            AdmitResult.ACCEPTED,
+            mgr.tryAdmit(Q, 0, 0, LEFT, chunk(500))
+        );
+        assertEquals(500L, buf.queuedBytes(LEFT));
+    }
+
+    /** The escape is for the EMPTY slot only — once something is queued the window applies again. */
+    public void testOversizedChunkStillRejectsWhenTheSlotIsNotEmpty() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        mgr.setStreamWindowBytes(100);
+        ShuffleBufferManager.ShuffleBuffer buf = mgr.getOrCreateBuffer(Q, 0, 0);
+        buf.setExpectedSenders(1, -1);
+
+        assertEquals(AdmitResult.ACCEPTED, mgr.tryAdmit(Q, 0, 0, LEFT, chunk(60)));
+        assertEquals(
+            "with 60 bytes already queued the drain CAN free room, so the window must still push back",
+            AdmitResult.REJECT_RETRY,
+            mgr.tryAdmit(Q, 0, 0, LEFT, chunk(500))
+        );
+        assertEquals(60L, buf.queuedBytes(LEFT));
+    }
+
+    /**
+     * The invariant, stated directly: for any window and any chunk size, an empty slot admits. This is
+     * what makes "the drain always has something to consume" true, and therefore what makes room always
+     * eventually become available.
+     */
+    public void testEveryWindowSizeAdmitsAtLeastOneChunk() {
+        for (int window : new int[] { 1, 64, 4096 }) {
+            for (int size : new int[] { 1, 65, 8192, 1 << 20 }) {
+                ShuffleBufferManager mgr = new ShuffleBufferManager();
+                mgr.setStreamWindowBytes(window);
+                mgr.getOrCreateBuffer(Q, 0, 0).setExpectedSenders(1, -1);
+                assertEquals(
+                    "window=" + window + " chunk=" + size + " must be admissible into an empty slot",
+                    AdmitResult.ACCEPTED,
+                    mgr.tryAdmit(Q, 0, 0, LEFT, chunk(size))
+                );
+            }
+        }
+    }
+
+    /**
+     * The bound the escape trades for deadlock-freedom: residency per slot is window + one chunk, not the
+     * window exactly. Worth pinning so the relaxation is deliberate rather than discovered later.
+     */
+    public void testResidencyBoundIsWindowPlusOneChunk() {
+        ShuffleBufferManager mgr = new ShuffleBufferManager();
+        mgr.setStreamWindowBytes(100);
+        ShuffleBufferManager.ShuffleBuffer buf = mgr.getOrCreateBuffer(Q, 0, 0);
+        buf.setExpectedSenders(1, -1);
+
+        assertEquals(AdmitResult.ACCEPTED, mgr.tryAdmit(Q, 0, 0, LEFT, chunk(500)));
+        // Already over the window, so nothing further is admitted until the drain runs.
+        assertEquals(AdmitResult.REJECT_RETRY, mgr.tryAdmit(Q, 0, 0, LEFT, chunk(1)));
+        assertEquals("residency is capped at one over-sized chunk, not at an unbounded pile", 500L, buf.queuedBytes(LEFT));
+    }
+
     /** Draining frees the window, so a previously-rejected producer can proceed. This is the pacing loop. */
     public void testDrainingFreesTheWindow() {
         ShuffleBufferManager mgr = new ShuffleBufferManager();
