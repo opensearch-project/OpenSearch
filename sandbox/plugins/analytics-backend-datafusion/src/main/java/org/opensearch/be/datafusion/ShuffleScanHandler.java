@@ -78,15 +78,12 @@ public class ShuffleScanHandler implements FragmentInstructionHandler<ShuffleSca
      *  Real shuffle producers are far faster — a single batch RTT over local transport is
      *  microseconds. */
     private static final long DEFAULT_AWAIT_READY_TIMEOUT_MS = Long.parseLong(
-        // Two-sided bound. It must EXCEED the producer phase: 5s was safe only while the drain started after
-        // every producer had finished, so a chunk was always already resident, whereas an eagerly-scheduled
-        // drain overlaps its producers and the first chunk legitimately arrives only after a producer scans
-        // and ships a shard. It must also stay SMALL enough that a drain which will never receive a chunk
-        // fails promptly: at a high partition count some partition can go unfed, and a five-minute per-chunk
-        // wait turns that into a five-minute hang instead of an error. 60s covers observed producer phases
-        // (the slowest query here completes in single digits of seconds) with an order of magnitude of headroom,
-        // and bounds the pathological wait to a minute.
-        System.getProperty("analytics.mpp.shuffle.recv_timeout_ms", "60000")
+        // 5s was safe only while the drain started AFTER every producer had finished, so a chunk was always
+        // already resident. With worker tiers scheduling eagerly the drain overlaps its producers and the
+        // FIRST chunk legitimately arrives after however long the producer needs to scan and ship — well past
+        // 5s on a large shard. This is a per-chunk liveness bound against a stuck producer, not a deadline for
+        // the query, so it must exceed the producer phase; it matches the buffer's own stream-poll timeout.
+        System.getProperty("analytics.mpp.shuffle.recv_timeout_ms", "300000")
     );
 
     @Override
