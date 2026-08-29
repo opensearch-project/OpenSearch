@@ -54,8 +54,8 @@ plans:
       ProjectionExec: expr=[sum(input-0.PageViews)@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
         GlobalLimitExec: skip=5, fetch=10
           SortPreservingMergeExec: [sum(input-0.PageViews)@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
-            SortExec: TopK(fetch=15), expr=[sum(input-0.PageViews)@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[sum(input-0.PageViews)@2 as sum(input-0.PageViews), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+            ProjectionExec: expr=[sum(input-0.PageViews)@2 as sum(input-0.PageViews), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+              SortExec: TopK(fetch=15), expr=[sum(input-0.PageViews)@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[sum(input-0.PageViews)]
                   RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[sum(input-0.PageViews)]
@@ -83,8 +83,8 @@ plans:
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
         GlobalLimitExec: skip=5, fetch=10
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
-            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+            ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+              SortExec: TopK(fetch=15), expr=[count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
                   RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
@@ -95,8 +95,8 @@ plans:
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, WindowClientWidth@1 as WindowClientWidth, WindowClientHeight@2 as WindowClientHeight]
         GlobalLimitExec: skip=5, fetch=10
           SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], fetch=15
-            SortExec: TopK(fetch=15), expr=[count(Int64(1))@0 DESC NULLS LAST, WindowClientWidth@1 ASC, WindowClientHeight@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+            ProjectionExec: expr=[count(Int64(1))@2 as count(Int64(1)), WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight]
+              SortExec: TopK(fetch=15), expr=[count(Int64(1))@2 DESC NULLS LAST, WindowClientWidth@0 ASC, WindowClientHeight@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]
                   RepartitionExec: partitioning=Hash([WindowClientWidth@0, WindowClientHeight@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[WindowClientWidth@0 as WindowClientWidth, WindowClientHeight@1 as WindowClientHeight], aggr=[count(Int64(1))]

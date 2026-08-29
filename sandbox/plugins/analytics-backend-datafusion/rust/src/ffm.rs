@@ -53,7 +53,7 @@ use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
 
 use crate::cache::page_index;
-use datafusion::execution::cache::DefaultFilesMetadataCache;
+use datafusion::execution::cache::default_cache::DefaultCache;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
@@ -1048,7 +1048,7 @@ pub unsafe extern "C" fn df_create_cache(
         cache::CACHE_TYPE_METADATA => {
             // METADATA uses DefaultFilesMetadataCache (has its own LRU); eviction
             // type is accepted but not forwarded.
-            let inner_cache = DefaultFilesMetadataCache::new(size_limit as usize);
+            let inner_cache = DefaultCache::new(size_limit as usize);
             let metadata_cache = Arc::new(cache::MutexFileMetadataCache::new(inner_cache));
             manager.set_file_metadata_cache(metadata_cache);
         }

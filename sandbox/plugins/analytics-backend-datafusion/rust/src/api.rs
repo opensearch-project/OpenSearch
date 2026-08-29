@@ -1298,7 +1298,7 @@ fn try_acquire_budget_from_cache(
     pool: &Arc<dyn MemoryPool>,
     config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
-    use datafusion::execution::cache::CacheAccessor;
+    use datafusion::execution::cache::Cache;
     use parquet::arrow::parquet_to_arrow_schema;
     use parquet::file::metadata::ParquetMetaData;
 
@@ -1536,8 +1536,11 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::CachedFileList;
-    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
+    use datafusion::execution::cache::cache_manager::{
+        CachedFileList, DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT,
+    };
+    use datafusion::execution::cache::default_cache::DefaultCache;
+    use datafusion::execution::cache::Cache;
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
 
@@ -1548,7 +1551,7 @@ pub unsafe fn sql_to_substrait(
     let table_name = table_name.to_string();
 
     manager.io_runtime.block_on(async {
-        let list_file_cache = Arc::new(DefaultListFilesCache::default());
+        let list_file_cache = Arc::new(DefaultCache::new(DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT));
         list_file_cache.put(
             &datafusion::execution::cache::TableScopedPath {
                 table: None,
@@ -1568,9 +1571,9 @@ pub unsafe fn sql_to_substrait(
         crate::udf::register_all(&ctx);
         crate::udaf::register_all(&ctx);
 
+        // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-            .with_file_extension(".parquet")
-            .with_collect_stat(true);
+            .with_file_extension(".parquet");
         let schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await?;
