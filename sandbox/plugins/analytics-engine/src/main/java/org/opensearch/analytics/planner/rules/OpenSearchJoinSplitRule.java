@@ -18,6 +18,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -105,7 +106,7 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
             return false;
         }
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Mirror the MPP rules' eligibility EXACTLY: they require at least one equi key (non-empty
         // leftKeys) but tolerate a residual non-equi predicate (they no longer require info.isEqui()
         // — e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate BETWEEN …). So coord suppresses itself

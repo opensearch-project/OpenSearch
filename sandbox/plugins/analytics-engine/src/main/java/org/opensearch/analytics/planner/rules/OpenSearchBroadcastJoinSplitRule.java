@@ -20,6 +20,7 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
@@ -85,7 +86,7 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
             return false;
         }
         OpenSearchJoin join = call.rel(0);
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Require at least one EQUI key, but do NOT require info.isEqui(): a join may carry equi keys
         // AND a residual non-equi predicate (e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate
         // BETWEEN …). emitBroadcastAlternative copies the FULL join condition (equi + residual) onto

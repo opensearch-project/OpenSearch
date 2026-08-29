@@ -91,7 +91,7 @@ public final class OpenSearchRelMetadataQuery extends RelMetadataQuery {
             // cartesian product, so there is no blow-up to correct.
             return null;
         }
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         if (info.leftKeys.isEmpty()) {
             // Pure theta join: no equi key to anchor the FK assumption. Defer.
             return null;

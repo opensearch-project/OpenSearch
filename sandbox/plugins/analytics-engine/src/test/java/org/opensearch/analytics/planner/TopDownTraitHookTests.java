@@ -13,7 +13,11 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.JoinInfo;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
@@ -21,6 +25,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
@@ -271,4 +276,92 @@ public class TopDownTraitHookTests extends BasePlannerRulesTests {
             return typeFactory.builder().add(scan.getRowType().getFieldList().get(1)).add(scan.getRowType().getFieldList().get(0)).build();
         }
     }
+
+    /**
+     * Where does the null-safe-join defect live: Calcite, or our Substrait conversion?
+     *
+     * <p>q17's scalar-subquery decorrelation emits {@code LEFT JOIN ... IS NOT DISTINCT FROM($0,$1)}, and the
+     * query then exhausts an 18 GiB pool producing ONE row — consistent with a NestedLoopJoin over
+     * lineitem-scale input. Every distribution decision here gates on {@code analyzeCondition().leftKeys}, so
+     * the first question is whether Calcite reports a null-safe comparison as an equi key at all. If it does,
+     * the planner is fine and the defect is downstream (Substrait / DataFusion physical planning); if it does
+     * not, the join is invisible to distribution as well. This test records which.
+     */
+    /**
+     * A null-safe equi join must be PARTITIONABLE. Calcite's own {@code analyzeCondition} rejects
+     * {@code IS NOT DISTINCT FROM} as an equi key, which made such a join read as pure theta and
+     * forced it coordinator-centric; {@link JoinKeyAnalysis} is what closes that gap. Decorrelating a
+     * correlated scalar subquery emits this condition on the correlation key, so the shape reaches
+     * plans without anyone writing it.
+     */
+    public void testNullSafeEqualityIsPartitionable() {
+        OpenSearchTableScan left = shardScan();
+        OpenSearchTableScan right = shardScan();
+        int leftFieldCount = left.getRowType().getFieldCount();
+        RelDataType keyType = left.getRowType().getFieldList().get(0).getType();
+        RexNode leftKey = rexBuilder.makeInputRef(keyType, 0);
+        RexNode rightKey = rexBuilder.makeInputRef(right.getRowType().getFieldList().get(0).getType(), leftFieldCount);
+
+        OpenSearchJoin nullSafe = join(left, right, rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_DISTINCT_FROM, leftKey, rightKey));
+        OpenSearchJoin plainEq = join(left, right, rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, leftKey, rightKey));
+
+        // Control: the identical shape with a plain `=`. Without this, a failure below could just mean
+        // the test built an unanalyzable join rather than saying anything about null-safe equality.
+        assertFalse("control: a plain `=` join over these inputs must yield an equi key", plainEq.analyzeCondition().leftKeys.isEmpty());
+        // The gap being closed: stock Calcite sees no key here.
+        assertTrue(
+            "premise of JoinKeyAnalysis: Calcite's analyzeCondition does not treat IS NOT DISTINCT FROM as an equi key",
+            nullSafe.analyzeCondition().leftKeys.isEmpty()
+        );
+
+        JoinInfo distribution = JoinKeyAnalysis.forDistribution(nullSafe);
+        assertEquals(
+            "null-safe equality must expose the same partitioning key as the equivalent `=`",
+            plainEq.analyzeCondition().leftKeys,
+            distribution.leftKeys
+        );
+        assertEquals(plainEq.analyzeCondition().rightKeys, distribution.rightKeys);
+        // The condition that will actually EXECUTE must stay null-safe -- rewriting it to `=` over
+        // nullable operands would silently drop the null-matching rows the predicate exists to keep.
+        assertEquals(SqlKind.IS_NOT_DISTINCT_FROM, nullSafe.getCondition().getKind());
+    }
+
+    /** For an ordinary `=` join the analysis must be indistinguishable from Calcite's own. */
+    public void testPlainEquiJoinKeysAreUnchangedByTheAnalysis() {
+        OpenSearchTableScan left = shardScan();
+        OpenSearchTableScan right = shardScan();
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(left.getRowType().getFieldList().get(0).getType(), 0),
+            rexBuilder.makeInputRef(right.getRowType().getFieldList().get(0).getType(), left.getRowType().getFieldCount())
+        );
+        OpenSearchJoin j = join(left, right, condition);
+        assertEquals(j.analyzeCondition().leftKeys, JoinKeyAnalysis.forDistribution(j).leftKeys);
+        assertEquals(j.analyzeCondition().rightKeys, JoinKeyAnalysis.forDistribution(j).rightKeys);
+    }
+
+    /** A pure theta join has no partitionable key, with or without the null-safe widening. */
+    public void testThetaJoinStillHasNoPartitionableKey() {
+        OpenSearchTableScan left = shardScan();
+        OpenSearchTableScan right = shardScan();
+        RexNode lessThan = rexBuilder.makeCall(
+            SqlStdOperatorTable.LESS_THAN,
+            rexBuilder.makeInputRef(left.getRowType().getFieldList().get(0).getType(), 0),
+            rexBuilder.makeInputRef(right.getRowType().getFieldList().get(0).getType(), left.getRowType().getFieldCount())
+        );
+        assertTrue(JoinKeyAnalysis.forDistribution(join(left, right, lessThan)).leftKeys.isEmpty());
+    }
+
+    private OpenSearchJoin join(OpenSearchTableScan left, OpenSearchTableScan right, RexNode condition) {
+        return new OpenSearchJoin(
+            volcanoCluster,
+            volcanoCluster.traitSetOf(OpenSearchConvention.INSTANCE),
+            left,
+            right,
+            condition,
+            JoinRelType.LEFT,
+            DF
+        );
+    }
+
 }

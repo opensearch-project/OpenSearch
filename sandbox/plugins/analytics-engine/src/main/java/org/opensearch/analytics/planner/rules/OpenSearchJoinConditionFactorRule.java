@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 
 /**
  * Factors conjuncts shared by every branch of an OR'd join condition up to the top level, turning
@@ -56,7 +57,7 @@ public class OpenSearchJoinConditionFactorRule extends RelOptRule {
         }
         // Only worth rewriting when the join currently exposes NO equi key but factoring would expose one.
         // Without this gate the rule re-fires on its own already-factored output.
-        if (!join.analyzeCondition().leftKeys.isEmpty()) {
+        if (!JoinKeyAnalysis.forDistribution(join).leftKeys.isEmpty()) {
             return false;
         }
         RexNode factored = RexUtil.pullFactors(join.getCluster().getRexBuilder(), condition);
@@ -75,6 +76,6 @@ public class OpenSearchJoinConditionFactorRule extends RelOptRule {
     /** True when {@code candidate} as a join condition yields at least one equi key. */
     private static boolean exposesEquiKey(Join join, RexNode candidate) {
         Join probe = join.copy(join.getTraitSet(), candidate, join.getLeft(), join.getRight(), join.getJoinType(), join.isSemiJoinDone());
-        return !probe.analyzeCondition().leftKeys.isEmpty();
+        return !JoinKeyAnalysis.forDistribution(probe).leftKeys.isEmpty();
     }
 }

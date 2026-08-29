@@ -18,6 +18,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinInfo;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -74,7 +75,7 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
             return false;
         }
         OpenSearchJoin join = call.rel(0);
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Hash-shuffle requires at least one EQUI key to define the partitioning expression — without
         // it, distTraitDef.hash() would receive an empty key list and produce a partitioning that
         // doesn't actually partition. We do NOT require info.isEqui(): a join may carry equi keys AND a
@@ -149,7 +150,7 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
     @Override
     public void onMatch(RelOptRuleCall call) {
         OpenSearchJoin join = call.rel(0);
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         int partitionCount = MppShufflePartitions.resolve(
             context.getSettings(),
             context.getClusterState(),

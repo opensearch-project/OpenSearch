@@ -15,6 +15,7 @@ import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerInput;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment.WorkerLevel;
 import org.opensearch.analytics.exec.join.UnifiedDispatch;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
@@ -394,7 +395,7 @@ public final class GeneralShuffleDAGRewriter {
 
     /** Collects every per-side equi-key list of every join in the tree rooted at {@code join}. */
     private static void collectJoinKeys(OpenSearchJoin join, Set<List<Integer>> out) {
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         out.add(info.leftKeys);
         out.add(info.rightKeys);
         for (RelNode input : join.getInputs()) {

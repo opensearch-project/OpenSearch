@@ -22,6 +22,7 @@ import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.AnalyticsSettings;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
@@ -296,7 +297,7 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
             return Pair.of(getTraitSet().replace(singleton), inputs);
         }
 
-        JoinInfo info = analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(this);
         if (info.leftKeys.isEmpty()) {
             // Pure theta / cross join: no key to partition on, so no distributed shape exists.
             return null;
@@ -457,7 +458,7 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
      */
     @Override
     public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        JoinInfo info = analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(this);
         if (info.leftKeys.isEmpty()) {
             return null;
         }
@@ -490,7 +491,7 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
         if (leftDist == null || leftDist.getType() != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
             return null;
         }
-        JoinInfo info = analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(this);
         if (info.leftKeys.isEmpty()) {
             return null;
         }
