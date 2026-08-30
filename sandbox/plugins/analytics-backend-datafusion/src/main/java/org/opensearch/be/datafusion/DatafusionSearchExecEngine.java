@@ -48,6 +48,12 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         if (allocator == null) {
             throw new IllegalStateException("ExecutionContext.allocator must be set by the caller before execute()");
         }
+        // Node-scoped and unbounded — batches are imported onto it and the Flight transport keeps charging it
+        // after this stream closes, so it must be supplied rather than minted per stream.
+        BufferAllocator stagingAllocator = requestContext.getImportStagingAllocator();
+        if (stagingAllocator == null) {
+            throw new IllegalStateException("ExecutionContext.importStagingAllocator must be set by the caller before execute()");
+        }
 
         // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
         // immediately fires the Rust CancellationToken.
@@ -63,7 +69,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        return new DatafusionResultStream(handle, allocator);
+        return new DatafusionResultStream(handle, allocator, stagingAllocator);
     }
 
     @Override
