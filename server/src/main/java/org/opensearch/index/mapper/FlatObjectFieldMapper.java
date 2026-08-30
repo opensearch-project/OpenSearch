@@ -8,10 +8,12 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -717,7 +719,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 context.doc().add(new Field(name(), value, fieldType));
             }
             if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(name(), value));
+                addDocValueOnlyPathMarker(context.doc(), name(), part);
             } else {
                 createFieldNamesField(context);
             }
@@ -730,6 +732,69 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     private static String getPathPrefix(String path) {
         return path + EQUAL_SYMBOL;
+    }
+
+    /**
+     * Writes one flat_object-style, doc-values-ONLY leaf entry under {@code rootFieldName} — no
+     * indexed terms (matching {@code "index": false}: no inverted index). This is the doc-values
+     * half of {@link #parseToken}'s leaf-writing branch, extracted so a caller outside the classic
+     * parse walk — e.g. a nested field's coarse Lucene projection, which has no per-leaf indexed
+     * terms — can reuse the exact same {@code _value}/{@code _valueAndPath} encoding a real
+     * flat_object's own fields use. {@code ParseContext.Document} and Lucene's own {@code Document}
+     * share no common supertype with an {@code add(IndexableField)} method, so the two overloads
+     * below both funnel into this one implementation via a plain field sink.
+     *
+     * @param addField         adds one field to whichever document the caller is building
+     * @param rootFieldName    the anchor field name — a real flat_object's own name, or a nested
+     *                         field's path standing in for one
+     * @param leafRelativePath the leaf's dotted path relative to {@code rootFieldName}
+     * @param value            the (already-stringified) leaf value
+     */
+    private static void addDocValueOnlyLeaf(
+        java.util.function.Consumer<IndexableField> addField,
+        String rootFieldName,
+        String leafRelativePath,
+        String value
+    ) {
+        String dvPrefix = getDVPrefix(rootFieldName);
+        addField.accept(new SortedSetDocValuesField(rootFieldName + VALUE_SUFFIX, new BytesRef(dvPrefix + value)));
+        String valueAndPath = getPathPrefix(rootFieldName + DOT_SYMBOL + leafRelativePath) + value;
+        addField.accept(new SortedSetDocValuesField(rootFieldName + VALUE_AND_PATH_SUFFIX, new BytesRef(dvPrefix + valueAndPath)));
+    }
+
+    /** {@link #addDocValueOnlyLeaf(java.util.function.Consumer, String, String, String)} for the classic parse-walk document. */
+    public static void addDocValueOnlyLeaf(ParseContext.Document doc, String rootFieldName, String leafRelativePath, String value) {
+        addDocValueOnlyLeaf(doc::add, rootFieldName, leafRelativePath, value);
+    }
+
+    /** {@link #addDocValueOnlyLeaf(java.util.function.Consumer, String, String, String)} for a plain Lucene document. */
+    public static void addDocValueOnlyLeaf(Document doc, String rootFieldName, String leafRelativePath, String value) {
+        addDocValueOnlyLeaf(doc::add, rootFieldName, leafRelativePath, value);
+    }
+
+    /**
+     * Writes a flat_object-style, doc-values-ONLY "this path exists" marker under {@code
+     * rootFieldName} — the doc-values half of {@link #createPathFields}, so {@link
+     * FlatObjectFieldType#existsQuery} (root-field, doc-values branch) can find it via {@code
+     * FieldExistsQuery(rootFieldName)}. See {@link #addDocValueOnlyLeaf(java.util.function.Consumer,
+     * String, String, String)} for why there are two overloads.
+     */
+    private static void addDocValueOnlyPathMarker(
+        java.util.function.Consumer<IndexableField> addField,
+        String rootFieldName,
+        String relativePathPart
+    ) {
+        addField.accept(new SortedSetDocValuesField(rootFieldName, new BytesRef(rootFieldName + DOT_SYMBOL + relativePathPart)));
+    }
+
+    /** {@link #addDocValueOnlyPathMarker(java.util.function.Consumer, String, String)} for the classic parse-walk document. */
+    public static void addDocValueOnlyPathMarker(ParseContext.Document doc, String rootFieldName, String relativePathPart) {
+        addDocValueOnlyPathMarker(doc::add, rootFieldName, relativePathPart);
+    }
+
+    /** {@link #addDocValueOnlyPathMarker(java.util.function.Consumer, String, String)} for a plain Lucene document. */
+    public static void addDocValueOnlyPathMarker(Document doc, String rootFieldName, String relativePathPart) {
+        addDocValueOnlyPathMarker(doc::add, rootFieldName, relativePathPart);
     }
 
     private void parseToken(XContentParser parser, ParseContext context, Deque<String> path, HashSet<String> pathParts) throws IOException {
@@ -773,9 +838,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(valueFieldType.name(), new BytesRef(getDVPrefix(name()) + value)));
-                context.doc()
-                    .add(new SortedSetDocValuesField(valueAndPathFieldType.name(), new BytesRef(getDVPrefix(name()) + valueAndPath)));
+                addDocValueOnlyLeaf(context.doc(), name(), relativePath, value);
             }
 
             pathParts.addAll(Arrays.asList(relativePath.split("\\.")));

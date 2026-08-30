@@ -22,6 +22,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
@@ -91,10 +92,13 @@ public final class ArrowSchemaBuilder {
             }
 
             // Emit one LIST<STRUCT> field per TOP-LEVEL nested mapper (nested mappers inside another
-            // nested mapper become list fields inside the parent's struct).
+            // nested mapper become list fields inside the parent's struct; plain (non-nested) objects
+            // inside it become genuine STRUCT fields inside the parent's struct — see
+            // buildStructOrListField).
+            Map<String, ObjectMapper> objectMappersByPath = documentMapper.objectMappers();
             for (String path : nestedPaths) {
                 if (owningNestedPath(path, nestedPaths) == null) {
-                    Field nestedField = buildNestedListField(path, documentMapper, nestedPaths);
+                    Field nestedField = buildStructOrListField(path, true, documentMapper, objectMappersByPath);
                     if (nestedField != null) {
                         fields.add(nestedField);
                     }
@@ -125,37 +129,59 @@ public final class ArrowSchemaBuilder {
     }
 
     /**
-     * Builds the Arrow LIST&lt;STRUCT&gt; field for the nested mapper at {@code path}. Struct
-     * children are the mapper's direct leaf fields (named by leaf segment) plus, recursively, one
-     * LIST&lt;STRUCT&gt; per directly-contained nested mapper.
+     * Returns true if {@code candidate} is a DIRECT child of {@code parentPath} — i.e. it starts with
+     * {@code parentPath + "."} and has no further "." after that prefix. OpenSearch's mapper tree
+     * always creates one dotted path segment per object-mapper level, so this dot-count check is
+     * exactly the mapper tree's own parent/child relationship — no separate tree walk needed.
      */
-    private static Field buildNestedListField(String path, DocumentMapper documentMapper, Set<String> nestedPaths) {
+    private static boolean isDirectChild(String candidate, String parentPath) {
+        if (candidate.length() <= parentPath.length() || candidate.startsWith(parentPath + ".") == false) {
+            return false;
+        }
+        return candidate.substring(parentPath.length() + 1).indexOf('.') < 0;
+    }
+
+    /**
+     * Builds the Arrow field for the object mapper at {@code path}: a LIST&lt;STRUCT&gt; if {@code
+     * isNested} (one element per array entry), or a plain STRUCT otherwise. Struct children are the
+     * mapper's direct leaf fields (named by leaf segment) plus, recursively, one field per
+     * directly-contained object mapper — a LIST&lt;STRUCT&gt; if THAT mapper is itself nested, a plain
+     * STRUCT if it's a regular object. This is what keeps a plain object nested inside a nested field
+     * (e.g. {@code events[].attributes}) as its own struct level instead of flattening it into dotted
+     * leaf names on the enclosing nested struct.
+     */
+    private static Field buildStructOrListField(
+        String path,
+        boolean isNested,
+        DocumentMapper documentMapper,
+        Map<String, ObjectMapper> objectMappersByPath
+    ) {
         List<Field> structChildren = new ArrayList<>();
         for (Mapper mapper : documentMapper.mappers()) {
-            if (isUnsupportedMetadataField(mapper)) {
+            if (isUnsupportedMetadataField(mapper) || isDirectChild(mapper.name(), path) == false) {
                 continue;
             }
-            if (path.equals(owningNestedPath(mapper.name(), nestedPaths))) {
-                String leafName = mapper.name().substring(path.length() + 1);
-                if (FLAT_OBJECT_TYPE.equals(mapper.typeName())) {
-                    // A flat_object inside a nested field (e.g. events.attributes) becomes a
-                    // MAP<Utf8,Utf8> child of the element struct — the open attribute key space.
-                    structChildren.add(buildMapField(leafName));
-                    continue;
-                }
-                ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
-                if (parquetField != null) {
-                    structChildren.add(new Field(leafName, parquetField.getFieldType(), null));
-                }
+            String leafName = mapper.name().substring(path.length() + 1);
+            if (FLAT_OBJECT_TYPE.equals(mapper.typeName())) {
+                // A flat_object inside a nested field (e.g. events.attributes) becomes a
+                // MAP<Utf8,Utf8> child of the element struct — the open attribute key space.
+                structChildren.add(buildMapField(leafName));
+                continue;
+            }
+            ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
+            if (parquetField != null) {
+                structChildren.add(new Field(leafName, parquetField.getFieldType(), null));
             }
         }
-        for (String subPath : nestedPaths) {
-            if (path.equals(owningNestedPath(subPath, nestedPaths))) {
-                Field subField = buildNestedListField(subPath, documentMapper, nestedPaths);
-                if (subField != null) {
-                    String leafName = subPath.substring(path.length() + 1);
-                    structChildren.add(new Field(leafName, subField.getFieldType(), subField.getChildren()));
-                }
+        for (Map.Entry<String, ObjectMapper> entry : objectMappersByPath.entrySet()) {
+            String subPath = entry.getKey();
+            if (isDirectChild(subPath, path) == false) {
+                continue;
+            }
+            Field subField = buildStructOrListField(subPath, entry.getValue().nested().isNested(), documentMapper, objectMappersByPath);
+            if (subField != null) {
+                String leafName = subPath.substring(path.length() + 1);
+                structChildren.add(new Field(leafName, subField.getFieldType(), subField.getChildren()));
             }
         }
         if (structChildren.isEmpty()) {
@@ -165,8 +191,11 @@ public final class ArrowSchemaBuilder {
         // children deterministically by field name so the write schema matches whatever read schema
         // the query engine builds (typically sorted, e.g. via a TreeMap).
         structChildren.sort(Comparator.comparing(Field::getName));
-        Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
-        return new Field(path, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
+        if (isNested) {
+            Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
+            return new Field(path, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
+        }
+        return new Field(path, FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
     }
 
     /**
@@ -175,7 +204,7 @@ public final class ArrowSchemaBuilder {
      * "value": nullable Utf8), unsorted)} — rather than Arrow Java's default {@code entries} group name,
      * so the arrow-rs writer and the DataFusion read path see the group name the parquet spec prescribes.
      * <p>
-     * Shared by the top-level column path and {@link #buildNestedListField} so a flat_object gets the
+     * Shared by the top-level column path and {@link #buildStructOrListField} so a flat_object gets the
      * same shape whether it sits at the document root or inside a nested element's struct.
      */
     private static Field buildMapField(String name) {
