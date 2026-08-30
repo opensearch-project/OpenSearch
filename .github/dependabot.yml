@@ -149,22 +149,6 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
-  - directory: /client/benchmark/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
-  - directory: /client/client-benchmark-noop-api-plugin/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
   - directory: /client/rest/
     open-pull-requests-limit: 1
     package-ecosystem: gradle

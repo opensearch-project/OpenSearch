@@ -1424,6 +1424,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.DeleteResult applyDeleteOperationOnPrimary(
         long version,
         String id,
+        @Nullable String routing,
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm
@@ -1435,6 +1436,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getOperationPrimaryTerm(),
             version,
             id,
+            routing,
             versionType,
             ifSeqNo,
             ifPrimaryTerm,
@@ -1442,7 +1444,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnPrimary(long, String, String, VersionType, long, long)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(
+        long version,
+        String id,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
+        return applyDeleteOperationOnPrimary(version, id, null, versionType, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        @Nullable String routing
+    ) throws IOException {
         if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             final Engine.Delete delete = new Engine.Delete(
                 id,
@@ -1454,7 +1476,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Engine.Operation.Origin.REPLICA,
                 System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                routing
             );
             return getIndexer().delete(delete);
         }
@@ -1464,11 +1487,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             opPrimaryTerm,
             version,
             id,
+            routing,
             null,
             UNASSIGNED_SEQ_NO,
             0,
             Engine.Operation.Origin.REPLICA
         );
+    }
+
+    /**
+     * @deprecated Use {@link #applyDeleteOperationOnReplica(long, long, long, String, String)} instead.
+     */
+    @Deprecated
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+        return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
     }
 
     private Engine.DeleteResult applyDeleteOperation(
@@ -1477,6 +1509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long opPrimaryTerm,
         long version,
         String id,
+        @Nullable String routing,
         @Nullable VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
@@ -1488,7 +1521,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Engine.Delete delete = engine.prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = engine.prepareDelete(
+            id,
+            routing,
+            seqNo,
+            opPrimaryTerm,
+            version,
+            versionType,
+            origin,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
         return delete(engine, delete);
     }
 
@@ -1508,9 +1551,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
+        return prepareDelete(id, null, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Deprecated(since = "3.4.0", forRemoval = true)
+    public static Engine.Delete prepareDelete(
+        String id,
+        @Nullable String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
         long startTime = System.nanoTime();
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     private Engine.DeleteResult delete(Indexer engine, Engine.Delete delete) throws IOException {
@@ -3027,6 +3085,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     delete.primaryTerm(),
                     delete.version(),
                     delete.id(),
+                    delete.routing(),
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,
@@ -5643,6 +5702,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String id) {
                 return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), id);
+            }
+
+            @Override
+            public ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+                return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), id, routing);
             }
 
             @Override
