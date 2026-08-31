@@ -47,8 +47,8 @@ repositories {
 
 dependencies {
   jdkJarHell 'org.opensearch:opensearch-core:current'
-  compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
-  implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
+  compileOnly "org.${findProperty('compileOnlyGroup')}:${findProperty('compileOnlyVersion')}"
+  implementation "org.${findProperty('compileGroup')}:${findProperty('compileVersion')}"
 }
 
 tasks.register("empty", ThirdPartyAuditTask) {
