@@ -35,6 +35,18 @@ _search request
 - **Relation**: INTERSECTS relation support
 - **Millisecond Precision**: TIMESTAMP(3) for accurate date comparisons
 
+### Bucket Aggregations
+- **Terms** — single-field `GROUP BY`; mapping-resolved key typing (string/long/double).
+- **Range** — buckets a numeric field into user-declared half-open intervals `[from, to)`.
+  Each document maps to a single range **ordinal** via a computed `CASE` group key
+  (`ComputedGroupingConverter`), then `GROUP BY ordinal, COUNT(*)`; the response
+  (`InternalRange`) returns every declared range in order, empty ranges included as
+  `doc_count: 0`. Sub-aggregations are supported.
+  - **Single-membership only**: overlapping ranges are rejected (classic search counts a
+    document in every matching range — see `RangeAggregator.collect` — which single-ordinal
+    grouping cannot reproduce). `script` and `missing` are also rejected on this path.
+    This mirrors PPL `bin`, which is single-membership by design.
+
 ## Dependencies
 
 - `analytics-engine` — provides `QueryPlanExecutor` and `EngineContext` via Guice (declared as `extendedPlugins`)
