@@ -594,8 +594,13 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
+    /**
+     * Verifies {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}: it defaults to the index's
+     * {@code index.translog.flush_threshold_size} via setting fallback, a dynamic update of only the fallback is
+     * reflected, an explicit value wins over the fallback, and zero or negative sizes are rejected since they
+     * would flush on every successful segments sync.
+     */
     public void testFlushOnUncommittedSegmentsThresholdSize() {
-        // defaults to the index's translog flush threshold via setting fallback
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -605,7 +610,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(new ByteSizeValue(128, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
-        // a dynamic update of only the fallback setting is reflected
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
@@ -613,7 +617,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(new ByteSizeValue(256, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
-        // an explicit value wins over the fallback
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
@@ -624,7 +627,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(new ByteSizeValue(64, ByteSizeUnit.MB), settings.getFlushOnUncommittedSegmentsThresholdSize());
-        // zero and negative values are rejected: they would flush on every successful segments sync
         for (String invalid : new String[] { "0b", "-1" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,

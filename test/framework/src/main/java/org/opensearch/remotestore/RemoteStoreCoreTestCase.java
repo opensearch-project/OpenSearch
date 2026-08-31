@@ -146,10 +146,13 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         );
     }
 
+    /**
+     * Verifies the end-to-end periodic flush trigger on a remote-store shard: with the uncommitted-segment-bytes
+     * threshold lowered to 1b, a refresh-driven segments upload publishes the accounting and the next write
+     * operation's periodic flush poll fires the async flush.
+     */
     public void testPeriodicFlushOnUncommittedSegmentBytes() throws Exception {
         String dataNode = internalCluster().startNodes(1).get(0);
-        // lower the uncommitted segment bytes threshold so that any refreshed but uncommitted segment breaches it;
-        // the condition itself is enabled by default
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -160,8 +163,6 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         ensureGreen(INDEX_NAME);
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
         assertEquals(0, indexShard.flushStats().getPeriodic());
-        // each iteration drives one refresh (and hence one remote segments sync publishing the uncommitted bytes)
-        // followed by a write operation which polls the periodic flush condition and triggers the async flush
         assertBusy(() -> {
             indexSingleDoc(INDEX_NAME);
             refresh(INDEX_NAME);
@@ -171,12 +172,11 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
-     * End-to-end reproduction of the scenario in issue #22802: an update-heavy workload with regular refreshes on a
-     * remote-store shard. Every successful segments upload advances minSeqNoToKeep which suppresses the translog
-     * based flush condition, so without the uncommitted-segment-bytes condition no periodic flush ever happens, the
-     * safe commit never advances, and the soft-deleted documents produced by the updates stay protected from merge
-     * reclamation indefinitely. This test asserts the full recovery chain: periodic flushes fire, the safe commit
-     * advances, and a merge that does NOT flush (flush=false) is able to reclaim the tombstones.
+     * End-to-end reproduction of an update-heavy workload with regular refreshes on a remote-store shard, where
+     * every successful segments upload suppresses the translog based flush condition and soft-deleted documents
+     * pile up unreclaimed. Asserts the full recovery chain through the uncommitted-segment-bytes condition:
+     * periodic flushes fire, the safe commit advances past the workload, and a non-flushing expunge-deletes merge
+     * is able to reclaim the tombstones.
      */
     public void testPeriodicFlushReclaimsSoftDeletesUnderUpdateHeavyWorkload() throws Exception {
         final int docCount = 20;
@@ -238,10 +238,9 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             assertThat(committedCheckpoint, greaterThanOrEqualTo(maxSeqNoAfterWorkload));
         }, 30, TimeUnit.SECONDS);
 
-        // a merge WITHOUT a flush can now reclaim tombstones below the advanced safe commit. Without the fix the
-        // soft-deletes floor never moves off the initial commit, nothing is reclaimable, and the count can never
-        // drop below the full tombstone pile -- so ANY reclamation proves the chain end to end. Each retry keeps
-        // writing so the retention lease and the async flush pipeline keep advancing.
+        // without the fix the soft-deletes floor never moves off the initial commit and the deleted-docs count can
+        // never drop below the full tombstone pile -- so ANY reclamation proves the chain. Each retry keeps writing
+        // so the retention lease and the async flush pipeline keep advancing.
         final long tombstonesCreated = (long) (rounds - 1) * docCount;
         final AtomicInteger nudge = new AtomicInteger();
         assertBusy(() -> {
