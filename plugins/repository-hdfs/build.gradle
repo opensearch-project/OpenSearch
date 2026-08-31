@@ -49,13 +49,10 @@ opensearchplugin {
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
-// The krb5kdc fixture used to expose these as closures on its own `ext`. Reading another project's
-// extra properties at configuration time is deprecated in Gradle 9.6 and fails in Gradle 10, and the
-// paths are fully determined by the fixture's layout, so build them here instead.
-// `testfixtures_shared` is what TestFixturesPlugin sets testFixturesDir to.
-File krb5FixturesDir = project(':test:fixtures:krb5kdc-fixture').file("testfixtures_shared/shared")
-def krb5Conf = { String service -> new File(krb5FixturesDir, "${service}/krb5.conf") }
-def krb5Keytabs = { String service, String fileName -> new File(krb5FixturesDir, "${service}/keytabs/${fileName}") }
+// Captured once, here, because inside a `dependencies { }` block `project(':path')` resolves to
+// DependencyHandler.project(String) -- a ProjectDependency with its own empty `ext` -- as of Gradle
+// 9.7, where it used to resolve to the Project itself. The fixture keeps owning the paths.
+def krb5kdcExt = project(':test:fixtures:krb5kdc-fixture').ext
 
 configurations {
   hdfsFixture
@@ -101,7 +98,7 @@ dependencies {
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntimeOnly files(krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab").parent)
+    testRuntimeOnly files(krb5kdcExt.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab").parent)
   }
 
   agent project(path: ':libs:agent-sm:agent', configuration: 'agentJar')
@@ -135,7 +132,7 @@ testClusters.integTest {
 }
 
 String realm = "BUILD.OPENSEARCH.ORG"
-String krb5conf = krb5Conf("hdfs")
+String krb5conf = krb5kdcExt.krb5Conf("hdfs")
 
 
 project(':test:fixtures:krb5kdc-fixture').tasks.preProcessFixture {
@@ -164,7 +161,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
-      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5Conf("hdfs")}");
+      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5kdcExt.krb5Conf("hdfs")}");
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
@@ -179,7 +176,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("hdfs/hdfs.build.opensearch.org@${realm}")
       miniHDFSArgs.add(
-        krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
+        krb5kdcExt.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
       )
     }
 
@@ -245,7 +242,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
           jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
           nonInputProperties.systemProperty(
             "test.krb5.keytab.hdfs",
-            krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
+            krb5kdcExt.krb5Keytabs("hdfs", "hdfs_hdfs.build.opensearch.org.keytab")
           )
         }
       }
@@ -259,7 +256,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
         "repository-hdfs/krb5.keytab",
-        file("${krb5Keytabs("hdfs", "opensearch.keytab")}"), IGNORE_VALUE
+        file("${krb5kdcExt.krb5Keytabs("hdfs", "opensearch.keytab")}"), IGNORE_VALUE
       )
     }
   }
