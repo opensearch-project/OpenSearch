@@ -235,6 +235,129 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         ensureNoActiveMerges(indexName);
     }
 
+    /**
+     * Verifies the complete AUTO promotion path: the first scalar row is committed with a scalar
+     * schema, a later array publishes {@code multi_value: true} into IndexMetadata, and the same
+     * indexing request is retried and persisted as a LIST row.
+     */
+    public void testAdaptiveKeywordPromotionUpdatesClusterStateAndRetriesDocument() throws Exception {
+        String indexName = "test-adaptive-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        Map<String, Object> initialFieldMapping = clusterStateFieldMapping(indexName, "tags");
+        assertFalse(initialFieldMapping.containsKey("multi_value"));
+        long initialMappingVersion = getClusterState().metadata().index(indexName).getMappingVersion();
+
+        IndexResponse scalarResponse = client().prepareIndex(indexName).setSource("tags", "solo").get();
+        assertEquals(RestStatus.CREATED, scalarResponse.status());
+        refreshAndFlush(indexName);
+
+        IndexResponse listResponse = client().prepareIndex(indexName).setSource("tags", List.of("prod", "error", "prod")).get();
+        assertEquals(RestStatus.CREATED, listResponse.status());
+
+        assertBusy(() -> {
+            assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+            assertTrue(getClusterState().metadata().index(indexName).getMappingVersion() > initialMappingVersion);
+        });
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
+        assertTrue(rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+    }
+
+    /** Verifies that explicit SCALAR state rejects an array without publishing a mapping update. */
+    public void testExplicitScalarKeywordRejectsArrayWithoutUpdatingClusterState() throws Exception {
+        String indexName = "test-scalar-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword,multi_value=false")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(Boolean.FALSE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+        long mappingVersion = getClusterState().metadata().index(indexName).getMappingVersion();
+
+        IndexResponse scalarResponse = client().prepareIndex(indexName).setSource("tags", "solo").get();
+        assertEquals(RestStatus.CREATED, scalarResponse.status());
+
+        Exception error = expectThrows(
+            Exception.class,
+            () -> client().prepareIndex(indexName).setSource("tags", List.of("one", "two")).get()
+        );
+        assertThat(
+            org.opensearch.ExceptionsHelper.stackTrace(error),
+            org.hamcrest.Matchers.containsString("locked scalar by [multi_value: false]")
+        );
+        assertEquals(mappingVersion, getClusterState().metadata().index(indexName).getMappingVersion());
+        assertEquals(Boolean.FALSE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(1, rows.size());
+        assertEquals("solo", rows.get(0).get("tags"));
+    }
+
+    /** Verifies that explicit LIST state writes scalar input as a singleton list and arrays unchanged. */
+    public void testExplicitListKeywordPersistsListShapeForEveryDocument() throws Exception {
+        String indexName = "test-list-keyword";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(parquetPrimaryLuceneSecondarySettings())
+            .setMapping("tags", "type=keyword,multi_value=true")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value"));
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", "solo").get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", List.of("one", "two", "one")).get().status());
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().allMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+    }
+
+    /**
+     * RustBridge's test-only JSON renderer decodes primitive columns and emits this marker for
+     * nested columns. Matching it verifies that the physical Parquet column is LIST; element-value
+     * preservation is covered by the lower-level VSR and ParquetDocumentInput tests.
+     */
+    private boolean isListColumnPlaceholder(Object value) {
+        return value instanceof String text && text.startsWith("<unsupported:List(");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> clusterStateFieldMapping(String indexName, String fieldName) {
+        Map<String, Object> mappingSource = getClusterState().metadata().index(indexName).mapping().sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+        return (Map<String, Object>) properties.get(fieldName);
+    }
+
+    private void refreshAndFlush(String indexName) {
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+    }
+
+    private List<Map<String, Object>> refreshFlushAndReadParquetRows(String indexName) throws IOException {
+        refreshAndFlush(indexName);
+        IndexShard shard = getIndexShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            return readAllParquetRows(parquetFilesRef.get());
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Private helpers: index settings
     // ══════════════════════════════════════════════════════════════════════

@@ -13,6 +13,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 import java.nio.charset.StandardCharsets;
