@@ -128,6 +128,71 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
+    /** Creates the shared tri-state {@code multi_value} mapping parameter for scalar leaf mappers. */
+    protected static Parameter<MappedFieldType.MultiValueState> multiValueParameter() {
+        return new Parameter<>(
+            "multi_value",
+            true,
+            () -> MappedFieldType.MultiValueState.AUTO,
+            (name, context, value) -> XContentMapValues.nodeBooleanValue(value)
+                ? MappedFieldType.MultiValueState.LIST
+                : MappedFieldType.MultiValueState.SCALAR,
+            mapper -> mapper.fieldType().multiValueState()
+        ).setSerializer((builder, name, mode) -> builder.field(name, mode == MappedFieldType.MultiValueState.LIST), mode -> switch (mode) {
+            case AUTO -> "auto";
+            case SCALAR -> "false";
+            case LIST -> "true";
+        })
+            .setSerializerCheck((includeDefaults, configured, mode) -> mode != MappedFieldType.MultiValueState.AUTO)
+            .setMergeValueNormalizer((current, incoming) -> incoming == MappedFieldType.MultiValueState.AUTO ? current : incoming)
+            .setMergeValidator((previous, next) -> previous == MappedFieldType.MultiValueState.AUTO || previous == next);
+    }
+
+    /**
+     * Adds one successfully parsed scalar value to the pluggable document input and requests a
+     * mapping promotion when this is the second value for a supported field.
+     */
+    protected final void addFieldForPluggableFormat(ParseContext context, Object value) {
+        MappedFieldType fieldType = fieldType();
+        if (fieldType.isMultiValued() == false
+            && fieldType.isMultiValueSupported()
+            && context.documentInput().getFieldCount(fieldType.name()) > 0) {
+            if (fieldType.isMultiValueAutoPromotionEnabled() == false) {
+                throw new MapperParsingException(
+                    "Field [" + fieldType.name() + "] is locked scalar by [multi_value: false] and cannot accept multiple values"
+                );
+            }
+            addMultiValueMappingUpdate(context);
+        }
+        context.documentInput().addField(fieldType, value);
+    }
+
+    /** Publishes the idempotent scalar-to-multi-value mapping update for this mapper. */
+    final void addMultiValueMappingUpdate(ParseContext context) {
+        if (fieldType().isMultiValued()) {
+            return;
+        }
+        if (fieldType().isMultiValueSupported() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "] does not support [multi_value]"
+            );
+        }
+        if (fieldType().isMultiValueAutoPromotionEnabled() == false) {
+            throw new MapperParsingException(
+                "Field [" + fieldType().name() + "] is locked scalar by [multi_value: false] and cannot promote"
+            );
+        }
+        Builder updateBuilder = getMergeBuilder();
+        updateBuilder.setParameterValue("multi_value", MappedFieldType.MultiValueState.LIST);
+        ParametrizedFieldMapper update = updateBuilder.build(new BuilderContext(Settings.EMPTY, context.path()));
+        if (update.fieldType().isMultiValued() == false) {
+            throw new IllegalStateException(
+                "Mapper [" + fieldType().name() + "] advertises multi-value support but did not apply [multi_value]"
+            );
+        }
+        context.addDynamicMapper(update);
+    }
+
     @Override
     public ParametrizedFieldMapper merge(Mapper mergeWith) {
 
@@ -234,6 +299,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
+        private BiFunction<T, T, T> mergeValueNormalizer = (current, incoming) -> incoming;
         private T value;
         private boolean isSet;
 
@@ -360,6 +426,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Normalizes an incoming mapping-update value before merge validation. This is useful for
+         * tri-state parameters where the default value means "unspecified" and must preserve the
+         * current state rather than overwrite it.
+         */
+        public Parameter<T> setMergeValueNormalizer(BiFunction<T, T, T> mergeValueNormalizer) {
+            this.mergeValueNormalizer = Objects.requireNonNull(mergeValueNormalizer);
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
@@ -375,12 +451,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+            T incoming = initializer.apply(toMerge);
             T current = getValue();
-            if (mergeValidator.test(current, value)) {
-                setValue(value);
+            T merged = mergeValueNormalizer.apply(current, incoming);
+            if (mergeValidator.test(current, merged)) {
+                setValue(merged);
             } else {
-                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(incoming));
             }
         }
 

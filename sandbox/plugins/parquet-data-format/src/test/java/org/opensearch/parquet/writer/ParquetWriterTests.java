@@ -21,6 +21,7 @@ import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -197,6 +198,34 @@ public class ParquetWriterTests extends ParquetBaseTests {
             threadPool,
             null
         );
+        assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
+    }
+
+    public void testMappingTypeChangeRetiresWriterForSchemaFence() throws Exception {
+        String filePath = createTempDir().resolve("schema-fence.parquet").toString();
+        ParquetField keyword = ArrowFieldRegistry.getParquetField(nameField.typeName());
+        List<Field> promotedFields = new ArrayList<>();
+        promotedFields.add(ArrowFieldRegistry.getParquetField(idField.typeName()).toArrowField(idField.name(), false));
+        promotedFields.add(keyword.toArrowField(nameField.name(), true));
+        promotedFields.add(ArrowFieldRegistry.getParquetField(scoreField.typeName()).toArrowField(scoreField.name(), false));
+        promotedFields.addAll(metadataFields());
+        Schema promotedSchema = new Schema(promotedFields);
+        ParquetWriter writer = new ParquetWriter(
+            filePath,
+            1L,
+            1L,
+            new ParquetDataFormat(),
+            schema,
+            () -> promotedSchema,
+            bufferPool,
+            indexSettings,
+            threadPool,
+            null
+        );
+
+        writer.updateMappingVersion(2L);
+
+        assertEquals(WriterState.RETIRED_FLUSHABLE, writer.state());
         assertEquals(FileInfos.empty(), writer.flush(FlushInput.EMPTY));
     }
 
