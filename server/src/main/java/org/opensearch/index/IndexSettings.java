@@ -886,7 +886,9 @@ public final class IndexSettings {
      * refreshed and uploaded to the remote store but not yet referenced by the last commit point. On remote-store
      * shards the translog based flush threshold ({@code index.translog.flush_threshold_size}) is ineffective because
      * uploaded translog generations are trimmed continuously; this condition restores an equivalent size-based flush
-     * signal driven by uncommitted segment bytes.
+     * signal driven by uncommitted segment bytes. Low-throughput trickle workloads that never cross the byte
+     * threshold and never go idle can additionally enable {@code index.periodic_flush_interval} (disabled by
+     * default) for a wall-clock flush backstop.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING = Setting.boolSetting(
         "index.remote_store.flush_on_uncommitted_segments.enabled",

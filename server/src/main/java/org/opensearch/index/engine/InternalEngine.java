@@ -1538,6 +1538,7 @@ public class InternalEngine extends Engine {
      *
      * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
      */
+    @Override
     public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap) {
         // the file set and the generation stamp are both taken from this single snapshot, so the published value is
         // always internally consistent. If a flush lands between this snapshot and the publish below, the stamp no
@@ -1584,8 +1585,8 @@ public class InternalEngine extends Engine {
         }
         // snapshot the volatile once so the null check and the generation comparison observe the same commit point
         final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
+        // the threshold setting has a hard 1-byte minimum, so current.bytes >= threshold already implies bytes > 0
         return committedInfos != null
-            && current.bytes > 0
             && current.bytes >= indexSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes()
             && current.committedInfosGeneration == committedInfos.getGeneration();
     }

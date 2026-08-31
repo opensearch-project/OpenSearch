@@ -440,9 +440,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // shards, hence publish the size of segment bytes not yet referenced by the last commit point so that the
         // engine can flush once they breach the configured threshold.
         if (indexShard.indexSettings().isFlushOnUncommittedSegmentsEnabled()
-            && indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked
-            && engineBacked.getEngine() instanceof InternalEngine internalEngine) {
-            internalEngine.updateUncommittedSegmentBytes(localFileSizeMap);
+            && indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
+            engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap);
         }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);

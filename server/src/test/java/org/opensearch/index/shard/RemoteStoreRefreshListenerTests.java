@@ -1019,14 +1019,16 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that a successful segments sync on a shard whose {@link EngineBackedIndexer} wraps an engine other
-     * than {@code InternalEngine} (simulated by a delegating mock) skips the uncommitted-segment-bytes publication
-     * without breaking the sync: the replication checkpoint is still published.
+     * Verifies that on a shard whose {@link EngineBackedIndexer} wraps an engine other than {@code InternalEngine}
+     * (simulated by a generic {@link Engine} mock), a successful segments sync dispatches the uncommitted-segment-bytes
+     * publication uniformly through the {@link Engine} base type -- where it is a no-op -- without breaking the sync:
+     * the base method is invoked and the replication checkpoint is still published.
      */
-    public void testNonInternalEngineSkipsUncommittedSegmentBytesPublish() throws Exception {
+    public void testNonInternalEngineNoOpUncommittedSegmentBytesPublish() throws Exception {
         setup(true, 3);
+        Engine mockEngine = mock(Engine.class);
         EngineBackedIndexer delegatingIndexer = mock(EngineBackedIndexer.class, delegatesTo(indexShard.getIndexer()));
-        doReturn(mock(Engine.class)).when(delegatingIndexer).getEngine();
+        doReturn(mockEngine).when(delegatingIndexer).getEngine();
         IndexShard spyShard = spy(indexShard);
         doReturn(delegatingIndexer).when(spyShard).getIndexer();
 
@@ -1042,6 +1044,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexDocs(10, 1);
             indexShard.refresh("test");
             listener.afterRefresh(true);
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any());
             verify(publisher, atLeastOnce()).publish(any(), any());
         } finally {
             listener.drainRefreshes();
