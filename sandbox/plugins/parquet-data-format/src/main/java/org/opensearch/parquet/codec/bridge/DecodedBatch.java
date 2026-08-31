@@ -50,14 +50,21 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
     /** {@link #values} holds one {@code int} of raw f32 bits per row; re-encoded to a sign-extended sortable int. */
     public static final int KIND_FLOAT = 9;
 
-    /** Constant-time presence test for a global row within {@code [firstRow, lastRow]}. */
+    /**
+     * Constant-time presence test for a global row, which must fall within
+     * {@code [firstRow, lastRow]}. Reads a single byte: the bitmap is only guaranteed to be
+     * byte-addressable, so a wider read could reach past its last significant byte.
+     */
     public boolean isPresent(long row) {
+        if (contains(row) == false) {
+            throw new IndexOutOfBoundsException("row " + row + " outside batch [" + firstRow + ", " + lastRow + "]");
+        }
         if (presenceBits == null) {
             return true;
         }
         long idx = row - firstRow + presenceBitOffset;
-        long word = presenceBits.getAtIndex(ValueLayout.JAVA_LONG, idx >>> 6);
-        return (word & (1L << (idx & 63))) != 0L;
+        byte bits = presenceBits.get(ValueLayout.JAVA_BYTE, idx >>> 3);
+        return (bits & (1 << (idx & 7))) != 0;
     }
 
     /**

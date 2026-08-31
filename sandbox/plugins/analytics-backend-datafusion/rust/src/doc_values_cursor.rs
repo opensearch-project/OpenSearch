@@ -169,8 +169,17 @@ impl DocValuesCursor {
         .await?;
 
         let schema = footer.file_metadata().schema_descr(); // list of all leaf columns
-        let leaf_idx = (0..schema.num_columns()) // scan every column
-            .find(|&idx| {
+        // Collect every candidate rather than taking the first: two leaves in different groups can
+        // share a name, and a group root can cover several leaves. Serving whichever happened to be
+        // first would silently read the wrong column, so ambiguity is an error.
+        //
+        // Unreachable for files this plugin writes today: every mapped field produces a flat Arrow
+        // type, so each column is a top-level leaf whose path equals its name. The guard is here for
+        // files written with a nested schema - by a future mapping type, or by another writer - where
+        // first-match-wins would return wrong values with no error. The tests build such a schema
+        // directly to keep this covered.
+        let matches = (0..schema.num_columns())
+            .filter(|&idx| {
                 let descriptor = schema.column(idx);
                 descriptor.name() == column   // match by leaf name
                     || descriptor.path().string() == column
@@ -180,7 +189,25 @@ impl DocValuesCursor {
                         .first()
                         .is_some_and(|root| root == column)
             })
-            .ok_or_else(|| format!("df_docvalues: column '{column}' not found in {filename}"))?;
+            .collect::<Vec<_>>();
+        let leaf_idx = match matches.as_slice() {
+            [only] => *only,
+            [] => {
+                return Err(format!(
+                    "df_docvalues: column '{column}' not found in {filename}"
+                ))
+            }
+            several => {
+                let paths = several
+                    .iter()
+                    .map(|&idx| schema.column(idx).path().string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(format!(
+                    "df_docvalues: column '{column}' is ambiguous in {filename}; it matches {paths}"
+                ));
+            }
+        };
         let descriptor = schema.column(leaf_idx);
         let physical_type = descriptor.physical_type();
         if !matches!(
@@ -563,6 +590,68 @@ mod tests {
                 .unwrap();
         writer.write(&batch).unwrap();
         Bytes::from(writer.into_inner().unwrap().into_inner())
+    }
+
+    /// Two leaves under one struct, so the group root matches both by first path part.
+    fn parquet_fixture_with_two_leaves_under_one_group() -> Bytes {
+        let children = vec![
+            Arc::new(Field::new("left", DataType::Int64, false)),
+            Arc::new(Field::new("right", DataType::Int64, false)),
+        ];
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "group",
+            DataType::Struct(children.clone().into()),
+            false,
+        )]));
+        let props = WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .build();
+        let mut writer =
+            ArrowWriter::try_new(Cursor::new(Vec::new()), Arc::clone(&schema), Some(props))
+                .unwrap();
+        let left = Arc::new(Int64Array::from((0..8_i64).collect::<Vec<_>>())) as ArrayRef;
+        let right = Arc::new(Int64Array::from((8..16_i64).collect::<Vec<_>>())) as ArrayRef;
+        let group = arrow::array::StructArray::new(children.into(), vec![left, right], None);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(group) as ArrayRef]).unwrap();
+        writer.write(&batch).unwrap();
+        Bytes::from(writer.into_inner().unwrap().into_inner())
+    }
+
+    fn open_named_column(bytes: Bytes, column: &str) -> Result<DocValuesCursor, String> {
+        let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let location = ObjectPath::from(format!(
+            "doc-values-cursor-{}.parquet",
+            NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
+        ));
+        runtime
+            .block_on(store.put(&location, bytes.into()))
+            .unwrap();
+        runtime.block_on(DocValuesCursor::open(
+            location.as_ref(),
+            column,
+            8,
+            Some(store),
+            Some(location.clone()),
+            Arc::clone(&runtime),
+        ))
+    }
+
+    #[test]
+    fn an_ambiguous_column_name_is_rejected_rather_than_guessed() {
+        let bytes = parquet_fixture_with_two_leaves_under_one_group();
+
+        // "group" is the root of two leaves. Binding it to whichever came first would silently
+        // serve doc values for the wrong column.
+        let error = open_named_column(bytes.clone(), "group")
+            .err()
+            .expect("an ambiguous column must not open");
+        assert!(error.contains("ambiguous"), "{error}");
+        assert!(error.contains("group.left") && error.contains("group.right"), "{error}");
+
+        // An unambiguous leaf under the same group still resolves.
+        assert!(open_named_column(bytes, "left").is_ok());
     }
 
     fn open_parquet_fixture(bytes: Bytes, batch_size: usize) -> (DocValuesCursor, Arc<Runtime>) {

@@ -88,15 +88,23 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
     }
 
     /**
-     * Loads the batch beginning at {@code row}. Forward requests ride the native cursor; a request
-     * behind the current batch reopens it first.
+     * Ensures the resident batch contains {@code row}. A row already resident is served without
+     * touching the cursor, a row ahead of it advances the cursor, and a row behind it reopens the
+     * cursor first.
      */
     @Override
     public void loadBatchContaining(long row) throws IOException {
         ensureOpen();
         DecodedBatch current = decodedBatch;
-        if (current != null && row < current.firstRow()) {
-            reopen();
+        if (current != null) {
+            // The native cursor parks past the resident batch, so re-requesting a row it already
+            // holds would reach the native side as a backward seek and be rejected.
+            if (current.contains(row)) {
+                return;
+            }
+            if (row < current.firstRow()) {
+                reopen();
+            }
         }
         loadNumericBatch(row);
     }
@@ -114,6 +122,12 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         long validityAddr;
         int kind;
         int bitOffset;
+
+        // Drop the resident batch before crossing over. A successful native call frees the buffers
+        // the old batch borrowed, so any exit between here and the assignment below - a bad status
+        // or a failed framing check - must not leave a DecodedBatch whose views address freed
+        // memory.
+        decodedBatch = null;
 
         // The six scalar out-parameters are tiny and read out immediately, so a per-call arena is
         // enough; the borrowed value/validity buffers live in native (Rust-owned) memory and are
@@ -166,7 +180,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         int batchRows = (int) batchRowsLong;
 
         // Borrowed Arrow buffers, read in place: O(rows accessed), no copy. Valid until the next
-        // batch call on this cursor; the resident batch is always replaced before that call.
+        // batch call on this cursor, which clears the resident batch before borrowing again.
         MemorySegment values = MemorySegment.ofAddress(valuesAddr).reinterpret((long) batchRows * width);
         MemorySegment presenceBits;
         int presenceBitOffset;
@@ -174,8 +188,10 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
             presenceBits = null;
             presenceBitOffset = 0;
         } else {
-            long presenceWords = ((long) bitOffset + batchRows + 63) >>> 6;
-            presenceBits = MemorySegment.ofAddress(validityAddr).reinterpret(presenceWords * Long.BYTES);
+            // Size to the bitmap's significant bytes, not up to a word: Arrow only guarantees the
+            // buffer holds the bits, so a word-rounded view could extend past the allocation.
+            long presenceBytes = ((long) bitOffset + batchRows + 7) >>> 3;
+            presenceBits = MemorySegment.ofAddress(validityAddr).reinterpret(presenceBytes);
             presenceBitOffset = bitOffset;
         }
         decodedBatch = new DecodedBatch(firstRow, lastRow, values, kind, presenceBits, presenceBitOffset);
