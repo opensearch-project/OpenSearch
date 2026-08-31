@@ -305,6 +305,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile int maxConcurrentOperations;
 
+    /**
+     * Time budget for cluster-manager-side snapshot repository I/O, backed by {@link #SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING}.
+     * Initialized to the setting default so that it is never {@code null} on nodes that are not cluster-manager eligible.
+     */
+    private volatile TimeValue ioTimeout = SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
+
     public SnapshotsService(
         Settings settings,
         ClusterService clusterService,
@@ -352,12 +358,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             retryBackoff = SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.get(settings);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRIES_SETTING, i -> maxRetries = i);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING, t -> retryBackoff = t);
+            // Only register the io_timeout consumer when the feature flag is on. The setting carries a validator that rejects it
+            // while the flag is disabled, and AbstractScopedSettings#validateUpdate calls every registered updater's getValue --
+            // which runs that validator -- on every cluster settings update. Registering unconditionally would therefore make
+            // any cluster settings update fail on a node with the flag off. The flag is NodeScope, so this is decided once, and
+            // with the flag off the value is never read.
+            if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)) {
+                ioTimeout = SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.get(settings);
+                clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING, t -> ioTimeout = t);
+            }
         }
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createSnapshotTaskKey = clusterService.registerClusterManagerTask(CREATE_SNAPSHOT, true);
         deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(DELETE_SNAPSHOT, true);
         updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(UPDATE_SNAPSHOT_STATE, true);
+    }
+
+    /**
+     * The currently effective repository I/O timeout. Visible for testing the settings-update consumer.
+     */
+    TimeValue getIoTimeout() {
+        return ioTimeout;
     }
 
     /**
