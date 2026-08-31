@@ -45,6 +45,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.ListenerTimeouts;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
@@ -380,6 +381,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     TimeValue getIoTimeout() {
         return ioTimeout;
+    }
+
+    /**
+     * Wraps a cluster-manager-side repository listener so that it fails with an {@link org.opensearch.OpenSearchTimeoutException}
+     * if the repository does not answer within {@link #SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING}. A repository worker that completes
+     * after the deadline is dropped by the wrapper, so the listener is invoked exactly once either way.
+     * <p>
+     * The timeout callback is scheduled on {@link ThreadPool.Names#GENERIC} rather than {@link ThreadPool.Names#SNAPSHOT}: the
+     * SNAPSHOT pool is where a hung repository call is already parked, so scheduling there could not fire.
+     * <p>
+     * Returns {@code listener} unchanged while the snapshot resilience feature flag is disabled.
+     */
+    // visible for testing
+    <T> ActionListener<T> withRepositoryIoTimeout(ActionListener<T> listener, String listenerName) {
+        if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false) {
+            return listener;
+        }
+        return ListenerTimeouts.wrapWithTimeout(threadPool, listener, ioTimeout, ThreadPool.Names.GENERIC, listenerName);
     }
 
     /**
@@ -2203,7 +2222,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repoName = entry.repository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
-                repositoriesService.repository(repoName).getRepositoryData(new ActionListener<RepositoryData>() {
+                // Wrapped at the call site rather than inside BlobStoreRepository#getRepositoryData: the cached fast path
+                // completes inline before the deadline matters, and wrapping inside the repository would affect every caller.
+                repositoriesService.repository(repoName).getRepositoryData(withRepositoryIoTimeout(new ActionListener<RepositoryData>() {
                     @Override
                     public void onResponse(RepositoryData repositoryData) {
                         finalizeSnapshotEntry(entry, metadata, repositoryData);
@@ -2216,7 +2237,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             new FailPendingRepoTasksTask(repoName, e)
                         );
                     }
-                });
+                }, "get repository data for snapshot finalization [" + repoName + "]"));
             } else {
                 finalizeSnapshotEntry(entry, metadata, repositoryData);
             }
@@ -2296,8 +2317,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 metadataListener.onResponse(metadata);
             }
-            metadataListener.whenComplete(
-                meta -> repo.finalizeSnapshot(
+            metadataListener.whenComplete(meta -> {
+                // A hung finalize must self-terminate into the failure cleanup path. The timeout surfaces as an
+                // OpenSearchTimeoutException, which handleFinalizationFailure routes to removeFailedSnapshotFromClusterState,
+                // releasing the repository loop. A late completion from the orphaned worker is dropped by the wrapper.
+                final ActionListener<RepositoryData> finalizeListener = withRepositoryIoTimeout(ActionListener.wrap(newRepoData -> {
+                    completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                    logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                    runNextQueuedOperation(newRepoData, repository, true);
+                }, e -> handleFinalizationFailure(e, entry, repositoryData)), "finalize snapshot [" + snapshot + "]");
+                repo.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
                     metadataForSnapshot(meta, entry.includeGlobalState(), entry.partial(), entry.dataStreams(), entry.indices()),
@@ -2305,14 +2334,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
                     Priority.NORMAL,
-                    ActionListener.wrap(newRepoData -> {
-                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
-                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
-                        runNextQueuedOperation(newRepoData, repository, true);
-                    }, e -> handleFinalizationFailure(e, entry, repositoryData))
-                ),
-                e -> handleFinalizationFailure(e, entry, repositoryData)
-            );
+                    finalizeListener
+                );
+            }, e -> handleFinalizationFailure(e, entry, repositoryData));
         } catch (Exception e) {
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
