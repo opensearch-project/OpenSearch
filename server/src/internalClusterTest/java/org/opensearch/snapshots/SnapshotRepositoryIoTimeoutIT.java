@@ -9,7 +9,10 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -74,8 +77,43 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
         assertAcked(client().admin().indices().prepareDelete("test-idx").get());
     }
 
+    public void testHungDeleteTimesOutAndReleasesRepositoryLoop() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepository("test-repo", "mock");
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(1)));
+        ensureGreen();
+        indexRandomDocs("test-idx", randomIntBetween(10, 50));
+
+        createFullSnapshot("test-repo", "snap-1");
+        createFullSnapshot("test-repo", "snap-2");
+
+        logger.info("--> block the cluster-manager deleting index-N, then start a delete");
+        final String clusterManagerName = internalCluster().getClusterManagerName();
+        final ActionFuture<AcknowledgedResponse> blockedDelete = deleteSnapshotBlockedOnClusterManager("test-repo", "snap-1");
+        waitForBlock(clusterManagerName, "test-repo", TimeValue.timeValueSeconds(30));
+
+        logger.info("--> the io_timeout must terminate the delete and remove its cluster state entry");
+        assertBusy(() -> assertTrue("delete marker should be gone", deletionsInProgress().getEntries().isEmpty()), 60, TimeUnit.SECONDS);
+
+        logger.info("--> the caller is told the delete failed rather than hanging forever");
+        expectThrows(Exception.class, blockedDelete::actionGet);
+
+        logger.info("--> let the orphaned repository worker finish");
+        unblockNode("test-repo", clusterManagerName);
+        assertBusy(() -> assertTrue("delete marker must not reappear", deletionsInProgress().getEntries().isEmpty()), 30, TimeUnit.SECONDS);
+
+        logger.info("--> the repository loop was released, so a further delete can run");
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "snap-2").get());
+    }
+
     private SnapshotsInProgress snapshotsInProgress() {
         return clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+    }
+
+    private SnapshotDeletionsInProgress deletionsInProgress() {
+        return clusterService().state().custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
     }
 
     private void assertSnapshotNotRecordedAsSuccessful(String repository, String snapshot) {

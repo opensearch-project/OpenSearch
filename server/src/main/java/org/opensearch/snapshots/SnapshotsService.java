@@ -3248,14 +3248,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
             } else {
+                // A hung delete must self-terminate. The timeout routes into the failure arm below, which removes the delete
+                // entry from the cluster state; that release lets a queued delete be promoted instead of queueing forever.
+                // The failure arm deliberately passes the pre-delete repositoryData and does not assert that the snapshot ids
+                // are absent from it, because an interrupted delete may well have left them present.
+                //
+                // Only the standard full-copy path is wrapped. The remote-store shallow-copy branch above is out of scope: its
+                // delete-while-in-progress rejection is a deliberate invariant and is left unchanged.
+                final ActionListener<RepositoryData> deleteListener = withRepositoryIoTimeout(ActionListener.wrap(updatedRepoData -> {
+                    logger.info("snapshots {} deleted", snapshotIds);
+                    removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)),
+                    "delete snapshots " + snapshotIds + " from repository [" + deleteEntry.repository() + "]"
+                );
                 repository.deleteSnapshots(
                     snapshotIds,
                     repositoryData.getGenId(),
                     minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    ActionListener.wrap(updatedRepoData -> {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                    deleteListener
                 );
             }
         }
