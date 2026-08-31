@@ -3094,6 +3094,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 } else {
                     addDeleteListener(newDelete.uuid(), listener);
                     if (reusedExistingDelete) {
+                        // A duplicate delete normally just attaches a listener to the delete already in flight. That is wrong
+                        // when the earlier attempt has terminated without clearing its cluster state entry -- for instance
+                        // after a repository I/O timeout -- because then nothing is driving the entry and the caller would
+                        // wait forever on a delete nobody owns.
+                        //
+                        // Both guards below are required, and they are simultaneously true only in exactly that case:
+                        // isNotRunning says no thread owns this delete, and tryEnterRepoLoop says the repository loop is free.
+                        // A healthy in-flight delete holds at least one of them, so today's attach-and-wait behaviour is kept.
+                        if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)
+                            && newDelete.state() == SnapshotDeletionsInProgress.State.STARTED
+                            && repositoryOperations.isNotRunning(newDelete.uuid())
+                            && tryEnterRepoLoop(repoName)) {
+                            logger.info("Re-driving delete [{}] whose previous attempt terminated without completing", newDelete);
+                            // Reads the repository afresh: the captured repositoryData predates the abandoned attempt, and that
+                            // attempt may have advanced the repository generation before it was dropped.
+                            redriveDeleteFromRepository(newDelete, newState.nodes().getMinNodeVersion());
+                        }
                         return;
                     }
                     if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
@@ -3175,6 +3192,42 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + "] in cluster state and ["
                         + repositoryData.getGenId()
                         + "] in the repository";
+                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                clusterService.submitStateUpdateTask(
+                    "fail repo tasks for [" + deleteEntry.repository() + "]",
+                    new FailPendingRepoTasksTask(deleteEntry.repository(), e)
+                );
+            }
+        });
+    }
+
+    /**
+     * Re-drives a delete whose previous attempt terminated without clearing its cluster state entry, for instance after a repository
+     * I/O timeout. The caller must hold the repository loop and must have established that no thread owns the delete.
+     * <p>
+     * This deliberately does not share {@link #deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry, Version)}: that method
+     * asserts the repository generation still matches the one recorded in the delete entry, which is not an invariant here. The
+     * abandoned attempt may have advanced the generation before it was dropped -- indeed it may have completed the repository work
+     * altogether, in which case there is nothing left to delete and only the cluster state entry needs clearing.
+     *
+     * @param deleteEntry    delete entry to re-drive
+     * @param minNodeVersion minimum node version in the cluster
+     */
+    private void redriveDeleteFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry, Version minNodeVersion) {
+        repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<RepositoryData>() {
+            @Override
+            public void onResponse(RepositoryData repositoryData) {
+                if (repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)) {
+                    // The abandoned attempt did reach the repository after all. Removing the entry resolves the waiting
+                    // listeners and releases both the delete bookkeeping and the repository loop.
+                    logger.info("Delete [{}] was already applied to the repository; clearing its cluster state entry", deleteEntry);
+                    removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
+                    return;
+                }
                 deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
             }
 

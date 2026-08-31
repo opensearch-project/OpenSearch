@@ -159,4 +159,26 @@ public class DeleteSnapshotRetryTests extends OpenSearchTestCase {
             snapshotsService.createRunReadyDeletionsTask(1, RepositoryData.EMPTY, "test-repo")
         );
     }
+
+    /**
+     * isNotRunning is one of the two guards on the duplicate-delete re-drive. It must report "not running" only when no thread owns
+     * the delete, which is what distinguishes an abandoned delete from a healthy in-flight one.
+     */
+    public void testIsNotRunningTracksDeleteOwnership() {
+        final SnapshotDeletionsInProgress.Entry entry = deleteEntry();
+
+        assertTrue("an unknown delete is not running", snapshotsService.repositoryOperations.isNotRunning(entry.uuid()));
+
+        assertTrue(snapshotsService.repositoryOperations.startDeletion(entry.uuid()));
+        assertFalse("a delete being executed is running", snapshotsService.repositoryOperations.isNotRunning(entry.uuid()));
+
+        assertFalse(
+            "a second start must not claim an already-running delete",
+            snapshotsService.repositoryOperations.startDeletion(entry.uuid())
+        );
+        assertFalse(snapshotsService.repositoryOperations.isNotRunning(entry.uuid()));
+
+        snapshotsService.repositoryOperations.finishDeletion(entry.uuid());
+        assertTrue("a released delete is available to be re-driven", snapshotsService.repositoryOperations.isNotRunning(entry.uuid()));
+    }
 }

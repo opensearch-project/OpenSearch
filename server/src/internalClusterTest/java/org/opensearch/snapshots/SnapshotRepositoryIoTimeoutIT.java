@@ -108,6 +108,70 @@ public class SnapshotRepositoryIoTimeoutIT extends AbstractSnapshotIntegTestCase
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "snap-2").get());
     }
 
+    public void testHungDeleteTimesOutBeforeRepositoryIsMutated() throws Exception {
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepository("test-repo", "mock");
+        createIndexWithContent("test-idx");
+        createFullSnapshot("test-repo", "snap-1");
+
+        // Blocking on the first repository file touched means the delete times out with the snapshot ids still present in the
+        // repository data. The removal must therefore take the failure path, which does not assert their absence.
+        blockNodeOnAnyFiles("test-repo", clusterManagerName);
+        final ActionFuture<AcknowledgedResponse> blockedDelete = deleteSnapshot("test-repo", "snap-1");
+        waitForBlock(clusterManagerName, "test-repo", TimeValue.timeValueSeconds(30));
+
+        assertBusy(() -> assertTrue("delete marker should be gone", deletionsInProgress().getEntries().isEmpty()), 60, TimeUnit.SECONDS);
+        expectThrows(Exception.class, blockedDelete::actionGet);
+
+        unblockNode("test-repo", clusterManagerName);
+        assertBusy(() -> assertTrue("delete marker must not reappear", deletionsInProgress().getEntries().isEmpty()), 30, TimeUnit.SECONDS);
+    }
+
+    public void testHealthyDuplicateDeleteAttachesInsteadOfRedriving() throws Exception {
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepository("test-repo", "mock");
+        createIndexWithContent("test-idx");
+        createFullSnapshot("test-repo", "snap-1");
+
+        logger.info("--> raise the io_timeout so no timeout fires: this test is about a HEALTHY in-flight delete");
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(30))
+                        .build()
+                )
+                .get()
+        );
+
+        // Block on the first repository file touched, before the delete mutates the repository data, so a duplicate delete can
+        // still resolve the snapshot name.
+        blockNodeOnAnyFiles("test-repo", clusterManagerName);
+        final ActionFuture<AcknowledgedResponse> firstDelete = deleteSnapshot("test-repo", "snap-1");
+        waitForBlock(clusterManagerName, "test-repo", TimeValue.timeValueSeconds(30));
+
+        logger.info("--> a duplicate delete must attach to the running one, not re-drive it");
+        final ActionFuture<AcknowledgedResponse> duplicateDelete = deleteSnapshot("test-repo", "snap-1");
+        assertBusy(
+            () -> assertEquals("exactly one delete entry expected", 1, deletionsInProgress().getEntries().size()),
+            30,
+            TimeUnit.SECONDS
+        );
+        assertFalse("the duplicate must wait, not complete on its own", duplicateDelete.isDone());
+
+        unblockNode("test-repo", clusterManagerName);
+
+        assertAcked(firstDelete.actionGet());
+        assertAcked(duplicateDelete.actionGet());
+        assertBusy(() -> assertTrue(deletionsInProgress().getEntries().isEmpty()), 30, TimeUnit.SECONDS);
+    }
+
     private SnapshotsInProgress snapshotsInProgress() {
         return clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
     }
