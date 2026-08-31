@@ -508,7 +508,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
         if (aggTestThreadPool == null) {
             aggTestThreadPool = new TestThreadPool("agg_test");
-            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
+            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY);
         }
         when(searchContext.bitsetFilterCache()).thenReturn(
             new BitsetFilterCache(indexSettings, aggTestIndicesBitsetFilterCache, mock(BitsetFilterCache.Listener.class))

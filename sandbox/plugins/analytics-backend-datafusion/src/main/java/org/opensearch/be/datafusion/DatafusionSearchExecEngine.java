@@ -38,7 +38,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
     @Override
     public void prepare(ShardScanExecutionContext requestContext) {
         byte[] substraitBytes = requestContext.getFragmentBytes();
-        long contextId = datafusionContext.task() != null ? datafusionContext.task().getId() : 0L;
+        long contextId = datafusionContext.task() != null ? datafusionContext.task().getNativeTaskId() : 0L;
         datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }
 
@@ -48,19 +48,28 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         if (allocator == null) {
             throw new IllegalStateException("ExecutionContext.allocator must be set by the caller before execute()");
         }
+        // Node-scoped and unbounded — batches are imported onto it and the Flight transport keeps charging it
+        // after this stream closes, so it must be supplied rather than minted per stream.
+        BufferAllocator stagingAllocator = requestContext.getImportStagingAllocator();
+        if (stagingAllocator == null) {
+            throw new IllegalStateException("ExecutionContext.importStagingAllocator must be set by the caller before execute()");
+        }
 
         // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
         // immediately fires the Rust CancellationToken.
         long contextId = datafusionContext.getContextId();
-        AnalyticsShardTask shardTask = datafusionContext.task() instanceof AnalyticsShardTask t ? t : null;
+        AnalyticsShardTask shardTask = datafusionContext.task();
         if (shardTask != null) {
-            shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
+            // Additive: a worker fragment also registers a shuffle-buffer-cleanup cancel hook on this
+            // same task. setCancellationListener is single-slot and would let one overwrite the other;
+            // addCancellationListener composes so both native-cancel and buffer cleanup fire.
+            shardTask.addCancellationListener(() -> NativeBridge.cancelQuery(contextId));
         }
 
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        return new DatafusionResultStream(handle, allocator);
+        return new DatafusionResultStream(handle, allocator, stagingAllocator);
     }
 
     @Override

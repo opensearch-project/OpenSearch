@@ -56,9 +56,20 @@ public class AnalyticsQueryTaskCancellationCallbackTests extends OpenSearchTestC
         task.cancel("no callback installed");
     }
 
-    public void testSecondSetThrows() {
+    public void testSecondSetReplacesPreviousCallback() {
+        // Replace-semantics is load-bearing: multi-phase drivers (UnifiedDispatch's broadcast-capture →
+        // residual-dispatch handoff, QueryScheduler) install a temporary callback for phase 1, then replace
+        // it when phase 2 begins so cancel routes to the active phase's walker. The second set must win and
+        // the first must NOT fire on cancel.
         AnalyticsQueryTask task = createTask();
-        task.setOnCancelCallback(() -> {});
-        expectThrows(IllegalStateException.class, () -> task.setOnCancelCallback(() -> {}));
+        AtomicInteger first = new AtomicInteger();
+        AtomicInteger second = new AtomicInteger();
+        task.setOnCancelCallback(first::incrementAndGet);
+        task.setOnCancelCallback(second::incrementAndGet);
+
+        task.cancel("after replace");
+
+        assertEquals("replaced (first) callback must not fire", 0, first.get());
+        assertEquals("active (second) callback fires exactly once", 1, second.get());
     }
 }
