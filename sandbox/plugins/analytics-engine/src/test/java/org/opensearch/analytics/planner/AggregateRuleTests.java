@@ -15,12 +15,15 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlBasicAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -319,13 +322,23 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     // ---- Operator resolution ----
 
-    /**
-     * Exact {@code COUNT(DISTINCT x)} is rewritten to {@code APPROX_COUNT_DISTINCT(x)} on the
-     * analytics-engine route — the resulting aggregate uses the standard approximate operator and
-     * is no longer marked {@code isDistinct}, so it routes through the APPROXIMATE
-     * single-stage gather path rather than the additive partial/final split.
-     */
-    public void testCountDistinctRewrittenToApproxCountDistinct() {
+    /** A UDF aggregation named "APPROX_COUNT_DISTINCT" that is NOT the Calcite stdop — mimics PPL's distinct_count_approx marker. */
+    private static final SqlAggFunction PPL_APPROX_MARKER = new SqlAggFunction(
+        "APPROX_COUNT_DISTINCT",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BIGINT,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** Exact {@code COUNT(DISTINCT x)} (dc()/distinct_count()/SQL) is NOT rewritten — it stays exact. */
+    public void testCountDistinctStaysExact() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
         AggregateCall countDistinct = AggregateCall.create(
             SqlStdOperatorTable.COUNT,
@@ -337,6 +350,45 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             "dc"
         );
         OpenSearchAggregate agg = runAggregate(1, countDistinct);
+        assertEquals(1, agg.getAggCallList().size());
+        AggregateCall rebuilt = agg.getAggCallList().get(0);
+        assertSame("COUNT(DISTINCT) must stay exact, not be rewritten to APPROX", SqlStdOperatorTable.COUNT, rebuilt.getAggregation());
+        assertTrue("isDistinct must be preserved on the exact COUNT(DISTINCT) call", rebuilt.isDistinct());
+    }
+
+    /** Multi-arg {@code COUNT(DISTINCT x, y)} is not the single-arg approx marker, so it also falls through as exact. */
+    public void testMultiArgCountDistinctStaysExact() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        AggregateCall countDistinct = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            true,
+            List.of(0, 1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        RelNode result = runPlanner(makeAggregate(scan, ImmutableBitSet.of(), countDistinct), defaultContext(1));
+        String plan = RelOptUtil.toString(result);
+        assertTrue(
+            "multi-arg COUNT(DISTINCT) must stay exact, not be rewritten to APPROX",
+            plan.contains("COUNT(DISTINCT") && plan.contains("APPROX_COUNT_DISTINCT") == false
+        );
+    }
+
+    /** PPL's explicit {@code distinct_count_approx} marker IS rewritten to the APPROX_COUNT_DISTINCT stdop (HLL). */
+    public void testDistinctCountApproxMarkerRewritten() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        AggregateCall marker = AggregateCall.create(
+            PPL_APPROX_MARKER,
+            false,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "dc"
+        );
+        OpenSearchAggregate agg = runAggregate(1, marker);
         assertEquals(1, agg.getAggCallList().size());
         AggregateCall rebuilt = agg.getAggCallList().get(0);
         assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, rebuilt.getAggregation());
@@ -394,26 +446,23 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         assertFalse("isDistinct must be cleared on the rewritten call", rebuilt.isDistinct());
     }
 
-    /**
-     * COUNT(DISTINCT smallint_col) inserts a widening CAST(col AS INTEGER) below the aggregate
-     * so DataFusion uses HLL (Binary state) instead of bitmap (List state).
-     */
-    public void testCountDistinctOnSmallintWidensToInteger() {
+    /** Widening SMALLINT→INTEGER is an APPROX-path concern (forces HLL, not the bitmap accumulator), so it now fires only for the explicit approx marker. */
+    public void testApproxCountDistinctOnSmallintWidensToInteger() {
         RelNode scan = stubScan(
             mockTable("test_index", new String[] { "status", "size" }, new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.SMALLINT })
         );
-        AggregateCall countDistinct = AggregateCall.create(
-            SqlStdOperatorTable.COUNT,
-            true,
+        AggregateCall marker = AggregateCall.create(
+            PPL_APPROX_MARKER,
+            false,
             List.of(1),
             -1,
             scan,
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "dc"
         );
-        RelNode result = runPlanner(makeAggregate(scan, countDistinct), defaultContext(1));
+        RelNode result = runPlanner(makeAggregate(scan, marker), defaultContext(1));
         String plan = RelOptUtil.toString(result);
-        logger.info("Full plan with SMALLINT dc:\n{}", plan);
+        logger.info("Full plan with SMALLINT approx dc:\n{}", plan);
         assertTrue("Plan must contain CAST to widen SMALLINT to INTEGER", plan.contains("CAST") && plan.contains("INTEGER"));
     }
 

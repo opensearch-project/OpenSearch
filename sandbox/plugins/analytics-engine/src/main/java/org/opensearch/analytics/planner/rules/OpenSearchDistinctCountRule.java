@@ -17,7 +17,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.RelBuilder;
@@ -26,10 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Rewrites single-arg {@code COUNT(DISTINCT x)} and PPL's {@code distinct_count_approx(x)} UDAF
- * marker to {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} before the aggregate is marked by
- * {@link OpenSearchAggregateRule}, so substrait dispatch resolves by operator identity. Multi-arg
- * distinct falls through to coordinator-gather in {@link OpenSearchAggregateSplitRule}.
+ * Rewrites PPL's explicit {@code distinct_count_approx(x)} marker (a UDAF named "APPROX_COUNT_DISTINCT",
+ * not the Calcite stdop) to {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} so substrait dispatch resolves
+ * by operator identity (engine-native HLL merge). Exact {@code COUNT(DISTINCT x)} stays exact; approx is opt-in.
  *
  * @opensearch.internal
  */
@@ -101,13 +99,9 @@ public class OpenSearchDistinctCountRule extends RelOptRule {
         return relBuilder.build();
     }
 
-    /** True when the call is a single-arg COUNT(DISTINCT) or PPL's distinct_count_approx UDAF. */
+    /** True only for PPL's explicit {@code distinct_count_approx} marker; exact {@code COUNT(DISTINCT)} stays exact. */
     private static boolean needsRewriteToApprox(AggregateCall call) {
-        return isSingleArgCountDistinct(call) || isPplDistinctCountApproxUdf(call);
-    }
-
-    private static boolean isSingleArgCountDistinct(AggregateCall call) {
-        return call.getAggregation().getKind() == SqlKind.COUNT && call.isDistinct() && call.getArgList().size() == 1;
+        return isPplDistinctCountApproxUdf(call);
     }
 
     /** PPL's distinct_count_approx is a UDF named "APPROX_COUNT_DISTINCT" that is not the stdop. */

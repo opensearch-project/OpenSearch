@@ -179,11 +179,17 @@ public class TopKRewriterPlanShapeTests extends PlanShapeTestBase {
         assertEquals("expected 2 Sorts (coord + per-partition)", 2, sortCount);
     }
 
-    /** dc(x) by group + sort + head: APPROX_COUNT_DISTINCT splits with TopK reduce_eval. */
+    /** approx distinct_count_approx(x) by group + sort + head: APPROX_COUNT_DISTINCT splits with TopK reduce_eval. */
     public void testRewrite_dcByGroup_splitAndTopK() {
         RelOptTable table = mockTable("test_index", "status", "size");
         RelNode scan = stubScan(table);
-        LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(countDistinctCall(scan)));
+        LogicalAggregate agg = LogicalAggregate.create(
+            scan,
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(approxCountDistinctCall(scan))
+        );
         RelNode sort = LogicalSort.create(
             agg,
             RelCollations.of(new RelFieldCollation(1, RelFieldCollation.Direction.DESCENDING)),
