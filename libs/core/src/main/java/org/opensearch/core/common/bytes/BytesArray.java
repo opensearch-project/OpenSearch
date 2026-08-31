@@ -67,12 +67,12 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     /**
-     * Validates that a UTF-16 string can be UTF-8 encoded into a Lucene {@link BytesRef} without integer overflow in
-     * {@code UnicodeUtil#maxUTF8Length(int)}.
+     * Validates that a UTF-16 string can be UTF-8 encoded into a Lucene {@code BytesRef} without integer overflow in
+     * {@code UnicodeUtil#maxUTF8Length(int)}. Package-private: the only callers are this class and its tests.
      *
      * @param utf16Length UTF-16 length of the string to encode
      */
-    public static void ensureUTF16LengthIsValidForUTF8Encoding(int utf16Length) {
+    static void ensureUTF16LengthIsValidForUTF8Encoding(int utf16Length) {
         if ((long) utf16Length * MAX_UTF8_BYTES_PER_CHAR > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
                 "UTF16 string length ["

@@ -44,7 +44,6 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.shard.ShardId;
@@ -70,20 +69,30 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BytesRestResponseTests extends OpenSearchTestCase {
 
     /**
-     * Reproducer for opensearch-project/OpenSearch#22311 Bug A: {@link BytesRestResponse} maps overflow guard failures to
-     * HTTP 413 instead of surfacing a raw {@link ArithmeticException} from Lucene.
+     * Drives an oversized string through the public constructor, so this fails if the guard is ever unwired from
+     * {@link BytesRestResponse#BytesRestResponse(RestStatus, String, String)}.
+     * <p>
+     * The guard trips above {@code Integer.MAX_VALUE / 3} UTF-16 chars, so the smallest string that reaches it is
+     * 715,827,883 chars - roughly 683 MiB as a Latin-1 compact string. That fits comfortably in the test heap, which
+     * {@code build.gradle} fixes at {@code options.forkOptions.memoryMaximumSize} (3g) for every forked test JVM. The
+     * assumption below is insurance in case that value is ever lowered; it is not reachable through
+     * {@code -Dtests.heap.size}, which the same assignment overrides. Only the string has to fit, because the guard
+     * throws before {@code BytesRef} allocates its {@code maxUTF8Length} byte array.
      */
-    public void testToBytesArrayMapsOverflowGuardFailureToRequestEntityTooLarge() {
-        int overflowingLength = (Integer.MAX_VALUE / 3) + 1;
-        IllegalArgumentException cause = expectThrows(
-            IllegalArgumentException.class,
-            () -> BytesArray.ensureUTF16LengthIsValidForUTF8Encoding(overflowingLength)
+    public void testStringConstructorMapsOversizedContentToRequestEntityTooLarge() {
+        final int overflowingLength = (Integer.MAX_VALUE / 3) + 1;
+        assumeTrue("needs ~683MiB of heap to build the oversized string", Runtime.getRuntime().maxMemory() >= 1_500_000_000L);
+
+        final String oversized = "a".repeat(overflowingLength);
+
+        OpenSearchStatusException exception = expectThrows(
+            OpenSearchStatusException.class,
+            () -> new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, oversized)
         );
 
-        OpenSearchStatusException exception = BytesRestResponse.overflowGuardFailureToRequestEntityTooLarge(cause);
-
         assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, exception.status());
-        assertSame(cause, exception.getCause());
+        assertThat(exception.getMessage(), containsString("UTF16 string length"));
+        assertThat(exception.getMessage(), containsString(String.valueOf(overflowingLength)));
     }
 
     class UnknownException extends Exception {
