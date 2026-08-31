@@ -27,11 +27,18 @@ public class ShardScanWithDelegationInstructionNode extends ShardScanInstruction
     private final int delegatedPredicateCount;
 
     public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
-        this(treeShape, delegatedPredicateCount, false);
+        this(treeShape, delegatedPredicateCount, false, null);
     }
 
-    public ShardScanWithDelegationInstructionNode(FilterTreeShape treeShape, int delegatedPredicateCount, boolean requestsRowIds) {
-        super(requestsRowIds);
+    // treeShape/delegatedPredicateCount/requestsRowIds are upstream's params; logicalTableName is our
+    // feature-branch addition, appended last.
+    public ShardScanWithDelegationInstructionNode(
+        FilterTreeShape treeShape,
+        int delegatedPredicateCount,
+        boolean requestsRowIds,
+        String logicalTableName
+    ) {
+        super(requestsRowIds, logicalTableName);
         this.treeShape = treeShape;
         this.delegatedPredicateCount = delegatedPredicateCount;
     }

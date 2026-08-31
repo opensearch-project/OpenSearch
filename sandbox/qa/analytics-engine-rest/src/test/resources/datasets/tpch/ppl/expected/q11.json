@@ -1,0 +1,15 @@
+{
+  "schema" : [
+    {
+      "name" : "ps_partkey",
+      "type" : "bigint"
+    },
+    {
+      "name" : "value",
+      "type" : "double"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

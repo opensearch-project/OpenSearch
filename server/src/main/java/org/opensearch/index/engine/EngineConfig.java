@@ -378,6 +378,10 @@ public final class EngineConfig {
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
             .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
+            .dataFormatRegistry(this.dataFormatRegistry)
+            .mapperService(this.mapperService)
+            .committerFactory(this.committerFactory)
+            .checksumStrategies(this.checksumStrategies)
             .documentLookupProvider(this.documentLookupProvider)
             .documentMetadataResolver(this.documentMetadataResolver);
     }
@@ -615,6 +619,14 @@ public final class EngineConfig {
          * Creates a tombstone document for a delete operation.
          */
         ParsedDocument newDeleteTombstoneDoc(String id);
+
+        /**
+         * Creates a tombstone document for a delete operation with routing.
+         * Default ignores routing for backward compatibility; override to preserve it.
+         */
+        default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+            return newDeleteTombstoneDoc(id);
+        }
 
         /**
          * Creates a tombstone document for a noop operation.

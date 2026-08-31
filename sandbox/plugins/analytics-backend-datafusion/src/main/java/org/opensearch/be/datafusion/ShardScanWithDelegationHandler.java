@@ -57,7 +57,10 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
-        String tableName = context.getTableName();
+        // The coordinator captured the logical table name (alias / index pattern / index the query
+        // referenced) from the plan's table-scan leaf. Register the shard's table under it so the
+        // Substrait plan's NamedTable binds. Fall back to the concrete shard index name when absent.
+        String tableName = node.getLogicalTableName() != null ? node.getLogicalTableName() : context.getTableName();
         FilterTreeShape treeShape = node.getTreeShape();
         int delegatedPredicateCount = node.getDelegatedPredicateCount();
 
