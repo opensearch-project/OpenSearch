@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Snapshots an {@link ExecutionGraph} into a {@link QueryProfile}. Pure read — no
@@ -128,6 +129,28 @@ public final class QueryProfileBuilder {
         static final DataNodePayload EMPTY = new DataNodePayload(null, null);
     }
 
+    /**
+     * DataFusion's plan {@code Display} impl for file-scan nodes (e.g. {@code DataSourceExec},
+     * {@code ParquetExec}) always embeds the real storage location(s) it's reading from —
+     * local filesystem paths, or object-store URIs/keys when backed by S3/GCS/Azure. That's
+     * appropriate detail for a physical plan, but the profile API can expose it to any caller
+     * already authorized to run the query, which is more than they need to see. Strips the
+     * path list while preserving the group count, which is still useful for diagnosing scan
+     * fan-out (how many files/partitions were touched) without leaking storage layout.
+     *
+     * <p>Matches {@code file_groups={N group(s): [[...]]}} — there are no nested {@code {}} in
+     * this segment (only {@code []} nesting for multiple groups/files), so {@code [^}]*} safely
+     * spans across any number of bracketed sub-lists up to the next closing brace.
+     */
+    private static final Pattern FILE_GROUPS_PATTERN = Pattern.compile("file_groups=\\{(\\d+ groups?): [^}]*\\}");
+
+    // Package-private (not private) so FILE_GROUPS_PATTERN's behavior can be unit-tested
+    // directly without constructing a full ExecutionGraph/Stage/QueryContext fixture.
+    static String redactPhysicalPlan(String plan) {
+        if (plan == null) return null;
+        return FILE_GROUPS_PATTERN.matcher(plan).replaceAll("file_groups={$1: <redacted>}");
+    }
+
     @SuppressWarnings("unchecked")
     private static DataNodePayload parseDataNodePayload(byte[] json) {
         if (json == null || json.length == 0) return DataNodePayload.EMPTY;
@@ -139,7 +162,7 @@ public final class QueryProfileBuilder {
             Map<String, Long> metrics = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : raw.entrySet()) {
                 if ("physical_plan".equals(entry.getKey()) && entry.getValue() instanceof String s) {
-                    physicalPlan = s;
+                    physicalPlan = redactPhysicalPlan(s);
                 } else if (entry.getValue() instanceof Number n) {
                     metrics.put(entry.getKey(), n.longValue());
                 }
