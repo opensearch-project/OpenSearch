@@ -84,25 +84,13 @@ opensearch-repository-azure = { path = "../../../plugins/native-repository-azure
 opensearch-repository-fs = { path = "../../../plugins/native-repository-fs/src/main/rust" }
 
 [patch.crates-io]
-# arrow-rs pinned to a fork that adds forward-cursor APIs to ParquetRecordBatchReader
-# (skip_rows / read_next_batch / set_batch_size) for the Parquet doc-values reader.
-# These need the parquet crate's internals, so they live in the fork. Every arrow/parquet
-# crate in the dependency graph is repointed so a single arrow version is used throughout.
-arrow = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-arith = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-array = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-buffer = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-cast = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-csv = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-data = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-ipc = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-json = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-ord = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-row = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-schema = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-select = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-arrow-string = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
-parquet = { git = "https://github.com/bharath-techie/arrow-rs.git", rev = "38b2f7a6a7f58d0dde9f932be1497444f7646a4c" }
+# parquet 58.3.0 plus forward-cursor APIs on ParquetRecordBatchReader (skip_rows /
+# read_next_batch), which require the crate's private internals. The patch is maintained at
+# patches/parquet-58.3.0-forward-cursor.patch and applied to the checksum-verified crates.io
+# tarball by :sandbox:libs:dataformat-native:preparePatchedParquet, which must run once before
+# invoking cargo directly. Remove once the APIs land upstream (apache/arrow-rs#10655) and
+# DataFusion's arrow pin includes them. See patches/README.md.
+parquet = { path = "build/patched/parquet-58.3.0" }
 
 [profile.release]
 lto = true
