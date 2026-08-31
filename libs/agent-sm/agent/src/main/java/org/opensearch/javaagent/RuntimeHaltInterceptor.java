@@ -10,9 +10,9 @@ package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.javaagent.bootstrap.internal.StackCallerClassChainExtractor;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.lang.StackWalker.Option;
-import java.security.Policy;
 import java.util.Collection;
 
 import net.bytebuddy.asm.Advice;
@@ -32,7 +32,6 @@ public class RuntimeHaltInterceptor {
      * @throws Exception exceptions
      */
     @Advice.OnMethodEnter
-    @SuppressWarnings("removal")
     public static void intercept(int code) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
         if (policy == null) {
