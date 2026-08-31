@@ -106,8 +106,20 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
-            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+
+            Map<String, byte[]> shardMetrics = t.shardMetrics();
+            if (shardMetrics != null && shardMetrics.isEmpty() == false) {
+                // Multi-shard task (e.g. LATE_MATERIALIZATION): one profile per shard fetch, keyed
+                // by shard label. Elapsed is the stage-level wall clock (per-shard timing lives in
+                // each shard's data_node_metrics start/end timestamps).
+                for (Map.Entry<String, byte[]> shard : shardMetrics.entrySet()) {
+                    DataNodePayload payload = parseDataNodePayload(shard.getValue());
+                    out.add(new TaskProfile(shard.getKey(), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+                }
+            } else {
+                DataNodePayload payload = parseDataNodePayload(t.dataNodeMetrics());
+                out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed, payload.metrics, payload.physicalPlan));
+            }
         }
         return out;
     }
@@ -143,7 +155,11 @@ public final class QueryProfileBuilder {
             var target = shardTask.target();
             if (target instanceof ShardExecutionTarget shardTarget) {
                 String nodeId = shardTarget.node() != null ? shardTarget.node().getId() : "(unknown)";
-                return nodeId + "/shard[" + shardTarget.shardId().getId() + "]";
+                // Include the index name: shard IDs are only unique within an index, so a bare
+                // "node/shard[N]" collides (and can't be traced back to an index) if a query ever
+                // spans multiple indices. LM's per-shard label (LateMaterializationStageExecution)
+                // mirrors this exact format so the two stage types read identically in the profile.
+                return nodeId + "/" + shardTarget.shardId().getIndexName() + "/shard[" + shardTarget.shardId().getId() + "]";
             }
             return target.node() != null ? target.node().getId() : "(unknown)";
         }
