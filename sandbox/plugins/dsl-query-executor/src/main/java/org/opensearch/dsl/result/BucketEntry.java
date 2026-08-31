@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * A single bucket entry for response construction.
  *
- * @param keys the bucket key values (single for terms, multiple for multi_terms)
+ * @param keys the bucket key values — one per field in the declaring translator's grouping, in declaration order
  * @param docCount the document count for this bucket
  * @param subAggs the sub-aggregation results for this bucket
  */

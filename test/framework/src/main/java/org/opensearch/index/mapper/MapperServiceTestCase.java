@@ -53,6 +53,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
@@ -60,6 +62,7 @@ import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
@@ -96,6 +99,24 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();
+    }
+
+    /**
+     * Builds a {@link DataFormatRegistry} from any {@link DataFormatPlugin}s returned by {@link #getPlugins()},
+     * so tests exercising a pluggable data format get capability assignment during mapping build. Returns
+     * {@code null} when no data-format plugin is registered (the default), preserving existing behavior.
+     */
+    protected DataFormatRegistry getDataFormatRegistry() {
+        List<DataFormatPlugin> dataFormatPlugins = getPlugins().stream()
+            .filter(p -> p instanceof DataFormatPlugin)
+            .map(p -> (DataFormatPlugin) p)
+            .collect(toList());
+        if (dataFormatPlugins.isEmpty()) {
+            return null;
+        }
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(dataFormatPlugins);
+        return new DataFormatRegistry(pluginsService);
     }
 
     protected Settings getIndexSettings() {
@@ -175,7 +196,8 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
                 throw new UnsupportedOperationException();
             },
             () -> true,
-            scriptService
+            scriptService,
+            getDataFormatRegistry()
         );
         merge(mapperService, mapping);
         return mapperService;
@@ -211,7 +233,8 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
                 throw new UnsupportedOperationException();
             },
             () -> true,
-            scriptService
+            scriptService,
+            getDataFormatRegistry()
         );
         merge(mapperService, mapping);
         return mapperService;
