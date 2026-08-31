@@ -122,6 +122,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
+    /** Node-scoped Arrow import staging allocator, borrowed from the handle; never closed here. */
+    private final BufferAllocator importStagingAllocator;
     private volatile long perQueryBufferLimit;
     private volatile int preFilterShardSize;
     private volatile int maxConcurrentShardRequestsPerNode;
@@ -167,6 +169,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // parquet.native.pool.query.max take effect immediately via Arrow's parent-cap check
         // at allocateBytes — no listener needed.
         this.coordinatorAllocator = coordinatorAllocatorHandle.getAllocator();
+        this.importStagingAllocator = coordinatorAllocatorHandle.getImportStagingAllocator();
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
@@ -526,6 +529,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
                 ownsAllocator,
                 profile
             );
+            // Node-scoped and unbounded: coordinator-reduce batches are imported onto it and the Flight
+            // transport keeps charging it after the importing stream closes, so it must not be per-query.
+            context.setImportStagingAllocator(importStagingAllocator);
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;

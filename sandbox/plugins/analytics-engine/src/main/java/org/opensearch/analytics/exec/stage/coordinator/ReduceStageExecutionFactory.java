@@ -69,7 +69,8 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
             chosenBytes(stage),
             config.bufferAllocator(),
             buildChildInputs(stage),
-            sink
+            sink,
+            config.importStagingAllocator()
         );
 
         // Apply instruction handlers for the reduce stage.
@@ -134,7 +135,8 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
                 config.parentTask() != null ? config.parentTask().getNativeTaskId() : 0L,
                 config.bufferAllocator(),
                 config.queryId(),
-                stage.getStageId()
+                stage.getStageId(),
+                config.importStagingAllocator()
             );
             backendContext = producerState.getDelegate();
             context = new ExchangeSinkContext(

@@ -96,6 +96,19 @@ public class AnalyticsSearchService implements AutoCloseable {
     private org.opensearch.threadpool.ThreadPool threadPool;
     private org.opensearch.cluster.service.ClusterService clusterService;
     private final BufferAllocator allocator;
+    /**
+     * ONE node-scoped allocator that every backend stages its Arrow C Data Interface imports on, handed to
+     * the backends via {@link ShardScanExecutionContext#setImportStagingAllocator} and
+     * {@link AnalyticsSearchBackendPlugin#fetchByRowIds}. Deliberately not per-stream: the Flight transport
+     * builds its reused stream root on the first emitted batch's vector allocator and charges that same
+     * allocator for every later batch ({@code FlightServerChannel#transferIntoStreamRoot}: "The producer's
+     * allocator must be long-lived (not closed per-request)"), then frees it asynchronously with its own
+     * channel. A per-stream staging child therefore cannot be closed at stream close without racing the
+     * transport, and one that is left open instead stays registered in the root's {@code childAllocators}
+     * map for the node's lifetime ({@code BaseAllocator#newChildAllocator} registers unconditionally; only
+     * the child's own {@code close()} deregisters) — one stranded allocator per query.
+     */
+    private final BufferAllocator importStagingAllocator;
     private final ArrowNativeAllocator nativeAllocator;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowNativeAllocator nativeAllocator) {
@@ -130,13 +143,47 @@ public class AnalyticsSearchService implements AutoCloseable {
         // effect immediately via Arrow's parent-cap check at allocateBytes — no listener needed.
         BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
         this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, Long.MAX_VALUE);
+        // Parented at the ROOT rather than the query pool, and unbounded: a C Data import that fails
+        // part-way through an array strands the whole native batch (see
+        // ShardScanExecutionContext#getImportStagingAllocator), so the staging target must not be able to
+        // fill up before the pool itself is exhausted.
+        this.importStagingAllocator = allocator.getRoot().newChildAllocator("arrow-import-staging", 0, Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.readerContextStore = readerContextStore;
     }
 
     @Override
     public void close() {
-        allocator.close();
+        // finally, so a leak report from the service allocator cannot skip the staging allocator's release.
+        try {
+            allocator.close();
+        } finally {
+            // A stream still in flight at shutdown keeps its batches charged to the staging allocator until
+            // the Flight channel frees its stream root — and that free is posted to the flight executor,
+            // which may already refuse tasks (FlightServerChannel#close logs "root reclaimed at process
+            // exit"). Closing on a non-zero balance would throw from BaseAllocator#close AND strand the
+            // bytes, because close() sets isClosed before its leak check. Report and let process exit
+            // reclaim them instead.
+            long outstanding = importStagingAllocator.getAllocatedMemory();
+            if (outstanding == 0) {
+                importStagingAllocator.close();
+            } else {
+                LOGGER.warn(
+                    "Arrow import staging allocator [{}] still holds {} bytes at shutdown; reclaimed at process exit",
+                    importStagingAllocator.getName(),
+                    outstanding
+                );
+            }
+        }
+    }
+
+    /**
+     * The node-scoped allocator Arrow C Data imports are staged on. Owned (and closed) here; the
+     * coordinator-reduce path borrows the same one via {@code CoordinatorAllocatorHandle} so a node has
+     * exactly one, whatever the execution path.
+     */
+    public BufferAllocator getImportStagingAllocator() {
+        return importStagingAllocator;
     }
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
@@ -541,6 +588,7 @@ public class AnalyticsSearchService implements AutoCloseable {
                     ShardScanExecutionContext ctx = new ShardScanExecutionContext(/* tableName */ "", task, /* reader */ null);
                     ctx.setFragmentBytes(plan.getFragmentBytes());
                     ctx.setAllocator(allocator);
+                    ctx.setImportStagingAllocator(importStagingAllocator);
                     ctx.setNamedWriteableRegistry(namedWriteableRegistry);
                     ctx.setShuffleBufferRegistry(shuffleBufferRegistry);
 
@@ -760,7 +808,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                 rowIdVector,
                 columns,
                 allocator,
-                task.getNativeTaskId()
+                task.getNativeTaskId(),
+                importStagingAllocator
             );
             // FragmentResources keeps the rowIdVector alive until the stream drains — closing
             // it earlier would pull off-heap memory out from under the native FFM call.
@@ -956,7 +1005,8 @@ public class AnalyticsSearchService implements AutoCloseable {
             ctx.getTask() == null ? 0L : ctx.getTask().getId(),
             ctx.getAllocator(),
             queryId,
-            stageId
+            stageId,
+            importStagingAllocator
         );
     }
 
@@ -1095,6 +1145,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         ShardScanExecutionContext ctx = new ShardScanExecutionContext(tableName, task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
         ctx.setAllocator(allocator);
+        ctx.setImportStagingAllocator(importStagingAllocator);
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);

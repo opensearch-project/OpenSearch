@@ -70,7 +70,8 @@ public final class ShuffleProducerSinkBuilder {
         long taskId,
         BufferAllocator allocator,
         String queryId,
-        int stageId
+        int stageId,
+        BufferAllocator importStagingAllocator
     ) {
         if (!isReady()) {
             throw new IllegalStateException(
@@ -93,7 +94,13 @@ public final class ShuffleProducerSinkBuilder {
             new byte[0],
             allocator,
             List.of(),
-            /* downstream */ null
+            /* downstream */ null,
+            // Staging allocator for Arrow C-Data import, passed EXPLICITLY rather than via the
+            // convenience constructor: that overload substitutes the query allocator, which is
+            // bounded by the query pool. A C Data import that fails part-way through an array
+            // strands the whole native batch, so the staging target must not be able to fill up
+            // before the pool itself is exhausted — hence the root-parented, unbounded one.
+            importStagingAllocator
         );
         return provider.createPartitionedSink(
             producerState.getHashKeyChannels(),
