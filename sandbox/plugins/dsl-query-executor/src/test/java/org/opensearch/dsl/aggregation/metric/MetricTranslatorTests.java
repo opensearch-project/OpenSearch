@@ -13,6 +13,8 @@ import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.ValidationResult;
+import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -90,5 +92,25 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
     public void testNullMetadataStaysNull() {
         assertNull(new AvgMetricTranslator().toInternalAggregation("a", 1.0, null).getMetadata());
         assertNull(new MaxMetricTranslator().toInternalAggregation("mx", null, null).getMetadata());
+    }
+
+    // ---- validate(): metric parameter gating ----
+
+    public void testValidateAcceptsPlainMetric() {
+        assertTrue(new AvgMetricTranslator().validate(new AvgAggregationBuilder("avg_price").field("price")).isAccepted());
+    }
+
+    public void testValidateRejectsMissing() {
+        ValidationResult result = new AvgMetricTranslator().validate(new AvgAggregationBuilder("avg_price").field("price").missing(0));
+        assertFalse(result.isAccepted());
+        assertEquals("avg.missing", result.reasonCode());
+    }
+
+    public void testValidateRejectsScript() {
+        ValidationResult result = new AvgMetricTranslator().validate(
+            new AvgAggregationBuilder("avg_price").script(new Script("doc['price'].value"))
+        );
+        assertFalse(result.isAccepted());
+        assertEquals("avg.script", result.reasonCode());
     }
 }

@@ -8,7 +8,7 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
-import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -17,11 +17,13 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -318,9 +320,11 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
     public void testValidateRejectsDateField() {
         TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created");
 
-        ConversionException e = expectThrows(ConversionException.class, () -> translator.validate(dateAgg));
+        ValidationResult result = translator.validate(dateAgg);
 
-        assertTrue(e.getMessage().contains("date field [created]"));
+        assertFalse(result.isAccepted());
+        assertEquals("terms.date_field", result.reasonCode());
+        assertTrue(result.message().contains("date field [created]"));
     }
 
     public void testValidateRejectsDateNanosField() {
@@ -332,20 +336,49 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
 
         TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created_nanos");
 
-        ConversionException e = expectThrows(ConversionException.class, () -> nanosTranslator.validate(dateAgg));
+        ValidationResult result = nanosTranslator.validate(dateAgg);
 
-        assertTrue(e.getMessage().contains("date field [created_nanos]"));
+        assertFalse(result.isAccepted());
+        assertTrue(result.message().contains("date field [created_nanos]"));
     }
 
     /** Mapping-dependent validation is skipped when no MapperService is supplied (conversion-only use). */
-    public void testValidateSkipsMappingChecksWithoutMapperService() throws Exception {
+    public void testValidateSkipsMappingChecksWithoutMapperService() {
         TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created");
 
-        unmappedTranslator.validate(dateAgg); // must not throw
+        assertTrue(unmappedTranslator.validate(dateAgg).isAccepted()); // no MapperService → date check skipped
     }
 
-    public void testValidateAcceptsNonDateMappedField() throws Exception {
-        translator.validate(brandAgg); // must not throw
+    public void testValidateAcceptsNonDateMappedField() {
+        assertTrue(translator.validate(brandAgg).isAccepted());
+    }
+
+    public void testValidateRejectsIncludeExclude() {
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("by_brand").field("brand");
+        agg.includeExclude(new IncludeExclude("Brand.*", null));
+
+        ValidationResult result = translator.validate(agg);
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.include_exclude", result.reasonCode());
+    }
+
+    public void testValidateRejectsScript() {
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("by_brand").script(new Script("doc['brand'].value"));
+
+        ValidationResult result = translator.validate(agg);
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.script", result.reasonCode());
+    }
+
+    public void testValidateRejectsMinDocCountZero() {
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("by_brand").field("brand").minDocCount(0);
+
+        ValidationResult result = translator.validate(agg);
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.min_doc_count", result.reasonCode());
     }
 
     // ---- Pushdown mode: totals-derived sum_other_doc_count ----

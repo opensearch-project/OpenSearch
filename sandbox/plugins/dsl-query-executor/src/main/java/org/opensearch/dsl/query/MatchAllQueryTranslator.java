@@ -28,6 +28,12 @@ public class MatchAllQueryTranslator implements QueryTranslator {
         return MatchAllQueryBuilder.class;
     }
 
+    /** Accepts every match_all query: {@link #convert} rejects no parameter, so routing mirrors conversion. */
+    @Override
+    public ValidationResult validate(QueryBuilder query) {
+        return ValidationResult.accepted();
+    }
+
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) {
         return ctx.getRexBuilder().makeLiteral(true);

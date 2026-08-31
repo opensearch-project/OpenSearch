@@ -25,6 +25,12 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
     private final TermQueryTranslator translator = new TermQueryTranslator();
     private final ConversionContext ctx = TestUtils.createContext();
 
+    public void testValidateAcceptsAnyTermQuery() {
+        // term's validate() is a blanket accept: convert() rejects no parameter, so routing mirrors it.
+        assertTrue(translator.validate(QueryBuilders.termQuery("name", "laptop")).isAccepted());
+        assertTrue(translator.validate(QueryBuilders.termQuery("name", "laptop").boost(2.0f)).isAccepted());
+    }
+
     public void testConvertsTermQueryToEquals() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.termQuery("name", "laptop"), ctx);
 

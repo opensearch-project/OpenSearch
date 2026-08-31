@@ -124,12 +124,17 @@ public class SearchSourceConverter {
     /**
      * Converts DSL for the given index into query plans.
      *
-     * @param searchSource the DSL query
+     * @param searchSource the DSL query; a {@code null} source (bodyless {@code _search}) is
+     *        treated as an empty match_all request
      * @param indexName target index
      * @return one or more query plans
      * @throws ConversionException if DSL conversion fails
      */
     public QueryPlans convert(SearchSourceBuilder searchSource, String indexName) throws ConversionException {
+        if (searchSource == null) {
+            searchSource = new SearchSourceBuilder();
+        }
+
         RelOptTable table = catalogReader.getTable(List.of(indexName));
         if (table == null) {
             throw new IllegalArgumentException("Index not found in schema: " + indexName);

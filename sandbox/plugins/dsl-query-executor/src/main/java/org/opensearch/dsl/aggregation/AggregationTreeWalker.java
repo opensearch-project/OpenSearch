@@ -14,6 +14,7 @@ import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
 import org.opensearch.dsl.aggregation.bucket.SizedBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.query.ValidationResult;
 import org.opensearch.search.aggregations.AggregationBuilder;
 
 import java.util.ArrayList;
@@ -88,7 +89,10 @@ public class AggregationTreeWalker {
                 throw new ConversionException("No translator registered for aggregation type: " + aggBuilder.getClass().getSimpleName());
             }
             // Reject unsupported parameters before any plan state accumulates.
-            ((AggregationTranslator<AggregationBuilder>) type).validate(aggBuilder);
+            ValidationResult validationResult = ((AggregationTranslator<AggregationBuilder>) type).validate(aggBuilder);
+            if (validationResult.isAccepted() == false) {
+                throw new ConversionException(validationResult.message());
+            }
             if (type instanceof BucketTranslator) {
                 handleBucket((BucketTranslator<AggregationBuilder>) type, aggBuilder, currentPath, plans, rowType);
             } else if (type instanceof MetricTranslator) {

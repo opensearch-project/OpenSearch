@@ -95,7 +95,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
 
-    private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
+    public static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
+    public static final ParseField TERMS_LOOKUP_FIELD = new ParseField("terms_lookup");
     private ValueType valueType = ValueType.DEFAULT;
 
     /**

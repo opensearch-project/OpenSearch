@@ -36,6 +36,11 @@ public class AggregationRegistry {
         translators.put(translator.getAggregationType(), translator);
     }
 
+    /** True if a translator is registered for the given aggregation type. */
+    public boolean hasTranslator(Class<? extends AggregationBuilder> type) {
+        return translators.containsKey(type);
+    }
+
     /**
      * Returns the translator for the given class, or null.
      * Caller checks {@code instanceof MetricTranslator} or {@code instanceof BucketTranslator}.

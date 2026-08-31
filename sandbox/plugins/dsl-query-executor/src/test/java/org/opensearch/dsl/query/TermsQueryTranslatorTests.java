@@ -86,6 +86,14 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").boost(2.0f), ctx));
     }
 
+    public void testValidateRejectsBoost() {
+        ValidationResult result = translator.validate(QueryBuilders.termsQuery("name", "laptop").boost(2.0f));
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.boost", result.reasonCode());
+        assertEquals("Terms query does not support non-default boost", result.message());
+    }
+
     public void testThrowsForQueryName() {
         expectThrows(
             ConversionException.class,
@@ -93,9 +101,26 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
         );
     }
 
+    public void testValidateRejectsQueryName() {
+        ValidationResult result = translator.validate(QueryBuilders.termsQuery("name", "laptop").queryName("my_query"));
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms._name", result.reasonCode());
+        assertEquals("Terms query does not support _name", result.message());
+    }
+
     public void testThrowsForTermsLookup() {
         TermsLookup termsLookup = new TermsLookup("lookup_index", "1", "terms");
         expectThrows(ConversionException.class, () -> translator.convert(QueryBuilders.termsLookupQuery("name", termsLookup), ctx));
+    }
+
+    public void testValidateRejectsTermsLookup() {
+        TermsLookup termsLookup = new TermsLookup("lookup_index", "1", "terms");
+        ValidationResult result = translator.validate(QueryBuilders.termsLookupQuery("name", termsLookup));
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.terms_lookup", result.reasonCode());
+        assertEquals("Terms query does not support terms lookup", result.message());
     }
 
     public void testThrowsForValueType() {
@@ -103,6 +128,32 @@ public class TermsQueryTranslatorTests extends OpenSearchTestCase {
             ConversionException.class,
             () -> translator.convert(QueryBuilders.termsQuery("name", "laptop").valueType(TermsQueryBuilder.ValueType.BITMAP), ctx)
         );
+    }
+
+    public void testValidateRejectsValueType() {
+        ValidationResult result = translator.validate(
+            QueryBuilders.termsQuery("name", "laptop").valueType(TermsQueryBuilder.ValueType.BITMAP)
+        );
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.value_type:BITMAP", result.reasonCode());
+        assertEquals("Terms query does not support non-default value_type", result.message());
+    }
+
+    public void testValidateRejectsEmptyValues() {
+        ValidationResult result = translator.validate(new TermsQueryBuilder("name", java.util.List.of()));
+
+        assertFalse(result.isAccepted());
+        assertEquals("terms.no_values", result.reasonCode());
+        assertEquals("Terms query must have values", result.message());
+    }
+
+    public void testValidateAcceptsSupportedTermsQuery() {
+        ValidationResult result = translator.validate(QueryBuilders.termsQuery("name", "laptop"));
+
+        assertTrue(result.isAccepted());
+        assertNull(result.reasonCode());
+        assertNull(result.message());
     }
 
     public void testReportsCorrectQueryType() {

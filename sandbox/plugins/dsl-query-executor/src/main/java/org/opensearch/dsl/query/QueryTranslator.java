@@ -23,6 +23,20 @@ public interface QueryTranslator {
     Class<? extends QueryBuilder> getQueryType();
 
     /**
+     * Validates the query's parameters before routing. Defaults to reject (reject-unless-supported):
+     * a supported type must override this to accept. Schema-dependent checks stay in {@link #convert}.
+     *
+     * @param query the query builder to validate
+     * @return the validation result; rejected by default
+     */
+    default ValidationResult validate(QueryBuilder query) {
+        return ValidationResult.rejected(
+            query.getName() + ".unvalidated",
+            query.getName() + " query has no validate() override; its parameters are not vetted for the Calcite path"
+        );
+    }
+
+    /**
      * Converts the query to a Calcite RexNode filter expression.
      *
      * @param query the query builder to convert
