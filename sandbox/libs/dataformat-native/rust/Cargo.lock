@@ -103,7 +103,8 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 [[package]]
 name = "arrow"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "378530e55cd479eda3c14eb345310799717e6f76d0c332041e8487022166b471"
 dependencies = [
  "arrow-arith",
  "arrow-array",
@@ -123,7 +124,8 @@ dependencies = [
 [[package]]
 name = "arrow-arith"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0ab212d2c1886e802f51c5212d78ebbcbb0bec980fff9dadc1eb8d45cd0b738"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -136,7 +138,8 @@ dependencies = [
 [[package]]
 name = "arrow-array"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfd33d3e92f207444098c75b42de99d329562be0cf686b307b097cc52b4e999e"
 dependencies = [
  "ahash",
  "arrow-buffer",
@@ -154,7 +157,8 @@ dependencies = [
 [[package]]
 name = "arrow-buffer"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c6cd424c2693bcdbc150d843dc9d4d137dd2de4782ce6df491ad11a3a0416c0"
 dependencies = [
  "bytes",
  "half",
@@ -165,7 +169,8 @@ dependencies = [
 [[package]]
 name = "arrow-cast"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c5aefb56a2c02e9e2b30746241058b85f8983f0fcff2ba0c6d09006e1cded7f"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -186,7 +191,8 @@ dependencies = [
 [[package]]
 name = "arrow-csv"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e94e8cf7e517657a52b91ea1263acf38c4ca62a84655d72458a3359b12ab97de"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -200,7 +206,8 @@ dependencies = [
 [[package]]
 name = "arrow-data"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c88210023a2bfee1896af366309a3028fc3bcbd6515fa29a7990ee1baa08ee0"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
@@ -212,7 +219,8 @@ dependencies = [
 [[package]]
 name = "arrow-ipc"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "238438f0834483703d88896db6fe5a7138b2230debc31b34c0336c2996e3c64f"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -227,7 +235,8 @@ dependencies = [
 [[package]]
 name = "arrow-json"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "205ca2119e6d679d5c133c6f30e68f027738d95ed948cf77677ea69c7800036b"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -251,7 +260,8 @@ dependencies = [
 [[package]]
 name = "arrow-ord"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bffd8fd2579286a5d63bac898159873e5094a79009940bcb42bbfce4f19f1d0"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -263,7 +273,8 @@ dependencies = [
 [[package]]
 name = "arrow-row"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bab5994731204603c73ba69267616c50f80780774c6bb0476f1f830625115e0c"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -275,7 +286,8 @@ dependencies = [
 [[package]]
 name = "arrow-schema"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f633dbfdf39c039ada1bf9e34c694816eb71fbb7dc78f613993b7245e078a1ed"
 dependencies = [
  "bitflags",
  "serde_core",
@@ -285,7 +297,8 @@ dependencies = [
 [[package]]
 name = "arrow-select"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cd065c54172ac787cf3f2f8d4107e0d3fdc26edba76fdf4f4cc170258942222"
 dependencies = [
  "ahash",
  "arrow-array",
@@ -298,7 +311,8 @@ dependencies = [
 [[package]]
 name = "arrow-string"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29dd7cda3ab9692f43a2e4acc444d760cc17b12bb6d8232ddf64e9bab7c06b42"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -3002,7 +3016,6 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "58.3.0"
-source = "git+https://github.com/bharath-techie/arrow-rs.git?rev=38b2f7a6a7f58d0dde9f932be1497444f7646a4c#38b2f7a6a7f58d0dde9f932be1497444f7646a4c"
 dependencies = [
  "ahash",
  "arrow-array",

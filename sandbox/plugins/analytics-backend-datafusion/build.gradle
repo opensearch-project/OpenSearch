@@ -127,6 +127,8 @@ task cargoTest(type: Exec) {
   description = 'Run Rust unit + fuzz tests for opensearch-datafusion crate'
   group = 'verification'
   workingDir rustWorkspaceDir
+  // cargo cannot read the workspace manifest until [patch.crates-io]'s path exists.
+  dependsOn ':sandbox:libs:dataformat-native:preparePatchedParquet'
 
   def cargoExecutable = 'cargo'
   def possibleCargoPaths = [
