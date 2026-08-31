@@ -29,6 +29,7 @@ import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -77,6 +78,60 @@ public class ParquetColumnReaderTests extends OpenSearchTestCase {
                 assertTrue("row " + row + " should be present", batch.isPresent(row));
                 assertEquals("value at row " + row, expected(row), batch.valueAt(row));
             }
+        }
+    }
+
+    public void testResidentRowIsServedWithoutMovingTheCursor() throws Exception {
+        int rowCount = 500;
+        Path file = createTempDir().resolve("resident.parquet");
+        writeLongColumn(file, rowCount, false, -1);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            reader.loadBatchContaining(100);
+            long firstRow = reader.decodedBatch().firstRow();
+            long lastRow = reader.decodedBatch().lastRow();
+
+            // The native cursor parks at lastRow + 1, so each of these would be a backward seek if
+            // it reached the native side.
+            for (long row = firstRow; row <= lastRow; row++) {
+                reader.loadBatchContaining(row);
+                DecodedBatch batch = reader.decodedBatch();
+                assertEquals("resident row must not reload the batch", firstRow, batch.firstRow());
+                assertEquals("resident row must not reload the batch", lastRow, batch.lastRow());
+                assertEquals("value at row " + row, expected(row), batch.valueAt(row));
+            }
+        }
+    }
+
+    public void testFailedLoadDoesNotRetainTheStaleBatch() throws Exception {
+        int rowCount = 500;
+        Path file = createTempDir().resolve("stale.parquet");
+        writeLongColumn(file, rowCount, false, -1);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            reader.loadBatchContaining(0);
+            assertNotNull("a batch should be resident after a successful load", reader.decodedBatch());
+
+            // A load past the end fails. The batch it would have replaced must not stay reachable,
+            // because a successful native call frees the buffers the old batch borrowed.
+            expectThrows(IOException.class, () -> reader.loadBatchContaining(rowCount));
+            assertNull("no batch may remain resident after a failed load", reader.decodedBatch());
+        }
+    }
+
+    public void testPresenceLookupOutsideTheBatchThrows() throws Exception {
+        int rowCount = 500;
+        Path file = createTempDir().resolve("bounds.parquet");
+        writeLongColumn(file, rowCount, true, 5);
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            reader.loadBatchContaining(64);
+            DecodedBatch batch = reader.decodedBatch();
+
+            // The bitmap is byte-granular, so a row just past the batch can still land inside the
+            // mapped bytes. It must be rejected rather than answered from a neighbouring bit.
+            expectThrows(IndexOutOfBoundsException.class, () -> batch.isPresent(batch.lastRow() + 1));
+            expectThrows(IndexOutOfBoundsException.class, () -> batch.isPresent(batch.firstRow() - 1));
         }
     }
 

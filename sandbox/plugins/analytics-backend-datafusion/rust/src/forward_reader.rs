@@ -105,12 +105,18 @@ impl ParquetForwardBatchReaderFactory {
         }
     }
 
-    /// Uses a synchronous retained file descriptor when `path` identifies an
-    /// existing local file. Other files continue through DataFusion's reader
-    /// factory.
+    /// Uses a synchronous retained file descriptor when `path` identifies an existing local file of
+    /// the expected length. Other files continue through DataFusion's reader factory.
+    ///
+    /// The path must be absolute and its length must match the object store's view of the file. A
+    /// relative path would resolve against the process working directory rather than the store, and
+    /// a length mismatch means the local file is not the one the footer and page index were read
+    /// from - either would decode unrelated bytes using this file's metadata.
     pub fn with_local_file_if_exists(mut self, path: impl Into<PathBuf>) -> Self {
         let path = path.into();
-        self.local_file = path.is_file().then_some(path);
+        let usable = path.is_absolute()
+            && std::fs::metadata(&path).is_ok_and(|meta| meta.is_file() && meta.len() == self.file.object_meta.size);
+        self.local_file = usable.then_some(path);
         self
     }
 
