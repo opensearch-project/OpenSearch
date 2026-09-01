@@ -13,6 +13,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -127,6 +128,9 @@ public final class ArrowValues {
         if (vector instanceof VarCharVector v) {
             return spaceSeparator(new String(v.get(index), StandardCharsets.UTF_8));
         }
+        if (vector instanceof StructVector sv) {
+            return structToMap(sv, index);
+        }
         // MapVector extends ListVector — must come first.
         if (vector instanceof MapVector && vector.getObject(index) instanceof List<?> entries) {
             LinkedHashMap<String, Object> map = new LinkedHashMap<>();
@@ -148,6 +152,45 @@ public final class ArrowValues {
             return temporal;
         }
         return normalize(value);
+    }
+
+    /**
+     * Converts a struct cell to a sparse map, matching how {@code _source} renders an OpenSearch
+     * {@code object}.
+     *
+     * <p>Sparseness itself comes for free — {@code NonNullableStructVector.getObject} already skips
+     * children whose value is null, so an absent leaf is omitted while a leaf genuinely holding
+     * {@code ""} is kept. This walks the children explicitly for two things {@code getObject} does
+     * not do:
+     *
+     * <ul>
+     *   <li><b>An object with nothing populated becomes {@code null}, not {@code &#123;&#125;}.</b>
+     *       That matches vanilla, where e.g. an unpopulated {@code traceGroupFields} comes back
+     *       null. An empty <em>sub</em>-object is then dropped by its parent's loop, since the
+     *       recursive call returns null and null children are skipped.</li>
+     *   <li><b>Nested leaves are formatted like top-level ones.</b> Recursing through
+     *       {@link #toJavaValue} keeps {@link Text} → {@code String} and formats a nested
+     *       date/time/timestamp instead of leaving a raw epoch number. {@code getObject} cannot:
+     *       it hands back child values already stripped of the {@link Field} that says how to
+     *       format them, and {@link #normalize}'s map branch has no type information to recover it.
+     *       Compare the list path, which threads the child field through
+     *       {@code normalizeList(raw, lv.getDataVector().getField())}.</li>
+     * </ul>
+     */
+    private static Map<String, Object> structToMap(StructVector vector, int index) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Field child : vector.getField().getChildren()) {
+            FieldVector childVector = vector.getChild(child.getName());
+            if (childVector == null || childVector.isNull(index)) {
+                continue;
+            }
+            Object value = toJavaValue(childVector, index);
+            if (value == null) {
+                continue;
+            }
+            out.put(child.getName(), value);
+        }
+        return out.isEmpty() ? null : out;
     }
 
     /** ISO-T temporal → space separator; other strings unchanged. */

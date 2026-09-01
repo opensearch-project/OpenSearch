@@ -27,6 +27,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -350,8 +351,34 @@ public class OpenSearchSchemaBuilder {
             // Recurse into sub-properties so dotted leaf paths ("city.location.latitude") appear as flat columns.
             if (fieldType == null || "object".equals(fieldType)) {
                 Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
-                if (nested != null) {
+                if (nested == null) {
+                    if ("object".equals(fieldType) == false) {
+                        // No "type" AND no "properties" — a malformed mapping entry, not an object.
+                        // Skip it, as before; only an explicit `"type": "object"` is shapeless.
+                        continue;
+                    }
+                    // Shapeless object — `{"type": "object"}` with no properties, which is what
+                    // dynamic mapping leaves before any document populates it. Nothing is known
+                    // about its shape, but the field must stay addressable and resolve to null, as
+                    // vanilla does. A field-less ROW gives that: ObjectStructMaterializer finds no
+                    // leaves to assemble and emits a typed NULL. Note the parent of a shapeless
+                    // child does NOT carry it in its own struct type (buildObjectType skips it), so
+                    // `fields outer` omits it while `fields outer.shapeless` returns null — again
+                    // matching vanilla.
+                    builder.add(fieldName, emptyStruct(typeFactory));
+                    continue;
+                }
+                {
                     addLeafFields(builder, typeFactory, nested, fieldName);
+                    // Also expose the object itself as a struct (ROW) column, so a query can
+                    // address the whole object (`fields nested_metadata`, `stats … by obj`) and
+                    // not just its leaves. The object has no physical storage — the scan reads
+                    // the leaves — so ObjectStructMaterializer strips this column from the scan
+                    // and re-assembles it with make_struct in a project directly above it.
+                    RelDataType structType = buildObjectType(typeFactory, nested, fieldName);
+                    if (structType != null) {
+                        builder.add(fieldName, structType);
+                    }
                 }
                 continue;
             }
@@ -370,6 +397,59 @@ public class OpenSearchSchemaBuilder {
             }
             builder.add(fieldName, columnType);
         }
+    }
+
+    /** Nullable ROW with no fields — an object whose shape is unknown; always resolves to null. */
+    private static RelDataType emptyStruct(RelDataTypeFactory typeFactory) {
+        return typeFactory.createTypeWithNullability(typeFactory.createStructType(List.of(), List.of()), true);
+    }
+
+    /**
+     * Builds the struct (ROW) type for an {@code object} mapping: one struct field per supported
+     * sub-field, recursing for sub-objects. Field names are the <em>local</em> names (the struct
+     * nesting already carries the path), while the flat leaf columns added by
+     * {@link #addLeafFields} keep their dotted paths — that dotted convention is how
+     * {@code ObjectStructMaterializer} pairs a struct field back to its backing column.
+     *
+     * <p>Returns {@code null} when the object contributes no supported field, so callers omit the
+     * column entirely rather than declaring an empty struct.
+     */
+    @SuppressWarnings("unchecked")
+    private static RelDataType buildObjectType(RelDataTypeFactory typeFactory, Map<String, Object> properties, String pathPrefix) {
+        List<RelDataType> types = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
+            String localName = fieldEntry.getKey();
+            Map<String, Object> fieldProps = (Map<String, Object>) fieldEntry.getValue();
+            String fieldType = (String) fieldProps.get("type");
+            RelDataType childType;
+            if (fieldType == null || "object".equals(fieldType)) {
+                Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
+                childType = nested == null ? null : buildObjectType(typeFactory, nested, pathPrefix + "." + localName);
+            } else if ("nested".equals(fieldType)) {
+                // Array-of-sub-docs needs LIST<STRUCT> + UNNEST; out of scope here.
+                childType = null;
+            } else {
+                // An ordinary scalar leaf (keyword, long, date_nanos, …). Typed exactly as
+                // addLeafFields types the equivalent flat column — including `scaling_factor`,
+                // the mapping parameter of `scaled_float` (a float persisted as a scaled long),
+                // which buildLeafType needs to type that field. parseScalingFactor yields NaN
+                // when absent, which buildLeafType treats as "not a scaled_float".
+                double scalingFactor = parseScalingFactor(fieldProps.get(SCALING_FACTOR_FIELD));
+                childType = buildLeafType(fieldType, (String) fieldProps.get("format"), scalingFactor, typeFactory);
+            }
+            if (childType == null) {
+                // Unsupported sub-field (geo_point, nested, …) — dropped from the struct for the
+                // same reason it is dropped from the flat columns.
+                continue;
+            }
+            names.add(localName);
+            types.add(childType);
+        }
+        if (names.isEmpty()) {
+            return null;
+        }
+        return typeFactory.createTypeWithNullability(typeFactory.createStructType(types, names), true);
     }
 
     /**

@@ -455,7 +455,16 @@ public enum ScalarFunction {
     MINSPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     /** PPL range_bucket(value, data_min, data_max, start_param, end_param). VARCHAR label. */
-    RANGE_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    RANGE_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── Composite (object / struct) construction ─────────────────────
+    /**
+     * {@code make_struct('name0', v0, 'name1', v1, ...)} → ROW. Materializes an OpenSearch
+     * {@code object} field from the flat dotted leaf columns a scan produces
+     * (see {@code ObjectStructMaterializer}). Nests for sub-objects.
+     * See {@link MakeStructFunction}.
+     */
+    MAKE_STRUCT(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.

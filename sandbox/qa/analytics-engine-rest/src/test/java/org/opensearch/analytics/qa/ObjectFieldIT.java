@@ -17,12 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Diagnostic integration tests for PPL access to OpenSearch {@code object} fields
- * via dotted-path notation ({@code city.name}, {@code city.location.latitude}) on the
- * analytics-engine route. Mirrors the shape of the sql repo's
- * {@code ObjectFieldOperateIT}. Every test here is expected to fail initially —
- * the purpose is to surface exact failure modes for follow-up debugging, not to
- * exercise a working implementation.
+ * PPL access to OpenSearch {@code object} fields — leaves via dotted paths
+ * ({@code city.location.latitude}), whole objects, and objects as group keys. Mirrors the sql repo's
+ * {@code ObjectFieldOperateIT}.
  */
 public class ObjectFieldIT extends AnalyticsRestTestCase {
 
@@ -102,18 +99,14 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
-    // ── Object-parent projection (gated on query-then-fetch) ──────────────────
+    // ── Object-parent projection ───────────────────────────────────────────────
     //
     // Projecting an object parent (top-level "city" or intermediate "city.location")
-    // returns a nested JSON value reconstructed from _source. Analytics-engine emits
-    // only flat leaves into the Calcite row type today, so parent references fall
-    // through QualifiedNameResolver and throw "Field [city.location] not found".
-    //
-    // Support requires query-then-fetch (QTF): coordinator returns docIds post-filter,
-    // a fetch stage pulls the doc from the shard, and the parent sub-object is
-    // reconstructed from _source or from parquet rows. QTF is tracked separately.
+    // returns the nested object. No query-then-fetch / _source read is needed: the
+    // schema exposes the object as a struct (ROW) column and ObjectStructMaterializer
+    // re-assembles it with make_struct over the flat leaf columns the scan already
+    // produces, in a project directly above the scan.
 
-    @AwaitsFix(bugUrl = "Object parent projection requires query-then-fetch (QTF) for source-based materialization")
     public void testSelectIntermediateObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | fields city.location | head 1",
@@ -121,7 +114,6 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Object parent projection requires query-then-fetch (QTF) for source-based materialization")
     public void testSelectTopLevelObjectField() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | fields city | head 1",
@@ -129,7 +121,6 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Object parent projection requires query-then-fetch (QTF) for source-based materialization")
     public void testSelectTopLevelObjectFieldWithSiblings() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | fields city, account | head 1",
@@ -140,7 +131,6 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Object parent projection requires query-then-fetch (QTF) for source-based materialization")
     public void testSelectParentAndLeafMixed() throws IOException {
         assertRowsEqual(
             "source=" + DATASET.indexName + " | fields city.name, city.location | head 1",
@@ -148,7 +138,37 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         );
     }
 
+    // ── Aggregation involving object fields ───────────────────────────────────
+    //
+    // Leaf aggregations (min/max/sum on city.population, city.location.latitude, …) are covered
+    // above. These cover aggregating on the OBJECT VALUE itself — the group key is a struct
+    // materialized by ObjectStructMaterializer, so the aggregate receives an assembled object.
+
+    /** Group by an intermediate object ({@code city.location}) — 3 distinct locations. */
+    public void testGroupByIntermediateObjectField() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats count() by city.location", 3);
+    }
+
+    /** Group by a top-level object ({@code city}) — 3 distinct cities. */
+    public void testGroupByTopLevelObjectField() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats count() by city", 3);
+    }
+
+    /** Aggregate a leaf while grouping by an object value. */
+    public void testAggregateLeafGroupedByObjectField() throws IOException {
+        assertRowCount("source=" + DATASET.indexName + " | stats max(city.population) by city.location", 3);
+    }
+
     // ── helpers (mirrored from FieldsCommandIT) ────────────────────────────────
+
+    /** Asserts only the row count — group order is not deterministic for a struct key. */
+    private void assertRowCount(String ppl, int expected) throws IOException {
+        Map<String, Object> response = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> actualRows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("Response missing 'datarows' for query: " + ppl, actualRows);
+        assertEquals("Row count mismatch for query: " + ppl, expected, actualRows.size());
+    }
 
     private static List<Object> row(Object... values) {
         return Arrays.asList(values);
@@ -173,4 +193,97 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
     }
 
 
+
+    // ── select * ──────────────────────────────────────────────────────────────────────
+    //
+    // Nothing here names an object, so coverage depends entirely on how `*` expands. Verified
+    // against the legacy engine on the same mapping: three top-level fields, objects as nested
+    // JSON. The flat dotted leaves must NOT appear — an object's data is returned once, not twice.
+
+    /** {@code source=idx} with no field list: objects come back as whole nested values. */
+    public void testSelectStarReturnsObjectsAsNestedStructs() throws IOException {
+        Map<String, Object> response = executePpl("source=" + DATASET.indexName + " | head 1");
+        assertStarShape(response, "source=... | head 1");
+    }
+
+    /** Explicit {@code fields *} must behave identically to the implicit form above. */
+    public void testFieldsStarReturnsObjectsAsNestedStructs() throws IOException {
+        Map<String, Object> response = executePpl("source=" + DATASET.indexName + " | fields * | head 1");
+        assertStarShape(response, "source=... | fields * | head 1");
+    }
+
+    /**
+     * Asserts the star-expansion contract: exactly the top-level fields (no dotted leaves), with
+     * each object materialized as a nested map. Column order is not asserted — it is not part of
+     * the contract and differs from legacy — so the row is checked by column name.
+     */
+    private void assertStarShape(Map<String, Object> response, String context) {
+        List<String> columns = extractColumnNames(response);
+        assertEquals(
+            "star expansion must yield only top-level fields (no dotted leaves) for " + context,
+            List.of("account", "city", "id"),
+            columns.stream().sorted().toList()
+        );
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
+        assertNotNull("missing datarows for " + context, rows);
+        assertEquals("expected a single row for " + context, 1, rows.size());
+        Map<String, Object> row = new java.util.HashMap<>();
+        for (int i = 0; i < columns.size(); i++) {
+            row.put(columns.get(i), rows.get(0).get(i));
+        }
+
+        assertEquals("id for " + context, "1", row.get("id"));
+        assertEquals(
+            "account must be a whole nested object for " + context,
+            Map.of("owner", "alice", "balance", 1000.5),
+            row.get("account")
+        );
+        // Nested sub-object arrives nested, not flattened to a dotted key.
+        assertEquals(
+            "city must nest location for " + context,
+            Map.of(
+                "name",
+                "Seattle",
+                "population",
+                750000,
+                "location",
+                Map.of("latitude", 47.6062, "longitude", -122.3321)
+            ),
+            row.get("city")
+        );
+    }
+
+    /**
+     * A shapeless {@code {"type": "object"}} — no {@code properties}, which is what dynamic mapping
+     * leaves before any document populates it — is addressable and resolves to null, as vanilla does.
+     * The schema gives it a field-less ROW, so this is also the end-to-end check that such a type
+     * survives Substrait serialization and DataFusion rather than only the schema builder.
+     */
+    public void testShapelessObjectResolvesToNull() throws IOException {
+        String index = "shapeless_object_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"id\":{\"type\":\"keyword\"},"
+                + "\"attrs\":{\"type\":\"object\"}}}}"
+        );
+        client().performRequest(create);
+        // No custom _id: parquet indices are append-only and reject one.
+        Request doc = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        doc.setJsonEntity("{\"index\":{}}\n{\"id\":\"1\"}\n");
+        doc.setOptions(doc.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(doc);
+
+        assertRowsEqual("source=" + index + " | fields attrs", row((Object) null));
+        assertRowsEqual("source=" + index + " | fields id, attrs", row("1", null));
+    }
 }
