@@ -318,41 +318,40 @@ pub async unsafe fn create_session_context(
     // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
     let register_name = resolve_register_name(table_name, plan_bytes);
 
-    // Pre-warm the metadata cache footer-only before infer_schema fires.
-    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
-    // on a cache miss — fetching full page index bytes. By pre-warming here with
-    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
-    // a cache hit and never touches the page index bytes.
-    // Cache key is meta.location (Path) — same key infer_schema uses.
-    // Empty shard: loop is a no-op; infer_schema is also skipped below.
-    {
-        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
-        for meta in shard_view.object_metas.as_ref() {
-            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
-                Arc::clone(&shard_view.store),
-                &meta.location,
-                meta.clone(),
-                Arc::clone(&metadata_cache),
-            )
-            .await;
-        }
+    // Load every file schema through the shared footer cache, then merge deterministically.
+    // Compatible scalar/List pairs become one logical List field; all other incompatible type
+    // changes remain errors. This replaces ListingOptions::infer_schema because Arrow's default
+    // Schema::try_merge rejects the intentional scalar-to-List promotion across generations.
+    let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+    let mut discovered_schemas = Vec::with_capacity(shard_view.object_metas.len());
+    for meta in shard_view.object_metas.as_ref() {
+        let (schema, _, _) = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+            Arc::clone(&shard_view.store),
+            &meta.location,
+            meta.clone(),
+            Arc::clone(&metadata_cache),
+        )
+        .await
+        .map_err(DataFusionError::Execution)?;
+        discovered_schemas.push((meta.location.to_string(), schema.as_ref().clone()));
     }
+    discovered_schemas.sort_by(|left, right| left.0.cmp(&right.0));
 
-    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
-    // below populates columns from the substrait base_schema.
-    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+    // Empty shards take their logical columns from the Substrait base schema during widening.
+    let inferred: arrow::datatypes::SchemaRef = if discovered_schemas.is_empty() {
         Arc::new(arrow::datatypes::Schema::empty())
     } else {
-        let inferred = listing_options
-            .infer_schema(&ctx.state(), &shard_view.table_path)
-            .await
-            .map_err(|e| {
-                error!("create_session_context: failed to infer schema: {}", e);
-                e
-            })?;
-        // Substrait's type system is narrower than Arrow's; normalize the inferred
-        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-        crate::schema_coerce::coerce_inferred_schema(inferred)
+        let merged = crate::schema_coerce::merge_file_schemas_with_list_promotion(
+            discovered_schemas
+                .into_iter()
+                .map(|(_, schema)| schema)
+                .collect(),
+        )
+        .map_err(|e| {
+            DataFusionError::Execution(format!("failed to infer promoted parquet schema: {e}"))
+        })?;
+        let merged = crate::schema_coerce::transform_schema_to_view_recursive(merged.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(merged))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -375,7 +374,10 @@ pub async unsafe fn create_session_context(
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
+        .with_schema(resolved_schema)
+        .with_expr_adapter_factory(Arc::new(
+            crate::scalar_to_list_adapter::ScalarToListExprAdapterFactory,
+        ));
 
     // Wire the global statistics cache into the ListingTable.
     let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();

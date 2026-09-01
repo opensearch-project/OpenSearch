@@ -80,9 +80,25 @@ pub(super) fn resolve_with_schema(
     let parquet_schema = metadata.file_metadata().schema_descr();
     let mut set = HashSet::new();
     for name in predicate_column_names {
-        if let Ok(conv) = StatisticsConverter::try_new(name, arrow_schema, parquet_schema) {
-            if let Some(idx) = conv.parquet_column_index() {
-                set.insert(idx);
+        let resolved = StatisticsConverter::try_new(name, arrow_schema, parquet_schema)
+            .ok()
+            .and_then(|conv| conv.parquet_column_index());
+        if let Some(idx) = resolved {
+            set.insert(idx);
+            continue;
+        }
+
+        // parquet-rs intentionally does not resolve nested Arrow fields through
+        // `parquet_column()`: LIST/MAP/STRUCT roots may map to one or more physical
+        // leaves. Since `arrow_schema` is derived from this file's footer, its root
+        // index matches `SchemaDescriptor::get_column_root_idx`; include every leaf
+        // under the requested root so any projected nested field receives a real
+        // OffsetIndex rather than a scoped-out placeholder.
+        if let Some((root_idx, _)) = arrow_schema.fields().find(name) {
+            for leaf_idx in 0..parquet_schema.num_columns() {
+                if parquet_schema.get_column_root_idx(leaf_idx) == root_idx {
+                    set.insert(leaf_idx);
+                }
             }
         }
     }
