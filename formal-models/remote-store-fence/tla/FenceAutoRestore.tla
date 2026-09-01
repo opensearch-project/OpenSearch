@@ -196,12 +196,53 @@ NodeRejoinView(n) ==
 (* live node" - the NO_VALID_SHARD_COPY branch this feature converts.      *)
 (* Nothing here checks whether the departed writer is truly dead; the      *)
 (* fence is what makes that not matter.                                    *)
+(*                                                                          *)
+(* Eligibility, encoded in code rather than modeled: the trigger converts  *)
+(* only OPEN, remote-backed, fenced indices whose shard carries an         *)
+(* EXISTING_STORE recovery source - a shard that previously STARTED and    *)
+(* owns a remote lineage. That is what excludes the concurrent-operation   *)
+(* cases that would be wrong to auto-restore: a resize (shrink/split/      *)
+(* clone) target mid-LOCAL_SHARDS-recovery has no remote lineage yet and   *)
+(* restoring its empty remote store would lose the resize data; a          *)
+(* snapshot-restore target carries a SNAPSHOT source and its own retry     *)
+(* semantics; both also live under a different index UUID whose fence      *)
+(* keyspace cannot contend with this shard's (the one-object-per-term,     *)
+(* keyed-by-index-UUID invariant of RemoteStoreFence.java). The one shard  *)
+(* modeled here is therefore an eligible shard; ineligible shards never    *)
+(* reach the trigger.                                                       *)
 (***************************************************************************)
 TriggerAutoRestore(w, n) ==
   /\ rState = "unassigned_existing"
   /\ live[n]
   /\ wState[w] = "unborn"
   /\ \A v \in inSync : ~live[wNode[v]] \/ wState[v] = "stopped"  \* no valid live copy
+  /\ MaxIssuedTerm + 1 <= MaxTerm
+  /\ wState' = [wState EXCEPT ![w] = "restoring"]
+  /\ wNode' = [wNode EXCEPT ![w] = n]
+  /\ wTerm' = [wTerm EXCEPT ![w] = MaxIssuedTerm + 1]
+  /\ rState' = "initializing_remote"
+  /\ rWriter' = w
+  /\ inSync' = {w}
+  /\ UNCHANGED <<live, hasRead, restore, fenceTerm, fenceOwner, ackVars>>
+
+(***************************************************************************)
+(* The operator's _remotestore/_restore, racing the trigger and the        *)
+(* rejoin. It performs the SAME mutation but under a strictly WEAKER       *)
+(* guard: the routing helper (initializeAsRemoteStoreRestore) requires     *)
+(* only that the primary be unassigned - it does NOT require that no       *)
+(* valid copy exists on a live node. So the operator can fire in the       *)
+(* window where a rejoined in-sync copy is alive but not yet               *)
+(* re-allocated, deliberately abandoning it - and can race RejoinRecover.  *)
+(* Both restores and the rejoin are cluster-state updates, serialized by   *)
+(* the cluster manager, which the interleaving of these atomic actions    *)
+(* captures exactly: whichever runs first wins, the loser's guard is       *)
+(* false. The abandoned live writer becomes stale and is refused by the    *)
+(* fence on its next acknowledgement, then dropped as a stale copy.        *)
+(***************************************************************************)
+ManualRestore(w, n) ==
+  /\ rState = "unassigned_existing"
+  /\ live[n]
+  /\ wState[w] = "unborn"
   /\ MaxIssuedTerm + 1 <= MaxTerm
   /\ wState' = [wState EXCEPT ![w] = "restoring"]
   /\ wNode' = [wNode EXCEPT ![w] = n]
@@ -303,7 +344,7 @@ Next ==
                         \/ StartShard(w) \/ RestoreTargetFails(w)
                         \/ RejoinRecover(w) \/ StaleCopyDropped(w)
   \/ \E n \in Nodes : NodeLeftView(n) \/ NodeCrash(n) \/ NodeRejoinView(n)
-  \/ \E w \in Writers, n \in Nodes : TriggerAutoRestore(w, n)
+  \/ \E w \in Writers, n \in Nodes : TriggerAutoRestore(w, n) \/ ManualRestore(w, n)
 
 (* The fair set is the allocator + restore pipeline: reroute runs on every *)
 (* cluster-state change, so an enabled allocation decision - the trigger   *)
