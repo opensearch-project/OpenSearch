@@ -54,7 +54,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -68,6 +67,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -781,19 +781,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryRegExpQuery() throws Exception {
         Query query = queryStringQuery("/foo*bar/").defaultField(TEXT_FIELD_NAME).maxDeterminizedStates(5000).toQuery(createShardContext());
-        assertThat(query, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) query;
-        assertTrue(regexpQuery.toString().contains("/foo*bar/"));
+        assertThat(query, instanceOf(PrecompiledAutomatonQuery.class));
+        assertTrue(query.toString().contains("/foo*bar/"));
     }
 
     public void testRegexpQueryParserWithForceAnalyzer() throws Exception {
         QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
         queryParser.setForceAnalyzer(new org.apache.lucene.analysis.standard.StandardAnalyzer());
         Query query = queryParser.parse("/aBc.*/");
-        assertThat(query, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) query;
+        assertThat(query, instanceOf(PrecompiledAutomatonQuery.class));
         // Standard analyzer normalizes to lowercase, verifying the normalization path with currentFieldType.name() is hit
-        assertTrue(regexpQuery.toString().contains("abc.*"));
+        assertTrue(query.toString().contains("abc.*"));
     }
 
     public void testToQueryRegExpQueryTooComplex() throws Exception {

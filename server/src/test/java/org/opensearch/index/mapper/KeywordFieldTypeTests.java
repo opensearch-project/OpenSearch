@@ -55,6 +55,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -62,6 +63,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -320,25 +323,35 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
+        CompiledAutomaton expectedCompiled = RegexpAutomatonCache.getInstance()
+            .getCompiledAutomaton("foo.*", 0, 0, 10, RegexpQuery.DEFAULT_PROVIDER);
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(
             new IndexOrDocValuesQuery(
-                new RegexpQuery(new Term("field", "foo.*")),
-                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+                new PrecompiledAutomatonQuery(
+                    new Term("field", "foo.*"),
+                    expectedCompiled,
+                    "foo.*",
+                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+                ),
+                new PrecompiledAutomatonQuery(new Term("field", "foo.*"), expectedCompiled, "foo.*", MultiTermQuery.DOC_VALUES_REWRITE)
             ),
             ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
-        Query indexExpected = new RegexpQuery(new Term("field", "foo.*"));
+        Query indexExpected = new PrecompiledAutomatonQuery(
+            new Term("field", "foo.*"),
+            expectedCompiled,
+            "foo.*",
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+        );
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         assertEquals(indexExpected, onlyIndexed.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
-        Query dvExpected = new RegexpQuery(
+        Query dvExpected = new PrecompiledAutomatonQuery(
             new Term("field", "foo.*"),
-            0,
-            0,
-            RegexpQuery.DEFAULT_PROVIDER,
-            10,
+            expectedCompiled,
+            "foo.*",
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
