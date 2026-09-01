@@ -334,10 +334,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
             && unassignedInfo.getNumFailedAllocations() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.LOCAL_SHARDS
             // A primary recovering from the remote store is an unexceptional, converging state: the data is
-            // durable and hydration is in flight (the auto-restore of a lost zero-replica primary, or a manual
-            // _remotestore/_restore of a RED index). Reporting it YELLOW like a snapshot restore - rather than
-            // RED - is what distinguishes "recovering without operator action" from "data unavailable, waiting
-            // for a node that may never return".
+            // durable and hydration is in flight (the auto-restore of a primary with no surviving copy on any
+            // live node, or a manual _remotestore/_restore of a RED index). Reporting it YELLOW like a snapshot
+            // restore - rather than RED - is what distinguishes "recovering without operator action" from "data
+            // unavailable, waiting for a node that may never return".
                 || recoveryType == RecoverySource.Type.REMOTE_STORE
                 || recoveryType == RecoverySource.Type.SNAPSHOT)) {
             return ClusterHealthStatus.YELLOW;

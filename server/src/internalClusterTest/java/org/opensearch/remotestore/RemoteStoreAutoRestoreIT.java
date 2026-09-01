@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.coordination.FollowersChecker;
@@ -45,11 +46,13 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 /**
  * End-to-end coverage for the auto-restore trigger ({@code BaseGatewayShardAllocator#maybeAutoRestoreFromRemoteStore}):
- * when the only copy of a fenced, remote-backed primary is lost with the node that held it, the shard is re-pointed at
- * a {@link RecoverySource.RemoteStoreRecoverySource} inside the allocation round instead of being parked RED at
+ * when no valid copy of a fenced, remote-backed primary survives on any live node - zero replicas losing its one
+ * node, or N replicas losing every copy-holding node - the shard is re-pointed at a
+ * {@link RecoverySource.RemoteStoreRecoverySource} inside the allocation round instead of being parked RED at
  * {@code NO_VALID_SHARD_COPY}, health reports YELLOW while the restore hydrates, and the restored primary serves every
- * acknowledged operation. The multi-writer safety of the sequence (a departed primary that is still alive behind a
- * partition) rides on the fence takeover verified in {@code FenceAutoRestore.tla} and shipped with the fence PR.
+ * acknowledged operation. While an in-sync replica survives, promotion wins and the trigger stays out of the way. The
+ * multi-writer safety of the sequence (a departed primary that is still alive behind a partition) rides on the fence
+ * takeover verified in {@code FenceAutoRestore.tla} and shipped with the fence PR.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
@@ -69,13 +72,14 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
-     * Zero replicas on purpose: with no replica to promote, losing the primary's node is exactly the state the
-     * trigger exists for. {@code REQUEST} durability pins the contract being asserted - every acknowledged operation
-     * is in the remote translog, so the restored primary must serve all of them.
+     * {@code REQUEST} durability pins the contract being asserted - every acknowledged operation is in the remote
+     * translog, so the restored primary must serve all of them. The replica count is the test's failure-domain
+     * parameter: the trigger itself is replica-count independent (it fires on the allocator's no-valid-copy proof,
+     * which with replicas configured requires every copy-holding node to be gone).
      */
-    private Settings autoRestoreIndexSettings(boolean autoRestoreEnabled) {
+    private Settings autoRestoreIndexSettings(int replicaCount, boolean autoRestoreEnabled) {
         return Settings.builder()
-            .put(remoteStoreIndexSettings(0, 1))
+            .put(remoteStoreIndexSettings(replicaCount, 1))
             .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, autoRestoreEnabled)
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST.name())
@@ -83,27 +87,23 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
-     * The headline flow: kill the node holding a fenced zero-replica primary and assert the shard auto-restores from
-     * the remote store - YELLOW (never RED) for every published cluster state in which the shard carries a
-     * {@code REMOTE_STORE} recovery source, GREEN once hydrated, all acknowledged operations present, and the index
-     * writable again.
+     * Observes every published cluster state on the cluster manager. The restore window is precisely the states in
+     * which the primary carries a {@code REMOTE_STORE} recovery source (set on conversion, cleared on shard start);
+     * the observer records that the window was entered at all - proof the trigger fired rather than some other
+     * allocation path - and any state in that window whose computed index health was RED.
      */
-    public void testAutoRestoreOnNodeLoss() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
-        createIndex(INDEX_NAME, autoRestoreIndexSettings(true));
-        ensureGreen(INDEX_NAME);
+    private final class RestoreWindowObserver implements ClusterStateListener, AutoCloseable {
+        private final AtomicBoolean sawRemoteStoreRecoverySource = new AtomicBoolean();
+        private final List<String> redStatesDuringRestore = new CopyOnWriteArrayList<>();
+        private final ClusterService clusterService;
 
-        Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
-        String primaryNode = primaryNodeName(INDEX_NAME);
-        String clusterManagerNode = internalCluster().getClusterManagerName();
+        RestoreWindowObserver() {
+            this.clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getClusterManagerName());
+            clusterService.addListener(this);
+        }
 
-        // Observe every published cluster state on the cluster manager: the restore window is precisely the states
-        // where the primary carries a REMOTE_STORE recovery source (set on conversion, cleared on shard start), and
-        // in that window health must be YELLOW - the RED->YELLOW half of the feature.
-        AtomicBoolean sawRemoteStoreRecoverySource = new AtomicBoolean();
-        List<String> redStatesDuringRestore = new CopyOnWriteArrayList<>();
-        ClusterStateListener healthObserver = event -> {
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
             ClusterState state = event.state();
             IndexRoutingTable indexRoutingTable = state.routingTable().index(INDEX_NAME);
             if (indexRoutingTable == null) {
@@ -120,14 +120,9 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
                     redStatesDuringRestore.add("state version [" + state.version() + "] primary [" + primary + "]");
                 }
             }
-        };
-        ClusterService clusterManagerClusterService = internalCluster().getInstance(ClusterService.class, clusterManagerNode);
-        clusterManagerClusterService.addListener(healthObserver);
-        try {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        }
 
-            ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
-
+        void assertRestoredYellowNeverRed() {
             assertTrue(
                 "the allocator should have re-pointed the lost primary at a REMOTE_STORE recovery source",
                 sawRemoteStoreRecoverySource.get()
@@ -136,8 +131,42 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
                 "index health must be YELLOW, never RED, while the primary restores from the remote store: " + redStatesDuringRestore,
                 redStatesDuringRestore.isEmpty()
             );
-        } finally {
-            clusterManagerClusterService.removeListener(healthObserver);
+        }
+
+        void assertTriggerNeverFired() {
+            assertFalse(
+                "the trigger must not fire while an in-sync replica is available for promotion",
+                sawRemoteStoreRecoverySource.get()
+            );
+        }
+
+        @Override
+        public void close() {
+            clusterService.removeListener(this);
+        }
+    }
+
+    /**
+     * The headline flow: kill the node holding a fenced zero-replica primary and assert the shard auto-restores from
+     * the remote store - YELLOW (never RED) for every published cluster state in which the shard carries a
+     * {@code REMOTE_STORE} recovery source, GREEN once hydrated, all acknowledged operations present, and the index
+     * writable again.
+     */
+    public void testAutoRestoreOnNodeLoss() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        createIndex(INDEX_NAME, autoRestoreIndexSettings(0, true));
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
+        String primaryNode = primaryNodeName(INDEX_NAME);
+
+        try (RestoreWindowObserver observer = new RestoreWindowObserver()) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+
+            ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
+
+            observer.assertRestoredYellowNeverRed();
         }
 
         // Every acknowledged operation survived the node loss ...
@@ -165,7 +194,7 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
     public void testNoAutoRestoreWithoutSetting() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
-        createIndex(INDEX_NAME, autoRestoreIndexSettings(false));
+        createIndex(INDEX_NAME, autoRestoreIndexSettings(0, false));
         ensureGreen(INDEX_NAME);
 
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
@@ -219,7 +248,7 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
             .build();
         internalCluster().startClusterManagerOnlyNode(fastFollowerChecks);
         internalCluster().startDataOnlyNodes(2, fastFollowerChecks);
-        createIndex(INDEX_NAME, autoRestoreIndexSettings(true));
+        createIndex(INDEX_NAME, autoRestoreIndexSettings(0, true));
         ensureGreen(INDEX_NAME);
 
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
@@ -293,6 +322,113 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
         ensureStableCluster(3, TimeValue.timeValueSeconds(60));
         ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
 
+        indexSingleDoc(INDEX_NAME);
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    /**
+     * The trigger is replica-count independent: with a replica configured, the allocator only ever reaches
+     * {@code NO_VALID_SHARD_COPY} when EVERY copy-holding node is gone (a surviving in-sync replica is promoted on
+     * the failover path instead). Losing the replica's node and then the primary's node must therefore auto-restore
+     * exactly as in the zero-replica case, after which the replica peer-recovers from the restored primary on a
+     * newly joined node.
+     */
+    public void testAutoRestoreWithReplicaWhenAllCopiesLost() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, autoRestoreIndexSettings(1, true));
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
+        String primaryNode = primaryNodeName(INDEX_NAME);
+        String replicaNode = replicaNodeName(INDEX_NAME);
+
+        try (RestoreWindowObserver observer = new RestoreWindowObserver()) {
+            // Replica's node first, so no promotion happens in between; then the primary's node - all copies gone.
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+
+            // Only one data node remains, so the replica cannot allocate: the settled state is YELLOW with the
+            // restored primary STARTED and serving.
+            ensureYellowAndNoInitializingShards(INDEX_NAME);
+            assertBusy(() -> {
+                ShardRouting primary = client().admin()
+                    .cluster()
+                    .prepareState()
+                    .get()
+                    .getState()
+                    .routingTable()
+                    .index(INDEX_NAME)
+                    .shard(0)
+                    .primaryShard();
+                assertTrue("restored primary should be started, was " + primary, primary.started());
+            }, 60, TimeUnit.SECONDS);
+
+            observer.assertRestoredYellowNeverRed();
+        }
+
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // A new data node joins: the replica peer-recovers from the auto-restored primary and the index goes GREEN.
+        internalCluster().startDataOnlyNode();
+        ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
+        indexSingleDoc(INDEX_NAME);
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    /**
+     * The boundary from the other side: while an in-sync replica survives, losing the primary's node is handled by
+     * replica promotion and the trigger must never fire - {@code DECIDERS_NO}/promotion territory is real data the
+     * trigger would otherwise abandon. The primary must never carry a {@code REMOTE_STORE} recovery source.
+     */
+    public void testReplicaPromotionPreemptsAutoRestore() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        createIndex(INDEX_NAME, autoRestoreIndexSettings(1, true));
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
+        String primaryNode = primaryNodeName(INDEX_NAME);
+        String replicaNode = replicaNodeName(INDEX_NAME);
+
+        try (RestoreWindowObserver observer = new RestoreWindowObserver()) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+
+            // The in-sync replica is promoted; with only one data node left the replica slot stays unassigned.
+            ensureYellowAndNoInitializingShards(INDEX_NAME);
+            assertBusy(() -> {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                ShardRouting primary = state.routingTable().index(INDEX_NAME).shard(0).primaryShard();
+                assertTrue("promoted primary should be started, was " + primary, primary.started());
+                assertEquals(replicaNode, state.nodes().get(primary.currentNodeId()).getName());
+            }, 60, TimeUnit.SECONDS);
+
+            observer.assertTriggerNeverFired();
+        }
+
+        // The promoted primary serves every acknowledged operation (promotion replays the remote translog) and
+        // accepts new writes.
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
         indexSingleDoc(INDEX_NAME);
         refresh(INDEX_NAME);
         assertBusy(
