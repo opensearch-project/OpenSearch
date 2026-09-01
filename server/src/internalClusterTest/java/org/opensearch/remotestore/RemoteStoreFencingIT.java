@@ -62,7 +62,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
      * {@code IndexShard}'s seal step. Asserted as a stack frame because the point being verified is <i>where</i> on the
      * recovery path the failure happens, which no exception type or message can distinguish.
      */
-    private static final String SEAL_METHOD_NAME = "sealRemoteStoreFenceBeforeRestore";
+    private static final String SEAL_METHOD_NAME = "sealRemoteStoreFenceForRecovery";
 
     /** {@code IndexShard}'s shared seal step, the frame present on both the recovery and the promotion seal paths. */
     private static final String PROMOTION_SEAL_METHOD_NAME = "sealRemoteStoreFence";

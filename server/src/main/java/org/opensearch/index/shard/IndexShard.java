@@ -3383,7 +3383,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // when the translog construction downloads it in the snapshot V2 case), or destroys the remote
                 // translog lineage (the snapshot restore delete).
                 if (shardRouting.primary() && indexSettings.isRemoteTranslogStoreEnabled()) {
-                    sealRemoteStoreFenceBeforeRestore();
+                    sealRemoteStoreFenceForRecovery();
                 }
                 // Download missing segments from remote segment store.
                 if (syncFromRemote) {
@@ -6093,7 +6093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * chain's create-if-absent bootstrap; nothing beyond this index's own metadata and the translog repository is
      * required for the path to resolve.
      */
-    private void sealRemoteStoreFenceBeforeRestore() throws IOException {
+    private void sealRemoteStoreFenceForRecovery() throws IOException {
         if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER) {
             return;
         }
@@ -6103,7 +6103,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Claims the remote store fence for this copy at the current operation primary term. Must run before this copy
      * reads a translog restore point it intends to serve from — whether during recovery
-     * ({@link #sealRemoteStoreFenceBeforeRestore}) or on replica-to-primary promotion
+     * ({@link #sealRemoteStoreFenceForRecovery}) or on replica-to-primary promotion
      * ({@link #resetEngineToGlobalCheckpoint}), where the previous primary may be alive behind a partition and its CAS
      * token must be invalidated before this copy can acknowledge anything.
      */
