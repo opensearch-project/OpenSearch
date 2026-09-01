@@ -1233,6 +1233,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
+     * Publishes the total size of segment bytes not yet referenced by the last commit point, computed from the
+     * post-refresh local segment file sizes. Engine-generic: the notion of "bytes since the last commit" is not
+     * remote-specific -- only the publisher (the remote segment upload path) is. The default is a no-op so that
+     * engines which never publish (e.g. {@link NRTReplicationEngine}, read-only engines) are correct by
+     * construction; {@link InternalEngine} overrides it to drive its uncommitted-segment-bytes flush condition.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     */
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap) {}
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
