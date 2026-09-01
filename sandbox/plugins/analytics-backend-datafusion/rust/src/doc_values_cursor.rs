@@ -19,7 +19,7 @@
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Weak};
 
-use arrow::array::{Array, ArrayRef};
+use arrow::array::Array;
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
@@ -44,9 +44,7 @@ use crate::indexed_table::parquet_bridge::{
 use datafusion::datasource::physical_plan::parquet::ParquetFileReaderFactory;
 
 /// Hard ceiling for the adaptive decode window. Mirrored by
-/// `DataFusionColumnReader.MAX_BATCH_ROWS` and the upper bound of the
-/// `parquet.docvalues.initial_batch_size` setting on the Java side; keep the
-/// three in sync.
+/// `ParquetColumnReader.MAX_BATCH_ROWS` on the Java side; keep the two in sync.
 const MAX_BATCH_SIZE: usize = 8192;
 const RC_OK: i64 = 0;
 const RC_EOF: i64 = 2;
@@ -133,10 +131,11 @@ struct DocValuesCursor {
     initial_batch_size: usize,
     batch_size: usize,
     has_decoded_batch: bool,
-    /// Keeps the most recently borrowed-out batch's buffers alive. Java reads
-    /// the exported pointers until its next call on this cursor, so the array
-    /// must outlive exactly one call cycle; each export replaces the previous.
-    borrowed_batch: Option<ArrayRef>,
+    /// The batch Java last borrowed buffers from, held so the exported pointers stay valid.
+    ///
+    /// Released at the start of the next `parquet_df_next_batch`, on reset, or when close drops the
+    /// cursor - whichever comes first - so a cursor never holds more than one batch.
+    borrowed_batch: Option<RecordBatch>,
     /// Retained so tests can assert on the number of object-store range reads;
     /// also handed to the reader factory to attribute I/O.
     stats: Arc<ReadIoStats>,
@@ -388,7 +387,10 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     debug_assert_eq!(array.data_type().primitive_width(), Some(width));
     let data = array.to_data();
     let buffer = data.buffers().first()?; // buffer 0 holds the values for a primitive array
-    // Fold the array's logical offset into the pointer so it addresses row 0.
+    // Fold the array's logical offset into the pointer so it addresses row 0. Always zero for the
+    // primitive arrays accepted today, because Arrow carries their window in the buffer pointer and
+    // never writes the offset back. `BooleanArray` does report one here, so the term is needed as
+    // soon as the boolean arm above lands.
     let values_addr = buffer.as_ptr() as usize + data.offset() * width;
     let (validity_addr, validity_bit_offset) = match data.nulls() {
         None => (0, 0),
@@ -493,6 +495,12 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     const FN: &str = "parquet_df_next_batch";
     let cursor = cursor_for(handle, FN)?;
     let mut cursor = cursor.lock();
+
+    // Release the previous batch first. Java clears its resident batch before calling, so nothing
+    // can read those buffers any more; releasing here rather than on success means no early return
+    // below leaves a batch held that nothing will read.
+    cursor.borrowed_batch = None;
+
     if at_eof(&cursor, target_row, FN)? {
         return Ok(RC_EOF); // target is past the last row (e.g. a scan running off the end)
     }
@@ -502,24 +510,23 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     if rows == 0 || rows > MAX_BATCH_SIZE {
         return Err(format!("{FN}: Arrow returned {rows} rows"));
     }
+
+    // Scoped so the borrow of `batch` ends before it is moved onto the cursor; `BorrowedBuffers`
+    // holds plain addresses, not a reference into the array.
+    let borrow = {
+        let array = batch.column(0); // single projected column
+        borrowable_buffers(array.as_ref())
+            .ok_or_else(|| format!("{FN}: unsupported non-numeric array {}", array.data_type()))?
+    };
+
+    // Written only once the export is known good, so a failed call leaves them untouched.
     write_out(out_first_row, target_row);
     write_out(out_last_row, target_row + rows as i64 - 1); // inclusive last row of this batch
-
-    // Zero-copy: hand Java the Arrow buffers directly. The array is retained on
-    // the cursor so the pointers stay valid until Java's next call on this
-    // handle (Java swaps its resident batch before that call).
-    let array = batch.column(0); // single projected column
-    let borrow = borrowable_buffers(array.as_ref()).ok_or_else(|| {
-        format!(
-            "{FN}: unsupported non-numeric array {}",
-            array.data_type()
-        )
-    })?;
     write_out(out_values_addr, borrow.values_addr as i64);
     write_out(out_validity_addr, borrow.validity_addr as i64);
     write_out(out_validity_bit_offset, borrow.validity_bit_offset as i64);
     write_out(out_value_kind, borrow.kind);
-    cursor.borrowed_batch = Some(Arc::clone(array)); // keep the buffers alive for one call cycle
+    cursor.borrowed_batch = Some(batch);
     Ok(RC_OK)
 }
 
@@ -541,7 +548,7 @@ mod tests {
 
     const ROWS_PER_PAGE: usize = 64;
 
-    fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
+    pub(super) fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "value",
             DataType::Int64,
@@ -614,6 +621,35 @@ mod tests {
         let right = Arc::new(Int64Array::from((8..16_i64).collect::<Vec<_>>())) as ArrayRef;
         let group = arrow::array::StructArray::new(children.into(), vec![left, right], None);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(group) as ArrayRef]).unwrap();
+        writer.write(&batch).unwrap();
+        Bytes::from(writer.into_inner().unwrap().into_inner())
+    }
+
+    /// A decimal column, which Parquet stores as INT64 at precision 18 and Arrow decodes back to
+    /// `Decimal128`. That combination passes `open`'s physical-type guard but has no arm in
+    /// [`borrowable_buffers`], so it can only be rejected once a batch has been decoded.
+    pub(super) fn parquet_fixture_with_decimal_column(rows_per_page: usize) -> Bytes {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "value",
+            DataType::Decimal128(18, 2),
+            false,
+        )]));
+        let props = WriterProperties::builder()
+            .set_dictionary_enabled(false)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .set_data_page_row_count_limit(rows_per_page)
+            .set_write_batch_size(rows_per_page)
+            .build();
+        let mut writer =
+            ArrowWriter::try_new(Cursor::new(Vec::new()), Arc::clone(&schema), Some(props))
+                .unwrap();
+        let values = (0..rows_per_page * 2)
+            .map(|value| value as i128)
+            .collect::<Vec<_>>();
+        let array = arrow::array::Decimal128Array::from(values)
+            .with_precision_and_scale(18, 2)
+            .unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(array) as ArrayRef]).unwrap();
         writer.write(&batch).unwrap();
         Bytes::from(writer.into_inner().unwrap().into_inner())
     }
@@ -892,6 +928,473 @@ mod tests {
             cursor.next_batch(rows_per_page as i64).unwrap().num_rows(),
             MAX_BATCH_SIZE,
             "the adaptive window must not grow beyond the configured maximum"
+        );
+    }
+
+    /// The kind is the whole of the Rust-to-Java type contract: Java picks a byte width and a
+    /// sign-extension rule from it alone, so a wrong mapping here reads the right bytes as the
+    /// wrong numbers. Mirrors the `KIND_*` constants in `DecodedBatch.java` and the widths in
+    /// `ParquetColumnReader.widthForKind`.
+    #[test]
+    fn each_borrowable_arrow_type_maps_to_the_kind_java_expects() {
+        use arrow::array::{
+            Float32Array, Float64Array, Int16Array, Int32Array, Int8Array, UInt16Array,
+            UInt32Array, UInt64Array, UInt8Array,
+        };
+
+        let cases: Vec<(ArrayRef, i64)> = vec![
+            (Arc::new(Int64Array::from(vec![1])), BORROW_KIND_LONG),
+            (Arc::new(UInt64Array::from(vec![1])), BORROW_KIND_LONG),
+            (Arc::new(Float64Array::from(vec![1.0])), BORROW_KIND_DOUBLE),
+            (Arc::new(Int32Array::from(vec![1])), BORROW_KIND_INT),
+            (Arc::new(UInt32Array::from(vec![1])), BORROW_KIND_UINT_BITS),
+            (Arc::new(Float32Array::from(vec![1.0])), BORROW_KIND_FLOAT),
+            (Arc::new(Int16Array::from(vec![1])), BORROW_KIND_SHORT),
+            (Arc::new(UInt16Array::from(vec![1])), BORROW_KIND_USHORT),
+            (Arc::new(Int8Array::from(vec![1])), BORROW_KIND_BYTE),
+            (Arc::new(UInt8Array::from(vec![1])), BORROW_KIND_UBYTE),
+        ];
+
+        for (array, expected_kind) in cases {
+            let borrow = borrowable_buffers(array.as_ref())
+                .unwrap_or_else(|| panic!("{} must be borrowable", array.data_type()));
+            assert_eq!(borrow.kind, expected_kind, "kind for {}", array.data_type());
+        }
+    }
+
+    /// An array can be a window onto a longer buffer, so row 0 need not sit at the buffer's start
+    /// and Java is handed exactly one address per buffer.
+    ///
+    /// The two buffers reach that address differently. Arrow folds a primitive array's window into
+    /// the values buffer's own pointer (`ScalarBuffer::new(buffer, offset, len)` when a
+    /// `PrimitiveArray` is built from `ArrayData`, and `ArrayData::from` never writes the offset
+    /// back), so `to_data().offset()` reads as 0 here and the `data.offset()` term in the export is
+    /// defensive. A validity bitmap keeps its offset, because a bit position cannot be folded into
+    /// a byte pointer, which is why the bit offset is a separate out-parameter.
+    #[test]
+    fn a_borrowed_window_exports_row_zero_and_its_first_validity_bit() {
+        use arrow::array::{make_array, ArrayData};
+        use arrow::buffer::Buffer;
+
+        let values_buffer = Buffer::from_slice_ref((0..8_i64).collect::<Vec<_>>());
+        let values_base = values_buffer.as_ptr() as usize;
+        // Bitmaps are indexed from the least significant bit, so this clears bit 3: row 3 is null.
+        // A window with no nulls in it is dropped by `ArrayDataBuilder::build`, which would leave
+        // no bitmap to assert on.
+        let validity_buffer = Buffer::from_slice_ref([0b1111_0111_u8]);
+        let validity_base = validity_buffer.as_ptr() as usize;
+
+        // Rows 3..8 of an eight-row buffer.
+        let array = make_array(
+            ArrayData::builder(DataType::Int64)
+                .len(5)
+                .offset(3)
+                .add_buffer(values_buffer)
+                .null_bit_buffer(Some(validity_buffer))
+                .build()
+                .unwrap(),
+        );
+        assert_eq!(
+            array.to_data().offset(),
+            0,
+            "the values window is carried by the buffer pointer, not by the offset"
+        );
+
+        let borrow = borrowable_buffers(array.as_ref()).expect("Int64 must be borrowable");
+        assert_eq!(
+            borrow.values_addr,
+            values_base + 3 * std::mem::size_of::<i64>(),
+            "the exported pointer must address the window's first row, not the buffer start"
+        );
+        assert_eq!(
+            unsafe { *(borrow.values_addr as *const i64) },
+            3,
+            "reading through the exported pointer must yield the window's first value"
+        );
+        assert_eq!(
+            borrow.validity_addr, validity_base,
+            "the bitmap is exported unshifted, because bit 3 is not at a byte boundary"
+        );
+        assert_eq!(
+            borrow.validity_bit_offset, 3,
+            "so Java is handed the bit offset to apply itself"
+        );
+    }
+
+    /// Rejected rather than exported as raw bytes Java would silently misread. Decimal is the
+    /// reachable case: it survives `open`'s physical-type guard as INT32/INT64.
+    #[test]
+    fn a_type_with_no_borrow_kind_is_not_borrowable() {
+        let decimal = arrow::array::Decimal128Array::from(vec![1_i128, 2])
+            .with_precision_and_scale(18, 2)
+            .unwrap();
+        assert!(borrowable_buffers(&decimal).is_none(), "Decimal128");
+
+        let strings = arrow::array::StringArray::from(vec!["a", "b"]);
+        assert!(borrowable_buffers(&strings).is_none(), "Utf8");
+
+        let booleans = arrow::array::BooleanArray::from(vec![true, false]);
+        assert!(
+            borrowable_buffers(&booleans).is_none(),
+            "Boolean is bit-packed, so it needs a value bit offset before it can be exported"
+        );
+    }
+}
+
+/// Tests driving the `extern "C"` entry points, the way Java reaches them. The tests above call the
+/// inherent methods, which never touch the handle registry, the status codes or `borrowed_batch`.
+#[cfg(test)]
+mod ffm_tests {
+    use std::ffi::{c_char, CString};
+    use std::io::Write;
+
+    use tempfile::NamedTempFile;
+
+    use super::tests::parquet_fixture_with_page_rows;
+    use super::*;
+
+    const ROWS_PER_PAGE: usize = 64;
+    /// `parquet_fixture_with_page_rows` writes eight pages per row group.
+    const FIXTURE_ROWS: i64 = (ROWS_PER_PAGE * 8) as i64;
+
+    /// Reads the message an error return points at, taking ownership so it is freed rather than
+    /// leaked into the test binary.
+    fn error_message(rc: i64) -> String {
+        assert!(rc < 0, "expected an error pointer, got {rc}");
+        unsafe {
+            CString::from_raw((-rc) as *mut c_char)
+                .into_string()
+                .expect("error message must be valid UTF-8")
+        }
+    }
+
+    fn fixture_file() -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&parquet_fixture_with_page_rows(1, ROWS_PER_PAGE))
+            .unwrap();
+        file.flush().unwrap();
+        file
+    }
+
+    fn open_iter(path: &str, initial: i64) -> i64 {
+        let column = "value";
+        unsafe {
+            parquet_df_open_iter(
+                path.as_ptr(),
+                path.len() as i64,
+                column.as_ptr(),
+                column.len() as i64,
+                initial,
+            )
+        }
+    }
+
+    fn open_fixture(file: &NamedTempFile) -> i64 {
+        let handle = open_iter(file.path().to_str().unwrap(), 8);
+        assert!(handle >= 0, "{}", error_message(handle));
+        handle
+    }
+
+    /// True when the cursor behind `handle` is holding Arrow buffers on Java's behalf.
+    fn holds_borrow(handle: i64) -> bool {
+        CURSORS
+            .get(&handle)
+            .expect("cursor must still be registered")
+            .value()
+            .lock()
+            .borrowed_batch
+            .is_some()
+    }
+
+    struct Batch {
+        rc: i64,
+        first_row: i64,
+        last_row: i64,
+        values_addr: i64,
+        validity_addr: i64,
+        value_kind: i64,
+    }
+
+    /// Reads values back out of an exported buffer the way Java does, via
+    /// `MemorySegment.ofAddress(addr).reinterpret(len)`: an unchecked view over memory Rust owns.
+    ///
+    /// # Safety
+    /// Only valid while the cursor still holds the batch these addresses were borrowed from, so
+    /// call this before the next entry-point call on the same handle.
+    unsafe fn exported_i64s(addr: i64, rows: usize) -> Vec<i64> {
+        std::slice::from_raw_parts(addr as *const i64, rows).to_vec()
+    }
+
+    fn next_batch(handle: i64, target_row: i64) -> Batch {
+        let mut first_row = -1i64;
+        let mut last_row = -1i64;
+        let mut values_addr = 0i64;
+        let mut validity_addr = 0i64;
+        let mut validity_bit_offset = -1i64;
+        let mut value_kind = -1i64;
+        let rc = unsafe {
+            parquet_df_next_batch(
+                handle,
+                target_row,
+                &mut first_row,
+                &mut last_row,
+                &mut values_addr,
+                &mut validity_addr,
+                &mut validity_bit_offset,
+                &mut value_kind,
+            )
+        };
+        Batch {
+            rc,
+            first_row,
+            last_row,
+            values_addr,
+            validity_addr,
+            value_kind,
+        }
+    }
+
+    #[test]
+    fn a_served_batch_is_retained_so_javas_pointers_stay_valid() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        assert!(!holds_borrow(handle), "nothing is borrowed before the first read");
+        let batch = next_batch(handle, 0);
+        assert_eq!(batch.rc, RC_OK);
+        assert_eq!(batch.first_row, 0);
+        assert_eq!(batch.last_row, 7, "the initial window is eight rows");
+        assert_ne!(batch.values_addr, 0, "a borrowed batch must expose values");
+        assert_eq!(batch.value_kind, BORROW_KIND_LONG);
+        assert!(holds_borrow(handle), "the served batch must be retained");
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    /// Reads back through the exported addresses across a whole multi-page scan, which is the only
+    /// check on what Java actually sees. The tests around this one assert the *lifetime* of the
+    /// borrow; a wrong address, a wrong kind, or an unfolded array offset keeps the batch alive
+    /// just as well and still serves wrong doc values.
+    #[test]
+    fn exported_addresses_read_back_as_the_rows_the_batch_reports() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        let mut row = 0;
+        while row < FIXTURE_ROWS {
+            let batch = next_batch(handle, row);
+            assert_eq!(batch.rc, RC_OK, "row {row}");
+            assert_eq!(batch.first_row, row);
+            assert_eq!(batch.value_kind, BORROW_KIND_LONG);
+            assert_eq!(
+                batch.validity_addr, 0,
+                "the fixture column is required, so no bitmap should be exported"
+            );
+
+            // The fixture writes value == row index, so the buffer must read back as exactly the
+            // rows the batch claims to cover.
+            let rows = (batch.last_row - batch.first_row + 1) as usize;
+            let expected = (batch.first_row..=batch.last_row).collect::<Vec<_>>();
+            assert_eq!(
+                unsafe { exported_i64s(batch.values_addr, rows) },
+                expected,
+                "batch [{}, {}]",
+                batch.first_row,
+                batch.last_row
+            );
+
+            row = batch.last_row + 1;
+        }
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn only_one_batch_is_retained_across_a_long_scan() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        // Each call releases the previous batch before decoding, so retention never accumulates.
+        let mut row = 0;
+        while row < FIXTURE_ROWS {
+            let batch = next_batch(handle, row);
+            assert_eq!(batch.rc, RC_OK, "row {row}: {}", batch.last_row);
+            assert!(holds_borrow(handle));
+            row = batch.last_row + 1;
+        }
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn reaching_end_of_column_releases_the_borrow() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        assert_eq!(next_batch(handle, 0).rc, RC_OK);
+        assert!(holds_borrow(handle));
+
+        // EOF returns before decoding, so it must not leave the previous batch held.
+        assert_eq!(next_batch(handle, FIXTURE_ROWS).rc, RC_EOF);
+        assert!(
+            !holds_borrow(handle),
+            "end of column must release the retained batch"
+        );
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn a_failed_read_releases_the_borrow() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        assert_eq!(next_batch(handle, 0).rc, RC_OK);
+        assert!(holds_borrow(handle));
+
+        // Out of range: fails after the release, so nothing stays held.
+        let message = error_message(next_batch(handle, FIXTURE_ROWS + 1).rc);
+        assert!(message.contains("out of range"), "{message}");
+        assert!(
+            !holds_borrow(handle),
+            "a failed read must release the retained batch"
+        );
+
+        // A backward seek fails inside the reader, after the release, for the same reason.
+        assert_eq!(next_batch(handle, 40).rc, RC_OK);
+        let message = error_message(next_batch(handle, 0).rc);
+        assert!(message.contains("backward seek"), "{message}");
+        assert!(!holds_borrow(handle));
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    /// `open` guards on the Parquet *physical* type, which a decimal column passes: precision 18
+    /// is stored as INT64. It decodes to Arrow `Decimal128`, which cannot be borrowed, so the
+    /// rejection lands after a batch has already been decoded - the one failure path that reaches
+    /// the export step itself.
+    #[test]
+    fn a_column_that_cannot_be_borrowed_is_rejected_at_read_time() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&super::tests::parquet_fixture_with_decimal_column(
+            ROWS_PER_PAGE,
+        ))
+        .unwrap();
+        file.flush().unwrap();
+
+        let handle = open_iter(file.path().to_str().unwrap(), 8);
+        assert!(
+            handle >= 0,
+            "a decimal column must open, so the read path is what rejects it: {}",
+            error_message(handle)
+        );
+
+        let message = error_message(next_batch(handle, 0).rc);
+        assert!(
+            message.contains("unsupported non-numeric array"),
+            "{message}"
+        );
+        assert!(
+            !holds_borrow(handle),
+            "a batch that could not be exported must not stay held"
+        );
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn resetting_releases_the_borrow_and_allows_rereading_row_zero() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        assert_eq!(next_batch(handle, 0).rc, RC_OK);
+        let forward = next_batch(handle, 32);
+        assert_eq!(forward.rc, RC_OK);
+        assert_eq!(forward.first_row, 32);
+        assert!(holds_borrow(handle));
+
+        assert_eq!(unsafe { parquet_df_reset_iter(handle) }, RC_OK);
+        assert!(!holds_borrow(handle), "reset must release the retained batch");
+
+        // Without the reset this would be a rejected backward seek.
+        let rewound = next_batch(handle, 0);
+        assert_eq!(rewound.rc, RC_OK);
+        assert_eq!(rewound.first_row, 0);
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn closing_while_holding_a_borrow_drops_the_cursor() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+
+        assert_eq!(next_batch(handle, 0).rc, RC_OK);
+        assert!(holds_borrow(handle), "close is exercised with a batch still held");
+
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+        assert!(
+            CURSORS.get(&handle).is_none(),
+            "close must drop the cursor, releasing the retained Arrow buffers"
+        );
+        // Closing twice is a no-op, so a Java close in a finally block is safe.
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+    }
+
+    #[test]
+    fn every_entry_point_rejects_an_unknown_handle() {
+        let unknown = i64::MAX;
+        for message in [
+            error_message(next_batch(unknown, 0).rc),
+            error_message(unsafe { parquet_df_reset_iter(unknown) }),
+        ] {
+            assert!(message.contains("unknown handle"), "{message}");
+        }
+    }
+
+    #[test]
+    fn a_closed_handle_is_no_longer_usable() {
+        let file = fixture_file();
+        let handle = open_fixture(&file);
+        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
+
+        let message = error_message(next_batch(handle, 0).rc);
+        assert!(message.contains("unknown handle"), "{message}");
+    }
+
+    #[test]
+    fn an_out_of_range_initial_window_is_rejected() {
+        for initial in [0, -1, MAX_BATCH_SIZE as i64 + 1] {
+            // Rejected before the file is touched, so the path is irrelevant.
+            let message = error_message(open_iter("/nonexistent/never-opened.parquet", initial));
+            assert!(
+                message.contains("initial batch size"),
+                "initial {initial} produced {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_column_is_reported_without_leaving_a_handle_behind() {
+        let file = fixture_file();
+        let path = file.path().to_str().unwrap();
+        let column = "absent";
+        let before = CURSORS.len();
+        let rc = unsafe {
+            parquet_df_open_iter(
+                path.as_ptr(),
+                path.len() as i64,
+                column.as_ptr(),
+                column.len() as i64,
+                8,
+            )
+        };
+        let message = error_message(rc);
+        assert!(message.contains("not found"), "{message}");
+        assert_eq!(
+            CURSORS.len(),
+            before,
+            "a failed open must not register a cursor"
         );
     }
 }
