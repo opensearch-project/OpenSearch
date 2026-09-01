@@ -196,6 +196,55 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
         assertFalse(clusterShardHealth.isPrimaryActive());
     }
 
+    /**
+     * An inactive primary recovering from the remote store reports YELLOW, not RED: the data is durable and hydration
+     * is converging without operator action - the auto-restore of a lost zero-replica primary, or a manual
+     * _remotestore/_restore of a RED index. RED remains the parked no-valid-copy state.
+     */
+    public void testRemoteStoreRestorePrimaryIsYellow() {
+        RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
+            UUID.randomUUID().toString(),
+            Version.CURRENT,
+            new org.opensearch.repositories.IndexId("test", UUID.randomUUID().toString())
+        );
+        ShardRouting unassignedRemoteRestore = ShardRouting.newUnassigned(
+            new ShardId(new Index("test", UUID.randomUUID().toString()), 0),
+            true,
+            recoverySource,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                "auto-restoring from remote store",
+                null,
+                0,
+                0,
+                0,
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+        assertEquals(ClusterHealthStatus.YELLOW, ClusterShardHealth.getInactivePrimaryHealth(unassignedRemoteRestore));
+
+        // a failed allocation or a deciders-refused shard stays RED even with a remote-store source
+        ShardRouting failedOnce = ShardRouting.newUnassigned(
+            new ShardId(new Index("test", UUID.randomUUID().toString()), 0),
+            true,
+            recoverySource,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                "boom",
+                null,
+                1,
+                0,
+                0,
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+        assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getInactivePrimaryHealth(failedOnce));
+    }
+
     public void testShardRoutingNullCheck() {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
             .settings(

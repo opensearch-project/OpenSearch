@@ -39,11 +39,13 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterShardHealth;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -66,6 +68,7 @@ import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -82,6 +85,7 @@ import java.util.Map;
 import static org.opensearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
 import static org.opensearch.cluster.routing.UnassignedInfo.Reason.INDEX_CREATED;
 import static org.opensearch.cluster.routing.UnassignedInfo.Reason.INDEX_REOPENED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -165,6 +169,142 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    private static Settings autoRestoreEligibleSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
+
+    /**
+     * The auto-restore trigger: a fenced, auto-restore-enabled remote index whose primary has no valid copy on any
+     * live node is converted to a remote-store recovery instead of being parked at NO_VALID_SHARD_COPY. The shard
+     * stays in the unassigned list (the shards allocator places it later in the same round), carries a fresh
+     * REMOTE_STORE recovery source, and reports YELLOW while it initializes.
+     */
+    public void testAutoRestoreConvertsNoValidShardCopyToRemoteStoreRecovery() {
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            autoRestoreEligibleSettings(),
+            IndexMetadata.State.OPEN,
+            "in-sync-id"
+        );
+        // the only copy the fetch finds carries an allocation id that is not in-sync: no valid copy anywhere
+        testAllocator.addData(node1, "stale-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored(), empty());
+        assertThat(allocation.routingNodes().unassigned().size(), equalTo(1));
+        final ShardRouting converted = allocation.routingNodes().unassigned().iterator().next();
+        assertThat(converted.recoverySource().getType(), equalTo(RecoverySource.Type.REMOTE_STORE));
+        assertThat(converted.unassignedInfo().getNumFailedAllocations(), equalTo(0));
+        assertThat(
+            ClusterShardHealth.getInactivePrimaryHealth(converted),
+            equalTo(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
+        );
+    }
+
+    /**
+     * Without index.remote_store.auto_restore.enabled the trigger stays off: the shard parks at NO_VALID_SHARD_COPY
+     * with its existing-store source, exactly as before this feature.
+     */
+    public void testAutoRestoreRequiresAutoRestoreSetting() {
+        final Settings withoutAutoRestore = Settings.builder()
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.getKey(), true)
+            .build();
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            withoutAutoRestore,
+            IndexMetadata.State.OPEN,
+            "in-sync-id"
+        );
+        testAllocator.addData(node1, "stale-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().unassigned().ignored().get(0).recoverySource().getType(),
+            equalTo(RecoverySource.Type.EXISTING_STORE)
+        );
+    }
+
+    /**
+     * The defensive fencing guard: even if index metadata carries auto_restore=true without fencing (the setting
+     * validator refuses that combination at creation time, but the allocator does not get to assume it), the trigger
+     * must not fire - an unfenced trigger loses acknowledged writes (FenceAutoRestore.tla refutes it).
+     */
+    public void testAutoRestoreRequiresFencing() {
+        final Settings unfenced = Settings.builder()
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING.getKey(), true)
+            .build();
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            unfenced,
+            IndexMetadata.State.OPEN,
+            "in-sync-id"
+        );
+        testAllocator.addData(node1, "stale-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().unassigned().ignored().get(0).recoverySource().getType(),
+            equalTo(RecoverySource.Type.EXISTING_STORE)
+        );
+    }
+
+    /**
+     * DECIDERS_NO means valid copies exist and allocation is blocked by policy; converting would abandon real local
+     * data over a transient decider, so the trigger must not fire.
+     */
+    public void testAutoRestoreSkipsDecidersNo() {
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            new AllocationDeciders(Arrays.asList(getNoDeciderThatDeniesForceAllocate())),
+            CLUSTER_RECOVERED,
+            autoRestoreEligibleSettings(),
+            IndexMetadata.State.OPEN,
+            "in-sync-id"
+        );
+        // a valid in-sync copy exists; the deciders refuse to place it
+        testAllocator.addData(node1, "in-sync-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(
+            allocation.routingNodes().unassigned().ignored().get(0).recoverySource().getType(),
+            equalTo(RecoverySource.Type.EXISTING_STORE)
+        );
+    }
+
+    /**
+     * A closed index acknowledges nothing and may be mid-in-place-snapshot-restore; its lifecycle operations own the
+     * shard, so the trigger must not fire.
+     */
+    public void testAutoRestoreSkipsClosedIndex() {
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
+            yesAllocationDeciders(),
+            CLUSTER_RECOVERED,
+            autoRestoreEligibleSettings(),
+            IndexMetadata.State.CLOSE,
+            "in-sync-id"
+        );
+        testAllocator.addData(node1, "stale-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        // whatever routing shape a closed index takes, no shard may have been converted to a remote-store recovery
+        for (ShardRouting shard : allocation.routingNodes().unassigned()) {
+            assertThat(shard.recoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
+        }
+        for (ShardRouting shard : allocation.routingNodes().unassigned().ignored()) {
+            assertThat(shard.recoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
+        }
     }
 
     /**
@@ -724,10 +864,27 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         UnassignedInfo.Reason reason,
         String... activeAllocationIds
     ) {
+        return routingAllocationWithOnePrimaryNoReplicas(deciders, reason, Settings.EMPTY, IndexMetadata.State.OPEN, activeAllocationIds);
+    }
+
+    /**
+     * Fixture variant taking extra index settings and an index state, for the auto-restore trigger tests. Building
+     * {@link IndexMetadata} directly bypasses registered setting validators, which is deliberate: it lets the
+     * defensive fencing guard in the allocator be exercised with combinations the validator would refuse at
+     * index-creation time.
+     */
+    private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(
+        AllocationDeciders deciders,
+        UnassignedInfo.Reason reason,
+        Settings extraIndexSettings,
+        IndexMetadata.State indexState,
+        String... activeAllocationIds
+    ) {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(Version.CURRENT).put(extraIndexSettings))
+                    .state(indexState)
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds))
