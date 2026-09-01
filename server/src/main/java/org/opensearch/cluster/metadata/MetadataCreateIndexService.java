@@ -359,7 +359,6 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<CreateIndexClusterStateUpdateResponse> listener
     ) {
-        // createindexmark3
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(
@@ -401,7 +400,6 @@ public class MetadataCreateIndexService {
                     return createIndexTaskKey;
                 }
 
-                // createindexmark4
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return applyCreateIndexRequest(currentState, request, false);
@@ -544,7 +542,6 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                // createindexmark5
                 updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
@@ -1634,7 +1631,6 @@ public class MetadataCreateIndexService {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Object> mapping : mappings) {
             if (mapping.isEmpty() == false) {
-                // createindexmark6
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }

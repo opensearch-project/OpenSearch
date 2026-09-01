@@ -117,7 +117,6 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
         final ClusterState state,
         final ActionListener<CreateIndexResponse> listener
     ) {
-        // createindexmark2
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

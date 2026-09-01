@@ -87,7 +87,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         );
         parseDeprecatedMasterTimeoutParameter(createIndexRequest, request, deprecationLogger, getName());
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        // createindexmark1
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }
 

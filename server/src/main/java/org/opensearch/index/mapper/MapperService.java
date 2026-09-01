@@ -506,7 +506,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
         CompressedXContent content = new CompressedXContent(XContentFactory.jsonBuilder().map(mappings).toString());
-        // createindexmark7
         internalMerge(Collections.singletonMap(type, content), reason);
     }
 
@@ -537,7 +536,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             try {
-                // createindexmark8
                 documentMapper = documentParser.parse(type, entry.getValue());
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());

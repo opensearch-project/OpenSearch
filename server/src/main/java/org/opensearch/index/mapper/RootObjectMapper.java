@@ -203,7 +203,6 @@ public class RootObjectMapper extends ObjectMapper {
             // Parse disable_objects first so it's available when parseProperties is called.
             Object disableObjectsNode = node.remove("disable_objects");
             if (disableObjectsNode != null) {
-                // createindexmark10
                 parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
             }
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
@@ -220,7 +219,6 @@ public class RootObjectMapper extends ObjectMapper {
                     contextAwareGoupingField = fieldNode;
                     iterator.remove();
                 } else {
-                    // createindexmark11
                     if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
                         || processField(builder, fieldName, fieldNode, parserContext)) {
                         iterator.remove();

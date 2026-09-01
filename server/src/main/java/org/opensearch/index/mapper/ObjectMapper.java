@@ -328,7 +328,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
             }
             Object compositeField = null;
-            // createindexmark16
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -347,7 +346,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (compositeField != null) {
                 parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
             }
-            // createindexmark17
             return builder;
         }
 
@@ -401,7 +399,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else if (!(fieldNode instanceof Map)) {
                     throw new OpenSearchParseException("properties must be a map type");
                 } else {
-                    // createindexmark12
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
                 return true;
@@ -699,7 +696,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                    // createindexmark13
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
@@ -708,7 +704,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     // and don't create intermediate object mappers
                     if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
                         // Use the full field name as-is without splitting
-                        // createindexmark14
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                         objBuilder.add(fieldBuilder);
                     } else {
@@ -719,19 +714,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
                             throw new MapperParsingException("Invalid field name " + fieldName);
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                        // createindexmark15
                         Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
-                        // createindexmark17
                         objBuilder.add(fieldBuilder);
                     }
                     propNode.remove("type");
                     DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
-                    // createindexmark18
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
@@ -1184,7 +1176,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void canDeriveSource() {
-        // createindexmark22
         if (this.enabled.value() == false) {
             throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled");
         }
