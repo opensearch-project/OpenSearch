@@ -123,6 +123,7 @@ Four modules, each modeling the protocol **as implemented**:
 | `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic, and is the window between the seal claim and the translog's re-adoption safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,460,896 |
 | `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss | 4 ops, 3 attempts | 591 |
 | `FenceSegmentFlow.tla` | the segment flow as a second path needing the fence, plus garbage collection | 3 writers, 3 files, 3 terms | 20,008 |
+| `FenceAutoRestore.tla` | the zero-replica auto-restore trigger: node-left is a view change, the departed writer keeps running, and the fence — not the trigger — is what makes that safe; `FENCED = FALSE` (the ungated trigger) is refuted in a 7-state `NoAckedWriteLoss` counterexample | 3 writers, 2 nodes, 3 ops, 4 terms | 86,064 |
 
 ### On the bounds
 
@@ -298,6 +299,7 @@ tla/RemoteStoreFence.tla        seal ordering and acked-write loss
 tla/FenceTakeover.tla           cross-term takeover determinism
 tla/FenceHandoff.tla            equal-term relocation handoff
 tla/FenceSegmentFlow.tla        the segment flow as a second path needing the fence, plus GC
+tla/FenceAutoRestore.tla        the zero-replica auto-restore trigger over the fence
 tla/*.cfg                       one TLC configuration per module
 ```
 
