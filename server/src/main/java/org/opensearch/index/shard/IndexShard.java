@@ -6116,7 +6116,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteFsTranslog.sealFence(
             ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository(),
             shardId,
-            getThreadPool(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
             RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),

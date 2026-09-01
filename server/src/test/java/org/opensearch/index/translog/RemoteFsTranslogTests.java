@@ -1991,9 +1991,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
             // A new primary at a higher term seals the fence out of band
             BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
-            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId, threadPool).validateAndAdvance(
-                primaryTerm.get() + 1
-            );
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
 
             fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
             expectThrows(TranslogFencedException.class, fenced::sync);
@@ -2020,9 +2018,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
             // A higher term takes the fence out of band.
             BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
-            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId, threadPool).validateAndAdvance(
-                primaryTerm.get() + 1
-            );
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
 
             assertTrue(fenced.isRemoteStoreFenceSuperseded());
             fenced.trimUnreferencedReaders(); // gated: skips the remote deletion, does not throw
@@ -2039,7 +2035,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         RemoteFsTranslog.sealFence(
             freshRepository,
             shardId,
-            threadPool,
             new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
             DefaultRemoteStoreSettings.INSTANCE,
             false,
@@ -2071,7 +2066,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             RemoteFsTranslog.sealFence(
                 fencedRepository,
                 shardId,
-                threadPool,
                 new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
@@ -2111,7 +2105,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> RemoteFsTranslog.sealFence(
                     fencedRepository,
                     shardId,
-                    threadPool,
                     new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
                     DefaultRemoteStoreSettings.INSTANCE,
                     false,

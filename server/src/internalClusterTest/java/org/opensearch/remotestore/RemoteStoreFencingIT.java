@@ -27,7 +27,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -484,13 +483,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             clusterManager
         ).repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(
-            fenceContainer,
-            "superseding-allocation",
-            "superseding-node",
-            shardId,
-            internalCluster().getInstance(ThreadPool.class, clusterManager)
-        ).validateAndAdvance(before.term + 50);
+        new RemoteStoreFence(fenceContainer, "superseding-allocation", "superseding-node", shardId).validateAndAdvance(before.term + 50);
         Fence superseding = readFence(fenceDir);
         assertEquals("superseding-node", superseding.nodeId);
 
@@ -565,13 +558,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             clusterManager
         ).repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(
-            fenceContainer,
-            "superseding-allocation",
-            "superseding-node",
-            shardId,
-            internalCluster().getInstance(ThreadPool.class, clusterManager)
-        ).validateAndAdvance(before.term + 50);
+        new RemoteStoreFence(fenceContainer, "superseding-allocation", "superseding-node", shardId).validateAndAdvance(before.term + 50);
         Fence superseding = readFence(fenceDir);
         assertEquals("superseding-node", superseding.nodeId);
 
@@ -630,13 +617,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         BlobStoreRepository translogRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, dataNode)
             .repository(REPOSITORY_2_NAME);
         BlobContainer fenceContainer = translogRepository.blobStore().blobContainer(metadataBlobPath);
-        new RemoteStoreFence(
-            fenceContainer,
-            "competing-allocation",
-            "competing-node",
-            primary.shardId(),
-            internalCluster().getInstance(ThreadPool.class, dataNode)
-        ).validateAndAdvance(incumbent.term + 1);
+        new RemoteStoreFence(fenceContainer, "competing-allocation", "competing-node", primary.shardId()).validateAndAdvance(
+            incumbent.term + 1
+        );
         Fence competing = readFence(fenceDir);
         assertEquals("competing-node", competing.nodeId);
 

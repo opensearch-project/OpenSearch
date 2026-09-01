@@ -55,12 +55,24 @@ and a restore point `restore(w)` read from the store; and a global set
    `F.owner ≠ ⊥ ∧ hasRead(F.owner) ⇒ acked ⊆ restore(F.owner) ∪ ackedBy(F.owner)`
 
    Put another way: nothing a superseded writer acknowledged lands after
-   the restore point its successor serves from. The models set
-   `restore(w) = acked` exactly, while the implementation's restore point —
-   the latest translog metadata — can be a strict *superset*: a fenced
-   writer's orphan metadata file names operations that were never
-   acknowledged. The invariant is a `⊆`, so surfacing a never-acknowledged
-   operation is always permitted; that direction is load-bearing.
+   the restore point its successor serves from. The seal-ordering module
+   sets `restore(w) = visible` — the metadata that has *landed* in the
+   store, which can be a strict *superset* of `acked`: a fenced writer's
+   orphan metadata file names operations that were never acknowledged. The
+   invariant is a `⊆`, so surfacing a never-acknowledged operation is
+   always permitted; that direction is load-bearing. What `visible` cannot
+   contain is metadata still in flight, and that gap is why the module
+   splits the acknowledgement into a metadata PUT, a fence CAS and a join
+   (`SEQUENCED` selects the write-side ordering): issued concurrently, the
+   CAS can win against the incumbent's object *before* a takeover's sweep
+   while the metadata lands only *after* the takeover read its restore
+   point — the acknowledged operation is then in no successor's restore
+   point, ever. Setting the module's `SEQUENCED` constant to `FALSE`
+   reproduces that refuted design and TLC exhibits the trace in a
+   13-state counterexample; the shipped ordering — the CAS is issued only
+   after the metadata PUT completed — restores the invariant by
+   happens-before and is what `RemoteStoreFence.cfg` checks
+   (`SEQUENCED = TRUE`).
 
 3. **Ack attribution.** `⋃_w ackedBy(w) = acked`, and the `ackedBy(w)` are
    pairwise disjoint — every ack belongs to exactly one writer.

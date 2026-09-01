@@ -8,12 +8,10 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -26,12 +24,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -64,7 +60,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
     }
 
     private RemoteStoreFence newFence(String ownerNodeId) {
-        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool);
+        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId);
     }
 
     /**
@@ -92,7 +88,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
             }
         };
 
-        final RemoteStoreFence fence = new RemoteStoreFence(losingResponses, allocationIdOf("node-1"), "node-1", shardId, threadPool);
+        final RemoteStoreFence fence = new RemoteStoreFence(losingResponses, allocationIdOf("node-1"), "node-1", shardId);
         fence.validateAndAdvance(term);
         final long seqBeforeLoss = fence.getSeq();
 
@@ -141,7 +137,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
             }
         };
 
-        final RemoteStoreFence superseded = new RemoteStoreFence(planting, allocationIdOf("node-late"), "node-late", shardId, threadPool);
+        final RemoteStoreFence superseded = new RemoteStoreFence(planting, allocationIdOf("node-late"), "node-late", shardId);
         expectThrows(TranslogFencedException.class, () -> superseded.validateAndAdvance(term));
 
         assertTrue(
@@ -302,9 +298,9 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
             }
         };
 
-        new RemoteStoreFence(droppingDeletes, allocationIdOf("node-old"), "node-old", shardId, threadPool).validateAndAdvance(1);
+        new RemoteStoreFence(droppingDeletes, allocationIdOf("node-old"), "node-old", shardId).validateAndAdvance(1);
 
-        RemoteStoreFence claimant = new RemoteStoreFence(droppingDeletes, allocationIdOf("node-new"), "node-new", shardId, threadPool);
+        RemoteStoreFence claimant = new RemoteStoreFence(droppingDeletes, allocationIdOf("node-new"), "node-new", shardId);
         IOException e = expectThrows(IOException.class, () -> claimant.validateAndAdvance(2));
         assertFalse("an unswept predecessor is retryable, not a fencing verdict", e instanceof TranslogFencedException);
         assertTrue(e.getMessage(), e.getMessage().contains("superseded term [1]"));
@@ -350,7 +346,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
     }
 
     private RemoteStoreFence newRelocationTarget(String ownerNodeId) {
-        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool, true);
+        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, true);
     }
 
     /**
@@ -436,13 +432,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
                 return token;
             }
         };
-        final RemoteStoreFence source = new RemoteStoreFence(
-            losingResponses,
-            allocationIdOf("node-source"),
-            "node-source",
-            shardId,
-            threadPool
-        );
+        final RemoteStoreFence source = new RemoteStoreFence(losingResponses, allocationIdOf("node-source"), "node-source", shardId);
         source.validateAndAdvance(1);
 
         // The transfer lands but its response is lost: it must be reported as complete, with the token adopted.
@@ -469,13 +459,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
                 return token;
             }
         };
-        final RemoteStoreFence source = new RemoteStoreFence(
-            losingResponses,
-            allocationIdOf("node-source"),
-            "node-source",
-            shardId,
-            threadPool
-        );
+        final RemoteStoreFence source = new RemoteStoreFence(losingResponses, allocationIdOf("node-source"), "node-source", shardId);
         source.validateAndAdvance(1);
         source.transferOwnershipTo(1, allocationIdOf("node-target"));
 
@@ -487,7 +471,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
 
     /** A fence instance requiring recorded ownership, as every translog instance does - see RemoteFsTranslog#buildFence. */
     private RemoteStoreFence newTranslogInstance(String ownerNodeId) {
-        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, threadPool, true);
+        return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, true);
     }
 
     /**
@@ -524,35 +508,6 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         translogInstance.validateAndAdvance(1); // second claim: re-adopts the chain
         translogInstance.validateAndAdvance(1); // and acknowledges through it
         assertEquals(1, translogInstance.getTerm());
-    }
-
-    public void testValidateAndAdvanceAsync() throws Exception {
-        RemoteStoreFence fence = newFence("node-1");
-        assertNull(advanceAsync(fence, 1));
-        assertEquals(1, fence.getTerm());
-        assertEquals(0, fence.getSeq());
-
-        // Second advance on the same chain
-        assertNull(advanceAsync(fence, 1));
-        assertEquals(1, fence.getSeq());
-    }
-
-    public void testValidateAndAdvanceAsyncReportsFencing() throws Exception {
-        RemoteStoreFence oldPrimary = newFence("node-old");
-        oldPrimary.validateAndAdvance(1);
-        newFence("node-new").validateAndAdvance(2);
-
-        Exception failure = advanceAsync(oldPrimary, 1);
-        assertNotNull(failure);
-        assertTrue(failure.toString(), failure instanceof TranslogFencedException);
-    }
-
-    private Exception advanceAsync(RemoteStoreFence fence, long primaryTerm) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        fence.validateAndAdvanceAsync(primaryTerm, new LatchedActionListener<>(ActionListener.wrap(ignored -> {}, failure::set), latch));
-        assertTrue(latch.await(30, TimeUnit.SECONDS));
-        return failure.get();
     }
 
     public void testConcurrentBootstrapAdmitsSingleOwner() throws Exception {
@@ -683,7 +638,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         // The BlobContainer defaults must be inert: no silent non-atomic fallback for repositories that cannot CAS
         BlobContainer unsupported = mock(BlobContainer.class, CALLS_REAL_METHODS);
         assertFalse(unsupported.isConditionalWriteSupported());
-        RemoteStoreFence fence = new RemoteStoreFence(unsupported, allocationIdOf("node-1"), "node-1", shardId, threadPool);
+        RemoteStoreFence fence = new RemoteStoreFence(unsupported, allocationIdOf("node-1"), "node-1", shardId);
         expectThrows(UnsupportedOperationException.class, () -> fence.validateAndAdvance(1));
     }
 }

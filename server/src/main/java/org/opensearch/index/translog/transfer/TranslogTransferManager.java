@@ -270,10 +270,20 @@ public class TranslogTransferManager {
                 throw exception;
             }
             if (exceptionList.isEmpty()) {
-                // Invariant (see RemoteStoreFence): the chain gates the ack. The fence CAS runs concurrently with
-                // the metadata upload so fencing stays off the latency path; the upload is acknowledged only when
-                // BOTH succeed (awaitFenceValidation below joins the CAS before onUploadComplete). A fenced writer
-                // may therefore publish one orphan metadata file. Readers are safe against it even so:
+                // Invariant (see RemoteStoreFence): the chain gates the ack, and the CAS is issued only AFTER the
+                // metadata upload below has completed. The ordering is load-bearing, not a simplification - it is
+                // what makes "seal before restore" airtight. A successful CAS proves this writer's fence object
+                // still existed, so a takeover's sweep - and the restore-point read behind it - can only happen
+                // after the CAS, by which point the metadata is already visible (read-after-write). Issued
+                // concurrently instead, the CAS can win before the sweep while the metadata PUT is still in
+                // flight; the takeover then reads a restore point without this generation, the PUT lands, both
+                // halves report success, and an acknowledged operation ends up in a metadata file no recovery
+                // will ever resolve - it sorts below every file the new owner publishes. Acked-write loss:
+                // RemoteStoreFence.tla in formal-models/ refutes the interleaving (SEQUENCED = FALSE), and the cost of
+                // sequencing is one small conditional PUT per sync on the ack path.
+                //
+                // A fenced writer may still publish one orphan metadata file (CAS refused after the PUT landed).
+                // Readers are safe against it:
                 // (1) the metadata file is only uploaded after every data file it references succeeded (the
                 // exceptionList check above), so an orphan is an internally consistent restore point;
                 // (2) the only extra state it can surface is the never-acknowledged operation of the fenced write,
@@ -284,14 +294,6 @@ public class TranslogTransferManager {
                 // ownership must stop mutating the shard's remote state, not act on a stale view of it. Reconciling
                 // orphans (verifyNoMultipleWriters collisions, pinned-timestamp bookkeeping, storage) is the
                 // seal-marker follow-up.
-                final CountDownLatch fenceLatch = new CountDownLatch(fence == null ? 0 : 1);
-                final SetOnce<Exception> fenceException = new SetOnce<>();
-                if (fence != null) {
-                    fence.validateAndAdvanceAsync(
-                        transferSnapshot.getTranslogTransferMetadata().getPrimaryTerm(),
-                        new LatchedActionListener<>(ActionListener.wrap(ignored -> {}, fenceException::set), fenceLatch)
-                    );
-                }
                 TransferFileSnapshot tlogMetadata = prepareMetadata(transferSnapshot);
                 metadataBytesToUpload = tlogMetadata.getContentLength();
                 remoteTranslogTransferTracker.addUploadBytesStarted(metadataBytesToUpload);
@@ -307,7 +309,9 @@ public class TranslogTransferManager {
 
                 remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
                 remoteTranslogTransferTracker.addUploadBytesSucceeded(metadataBytesToUpload);
-                awaitFenceValidation(fenceLatch, fenceException);
+                if (fence != null) {
+                    fence.validateAndAdvance(transferSnapshot.getTranslogTransferMetadata().getPrimaryTerm());
+                }
                 captureStatsOnUploadSuccess(prevUploadBytesSucceeded, prevUploadTimeInMillis);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
@@ -326,28 +330,6 @@ public class TranslogTransferManager {
                 : new TranslogUploadFailedException(ex.getMessage());
             translogTransferListener.onUploadFailed(transferSnapshot, exWithoutSuppressed);
             return false;
-        }
-    }
-
-    /**
-     * Joins the concurrent fence validation. The upload must not be acknowledged (and the metadata file must not be
-     * considered published) until the fence CAS has succeeded.
-     */
-    private void awaitFenceValidation(CountDownLatch fenceLatch, SetOnce<Exception> fenceException) throws IOException {
-        try {
-            if (fenceLatch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                throw new TranslogUploadFailedException("Timed out waiting for fence validation");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new TranslogUploadFailedException("Interrupted while waiting for fence validation", e);
-        }
-        Exception exception = fenceException.get();
-        if (exception != null) {
-            if (exception instanceof IOException ioException) {
-                throw ioException;
-            }
-            throw new TranslogUploadFailedException("Fence validation failed", exception);
         }
     }
 

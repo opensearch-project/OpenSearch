@@ -394,7 +394,6 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             fence = buildFence(
                 blobStoreRepository,
                 shardId,
-                threadPool,
                 pathStrategy,
                 remoteStoreSettings,
                 isServerSideEncryptionEnabled,
@@ -447,7 +446,6 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
     private static RemoteStoreFence buildFence(
         BlobStoreRepository blobStoreRepository,
         ShardId shardId,
-        ThreadPool threadPool,
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         boolean isServerSideEncryptionEnabled,
@@ -484,14 +482,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                     + " on another node. Use a repository whose store evaluates the precondition itself, such as s3."
             );
         }
-        return new RemoteStoreFence(
-            fenceContainer,
-            fenceOwnerAllocationId,
-            fenceOwnerNodeId,
-            shardId,
-            threadPool,
-            requireRecordedOwnership
-        );
+        return new RemoteStoreFence(fenceContainer, fenceOwnerAllocationId, fenceOwnerNodeId, shardId, requireRecordedOwnership);
     }
 
     /**
@@ -511,7 +502,6 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
     public static void sealFence(
         Repository repository,
         ShardId shardId,
-        ThreadPool threadPool,
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         boolean isServerSideEncryptionEnabled,
@@ -527,7 +517,6 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
         buildFence(
             (BlobStoreRepository) repository,
             shardId,
-            threadPool,
             pathStrategy,
             remoteStoreSettings,
             isServerSideEncryptionEnabled,

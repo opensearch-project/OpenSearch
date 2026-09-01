@@ -37,13 +37,33 @@
 (* key space exists for a different property, takeover DETERMINISM, which   *)
 (* FenceTakeover.tla studies and a single shared register cannot provide.   *)
 (*                                                                          *)
-(* Deliberate abstractions:                                                 *)
+(* An acknowledgement is NOT one atomic step here. The implementation runs  *)
+(* a metadata PUT and the fence CAS as separate store writes and joins both *)
+(* before acking, so the model splits them too: StartUpload reserves the    *)
+(* op, MetaPut makes its metadata visible to readers, CasAdvance advances   *)
+(* the chain, JoinAck acknowledges once both landed. The SEQUENCED constant *)
+(* selects the write-side ordering. FALSE lets the CAS land while the       *)
+(* metadata PUT is still in flight - the original design, where the CAS ran *)
+(* concurrently with the PUT to stay off the latency path. TLC refutes it:  *)
+(* the CAS can win against the incumbent's object before a takeover's       *)
+(* sweep, while the metadata lands only after the takeover read its restore *)
+(* point - the acked op's metadata then sorts below every file the new      *)
+(* owner publishes, and no later recovery resolves it. Acked-write loss,    *)
+(* despite "seal before restore" holding: the upload straddles the sweep    *)
+(* and the restore read, neither acked-before-seal nor refused-after. With  *)
+(* SEQUENCED = TRUE the CAS is issued only after the metadata PUT           *)
+(* completed, which restores the invariant by happens-before: CAS success   *)
+(* means the incumbent's object still existed, so the sweep - and the       *)
+(* restore read behind it - came later, and the metadata was already        *)
+(* visible (read-after-write) when the restore point was read.              *)
 (*                                                                          *)
-(*  - An acknowledgement is one atomic step: the CAS succeeds and the op is *)
-(*    recorded. The implementation runs the metadata PUT alongside the CAS  *)
-(*    and joins both before acking. The orphan metadata file a fenced       *)
-(*    writer can leave is a storage artifact, not an acknowledgement, so it *)
-(*    does not appear here.                                                 *)
+(* Reading the restore point is correspondingly restore' = visible, not     *)
+(* restore' = acked: a recovering copy resolves whatever metadata has       *)
+(* landed, which can include a fenced writer's never-acknowledged orphan.   *)
+(* Surfacing an unacknowledged operation is always permitted, so the        *)
+(* superset is harmless - what NoAckedWriteLoss forbids is the converse.    *)
+(*                                                                          *)
+(* Deliberate abstractions:                                                 *)
 (*                                                                          *)
 (*  - A relocation target is modeled conservatively, as seal-then-read like *)
 (*    any other takeover. The implementation is weaker: the target gets its *)
@@ -61,9 +81,13 @@ CONSTANTS
   Writers,          \* shard-copy incarnations, e.g. {w1, w2, w3}
   NoWriter,         \* model value: "no owner"
   MaxTerm,          \* bound on primary terms (state-space bound only)
-  MaxOps            \* bound on acknowledged operations (state-space bound only)
+  MaxOps,           \* bound on acknowledged operations (state-space bound only)
+  SEQUENCED         \* TRUE: the fence CAS is issued only after the metadata PUT
+                    \* completed (the shipped ordering). FALSE: CAS and PUT run
+                    \* concurrently (the refuted original design).
 
 ASSUME NoWriter \notin Writers
+ASSUME SEQUENCED \in BOOLEAN
 
 VARIABLES
   (* The fence blob: one mutable object for the shard. token stands in     *)
@@ -78,19 +102,27 @@ VARIABLES
   wState,      \* "unborn" | "fresh" | "sealed" | "active" | "fenced"
   wHeld,       \* token this writer believes is current (0 = none)
   wObserved,   \* token observed by an in-flight bootstrap read (-1 = none)
-  restore,     \* the restore point (set of acked ops) this writer read
+  restore,     \* the restore point (set of visible metadata) this writer read
   hasRead,     \* whether this writer has read its restore point
   (* Global acknowledgement history.                                      *)
   acked,       \* set of acknowledged operations
   ackedBy,     \* attribution: which writer acknowledged each op
-  nextOp
+  nextOp,
+  (* The translog metadata files that have landed in the store - what a   *)
+  (* recovering copy can resolve. Grows on MetaPut, never shrinks.        *)
+  visible,
+  (* Per-writer in-flight upload: the reserved op (0 = none) and which of *)
+  (* its two store writes have landed. One upload at a time per writer,   *)
+  (* which is the implementation's sync permit.                           *)
+  upOp, upMetaDone, upCasDone
 
 vars == <<fenceToken, fenceTerm, fenceSeq, fenceOwner,
           wTerm, wState, wHeld, wObserved, restore, hasRead,
-          acked, ackedBy, nextOp>>
+          acked, ackedBy, nextOp, visible, upOp, upMetaDone, upCasDone>>
 
 fenceVars  == <<fenceToken, fenceTerm, fenceSeq, fenceOwner>>
 ackVars    == <<acked, ackedBy, nextOp>>
+upVars     == <<visible, upOp, upMetaDone, upCasDone>>
 
 Max(S) == CHOOSE x \in S : \A y \in S : y <= x
 
@@ -108,6 +140,10 @@ TypeOK ==
   /\ acked \subseteq 1..MaxOps
   /\ ackedBy \in [Writers -> SUBSET (1..MaxOps)]
   /\ nextOp \in 1..(MaxOps + 1)
+  /\ visible \subseteq 1..MaxOps
+  /\ upOp \in [Writers -> 0..MaxOps]
+  /\ upMetaDone \in [Writers -> BOOLEAN]
+  /\ upCasDone \in [Writers -> BOOLEAN]
 
 Init ==
   /\ fenceToken = 0 /\ fenceTerm = 0 /\ fenceSeq = 0 /\ fenceOwner = NoWriter
@@ -119,6 +155,10 @@ Init ==
   /\ hasRead = [w \in Writers |-> FALSE]
   /\ acked = {} /\ ackedBy = [w \in Writers |-> {}]
   /\ nextOp = 1
+  /\ visible = {}
+  /\ upOp = [w \in Writers |-> 0]
+  /\ upMetaDone = [w \in Writers |-> FALSE]
+  /\ upCasDone = [w \in Writers |-> FALSE]
 
 (***************************************************************************)
 (* Appointments. This is the cluster manager's only contribution. Terms     *)
@@ -134,7 +174,7 @@ AppointFailover(w) ==
   /\ HighestIssuedTerm + 1 <= MaxTerm
   /\ wTerm' = [wTerm EXCEPT ![w] = HighestIssuedTerm + 1]
   /\ wState' = [wState EXCEPT ![w] = "fresh"]
-  /\ UNCHANGED <<fenceVars, wHeld, wObserved, restore, hasRead, ackVars>>
+  /\ UNCHANGED <<fenceVars, wHeld, wObserved, restore, hasRead, ackVars, upVars>>
 
 AppointRelocation(w) ==
   /\ wState[w] = "unborn"
@@ -142,7 +182,7 @@ AppointRelocation(w) ==
        /\ wState[v] \in {"sealed", "active"}
        /\ wTerm' = [wTerm EXCEPT ![w] = wTerm[v]]
   /\ wState' = [wState EXCEPT ![w] = "fresh"]
-  /\ UNCHANGED <<fenceVars, wHeld, wObserved, restore, hasRead, ackVars>>
+  /\ UNCHANGED <<fenceVars, wHeld, wObserved, restore, hasRead, ackVars, upVars>>
 
 (***************************************************************************)
 (* Bootstrap, or seal: read the blob, then CAS on the token just read.      *)
@@ -155,9 +195,9 @@ ReadFence(w) ==
   /\ wObserved[w] = -1
   /\ IF fenceTerm > wTerm[w]
        THEN /\ wState' = [wState EXCEPT ![w] = "fenced"]
-            /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, restore, hasRead, ackVars>>
+            /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, restore, hasRead, ackVars, upVars>>
        ELSE /\ wObserved' = [wObserved EXCEPT ![w] = fenceToken]
-            /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, restore, hasRead, ackVars>>
+            /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, restore, hasRead, ackVars, upVars>>
 
 TryClaim(w) ==
   /\ wState[w] = "fresh"
@@ -171,44 +211,96 @@ TryClaim(w) ==
          /\ wHeld'      = [wHeld EXCEPT ![w] = fenceToken + 1]
          /\ wObserved'  = [wObserved EXCEPT ![w] = -1]
          /\ wState'     = [wState EXCEPT ![w] = "sealed"]
-         /\ UNCHANGED <<wTerm, restore, hasRead, ackVars>>
+         /\ UNCHANGED <<wTerm, restore, hasRead, ackVars, upVars>>
        ELSE \* Lost the race, so re-read and retry. Retrying above the fence
             \* term is always safe: "a higher term prevails".
          /\ wObserved' = [wObserved EXCEPT ![w] = -1]
-         /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, restore, hasRead, ackVars>>
+         /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, restore, hasRead, ackVars, upVars>>
 
 (***************************************************************************)
 (* Reading the translog restore point, meaning the latest metadata a new    *)
 (* copy recovers from. The shipped protocol does this strictly after the    *)
-(* seal. The buggy variant does it first.                                   *)
+(* seal. What the store returns is the metadata that has LANDED - which     *)
+(* can include a fenced writer's never-acknowledged orphan, a harmless      *)
+(* superset - and cannot include metadata still in flight, which is the     *)
+(* gap the SEQUENCED ordering exists to cover.                              *)
 (***************************************************************************)
 ReadRestorePoint(w) ==
   /\ wState[w] = "sealed"
-  /\ restore' = [restore EXCEPT ![w] = acked]
+  /\ restore' = [restore EXCEPT ![w] = visible]
   /\ hasRead' = [hasRead EXCEPT ![w] = TRUE]
   /\ wState' = [wState EXCEPT ![w] = "active"]
-  /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, ackVars>>
+  /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, ackVars, upVars>>
 
 (***************************************************************************)
-(* Acknowledging a write: one atomic CAS on the chain. A writer with a      *)
-(* stale token finds out here and is fenced for good - "fenced is           *)
-(* terminal" - so it never acknowledges the write.                          *)
+(* Acknowledging a write - the upload pipeline. Two independent store       *)
+(* writes back every acknowledgement: the immutable metadata PUT that makes *)
+(* the operation resolvable, and the fence CAS that proves the writer still *)
+(* owns the chain. The implementation joins both before acking; the model   *)
+(* keeps them as separate steps so their interleaving with a takeover is    *)
+(* explored rather than assumed away. SEQUENCED selects whether the CAS may *)
+(* be issued while the metadata PUT is still in flight.                     *)
 (***************************************************************************)
-Ack(w) ==
+StartUpload(w) ==
   /\ wState[w] = "active"
+  /\ upOp[w] = 0
   /\ nextOp <= MaxOps
+  /\ upOp' = [upOp EXCEPT ![w] = nextOp]
+  /\ nextOp' = nextOp + 1
+  /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
+                 acked, ackedBy, visible, upMetaDone, upCasDone>>
+
+(* The metadata PUT lands. Deliberately enabled even for a writer that has  *)
+(* been fenced in the meantime: an in-flight PUT completes regardless of    *)
+(* what its issuer has since learned. That is how an orphan becomes         *)
+(* visible.                                                                 *)
+MetaPut(w) ==
+  /\ upOp[w] /= 0
+  /\ ~upMetaDone[w]
+  /\ upMetaDone' = [upMetaDone EXCEPT ![w] = TRUE]
+  /\ visible' = visible \cup {upOp[w]}
+  /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
+                 ackVars, upOp, upCasDone>>
+
+(* The fence CAS. Under SEQUENCED it is issued only once the metadata PUT   *)
+(* completed; unsequenced it can land first - and win against the           *)
+(* incumbent's object before a takeover sweeps it, which is the refuted     *)
+(* interleaving. A writer with a stale token finds out here and is fenced   *)
+(* for good - "fenced is terminal" - so it never acknowledges the write.    *)
+CasAdvance(w) ==
+  /\ wState[w] = "active"
+  /\ upOp[w] /= 0
+  /\ ~upCasDone[w]
+  /\ (SEQUENCED => upMetaDone[w])
   /\ IF wHeld[w] = fenceToken
        THEN /\ fenceToken' = fenceToken + 1
             /\ fenceTerm'  = wTerm[w]
             /\ fenceSeq'   = fenceSeq + 1
             /\ fenceOwner' = w
             /\ wHeld'      = [wHeld EXCEPT ![w] = fenceToken + 1]
-            /\ acked'      = acked \cup {nextOp}
-            /\ ackedBy'    = [ackedBy EXCEPT ![w] = @ \cup {nextOp}]
-            /\ nextOp'     = nextOp + 1
-            /\ UNCHANGED <<wTerm, wState, wObserved, restore, hasRead>>
+            /\ upCasDone'  = [upCasDone EXCEPT ![w] = TRUE]
+            /\ UNCHANGED <<wTerm, wState, wObserved, restore, hasRead, ackVars,
+                           visible, upOp, upMetaDone>>
        ELSE /\ wState' = [wState EXCEPT ![w] = "fenced"]
-            /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, restore, hasRead, ackVars>>
+            /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, restore, hasRead,
+                           ackVars, upVars>>
+
+(* Both store writes landed: the operation is acknowledged to the client.   *)
+(* No store interaction remains, so nothing can refuse it - which is        *)
+(* exactly why everything that must be true at ack time has to have been    *)
+(* proven by the two writes above.                                          *)
+JoinAck(w) ==
+  /\ wState[w] = "active"
+  /\ upOp[w] /= 0
+  /\ upMetaDone[w]
+  /\ upCasDone[w]
+  /\ acked'      = acked \cup {upOp[w]}
+  /\ ackedBy'    = [ackedBy EXCEPT ![w] = @ \cup {upOp[w]}]
+  /\ upOp'       = [upOp EXCEPT ![w] = 0]
+  /\ upMetaDone' = [upMetaDone EXCEPT ![w] = FALSE]
+  /\ upCasDone'  = [upCasDone EXCEPT ![w] = FALSE]
+  /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
+                 nextOp, visible>>
 
 Next ==
   \E w \in Writers :
@@ -217,7 +309,10 @@ Next ==
     \/ ReadFence(w)
     \/ TryClaim(w)
     \/ ReadRestorePoint(w)
-    \/ Ack(w)
+    \/ StartUpload(w)
+    \/ MetaPut(w)
+    \/ CasAdvance(w)
+    \/ JoinAck(w)
 
 Spec == Init /\ [][Next]_vars
              /\ \A w \in Writers : WF_vars(ReadFence(w)) /\ WF_vars(TryClaim(w))

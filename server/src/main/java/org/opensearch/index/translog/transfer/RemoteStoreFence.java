@@ -13,10 +13,8 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -58,10 +56,15 @@ import java.util.Set;
  * delete rather than the CAS that makes a higher-term takeover certain instead of a race - a CAS alone would only be
  * a fair race between the two.
  * <p>
- * The CAS runs <b>concurrently</b> with the immutable translog metadata upload so it stays off the latency path, and
- * the upload is acknowledged only once both succeed. One consequence: a fenced writer can leave a single orphan
- * metadata file behind. It was never acknowledged, it is term-scoped, and readers that follow the highest-term
- * lineage ignore it. Cleaning those up is a follow-up.
+ * The CAS is issued only <b>after</b> the immutable translog metadata upload has completed, and the upload is
+ * acknowledged only once both have succeeded. The ordering is load-bearing: a successful CAS then proves this
+ * writer's object still existed, so a takeover's sweep - and the restore-point read behind it - can only come
+ * later, when the metadata is already visible. Run concurrently instead, the CAS can win before the sweep while
+ * the metadata is still in flight, and an acknowledged operation lands in a metadata file no recovery will ever
+ * resolve ({@code RemoteStoreFence.tla} in {@code formal-models/} exhibits the trace with {@code SEQUENCED = FALSE}). One consequence
+ * remains: a fenced writer can leave a single orphan metadata file behind - published, then refused at the CAS. It
+ * was never acknowledged, it is term-scoped, and readers that follow the highest-term lineage ignore it. Cleaning
+ * those up is a follow-up.
  * <p>
  * The fence blob sits on the <b>control flow</b>: it carries decisions about who may write, and never any shard
  * data. Shard data travels on two other paths, named separately throughout because they are fenced by different
@@ -78,8 +81,9 @@ import java.util.Set;
  * <p>
  * <b>Invariants.</b> Referenced by name from the code that enforces them:
  * <ul>
- * <li><b>The chain gates the ack.</b> An upload is acknowledged only if its fence CAS succeeded.
- * {@code TranslogTransferManager#transferSnapshot} joins the CAS before it acknowledges.</li>
+ * <li><b>The chain gates the ack.</b> An upload is acknowledged only if its fence CAS succeeded, and the CAS is
+ * issued only after the upload's metadata is visible. {@code TranslogTransferManager#transferSnapshot} runs the
+ * CAS after the metadata upload and before it acknowledges.</li>
  * <li><b>One writer at a time.</b> Any successful fence write invalidates every other holder's token. The
  * repository's conditional writes are what provide this, so {@code RemoteFsTranslog#buildFence} refuses a repository
  * that lacks them rather than running unfenced.</li>
@@ -157,7 +161,6 @@ public class RemoteStoreFence {
     private final String ownerAllocationId;
     private final String ownerNodeId;
     private final ShardId shardId;
-    private final ThreadPool threadPool;
     private final Logger logger;
 
     // Guarded by synchronized methods. Uploads on the ack path are effectively serialized by the translog sync
@@ -195,14 +198,8 @@ public class RemoteStoreFence {
      */
     private final boolean requireRecordedOwnership;
 
-    public RemoteStoreFence(
-        BlobContainer blobContainer,
-        String ownerAllocationId,
-        String ownerNodeId,
-        ShardId shardId,
-        ThreadPool threadPool
-    ) {
-        this(blobContainer, ownerAllocationId, ownerNodeId, shardId, threadPool, false);
+    public RemoteStoreFence(BlobContainer blobContainer, String ownerAllocationId, String ownerNodeId, ShardId shardId) {
+        this(blobContainer, ownerAllocationId, ownerNodeId, shardId, false);
     }
 
     public RemoteStoreFence(
@@ -210,7 +207,6 @@ public class RemoteStoreFence {
         String ownerAllocationId,
         String ownerNodeId,
         ShardId shardId,
-        ThreadPool threadPool,
         boolean requireRecordedOwnership
     ) {
         this.requireRecordedOwnership = requireRecordedOwnership;
@@ -218,32 +214,15 @@ public class RemoteStoreFence {
         this.ownerAllocationId = Objects.requireNonNull(ownerAllocationId, "fence owner allocation id");
         this.ownerNodeId = Objects.requireNonNull(ownerNodeId, "fence owner node id");
         this.shardId = shardId;
-        this.threadPool = threadPool;
         this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     /**
-     * Asynchronous variant of {@link #validateAndAdvance} allowing the fence CAS to run concurrently with the
-     * translog metadata upload so it stays off the acknowledgement latency path.
-     */
-    public void validateAndAdvanceAsync(long primaryTerm, ActionListener<Void> listener) {
-        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
-            try {
-                validateAndAdvance(primaryTerm);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            // Deliberately outside the catch. A listener that throws is a bug in the listener, not a fence failure, and
-            // routing it to onFailure would both deliver two terminal callbacks and misreport a CAS that actually
-            // succeeded as an upload failure. Let it reach the executor's uncaught handler instead.
-            listener.onResponse(null);
-        });
-    }
-
-    /**
      * Validates that this shard copy still owns its term's acknowledgement path and advances the CAS chain. Must be
-     * called on every translog upload before the metadata file is published (invariant: the chain gates the ack). The
+     * called on every translog upload strictly AFTER the metadata upload has completed and before the upload is
+     * acknowledged (invariant: the chain gates the ack, and the CAS follows the metadata). The ordering is what makes
+     * a successful CAS a proof of visibility: the fence object still existed, so a takeover's sweep - and the
+     * restore-point read behind it - can only come later, when this upload's metadata has already landed. The
      * first call claims the path for {@code primaryTerm} (see {@link #claim}); every later call advances the chain with
      * the token retained from the previous write.
      *
