@@ -91,14 +91,14 @@ public final class ArrowSchemaBuilder {
                 }
             }
 
-            // Emit one LIST<STRUCT> field per TOP-LEVEL nested mapper (nested mappers inside another
-            // nested mapper become list fields inside the parent's struct; plain (non-nested) objects
-            // inside it become genuine STRUCT fields inside the parent's struct — see
-            // buildStructOrListField).
+            // Emit one LIST<STRUCT> field per TOP-LEVEL nested mapper, recursing for nested-in-nested
+            // (a plain, non-nested object can never be a descendant of a nested field — ObjectMapper's
+            // own mapping-time validation rejects that shape on a pluggable-format index — so every
+            // descendant object mapper found here is itself nested; see buildNestedListField).
             Map<String, ObjectMapper> objectMappersByPath = documentMapper.objectMappers();
             for (String path : nestedPaths) {
                 if (owningNestedPath(path, nestedPaths) == null) {
-                    Field nestedField = buildStructOrListField(path, true, documentMapper, objectMappersByPath);
+                    Field nestedField = buildNestedListField(path, documentMapper, objectMappersByPath);
                     if (nestedField != null) {
                         fields.add(nestedField);
                     }
@@ -142,17 +142,14 @@ public final class ArrowSchemaBuilder {
     }
 
     /**
-     * Builds the Arrow field for the object mapper at {@code path}: a LIST&lt;STRUCT&gt; if {@code
-     * isNested} (one element per array entry), or a plain STRUCT otherwise. Struct children are the
-     * mapper's direct leaf fields (named by leaf segment) plus, recursively, one field per
-     * directly-contained object mapper — a LIST&lt;STRUCT&gt; if THAT mapper is itself nested, a plain
-     * STRUCT if it's a regular object. This is what keeps a plain object nested inside a nested field
-     * (e.g. {@code events[].attributes}) as its own struct level instead of flattening it into dotted
-     * leaf names on the enclosing nested struct.
+     * Builds the Arrow LIST&lt;STRUCT&gt; field for the nested mapper at {@code path} (one element per
+     * array entry). Struct children are the mapper's direct leaf fields (named by leaf segment) plus,
+     * recursively, one LIST&lt;STRUCT&gt; per directly-contained nested mapper. A plain (non-nested)
+     * object can never be a descendant of a nested field — see the call site's note — so every
+     * descendant object mapper found here is itself nested.
      */
-    private static Field buildStructOrListField(
+    private static Field buildNestedListField(
         String path,
-        boolean isNested,
         DocumentMapper documentMapper,
         Map<String, ObjectMapper> objectMappersByPath
     ) {
@@ -178,7 +175,7 @@ public final class ArrowSchemaBuilder {
             if (isDirectChild(subPath, path) == false) {
                 continue;
             }
-            Field subField = buildStructOrListField(subPath, entry.getValue().nested().isNested(), documentMapper, objectMappersByPath);
+            Field subField = buildNestedListField(subPath, documentMapper, objectMappersByPath);
             if (subField != null) {
                 String leafName = subPath.substring(path.length() + 1);
                 structChildren.add(new Field(leafName, subField.getFieldType(), subField.getChildren()));
@@ -191,11 +188,8 @@ public final class ArrowSchemaBuilder {
         // children deterministically by field name so the write schema matches whatever read schema
         // the query engine builds (typically sorted, e.g. via a TreeMap).
         structChildren.sort(Comparator.comparing(Field::getName));
-        if (isNested) {
-            Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
-            return new Field(path, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
-        }
-        return new Field(path, FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
+        Field element = new Field("element", FieldType.nullable(ArrowType.Struct.INSTANCE), structChildren);
+        return new Field(path, FieldType.nullable(ArrowType.List.INSTANCE), List.of(element));
     }
 
     /**
@@ -204,7 +198,7 @@ public final class ArrowSchemaBuilder {
      * "value": nullable Utf8), unsorted)} — rather than Arrow Java's default {@code entries} group name,
      * so the arrow-rs writer and the DataFusion read path see the group name the parquet spec prescribes.
      * <p>
-     * Shared by the top-level column path and {@link #buildStructOrListField} so a flat_object gets the
+     * Shared by the top-level column path and {@link #buildNestedListField} so a flat_object gets the
      * same shape whether it sits at the document root or inside a nested element's struct.
      */
     private static Field buildMapField(String name) {

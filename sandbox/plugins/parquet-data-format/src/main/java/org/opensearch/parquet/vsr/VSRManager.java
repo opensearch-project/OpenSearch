@@ -321,13 +321,15 @@ public class VSRManager implements AutoCloseable {
             int elemIndex = startOffset + i;
             ParquetDocumentInput.NestedChild child = children.get(i);
             structVector.setIndexDefined(elemIndex);
-            // leaf fields of this element. A leaf under a plain (non-nested) object, e.g.
-            // "attributes.code", was never given its own NestedChild (only nested mappers open one),
-            // so its dotted name still needs to be walked down through the intermediate STRUCT
-            // vector(s) — writeLeafValue does that recursively.
+            // leaf fields of this element.
             for (FieldValuePair pair : child.fields) {
                 String leafName = pair.getFieldType().name().substring(path.length() + 1);
-                writeLeafValue(structVector, elemIndex, leafName, pair.getValue());
+                FieldVector leafVector = structVector.getChild(leafName);
+                if (leafVector == null) {
+                    logger.warn("Nested: struct [{}] has no child vector [{}] — skipping", path, leafName);
+                    continue;
+                }
+                setLeafValue(leafVector, elemIndex, pair.getValue());
             }
             // map children of this element (e.g. a flat_object `attributes`). Write EVERY map child of
             // the struct — even when this element has no entries for it — so each element's offset is
@@ -396,35 +398,6 @@ public class VSRManager implements AutoCloseable {
             }
         }
         mapVector.endValue(index, entries.size());
-    }
-
-    /**
-     * Writes a leaf value into {@code structVector} at {@code elemIndex}, given a possibly dotted
-     * leaf name (e.g. {@code "attributes.code"} for a plain object nested under the struct). Each
-     * dot segment before the last one is a plain (non-nested) object's own STRUCT child — descends
-     * into it, marking its validity bit defined at the same element index, before writing the final
-     * scalar.
-     */
-    private static void writeLeafValue(StructVector structVector, int elemIndex, String leafName, Object value) {
-        int dotIndex = leafName.indexOf('.');
-        if (dotIndex < 0) {
-            FieldVector leafVector = structVector.getChild(leafName);
-            if (leafVector == null) {
-                logger.warn("Nested: struct [{}] has no child vector [{}] — skipping", structVector.getField().getName(), leafName);
-                return;
-            }
-            setLeafValue(leafVector, elemIndex, value);
-            return;
-        }
-        String childName = leafName.substring(0, dotIndex);
-        String remainder = leafName.substring(dotIndex + 1);
-        FieldVector childVector = structVector.getChild(childName);
-        if (childVector instanceof StructVector childStruct) {
-            childStruct.setIndexDefined(elemIndex);
-            writeLeafValue(childStruct, elemIndex, remainder, value);
-        } else {
-            logger.warn("Nested: struct [{}] has no STRUCT child [{}] — skipping", structVector.getField().getName(), childName);
-        }
     }
 
     /** Writes a single scalar into a struct-child vector at the given element index. */
