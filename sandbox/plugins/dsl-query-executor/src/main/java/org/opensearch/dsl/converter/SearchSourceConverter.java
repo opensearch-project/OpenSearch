@@ -70,6 +70,7 @@ public class SearchSourceConverter {
     private final SortConverter sortConverter;
     private final AggregateConverter aggConverter;
     private final PreAggregateConverter preAggConverter;
+    private final ComputedGroupingConverter computedGroupingConverter;
     private final PostAggregateConverter postAggConverter;
     private final AggregationRegistry aggRegistry;
     private final AggregationTreeWalker treeWalker;
@@ -110,6 +111,7 @@ public class SearchSourceConverter {
         this.sortConverter = new SortConverter();
         this.aggConverter = new AggregateConverter();
         this.preAggConverter = new PreAggregateConverter();
+        this.computedGroupingConverter = new ComputedGroupingConverter();
         this.postAggConverter = new PostAggregateConverter();
 
         this.aggRegistry = AggregationRegistryFactory.create(mapperServiceSupplier);
@@ -176,7 +178,7 @@ public class SearchSourceConverter {
                 }
                 aggCtx = aggCtx.withParentPlan(parentPlan);
             }
-            RelNode aggInput = preAggConverter.convert(base, aggCtx);
+            RelNode aggInput = preAggConverter.convert(computedGroupingConverter.convert(base, aggCtx), aggCtx);
             RelNode aggs = aggConverter.convert(aggInput, metadata);
             aggs = postAggConverter.convert(aggs, aggCtx);
             builtPlansByPath.put(aggPathKey(metadata.getAggNamePath()), aggs);
