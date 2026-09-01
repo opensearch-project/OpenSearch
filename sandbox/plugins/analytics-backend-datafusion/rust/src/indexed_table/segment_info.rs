@@ -219,7 +219,10 @@ fn compute_segment_sort_bounds(
     file_schema: &arrow::datatypes::SchemaRef,
     pq_meta: &ParquetMetaData,
 ) -> (Option<ScalarValue>, Option<ScalarValue>) {
-    if file_schema.index_of(lead_field).is_err() {
+    let Ok(field) = file_schema.field_with_name(lead_field) else {
+        return (None, None);
+    };
+    if matches!(field.data_type(), arrow::datatypes::DataType::List(_)) {
         return (None, None);
     }
 
@@ -570,16 +573,21 @@ mod tests {
         let metas = object_metas(store.as_ref(), &[scalar_path, list_path]).await;
         let ctx = SessionContext::new();
         let generations: Vec<i64> = (0..metas.len() as i64).collect();
-        let (_, schema) = build_segments(
+        let (segments, schema) = build_segments(
             &ctx.state(),
             Arc::clone(&store),
             &metas,
             &generations,
             default_metadata_cache(),
-            &[],
+            &["tags".to_string()],
         )
         .await
         .unwrap();
+
+        assert!(
+            segments[1].sort_min.is_none() && segments[1].sort_max.is_none(),
+            "LIST child statistics must not be used as per-row list_min bounds"
+        );
 
         assert!(matches!(
             schema.field_with_name("tags").unwrap().data_type(),

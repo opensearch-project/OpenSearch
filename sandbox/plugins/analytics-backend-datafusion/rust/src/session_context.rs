@@ -306,12 +306,6 @@ pub async unsafe fn create_session_context(
         .with_collect_stat(true)
         .with_target_partitions(effective_partitions);
 
-    if let Some(sort_exprs) =
-        build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
-    {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     // Register under the planner's logical table name (alias / index pattern / index), shipped
     // explicitly as logicalTableName on the shard-scan instruction node. See
     // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
@@ -366,11 +360,18 @@ pub async unsafe fn create_session_context(
     // failing with "Cannot merge statistics with different number of columns". Non-widened
     // (single-index) scans keep full stats.
     // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
-    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
+    let mut listing_options = if resolved_schema.fields().len() != inferred_field_count {
         listing_options.with_collect_stat(false)
     } else {
         listing_options
     };
+    if let Some(sort_exprs) = build_file_sort_order(
+        &shard_view.sort_fields,
+        &shard_view.sort_orders,
+        resolved_schema.as_ref(),
+    ) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -738,6 +739,7 @@ fn try_acquire_budget(
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
+    schema: &arrow::datatypes::Schema,
 ) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
     if sort_fields.is_empty() {
         return None;
@@ -750,7 +752,12 @@ pub(crate) fn build_file_sort_order(
         .map(|(name, order)| {
             let ascending = order.eq_ignore_ascii_case("asc");
             let nulls_first = ascending;
-            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
+            let column = Expr::Column(Column::from_name(name.clone()));
+            let key = match schema.field_with_name(name).map(|field| field.data_type()) {
+                Ok(arrow::datatypes::DataType::List(_)) => crate::udf::list_min::expr(column),
+                _ => column,
+            };
+            key.sort(ascending, nulls_first)
         })
         .collect();
     Some(sort_exprs)
@@ -772,6 +779,26 @@ mod tests {
 
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
+
+    #[test]
+    fn file_sort_order_uses_fixed_list_min_for_both_directions() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("tags", DataType::List(child), true),
+            Field::new("id", DataType::Int64, true),
+        ]);
+
+        for (order, ascending) in [("asc", true), ("desc", false)] {
+            let ordering =
+                build_file_sort_order(&["tags".into()], &[order.into()], &schema).unwrap();
+            assert!(format!("{}", ordering[0].expr).contains("list_min"));
+            assert_eq!(ordering[0].asc, ascending);
+            assert_eq!(ordering[0].nulls_first, ascending);
+        }
+
+        let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
+        assert!(!format!("{}", scalar[0].expr).contains("list_min"));
+    }
 
     #[tokio::test]
     async fn test_widen_schema_noop_when_plan_empty() {

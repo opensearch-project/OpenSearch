@@ -115,10 +115,6 @@ pub async fn register_listing_table(
     let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
         .with_file_extension(".parquet")
         .with_collect_stat(true);
-    if let Some(sort_exprs) = build_file_sort_order(sort_fields, sort_orders) {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     let resolved_schema = listing_options
         .infer_schema(&ctx.state(), &table_path)
         .await
@@ -127,6 +123,11 @@ pub async fn register_listing_table(
             e
         })?;
     let resolved_schema = coerce_inferred_schema(resolved_schema);
+    if let Some(sort_exprs) =
+        build_file_sort_order(sort_fields, sort_orders, resolved_schema.as_ref())
+    {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     let table_config = ListingTableConfig::new(table_path)
         .with_listing_options(listing_options)
