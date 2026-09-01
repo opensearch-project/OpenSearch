@@ -424,6 +424,61 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * S3 fails an {@code If-Match} write with 404 {@code NoSuchKey} rather than 412 when the key has no current
+     * version at all - deleted, or a delete marker. The version the caller presented provably no longer exists, so
+     * this is a definitively lost CAS, not a retryable error: it is exactly what a swept acknowledgement path looks
+     * like to a superseded writer, which must fence terminally instead of retrying forever. Matches
+     * {@code FsBlobContainer}, which also reports a conflict for a missing blob.
+     */
+    public void testWriteBlobConditionallyTreatsIfMatchOnDeletedKeyAsLostCas() {
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final S3BlobContainer blobContainer = conditionalWriteContainer(
+            ArgumentCaptor.forClass(PutObjectRequest.class),
+            null,
+            s3Exception(404, "NoSuchKey")
+        );
+        expectThrows(
+            BlobVersionConflictException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+        );
+    }
+
+    /**
+     * The 404 classification is scoped tightly: only {@code NoSuchKey} on an {@code If-Match} write is evidence about
+     * the precondition. A 404 without that code (e.g. {@code NoSuchBucket}, or an unlabelled response) is an
+     * infrastructure error and stays retryable, and a create-if-absent ({@code If-None-Match: *}) never 404s on the
+     * object itself, so a 404 there is never a lost CAS.
+     */
+    public void testWriteBlobConditionallyDoesNotTreatOtherNotFoundAsLostCas() {
+        // If-Match, but the 404 does not prove the key is gone
+        final S3Exception[] retryable = new S3Exception[] {
+            s3Exception(404, "NoSuchBucket"),
+            (S3Exception) S3Exception.builder().statusCode(404).message("not found").build() };
+        for (S3Exception error : retryable) {
+            final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+            final S3BlobContainer blobContainer = conditionalWriteContainer(ArgumentCaptor.forClass(PutObjectRequest.class), null, error);
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+            );
+            assertFalse("[" + error + "] must not be reported as a lost CAS", e instanceof BlobVersionConflictException);
+        }
+
+        // create-if-absent: even NoSuchKey is not a precondition verdict
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final S3BlobContainer blobContainer = conditionalWriteContainer(
+            ArgumentCaptor.forClass(PutObjectRequest.class),
+            null,
+            s3Exception(404, "NoSuchKey")
+        );
+        final IOException e = expectThrows(
+            IOException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, null)
+        );
+        assertFalse(e instanceof BlobVersionConflictException);
+    }
+
     public void testWriteBlobConditionallyPropagatesOtherS3Errors() {
         final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
         final S3BlobContainer blobContainer = conditionalWriteContainer(

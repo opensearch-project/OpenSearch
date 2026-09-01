@@ -307,7 +307,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             );
             return response.eTag();
         } catch (S3Exception e) {
-            if (isConditionFailure(e)) {
+            if (isConditionFailure(e, expectedVersionToken != null)) {
                 throw new BlobVersionConflictException(
                     "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]",
                     e
@@ -322,21 +322,33 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     /**
      * Distinguishes a genuinely lost compare-and-swap from a transient conflict. Losing the CAS is fatal for a fenced
      * writer, so only errors that prove the precondition was evaluated and NOT MET are classified as a lost CAS:
-     * a 412, with or without an error code, or a 409 carrying {@code PreconditionFailed}. Every other 409 - including
+     * a 412, with or without an error code, a 409 carrying {@code PreconditionFailed}, or - for an {@code If-Match}
+     * write only - a 404 carrying {@code NoSuchKey}. S3 fails an {@code If-Match} write with 404 rather than 412 when
+     * the key has no current version at all (deleted, or a delete marker): the version the caller presented provably
+     * no longer exists, so the precondition can never be met and retrying cannot change the answer. That is exactly
+     * what a swept acknowledgement path looks like to a superseded writer, and it matches
+     * {@code FsBlobContainer#writeBlobConditionally}, which also reports a conflict for a missing blob. A 404 without
+     * {@code NoSuchKey} (e.g. {@code NoSuchBucket}) stays an ordinary {@link IOException}, and a create-if-absent
+     * ({@code If-None-Match: *}) never 404s on the object itself. Every other 409 - including
      * {@code ConditionalRequestConflict}, which S3 returns when a concurrent conditional write on the same key is
      * still in flight and the outcome of this request's precondition is therefore UNKNOWN - must surface as an
      * ordinary {@link IOException} and be retried: the retry resolves it definitively (a 412 if the CAS was genuinely
      * lost, success if it was not), whereas classifying it as lost would fence a healthy writer whose rival lost.
      */
-    private static boolean isConditionFailure(S3Exception e) {
+    private static boolean isConditionFailure(S3Exception e, boolean isCompareAndSwap) {
         // 412 Precondition Failed is unambiguous: the If-Match/If-None-Match condition was not met.
         if (e.statusCode() == 412) {
             return true;
         }
+        final String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
+        if (isCompareAndSwap && e.statusCode() == 404) {
+            // If-Match against a key with no current version. NoSuchKey is required: a 404 without it (NoSuchBucket,
+            // or an unlabelled response) is not evidence about the precondition and stays retryable.
+            return "NoSuchKey".equals(errorCode);
+        }
         if (e.statusCode() != 409) {
             return false;
         }
-        final String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
         // Neither an unlabelled 409 nor a retryable conflict code is evidence that the precondition failed.
         return errorCode != null && CONDITIONAL_WRITE_CONFLICT_ERROR_CODES.contains(errorCode);
     }

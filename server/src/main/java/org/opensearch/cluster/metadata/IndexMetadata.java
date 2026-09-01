@@ -451,6 +451,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * translog upload on the acknowledgement path performs a compare-and-swap on a per-shard fence blob in the
      * translog repository, so a stale primary fails itself instead of acknowledging writes that would be lost on
      * failover. Requires the translog repository to support conditional writes.
+     * <p>
+     * Must not be enabled for an index migrating between document replication and remote store: fencing assumes
+     * every writer acknowledges through the remote translog upload path, and a docrep-backed writer during
+     * migration never touches the fence, so it could not be fenced by it. Enable only on indices that are
+     * remote-store-backed end to end.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_FENCING_ENABLED,
