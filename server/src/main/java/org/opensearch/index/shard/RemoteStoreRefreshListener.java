@@ -466,6 +466,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         resetBackOffDelayIterator();
         // Set the minimum sequence number for keeping translog
         indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        // The above trimming makes the translog-size based periodic flush condition ineffective on remote-store
+        // shards, hence publish the size of segment bytes not yet referenced by the last commit point so that the
+        // engine can flush once they breach the configured threshold.
+        if (indexShard.indexSettings().isFlushOnUncommittedSegmentsEnabled()
+            && indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
+            engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap);
+        }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);

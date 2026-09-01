@@ -1654,7 +1654,8 @@ final class DocumentParser {
                                 DateFieldMapper.Resolution.MILLISECONDS,
                                 dateTimeFormatter,
                                 ignoreMalformed,
-                                IndexMetadata.indexCreated(context.indexSettings().getSettings())
+                                IndexMetadata.indexCreated(context.indexSettings().getSettings()),
+                                context.indexSettings().getSettings()
                             );
                         });
                     }
@@ -1696,7 +1697,10 @@ final class DocumentParser {
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BOOLEAN, dynamic, fullPath);
             if (builder == null) {
-                return handleNoTemplateFound(dynamic, () -> new BooleanFieldMapper.Builder(currentFieldName));
+                return handleNoTemplateFound(
+                    dynamic,
+                    () -> new BooleanFieldMapper.Builder(currentFieldName, context.indexSettings().getSettings())
+                );
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {

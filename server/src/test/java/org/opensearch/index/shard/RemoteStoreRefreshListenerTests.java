@@ -28,9 +28,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -62,6 +65,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
+import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -1032,6 +1036,128 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             "Map size should have grown with threshold disabled, initial=" + initialMapSize + " final=" + finalMapSize,
             finalMapSize > initialMapSize
         );
+    }
+
+    /**
+     * Verifies that {@code index.remote_store.flush_on_uncommitted_segments.enabled=false} stops the listener from
+     * publishing the accounting on a successful segments sync, not just the engine from consulting it: enabling
+     * the setting afterwards trips no flush at a 1b threshold until the next sync republishes, which then does.
+     */
+    public void testDisabledFlushOnUncommittedSegmentsSkipsPublish() throws Exception {
+        indexShard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), false)
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+                .build(),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        indexDocs(1, randomIntBetween(1, 10));
+        indexShard.refresh("test");
+
+        clusterService = ClusterServiceUtils.createClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            indexShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        updateFlushOnUncommittedSegmentsEnabled(true);
+        assertFalse("No accounting is published while the setting is disabled", indexShard.shouldPeriodicallyFlush());
+
+        indexDocs(20, 1);
+        indexShard.refresh("test");
+        remoteStoreRefreshListener.afterRefresh(true);
+        assertBusy(() -> assertTrue("Re-enabled sync publishes the accounting", indexShard.shouldPeriodicallyFlush()));
+    }
+
+    /**
+     * Verifies that a successful segments sync on a shard whose indexer is not an {@link EngineBackedIndexer}
+     * (simulated by a delegating mock) skips the uncommitted-segment-bytes publication without breaking the sync:
+     * the replication checkpoint is still published.
+     */
+    public void testNonEngineBackedIndexerSkipsUncommittedSegmentBytesPublish() throws Exception {
+        setup(true, 3);
+        Indexer delegatingIndexer = mock(Indexer.class, delegatesTo(indexShard.getIndexer()));
+        IndexShard spyShard = spy(indexShard);
+        doReturn(delegatingIndexer).when(spyShard).getIndexer();
+
+        SegmentReplicationCheckpointPublisher publisher = spy(SegmentReplicationCheckpointPublisher.EMPTY);
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
+            publisher,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+        try {
+            indexDocs(10, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            verify(publisher, atLeastOnce()).publish(any(), any());
+        } finally {
+            listener.drainRefreshes();
+        }
+    }
+
+    /**
+     * Verifies that on a shard whose {@link EngineBackedIndexer} wraps an engine other than {@code InternalEngine}
+     * (simulated by a generic {@link Engine} mock), a successful segments sync dispatches the uncommitted-segment-bytes
+     * publication uniformly through the {@link Engine} base type -- where it is a no-op -- without breaking the sync:
+     * the base method is invoked and the replication checkpoint is still published.
+     */
+    public void testNonInternalEngineNoOpUncommittedSegmentBytesPublish() throws Exception {
+        setup(true, 3);
+        Engine mockEngine = mock(Engine.class);
+        EngineBackedIndexer delegatingIndexer = mock(EngineBackedIndexer.class, delegatesTo(indexShard.getIndexer()));
+        doReturn(mockEngine).when(delegatingIndexer).getEngine();
+        IndexShard spyShard = spy(indexShard);
+        doReturn(delegatingIndexer).when(spyShard).getIndexer();
+
+        SegmentReplicationCheckpointPublisher publisher = spy(SegmentReplicationCheckpointPublisher.EMPTY);
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
+            publisher,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+        try {
+            indexDocs(10, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any());
+            verify(publisher, atLeastOnce()).publish(any(), any());
+        } finally {
+            listener.drainRefreshes();
+        }
+    }
+
+    private void updateFlushOnUncommittedSegmentsEnabled(boolean enabled) {
+        indexShard.indexSettings()
+            .updateIndexMetadata(
+                IndexMetadata.builder(indexShard.indexSettings().getIndexMetadata())
+                    .settings(
+                        Settings.builder()
+                            .put(indexShard.indexSettings().getSettings())
+                            .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), enabled)
+                    )
+                    .build()
+            );
     }
 
     private RemoteSegmentStoreDirectory setupDirectoryWithThreshold(int threshold) throws IOException {
