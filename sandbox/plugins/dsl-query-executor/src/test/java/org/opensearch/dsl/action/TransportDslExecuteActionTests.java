@@ -14,17 +14,23 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -87,6 +93,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             buildEngineContext(),
             (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
+            mock(IndicesService.class),
             resolver,
             mockThreadPool()
         );
@@ -108,8 +115,24 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
     }
 
     private TransportDslExecuteAction createAction(Index... resolvedIndices) {
+        Metadata.Builder metadata = Metadata.builder();
+        for (Index index : resolvedIndices) {
+            metadata.put(
+                IndexMetadata.builder(index.getName())
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                false
+            );
+        }
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(mock(ClusterState.class));
+        when(clusterService.state()).thenReturn(state);
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
         when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(resolvedIndices);
@@ -120,6 +143,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             buildEngineContext(),
             (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
+            mock(IndicesService.class),
             resolver,
             mockThreadPool()
         );
@@ -127,7 +151,17 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
 
     private EngineContextProvider buildEngineContext() {
         QueryRequestContext ctx = new QueryRequestContext(null, buildSchema());
-        return () -> ctx;
+        return new EngineContextProvider() {
+            @Override
+            public QueryRequestContext getContext(ClusterState clusterState) {
+                return ctx;
+            }
+
+            @Override
+            public QueryRequestContext getContext() {
+                return ctx;
+            }
+        };
     }
 
     private SchemaPlus buildSchema() {

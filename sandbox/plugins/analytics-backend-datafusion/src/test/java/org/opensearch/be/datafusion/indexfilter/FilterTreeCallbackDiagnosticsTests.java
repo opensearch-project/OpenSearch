@@ -24,15 +24,15 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Regression tests for the SILENT {@code -1} returns from {@link FilterTreeCallbacks}.
  *
- * <p>Bug: {@code collectDocs} returned {@code -1} from three separate conditions
- * (no binding / cancelled / handle error) with NO diagnostic at all. The native side turns any
+ * <p>Bug: {@code collectDocs} returned {@code -1} from several separate conditions
+ * (no binding / binding closed / cancelled / handle error) with NO diagnostic at all. The native side turns any
  * negative return into
  * {@code "collector.collect_packed_u64_bitset(rg=…): collectDocs(context_id=…, key=…) failed: -1"},
  * so on a real cluster the failure surfaced three layers away with no way to tell WHICH condition
  * fired. Only the {@code catch Throwable} path logged — and that one demonstrably had not fired
  * (zero occurrences of its message in the worker logs).
  *
- * <p>Each test asserts the specific give-up cause is now named in the logs. All three failed before
+ * <p>Each test asserts the specific give-up cause is now named in the logs. All of them failed before
  * the fix (no log event was emitted at all) and pass after.
  */
 public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
@@ -60,10 +60,11 @@ public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
     private static final AtomicLong CONTEXT_IDS = new AtomicLong(9_000_000L);
 
     /**
-     * THE OBSERVED BUG. A native collector call arrives after the query's binding was
-     * unregistered (query completed or was cancelled while a row-group prefetch was still in
-     * flight). Before the fix this returned -1 with zero diagnostics; now it names NO BINDING
-     * plus the contextId, collector key, and doc range.
+     * THE OBSERVED BUG. A native collector call arrives with no binding for its contextId — either
+     * {@code register} never ran, or the binding was force-removed (the test-only
+     * {@code unregister}) while a row-group prefetch was still in flight. Before the fix this
+     * returned -1 with zero diagnostics; now it names NO BINDING plus the contextId, collector key,
+     * and doc range.
      *
      * <p>Runs with assertions disabled semantics in mind: {@code assertBindingExists} would throw
      * under {@code -ea}, so the log call is placed BEFORE it and this test catches the

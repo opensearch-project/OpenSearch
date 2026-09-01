@@ -1,16 +1,16 @@
 [versions]
 opensearch        = "3.9.0"
-lucene            = "10.5.0"
+lucene            = "10.5.1"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "25.0.4+7"
+bundled_jdk = "25.0.4.1+1"
 
 # optional dependencies
 spatial4j               = "0.7"
 jts                     = "1.15.0"
 jackson_annotations     = "2.22"
-jackson                 = "2.22.1"
-jackson_databind        = "2.22.1"
+jackson                 = "2.22.2"
+jackson_databind        = "2.22.2"
 jackson3                = "3.2.2"
 jackson3_databind       = "3.2.2"
 snakeyaml               = "2.6"
@@ -28,7 +28,7 @@ kotlin                  = "1.7.10"
 antlr4                  = "4.13.1"
 guava                   = "33.2.1-jre"
 gson                    = "2.13.2"
-opensearchprotobufs     = "1.6.0"
+opensearchprotobufs     = "1.7.0"
 protobuf                = "3.25.8"
 jakarta_annotation      = "1.3.5"
 google_http_client      = "1.44.1"
@@ -46,8 +46,8 @@ joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.3.6"
-reactor           = "3.8.6"
+reactor_netty     = "1.3.7"
+reactor           = "3.8.7"
 
 # client dependencies
 httpclient5       = "5.6.4"
@@ -62,8 +62,8 @@ commonscompress   = "1.28.0"
 commonsio         = "2.16.0"
 commonscollections4 = "4.5.0"
 # plugin dependencies
-aws               = "2.32.29"
-awscrt            = "0.35.0"
+aws               = "2.54.2"
+awscrt            = "0.48.4"
 reactivestreams   = "1.0.4"
 hadoop3           = "3.5.0"
 

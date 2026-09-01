@@ -23,10 +23,10 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.ArrowValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 import static org.apache.arrow.c.Data.importField;
 
@@ -53,24 +53,31 @@ public class LuceneResultStream implements EngineResultStream {
     /** C-Data schema describing {@link #arrowArray}. */
     private final ArrowSchema arrowSchema;
     private final BufferAllocator allocator;
+    private final BufferAllocator stagingAllocator;
     private final CDataDictionaryProvider dictionaryProvider;
     private volatile BatchIterator iteratorInstance;
 
     /**
      * Caller hands over ownership of {@code arrowArray} and {@code arrowSchema}; this stream
-     * closes them in {@link #close}.
+     * closes them in {@link #close}. Both allocators stay caller-owned.
+     *
+     * @param stagingAllocator node-scoped, unbounded allocator the batch is imported onto (see
+     *        {@link BatchIterator#importBatch}). MUST outlive this stream: the Flight transport builds its
+     *        reused stream root on the first batch's vector allocator and frees it asynchronously with its
+     *        own channel.
      */
-    public LuceneResultStream(ArrowArray arrowArray, ArrowSchema arrowSchema, BufferAllocator allocator) {
+    public LuceneResultStream(ArrowArray arrowArray, ArrowSchema arrowSchema, BufferAllocator allocator, BufferAllocator stagingAllocator) {
         this.arrowArray = arrowArray;
         this.arrowSchema = arrowSchema;
         this.allocator = allocator;
+        this.stagingAllocator = Objects.requireNonNull(stagingAllocator, "stagingAllocator");
         this.dictionaryProvider = new CDataDictionaryProvider();
     }
 
     @Override
     public Iterator<EngineResultBatch> iterator() {
         if (iteratorInstance == null) {
-            iteratorInstance = new BatchIterator(arrowArray, arrowSchema, allocator, dictionaryProvider);
+            iteratorInstance = new BatchIterator(arrowArray, arrowSchema, allocator, stagingAllocator, dictionaryProvider);
         }
         return iteratorInstance;
     }
@@ -80,7 +87,6 @@ public class LuceneResultStream implements EngineResultStream {
         try {
             if (iteratorInstance != null) {
                 iteratorInstance.closeLastBatch();
-                iteratorInstance.reclaimDrainedStaging();
             }
         } finally {
             try {
@@ -106,25 +112,34 @@ public class LuceneResultStream implements EngineResultStream {
         private final ArrowArray arrowArray;
         private final ArrowSchema arrowSchema;
         private final BufferAllocator allocator;
+        /**
+         * Caller-owned, node-scoped, unbounded staging allocator the batch is imported onto (see
+         * {@link #importBatch}). Owned by {@code AnalyticsSearchService}, never by this stream: the Flight
+         * transport builds its reused stream root on {@code fieldVectors.getFirst().getAllocator()}, i.e. the
+         * FIRST batch's staging allocator ({@code FlightServerChannel#transferIntoStreamRoot}, whose comment
+         * states "The producer's allocator must be long-lived (not closed per-request)"), then charges that
+         * same allocator for every later batch and frees the stream root asynchronously in its own
+         * {@code close()} — which may run after ours.
+         */
+        private final BufferAllocator stagingAllocator;
         private final CDataDictionaryProvider dictionaryProvider;
         private Schema schema;
         private VectorSchemaRoot nextBatch;
         private Boolean nextAvailable;
         private boolean batchEmitted;
         private boolean exhausted;
-        // Per-batch staging allocators used by {@link #importBatch}. Each is reclaimed once its batch's
-        // buffers have been released by the consumer (see {@link #reclaimDrainedStaging}).
-        private final List<BufferAllocator> stagingAllocators = new ArrayList<>();
 
         BatchIterator(
             ArrowArray arrowArray,
             ArrowSchema arrowSchema,
             BufferAllocator allocator,
+            BufferAllocator stagingAllocator,
             CDataDictionaryProvider dictionaryProvider
         ) {
             this.arrowArray = arrowArray;
             this.arrowSchema = arrowSchema;
             this.allocator = allocator;
+            this.stagingAllocator = stagingAllocator;
             this.dictionaryProvider = dictionaryProvider;
         }
 
@@ -147,50 +162,39 @@ public class LuceneResultStream implements EngineResultStream {
         }
 
         /**
-         * Imports the batch across the Arrow C Data Interface into a per-batch staging allocator (an
-         * unbounded child of the root) rather than directly into {@code allocator}.
+         * Imports the batch across the Arrow C Data Interface onto the caller-supplied
+         * {@link #stagingAllocator} rather than directly into {@code allocator}.
          *
          * <p>{@link Data#importIntoVectorSchemaRoot} charges each buffer against the target allocator as it
          * walks the array. Against a bounded target that fills part-way through a wide batch the import
          * throws, and arrow-java's {@code ReferenceCountedArrowArray#unsafeAssociateAllocation} retains the
          * imported array <em>before</em> the throwing {@code wrapForeignAllocation} without rolling back, so
          * the C Data release callback never fires and the whole native batch leaks — invisible to the JVM
-         * heap and the Java Arrow allocator (arrow-java &le; 18.1.0). An unbounded staging child can't OOM
-         * mid-array, so the release callback always fires.
+         * heap and the Java Arrow allocator (arrow-java &le; 18.1.0). The staging allocator is unbounded and
+         * parented at the root, so it can't OOM mid-array before the pool itself is exhausted and the release
+         * callback always fires.
          *
          * <p>The batch is returned as-is (zero-copy); its buffers are released by the existing consumer close
-         * paths, which drives the C Data reference count to zero. Each staging allocator is reclaimed once
-         * drained (see {@link #reclaimDrainedStaging}); on import failure it is closed immediately.
+         * paths, which drives the C Data reference count to zero. The staging allocator is caller-owned and
+         * outlives this stream (see {@link #stagingAllocator}), so nothing here closes it.
          */
         private VectorSchemaRoot importBatch() {
-            reclaimDrainedStaging();
-            BufferAllocator staging = allocator.getRoot().newChildAllocator("lucene-import-staging", 0, Long.MAX_VALUE);
-            VectorSchemaRoot root = VectorSchemaRoot.create(schema, staging);
+            VectorSchemaRoot root = VectorSchemaRoot.create(schema, stagingAllocator);
             try {
-                Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
+                Data.importIntoVectorSchemaRoot(stagingAllocator, arrowArray, root, dictionaryProvider);
             } catch (RuntimeException e) {
-                root.close();
-                staging.close();
+                // Close the partially-imported root (fires the native release); the allocator is caller-owned
+                // and untouched. The release can itself throw (VectorSchemaRoot#close rethrows any
+                // RuntimeException from the vectors); attach it rather than let it mask the import failure
+                // that is the real diagnosis.
+                try {
+                    root.close();
+                } catch (RuntimeException releaseFailure) {
+                    e.addSuppressed(releaseFailure);
+                }
                 throw e;
             }
-            stagingAllocators.add(staging);
             return root;
-        }
-
-        /**
-         * Closes staging allocators whose batches have been fully released (drained to zero). A batch still
-         * in flight keeps its staging allocator open so the eventual release callback frees the small C Data
-         * bookkeeping allocation against a live allocator; that allocator is a leaf child of the root and
-         * holds no batch data once drained.
-         */
-        private void reclaimDrainedStaging() {
-            stagingAllocators.removeIf(a -> {
-                if (a.getAllocatedMemory() == 0) {
-                    a.close();
-                    return true;
-                }
-                return false;
-            });
         }
 
         @Override
