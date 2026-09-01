@@ -22,7 +22,11 @@ use std::sync::{Arc, Mutex};
 
 use crate::crc_writer::CrcWriter;
 use crate::memory::write_pool;
-use crate::merge::{merge_sorted_with_pool, schema::ROW_ID_COLUMN_NAME};
+use crate::merge::{
+    heap::{min_reduced_sort_array, min_reduced_sort_type},
+    merge_sorted_with_pool,
+    schema::ROW_ID_COLUMN_NAME,
+};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 use crate::{log_debug, log_error, log_info};
@@ -873,7 +877,7 @@ impl NativeParquetWriter {
     /// Sort a batch using RowConverter: converts sort columns into compact
     /// byte-comparable rows, sorts indices by comparing those rows, then
     /// reorders all columns via take.
-    fn sort_batch(
+    pub(crate) fn sort_batch(
         batch: &RecordBatch,
         sort_columns: &[String],
         reverse_sorts: &[bool],
@@ -887,7 +891,7 @@ impl NativeParquetWriter {
                     .schema()
                     .index_of(col_name)
                     .map_err(|_| format!("Sort column '{}' not found in schema", col_name))?;
-                let data_type = batch.schema().field(col_index).data_type().clone();
+                let data_type = min_reduced_sort_type(batch.schema().field(col_index).data_type());
                 let options = arrow::compute::SortOptions {
                     descending: reverse_sorts.get(i).copied().unwrap_or(false),
                     nulls_first: nulls_first.get(i).copied().unwrap_or(false),
@@ -901,10 +905,10 @@ impl NativeParquetWriter {
         let sort_arrays: Vec<Arc<dyn arrow::array::Array>> = sort_columns
             .iter()
             .map(|col_name| {
-                let col_index = batch.schema().index_of(col_name).unwrap();
-                batch.column(col_index).clone()
+                let col_index = batch.schema().index_of(col_name)?;
+                min_reduced_sort_array(batch.column(col_index))
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let rows = converter.convert_columns(&sort_arrays)?;
         let mut sort_indices: Vec<u32> = (0..batch.num_rows() as u32).collect();
