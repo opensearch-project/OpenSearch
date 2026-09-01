@@ -62,6 +62,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -593,6 +594,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
+
+        RegexpAutomatonCache.getInstance().resize(RegexpAutomatonCache.CACHE_MAX_SIZE_SETTING.get(settings).getBytes());
+        RegexpAutomatonCache.getInstance().setEnabled(RegexpAutomatonCache.CACHE_ENABLED_SETTING.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(RegexpAutomatonCache.CACHE_ENABLED_SETTING, RegexpAutomatonCache.getInstance()::setEnabled);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                RegexpAutomatonCache.CACHE_MAX_SIZE_SETTING,
+                sizeValue -> RegexpAutomatonCache.getInstance().resize(sizeValue.getBytes())
+            );
 
         QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
         clusterService.getClusterSettings()

@@ -51,12 +51,15 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
@@ -677,12 +680,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             if (hasDocValues()) {
-                return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
-                    syntaxFlags,
-                    matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
+                String dvPattern = (String) rewriteForDocValue(value);
+                CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
+                    .getCompiledAutomaton(dvPattern, syntaxFlags, matchFlags, maxDeterminizedStates, RegexpQuery.DEFAULT_PROVIDER);
+                return new PrecompiledAutomatonQuery(
+                    new Term(name(), indexedValueForSearch(dvPattern)),
+                    compiled,
+                    dvPattern,
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
