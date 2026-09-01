@@ -21,8 +21,14 @@ import static org.hamcrest.Matchers.containsString;
  * Unit tests for the mapping-time validations applied to fields declared directly inside a
  * {@code nested} object on a composite (pluggable data format / Mustang) index:
  * <ol>
- *   <li>an explicit {@code index: true} on a nested sub-field is rejected, and</li>
- *   <li>a plain {@code object} sub-field is rejected.</li>
+ *   <li>an explicit {@code index: true} is rejected — on the field itself, or on any of its
+ *       multi-fields. (A field's default/unspecified {@code index} value, e.g. keyword's default of
+ *       {@code index: true}, is deliberately NOT checked — nested leaves are doc-values-only in this
+ *       mode regardless of that setting, by design, so the common shape of a leaf with no explicit
+ *       "index" key at all must keep working.);</li>
+ *   <li>a plain {@code object} sub-field is rejected, whether written explicitly (a {@code properties}
+ *       block), implicitly (a bare {@code properties} block with no {@code type}), or via a dotted
+ *       field name that implicitly builds the same intermediate object wrapper.</li>
  * </ol>
  * Both are gated on {@link org.opensearch.index.mapper.Mapper#isPluggableDataFormatEnabled} so that
  * vanilla (non-pluggable) indices keep their existing behavior — the vanilla cases below assert the
@@ -106,8 +112,37 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testDefaultLeafInsideNestedAllowedForPluggable() throws IOException {
-        // A leaf with no explicit index parameter must still be accepted (rule keys off explicit index:true).
+        // A leaf with no explicit index parameter must still be accepted (rule keys off explicit
+        // index:true only — see the class-level javadoc for why the default is deliberately not checked).
         createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("a").field("type", "keyword").endObject()));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDottedFieldNameInsideNestedRejectedForPluggable() throws IOException {
+        // "meta.name" implicitly builds an intermediate plain-object mapper for "meta" — the same
+        // disallowed shape as the explicit-object case, just via dotted-name sugar.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("meta.name").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Field [meta.name] inside nested field [n]"));
+        assertThat(e.getMessage(), containsString("dotted name"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testMultiFieldIndexTrueInsideNestedRejectedForPluggable() throws IOException {
+        // The parent ("author") sets index:false — only its multi-field ("raw") sets explicit index:true
+        // — so the check must inspect multi-fields' own "index" property too, not just the parent's.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
+                b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
+                b.startObject("raw").field("type", "keyword").field("index", true).endObject();
+                b.endObject().endObject();
+            }))
+        );
+        assertThat(e.getMessage(), containsString("Field [author.raw] inside nested field [n]"));
+        assertThat(e.getMessage(), containsString("index: true"));
     }
 
     // ---- Vanilla: behavior unchanged (identical mappings must still parse) ----------------------
@@ -121,6 +156,18 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
         createDocumentMapper(nestedWith(b -> {
             b.startObject("obj").field("type", "object").startObject("properties");
             b.startObject("x").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+    }
+
+    public void testDottedFieldNameInsideNestedAllowedForVanilla() throws IOException {
+        createDocumentMapper(nestedWith(b -> b.startObject("meta.name").field("type", "keyword").endObject()));
+    }
+
+    public void testMultiFieldIndexTrueInsideNestedAllowedForVanilla() throws IOException {
+        createDocumentMapper(nestedWith(b -> {
+            b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("index", true).endObject();
             b.endObject().endObject();
         }));
     }
