@@ -639,6 +639,42 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                     }
 
+                    // Composite (pluggable data format) constraint: fields declared directly inside a
+                    // `nested` object are persisted as a coarse, doc-values-only projection (see
+                    // LuceneDocumentInput) and materialized as flat leaves / flat_object MAPs in Parquet.
+                    // Two mapping shapes cannot be honored in that model, so reject them at mapping time
+                    // instead of silently mis-indexing. Gated on nested scope + pluggable data format so
+                    // vanilla nested behavior is unchanged.
+                    if (objBuilder.nested.isNested() && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings())) {
+                        // (1) An explicit [index: true] inside nested cannot be served — no inverted index
+                        // is built for nested leaves in this mode.
+                        Object indexNode = propNode.get("index");
+                        if (indexNode != null && XContentMapValues.nodeBooleanValue(indexNode, fieldName + ".index")) {
+                            throw new MapperParsingException(
+                                "Field ["
+                                    + fieldName
+                                    + "] inside nested field ["
+                                    + objBuilder.name()
+                                    + "] sets [index: true], which is not supported on composite (pluggable data format) "
+                                    + "indices; fields within a nested object are stored doc-values-only. "
+                                    + "Set [index: false] or remove the parameter."
+                            );
+                        }
+                        // (2) A plain [object] sub-field inside nested is not supported; use flat fields or a
+                        // [flat_object] field instead. (Implicit objects — a bare "properties" block with no
+                        // "type" — resolve to CONTENT_TYPE above, so they are caught here too.)
+                        if (ObjectMapper.CONTENT_TYPE.equals(type)) {
+                            throw new MapperParsingException(
+                                "Object field ["
+                                    + fieldName
+                                    + "] inside nested field ["
+                                    + objBuilder.name()
+                                    + "] is not supported on composite (pluggable data format) indices; "
+                                    + "use flat fields or a [flat_object] field instead."
+                            );
+                        }
+                    }
+
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     // createindexmark13
                     if (typeParser == null) {
