@@ -150,7 +150,18 @@ fn build_projected_lex_ordering(
     let mut exprs: Vec<PhysicalSortExpr> = Vec::with_capacity(sort_fields.len());
     for (i, field) in sort_fields.iter().enumerate() {
         let phys = match physical_col(field, projected_schema) {
-            Ok(e) => e,
+            Ok(expr) => match projected_schema
+                .field_with_name(field)
+                .map(|field| field.data_type())
+            {
+                Ok(DataType::List(_)) => {
+                    match crate::udf::list_min::physical_expr(expr, projected_schema.as_ref()) {
+                        Ok(expr) => expr,
+                        Err(_) => break,
+                    }
+                }
+                _ => expr,
+            },
             Err(_) => break,
         };
         let descending = sort_orders
@@ -864,6 +875,21 @@ mod tests {
             sort_orders: vec![],
             cancellation_token: None,
         }
+    }
+
+    #[test]
+    fn list_sort_key_advertises_list_min_physical_ordering() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(child),
+            true,
+        )]));
+        let ordering =
+            build_projected_lex_ordering(&schema, &["tags".into()], &["desc".into()]).unwrap();
+        assert!(format!("{}", ordering[0].expr).contains("list_min"));
+        assert!(ordering[0].options.descending);
+        assert!(!ordering[0].options.nulls_first);
     }
 
     // QueryShardExec holds an ExecutionPlanMetricsSet (not Clone). We only

@@ -208,7 +208,10 @@ fn compute_segment_sort_bounds(
     file_schema: &arrow::datatypes::SchemaRef,
     pq_meta: &ParquetMetaData,
 ) -> (Option<ScalarValue>, Option<ScalarValue>) {
-    if file_schema.index_of(lead_field).is_err() {
+    let Ok(field) = file_schema.field_with_name(lead_field) else {
+        return (None, None);
+    };
+    if matches!(field.data_type(), arrow::datatypes::DataType::List(_)) {
         return (None, None);
     }
 
@@ -524,6 +527,61 @@ mod tests {
             fields_ab, fields_ba,
             "schema order must not depend on object-meta input ordering"
         );
+    }
+
+    #[tokio::test]
+    async fn scalar_and_list_field_promote_to_list_schema() {
+        let dir = tempdir().unwrap();
+        let scalar_schema = Arc::new(Schema::new(vec![Field::new("tags", DataType::Utf8, true)]));
+        let list_child = Arc::new(Field::new("element", DataType::Utf8, true));
+        let list_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::clone(&list_child)),
+            true,
+        )]));
+        let scalar_path = write_parquet(
+            dir.path(),
+            "a.parquet",
+            scalar_schema,
+            vec![Arc::new(StringArray::from(vec![Some("prod")]))],
+        );
+        let list_path = write_parquet(
+            dir.path(),
+            "b.parquet",
+            list_schema,
+            vec![Arc::new(ListArray::new(
+                list_child,
+                OffsetBuffer::new(vec![0_i32, 2].into()),
+                Arc::new(StringArray::from(vec!["prod", "error"])),
+                None,
+            ))],
+        );
+
+        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
+        let metas = object_metas(store.as_ref(), &[scalar_path, list_path]).await;
+        let ctx = SessionContext::new();
+        let generations: Vec<i64> = (0..metas.len() as i64).collect();
+        let (segments, schema) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            &generations,
+            default_metadata_cache(),
+            &["tags".to_string()],
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            segments[1].sort_min.is_none() && segments[1].sort_max.is_none(),
+            "LIST child statistics must not be used as per-row list_min bounds"
+        );
+
+        assert!(matches!(
+            schema.field_with_name("tags").unwrap().data_type(),
+            DataType::List(child)
+                if matches!(child.data_type(), DataType::Utf8 | DataType::Utf8View)
+        ));
     }
 
     /// Incompatible types (Int32 vs Int64 on the same field name) is
