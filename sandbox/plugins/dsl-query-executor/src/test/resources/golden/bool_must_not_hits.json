@@ -18,8 +18,9 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[IS NOT TRUE(=($2, CAST('BrandX':VARCHAR):VARCHAR))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[IS NOT TRUE(=($2, CAST('BrandX':VARCHAR):VARCHAR))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price", "brand", "rating"],
   "mockResultRows": [
@@ -30,11 +31,29 @@
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 2,
         "relation": "eq"
       },
       "max_score": null,
-      "hits": []
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          }
+        },
+        {
+          "_score": null,
+          "_source": {
+            "name": "tablet",
+            "price": 499,
+            "rating": 3.0
+          }
+        }
+      ]
     }
   }
 }
