@@ -12,9 +12,12 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.UInt8Vector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
@@ -22,6 +25,7 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
@@ -40,6 +44,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -279,6 +284,36 @@ public class VSRManagerNestedTests extends ParquetBaseTests {
             setLeafValue.invoke(null, v, 0, "true");
             v.setValueCount(1);
             assertEquals(1, v.get(0));
+        }
+        // half_float — matches HalfFloatParquetField's own top-level conversion.
+        try (Float2Vector v = new Float2Vector("hf", testAllocator)) {
+            v.allocateNew();
+            setLeafValue.invoke(null, v, 0, 1.5f);
+            v.setValueCount(1);
+            assertEquals(1.5f, v.getValueAsFloat(0), 0.0f);
+        }
+        // unsigned_long — matches UnsignedLongParquetField's own top-level conversion.
+        try (UInt8Vector v = new UInt8Vector("ul", testAllocator)) {
+            v.allocateNew();
+            setLeafValue.invoke(null, v, 0, 9_000_000_000L);
+            v.setValueCount(1);
+            assertEquals(9_000_000_000L, v.get(0));
+        }
+        // binary — a raw byte[], matches BinaryParquetField's own top-level conversion.
+        try (VarBinaryVector v = new VarBinaryVector("bin", testAllocator)) {
+            v.allocateNew();
+            byte[] raw = { 1, 2, 3 };
+            setLeafValue.invoke(null, v, 0, raw);
+            v.setValueCount(1);
+            assertArrayEquals(raw, v.get(0));
+        }
+        // ip — an InetAddress, point-encoded like IpParquetField's own top-level conversion.
+        try (VarBinaryVector v = new VarBinaryVector("ip", testAllocator)) {
+            v.allocateNew();
+            InetAddress address = InetAddress.getByName("192.168.1.1");
+            setLeafValue.invoke(null, v, 0, address);
+            v.setValueCount(1);
+            assertArrayEquals(InetAddressPoint.encode(address), v.get(0));
         }
         // null value is a no-op: the slot stays null.
         try (VarCharVector v = new VarCharVector("snull", testAllocator)) {

@@ -16,6 +16,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -23,6 +24,8 @@ import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.UInt8Vector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
@@ -32,6 +35,8 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -425,6 +430,22 @@ public class VSRManager implements AutoCloseable {
             v.setSafe(index, ((Number) value).longValue());
         } else if (vector instanceof TimeStampNanoVector v) {
             v.setSafe(index, ((Number) value).longValue());
+        } else if (vector instanceof Float2Vector v) {
+            // half_float — matches HalfFloatParquetField's own top-level conversion.
+            v.setSafeWithPossibleTruncate(index, ((Number) value).floatValue());
+        } else if (vector instanceof UInt8Vector v) {
+            // unsigned_long — matches UnsignedLongParquetField's own top-level conversion.
+            v.setSafe(index, ((Number) value).longValue());
+        } else if (vector instanceof VarBinaryVector v) {
+            // ip and binary share this vector type but not their value's Java type — ip's parseValue
+            // is an InetAddress (needs InetAddressPoint's point encoding, matching IpParquetField's
+            // own top-level conversion); binary's is already a raw byte[] (matching BinaryParquetField).
+            if (value instanceof java.net.InetAddress address) {
+                BytesRef bytesRef = new BytesRef(InetAddressPoint.encode(address));
+                v.setSafe(index, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            } else {
+                v.setSafe(index, (byte[]) value);
+            }
         } else {
             throw new IllegalArgumentException(
                 "Unsupported struct-leaf vector type [" + vector.getClass().getSimpleName() + "] for nested field"
