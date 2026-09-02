@@ -68,7 +68,12 @@ public record DecodedBatch(long firstRow, long lastRow, MemorySegment values, in
     }
 
     /**
-     * Returns the value at the given global row as a Lucene numeric doc-values {@code long}. Integral
+     * Returns the value at the given global row, which the caller must already have accepted through
+     * {@link #contains} or {@link #isPresent} - unlike those, this does not range-check, to avoid
+     * repeating the check on every value read. An out-of-range row still cannot read past the
+     * borrowed buffer: the values segment carries its length, so the access throws instead.
+     *
+     * <p>The value is returned as a Lucene numeric doc-values {@code long}. Integral
      * kinds sign- or zero-extend the stored width. The float/double kinds re-encode the raw IEEE-754
      * bits into Lucene's order-preserving "sortable" form ({@code doubleToSortableLong} /
      * {@code floatToSortableInt}, the latter sign-extended) - the encoding OpenSearch's float/double
