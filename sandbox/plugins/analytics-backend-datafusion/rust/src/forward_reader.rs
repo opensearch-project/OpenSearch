@@ -17,22 +17,30 @@
 //! object-store [`AsyncFileReader`] (remote/tiered storage), selected by
 //! [`ParquetForwardBatchReaderFactory`]. Repeated (multi-valued) columns are not
 //! supported yet.
+//!
+//! The factory holds everything a reader needs to be rebuilt without new IO: the
+//! `ParquetMetaData` (footer plus the page index for the projected column), the
+//! `ProjectionMask` naming that column, the decode batch size, and the byte
+//! source. [`ParquetForwardBatchReaderFactory::open`] is therefore also the reset
+//! path. Page bounds come from the `OffsetIndex`; all-null pages are recognised
+//! from the `ColumnIndex`.
 
+use bytes::Bytes;
 use datafusion::arrow::array::new_null_array;
 use datafusion::arrow::record_batch::{RecordBatch, RecordBatchReader};
 use datafusion::datasource::physical_plan::parquet::ParquetFileReaderFactory;
-use datafusion::parquet::arrow::ProjectionMask;
 use datafusion::parquet::arrow::arrow_reader::{
-    ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder,
+    ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReader,
+    ParquetRecordBatchReaderBuilder,
 };
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
+use datafusion::parquet::arrow::ProjectionMask;
 use datafusion::parquet::errors::{ParquetError as ArrowParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::parquet::file::page_index::column_index::ColumnIndexMetaData;
 use datafusion::parquet::file::reader::{ChunkReader, Length};
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion_datasource::PartitionedFile;
-use bytes::Bytes;
 use parking_lot::Mutex;
 use std::fmt::Debug;
 use std::io::Cursor;
@@ -105,18 +113,13 @@ impl ParquetForwardBatchReaderFactory {
         }
     }
 
-    /// Uses a synchronous retained file descriptor when `path` identifies an existing local file of
-    /// the expected length. Other files continue through DataFusion's reader factory.
+    /// Uses a synchronous retained file descriptor for `path`, which the caller resolves from the
+    /// store that owns the file. `None` continues through DataFusion's reader factory.
     ///
-    /// The path must be absolute and its length must match the object store's view of the file. A
-    /// relative path would resolve against the process working directory rather than the store, and
-    /// a length mismatch means the local file is not the one the footer and page index were read
-    /// from - either would decode unrelated bytes using this file's metadata.
-    pub fn with_local_file_if_exists(mut self, path: impl Into<PathBuf>) -> Self {
-        let path = path.into();
-        let usable = path.is_absolute()
-            && std::fs::metadata(&path).is_ok_and(|meta| meta.is_file() && meta.len() == self.file.object_meta.size);
-        self.local_file = usable.then_some(path);
+    /// Resolving the path is the store's job, not this module's: only a store backed by the local
+    /// filesystem can name a descriptor, and only it knows how an object path maps onto one.
+    pub fn with_local_file(mut self, path: Option<PathBuf>) -> Self {
+        self.local_file = path;
         self
     }
 
@@ -199,10 +202,11 @@ impl ParquetForwardBatchReader {
         })?;
         let arrow_metadata =
             ArrowReaderMetadata::try_new(Arc::clone(&metadata), ArrowReaderOptions::new())?;
-        let reader = ParquetRecordBatchReaderBuilder::new_with_metadata(chunk_reader, arrow_metadata)
-            .with_projection(projection)
-            .with_batch_size(batch_size.max(1))
-            .build()?;
+        let reader =
+            ParquetRecordBatchReaderBuilder::new_with_metadata(chunk_reader, arrow_metadata)
+                .with_projection(projection)
+                .with_batch_size(batch_size.max(1))
+                .build()?;
 
         Ok(Self {
             reader,
@@ -319,7 +323,9 @@ impl ParquetForwardBatchReader {
             .partition_point(|page| page.first_row + page.row_count <= target_row);
         self.pages
             .get(index)
-            .filter(|page| target_row >= page.first_row && target_row < page.first_row + page.row_count)
+            .filter(|page| {
+                target_row >= page.first_row && target_row < page.first_row + page.row_count
+            })
             .ok_or_else(|| {
                 ArrowParquetError::General(format!("OffsetIndex does not contain row {target_row}"))
             })
@@ -460,7 +466,8 @@ impl ChunkReader for AsyncFileChunkReader {
                 self.file_len
             )));
         }
-        self.runtime.block_on(self.reader.lock().get_bytes(start..end))
+        self.runtime
+            .block_on(self.reader.lock().get_bytes(start..end))
     }
 }
 
@@ -470,15 +477,20 @@ mod tests {
     use datafusion::arrow::array::{Array, ArrayRef, Int32Array};
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::parquet::arrow::ArrowWriter;
-    use datafusion::parquet::file::metadata::{PageIndexPolicy, ParquetMetaDataReader};
+    use datafusion::parquet::file::metadata::{
+        FileMetaData, PageIndexPolicy, ParquetMetaDataBuilder, ParquetMetaDataReader,
+    };
     use datafusion::parquet::file::properties::WriterProperties;
     use std::fs::File;
 
     /// Writes `values` to a temp Parquet file (row groups of 8 rows, pages of 3
-    /// rows, OffsetIndex + ColumnIndex enabled) and opens a forward reader over
-    /// the single column.
-    fn reader_for(values: Vec<Option<i32>>) -> ParquetForwardBatchReader {
-        let schema = Arc::new(Schema::new(vec![Field::new("value", DataType::Int32, true)]));
+    /// rows, OffsetIndex + ColumnIndex enabled) and returns it with its metadata.
+    fn write_fixture(values: Vec<Option<i32>>) -> (File, Arc<ParquetMetaData>) {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "value",
+            DataType::Int32,
+            true,
+        )]));
         let column: ArrayRef = Arc::new(Int32Array::from(values));
         let batch = RecordBatch::try_new(Arc::clone(&schema), vec![column]).unwrap();
         let file = tempfile::tempfile().unwrap();
@@ -499,9 +511,14 @@ mod tests {
             .with_page_index_policy(PageIndexPolicy::Required)
             .parse_and_finish(&file)
             .unwrap();
-        let metadata = Arc::new(metadata);
+        (File::from(file), Arc::new(metadata))
+    }
+
+    /// Opens a forward reader over the single column of a fixture file.
+    fn reader_for(values: Vec<Option<i32>>) -> ParquetForwardBatchReader {
+        let (file, metadata) = write_fixture(values);
         let projection = ProjectionMask::leaves(metadata.file_metadata().schema_descr(), [0]);
-        ParquetForwardBatchReader::try_new_with_chunk_reader(File::from(file), metadata, projection, 4096)
+        ParquetForwardBatchReader::try_new_with_chunk_reader(file, metadata, projection, 4096)
             .unwrap()
     }
 
@@ -510,7 +527,11 @@ mod tests {
     }
 
     fn ints(batch: &RecordBatch) -> Vec<Option<i32>> {
-        let column = batch.column(0).as_any().downcast_ref::<Int32Array>().unwrap();
+        let column = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int32Array>()
+            .unwrap();
         (0..column.len())
             .map(|i| column.is_valid(i).then(|| column.value(i)))
             .collect()
@@ -543,6 +564,66 @@ mod tests {
     fn target_row_at_row_count_returns_none() {
         let mut reader = dense_reader();
         assert!(reader.read_batch_at(20, 1).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_short_skip_is_rejected_rather_than_decoding_misaligned_rows() {
+        // A footer that claims more rows than the pages hold: 8 rows are written, then the row group
+        // and file counts are inflated to 12, stretching the last page to [6, 12). Skipping to row 9
+        // then runs out of data. The skip must fail rather than leave `physical_position` out of step
+        // with the reader, which would decode every later row from the wrong offset.
+        let (file, metadata) = write_fixture((0..8).map(Some).collect());
+        let inflated_rows = 12i64;
+        let file_meta = metadata.file_metadata();
+        let inflated_file_meta = FileMetaData::new(
+            file_meta.version(),
+            inflated_rows,
+            file_meta.created_by().map(str::to_string),
+            file_meta.key_value_metadata().cloned(),
+            file_meta.schema_descr_ptr(),
+            file_meta.column_orders().cloned(),
+        );
+        let inflated_row_group = metadata
+            .row_group(0)
+            .clone()
+            .into_builder()
+            .set_num_rows(inflated_rows)
+            .build()
+            .unwrap();
+        let inflated = Arc::new(
+            ParquetMetaDataBuilder::new(inflated_file_meta)
+                .set_row_groups(vec![inflated_row_group])
+                .set_column_index(metadata.column_index().cloned())
+                .set_offset_index(metadata.offset_index().cloned())
+                .build(),
+        );
+
+        let projection = ProjectionMask::leaves(inflated.file_metadata().schema_descr(), [0]);
+        let mut reader =
+            ParquetForwardBatchReader::try_new_with_chunk_reader(file, inflated, projection, 4096)
+                .unwrap();
+
+        let error = reader.read_batch_at(9, 1).unwrap_err().to_string();
+        assert!(
+            error.contains("requested skip of 9 rows but skipped 8"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn an_all_null_final_page_skips_to_end_of_file_without_a_short_skip() {
+        // Row groups of 8 and pages of 3 leave the last row in its own page, [19, 20). Nulling it
+        // makes that final page all-null, so serving it skips the physical reader to exactly the end
+        // of the file - the boundary where a short skip would be reported if one were possible.
+        let mut values: Vec<Option<i32>> = (0..20).map(Some).collect();
+        values[19] = None;
+        let mut reader = reader_for(values);
+        let batch = reader.read_batch_at(19, 1).unwrap().unwrap();
+        assert_eq!(ints(&batch), vec![None]);
+        assert!(
+            reader.read_batch_at(20, 1).unwrap().is_none(),
+            "the file must be exhausted after its final page"
+        );
     }
 
     #[test]

@@ -34,7 +34,7 @@ pub mod statistics_cache;
 pub use custom_cache_manager::CustomCacheManager;
 pub use eviction_policy::{create_policy, CachePolicy, CacheResult, PolicyType};
 pub use metadata_cache::{
-    MutexFileMetadataCache, CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_METADATA, CACHE_TYPE_OFFSET_INDEX,
-    CACHE_TYPE_STATS,
+    global_metadata_cache, register_global_metadata_cache, MutexFileMetadataCache,
+    CACHE_TYPE_COLUMN_INDEX, CACHE_TYPE_METADATA, CACHE_TYPE_OFFSET_INDEX, CACHE_TYPE_STATS,
 };
 pub use statistics_cache::{compute_parquet_statistics, CustomStatisticsCache};

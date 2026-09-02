@@ -718,6 +718,11 @@ pub fn create_global_runtime(
         custom_cache_manager,
         dynamic_limit_handle,
     };
+    // Published for callers with no `RuntimeEnv` to read it from: the doc-values cursor is opened
+    // from Lucene with only a file path.
+    crate::cache::register_global_metadata_cache(
+        runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+    );
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
