@@ -485,7 +485,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             TextFieldType tft = buildFieldType(fieldType, context);
             if (context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
                 || (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
-                    && !context.isMultiField())) {
+                    && context.isMultiField() == false)) {
                 fieldType.setStored(true);
             }
             return new TextFieldMapper(
