@@ -79,11 +79,14 @@ VARIABLES
   rState,      \* "assigned" | "unassigned_existing" | "initializing_remote"
   rWriter,     \* the writer the routing entry names (NoWriter when unassigned)
   inSync,      \* SUBSET Writers - the in-sync allocation ids
+  delayOpen,   \* the node-left grace window (index.unassigned.node_left.
+               \* delayed_timeout): TRUE while the delay marker set by
+               \* disassociateDeadNodes is live on the unassigned primary
   (* Global acknowledgement history.                                       *)
   acked, ackedBy, nextOp
 
 vars == <<live, wNode, wState, wTerm, hasRead, restore, fenceTerm, fenceOwner,
-          rState, rWriter, inSync, acked, ackedBy, nextOp>>
+          rState, rWriter, inSync, delayOpen, acked, ackedBy, nextOp>>
 
 wVars == <<wNode, wState, wTerm, hasRead, restore>>
 ackVars == <<acked, ackedBy, nextOp>>
@@ -105,6 +108,7 @@ TypeOK ==
   /\ rState \in {"assigned", "unassigned_existing", "initializing_remote"}
   /\ rWriter \in Writers \cup {NoWriter}
   /\ inSync \subseteq Writers
+  /\ delayOpen \in BOOLEAN
   /\ acked \subseteq Ops
   /\ ackedBy \in [Writers -> SUBSET Ops]
   /\ nextOp \in 1..(MaxOps + 1)
@@ -123,6 +127,7 @@ Init ==
   /\ restore = [w \in Writers |-> {}]
   /\ fenceTerm = 1
   /\ rState = "assigned"
+  /\ delayOpen = FALSE
   /\ acked = {} /\ ackedBy = [w \in Writers |-> {}] /\ nextOp = 1
 
 (***************************************************************************)
@@ -139,12 +144,13 @@ AckWrite(w) ==
        THEN \* the chain refuses this writer: fenced is terminal
          /\ wState' = [wState EXCEPT ![w] = "stopped"]
          /\ UNCHANGED <<live, wNode, wTerm, hasRead, restore, fenceTerm,
-                        fenceOwner, rState, rWriter, inSync, ackVars>>
+                        fenceOwner, rState, rWriter, inSync, delayOpen, ackVars>>
        ELSE
          /\ acked' = acked \cup {nextOp}
          /\ ackedBy' = [ackedBy EXCEPT ![w] = @ \cup {nextOp}]
          /\ nextOp' = nextOp + 1
-         /\ UNCHANGED <<live, wVars, fenceTerm, fenceOwner, rState, rWriter, inSync>>
+         /\ UNCHANGED <<live, wVars, fenceTerm, fenceOwner, rState, rWriter, inSync,
+                        delayOpen>>
 
 (***************************************************************************)
 (* Node-left, as the cluster manager sees it. Two flavours with different  *)
@@ -162,7 +168,10 @@ NodeLeftView(n) ==
   /\ IF rState = "assigned" /\ rWriter /= NoWriter /\ wNode[rWriter] = n
        THEN /\ rState' = "unassigned_existing"
             /\ rWriter' = NoWriter
-       ELSE UNCHANGED <<rState, rWriter>>
+            \* delayed = (delayed_timeout > 0): both index configurations in
+            \* one state space - TRUE is a live grace window, FALSE timeout 0.
+            /\ \E d \in BOOLEAN : delayOpen' = d
+       ELSE UNCHANGED <<rState, rWriter, delayOpen>>
   /\ UNCHANGED <<wVars, fenceTerm, fenceOwner, inSync, ackVars>>
 
 NodeCrash(n) ==
@@ -174,14 +183,16 @@ NodeCrash(n) ==
   /\ IF rState = "assigned" /\ rWriter /= NoWriter /\ wNode[rWriter] = n
        THEN /\ rState' = "unassigned_existing"
             /\ rWriter' = NoWriter
-       ELSE UNCHANGED <<rState, rWriter>>
+            /\ \E d \in BOOLEAN : delayOpen' = d
+       ELSE UNCHANGED <<rState, rWriter, delayOpen>>
   /\ UNCHANGED <<wNode, wTerm, hasRead, restore, fenceTerm, fenceOwner,
                  inSync, ackVars>>
 
 NodeRejoinView(n) ==
   /\ ~live[n]
   /\ live' = [live EXCEPT ![n] = TRUE]
-  /\ UNCHANGED <<wVars, fenceTerm, fenceOwner, rState, rWriter, inSync, ackVars>>
+  /\ UNCHANGED <<wVars, fenceTerm, fenceOwner, rState, rWriter, inSync, delayOpen,
+                 ackVars>>
 
 (***************************************************************************)
 (* THE TRIGGER. One atomic cluster-state update, which is faithful: the    *)
@@ -211,8 +222,26 @@ NodeRejoinView(n) ==
 (* modeled here is therefore an eligible shard; ineligible shards never    *)
 (* reach the trigger.                                                       *)
 (***************************************************************************)
+(* The node-left grace window expiring: DelayedAllocationService schedules *)
+(* a reroute at delayed_timeout expiry and AllocationService#              *)
+(* removeDelayMarkers clears the marker on that reroute, re-running the    *)
+(* allocation decision. Weakly fair below - the scheduler's promise.       *)
+ExpireDelay ==
+  /\ delayOpen
+  /\ delayOpen' = FALSE
+  /\ UNCHANGED <<live, wVars, fenceTerm, fenceOwner, rState, rWriter, inSync,
+                 ackVars>>
+
 TriggerAutoRestore(w, n) ==
   /\ rState = "unassigned_existing"
+  \* The delay gate: while the node-left grace window is open the trigger
+  \* declines, so a bouncing node can rejoin and reclaim its local copy
+  \* (RejoinRecover below, which the window does NOT gate). Prevention is
+  \* the primary's only protection - the rejoin cancellation machinery
+  \* (ReplicaShardAllocator#processExistingRecoveries) covers replicas
+  \* only, because historically an initializing primary WAS the only copy
+  \* and there was nothing to cancel in favor of.
+  /\ ~delayOpen
   /\ live[n]
   /\ wState[w] = "unborn"
   /\ \A v \in inSync : ~live[wNode[v]] \/ wState[v] = "stopped"  \* no valid live copy
@@ -223,7 +252,8 @@ TriggerAutoRestore(w, n) ==
   /\ rState' = "initializing_remote"
   /\ rWriter' = w
   /\ inSync' = {w}
-  /\ UNCHANGED <<live, hasRead, restore, fenceTerm, fenceOwner, ackVars>>
+  /\ UNCHANGED <<live, hasRead, restore, fenceTerm, fenceOwner, delayOpen,
+                 ackVars>>
 
 (***************************************************************************)
 (* The operator's _remotestore/_restore, racing the trigger and the        *)
@@ -241,6 +271,10 @@ TriggerAutoRestore(w, n) ==
 (***************************************************************************)
 ManualRestore(w, n) ==
   /\ rState = "unassigned_existing"
+  \* Deliberately NOT gated on ~delayOpen: the operator API ignores the
+  \* node-left grace window too (a second guard-weakness beyond the
+  \* no-valid-copy check), so it can abandon both the window and a
+  \* rejoined-but-unallocated copy. TLC explores those interleavings.
   /\ live[n]
   /\ wState[w] = "unborn"
   /\ MaxIssuedTerm + 1 <= MaxTerm
@@ -250,6 +284,7 @@ ManualRestore(w, n) ==
   /\ rState' = "initializing_remote"
   /\ rWriter' = w
   /\ inSync' = {w}
+  /\ delayOpen' = FALSE
   /\ UNCHANGED <<live, hasRead, restore, fenceTerm, fenceOwner, ackVars>>
 
 (***************************************************************************)
@@ -270,7 +305,7 @@ Seal(w) ==
   /\ fenceTerm' = wTerm[w]
   /\ fenceOwner' = w
   /\ UNCHANGED <<live, wNode, wState, wTerm, hasRead, restore, rState, rWriter,
-                 inSync, ackVars>>
+                 inSync, delayOpen, ackVars>>
 
 ReadRestorePoint(w) ==
   /\ wState[w] = "restoring"
@@ -279,7 +314,7 @@ ReadRestorePoint(w) ==
   /\ hasRead' = [hasRead EXCEPT ![w] = TRUE]
   /\ restore' = [restore EXCEPT ![w] = acked]
   /\ UNCHANGED <<live, wNode, wState, wTerm, fenceTerm, fenceOwner, rState,
-                 rWriter, inSync, ackVars>>
+                 rWriter, inSync, delayOpen, ackVars>>
 
 StartShard(w) ==
   /\ wState[w] = "restoring"
@@ -289,7 +324,7 @@ StartShard(w) ==
   /\ wState' = [wState EXCEPT ![w] = "serving"]
   /\ rState' = "assigned"
   /\ UNCHANGED <<live, wNode, wTerm, hasRead, restore, fenceTerm, fenceOwner,
-                 rWriter, inSync, ackVars>>
+                 rWriter, inSync, delayOpen, ackVars>>
 
 (***************************************************************************)
 (* The restore target dies mid-restore (its node crashes). The routing     *)
@@ -304,6 +339,10 @@ RestoreTargetFails(w) ==
   /\ wState' = [wState EXCEPT ![w] = "stopped"]
   /\ rState' = "unassigned_existing"
   /\ rWriter' = NoWriter
+  \* No fresh grace window: in code the failed target keeps its REMOTE_STORE
+  \* source and is re-placed by the balanced allocator, which nothing gates
+  \* on the delay marker - only the EXISTING_STORE conversion is gated.
+  /\ delayOpen' = FALSE
   /\ UNCHANGED <<live, wNode, wTerm, hasRead, restore, fenceTerm, fenceOwner,
                  inSync, ackVars>>
 
@@ -321,8 +360,12 @@ RejoinRecover(w) ==
   /\ live[wNode[w]]
   /\ wState[w] = "serving"           \* the partitioned writer, back in view
   /\ (FENCED => fenceOwner = w)      \* nothing took the chain over
+  \* Not gated on the grace window: PrimaryShardAllocator ignores the delay
+  \* marker, so the returning in-sync copy is re-allocated immediately -
+  \* this is exactly what the window exists to make room for.
   /\ rState' = "assigned"
   /\ rWriter' = w
+  /\ delayOpen' = FALSE
   /\ UNCHANGED <<live, wVars, fenceTerm, fenceOwner, inSync, ackVars>>
 
 (***************************************************************************)
@@ -337,7 +380,7 @@ StaleCopyDropped(w) ==
   /\ w \notin inSync
   /\ wState' = [wState EXCEPT ![w] = "stopped"]
   /\ UNCHANGED <<live, wNode, wTerm, hasRead, restore, fenceTerm, fenceOwner,
-                 rState, rWriter, inSync, ackVars>>
+                 rState, rWriter, inSync, delayOpen, ackVars>>
 
 Next ==
   \/ \E w \in Writers : AckWrite(w) \/ Seal(w) \/ ReadRestorePoint(w)
@@ -345,6 +388,7 @@ Next ==
                         \/ RejoinRecover(w) \/ StaleCopyDropped(w)
   \/ \E n \in Nodes : NodeLeftView(n) \/ NodeCrash(n) \/ NodeRejoinView(n)
   \/ \E w \in Writers, n \in Nodes : TriggerAutoRestore(w, n) \/ ManualRestore(w, n)
+  \/ ExpireDelay
 
 (* The fair set is the allocator + restore pipeline: reroute runs on every *)
 (* cluster-state change, so an enabled allocation decision - the trigger   *)
@@ -355,7 +399,11 @@ RestoreActions == \E w \in Writers, n \in Nodes :
                     TriggerAutoRestore(w, n) \/ Seal(w) \/ ReadRestorePoint(w)
                     \/ StartShard(w) \/ RejoinRecover(w)
 
-Spec == Init /\ [][Next]_vars /\ WF_vars(RestoreActions)
+(* ExpireDelay is separately fair: DelayedAllocationService's scheduled    *)
+(* reroute at delayed_timeout expiry is a system promise, not environment  *)
+(* whim - without it an open window would block the trigger forever and    *)
+(* RedEventuallyResolves would fail on the stalled-window behavior.        *)
+Spec == Init /\ [][Next]_vars /\ WF_vars(RestoreActions) /\ WF_vars(ExpireDelay)
 
 (***************************************************************************)
 (* INVARIANTS                                                              *)
@@ -380,21 +428,22 @@ SingleInSyncServing ==
 SingleRestoreTarget ==
   Cardinality({w \in Writers : wState[w] = "restoring"}) <= 1
 
-(* Health, as the code will derive it. An in-flight auto-restore is        *)
-(* INITIALIZING with a remote-store source and clean unassigned info -     *)
-(* the ClusterShardHealth#getInactivePrimaryHealth change reports it       *)
-(* YELLOW. RED remains exactly the parked no-valid-copy state.             *)
+(* Health, as ClusterShardHealth#getInactivePrimaryHealth derives it after *)
+(* the RED-until-started decision: a hydrating primary cannot serve        *)
+(* queries, so REMOTE_STORE is deliberately NOT in the YELLOW allow-list - *)
+(* the restore window stays RED and converges to GREEN without operator    *)
+(* action. The improvement over the parked state is convergence, not the  *)
+(* color.                                                                  *)
 Health ==
-  IF rState = "assigned" THEN "GREEN"
-  ELSE IF rState = "initializing_remote" THEN "YELLOW"
-  ELSE "RED"
+  IF rState = "assigned" THEN "GREEN" ELSE "RED"
 
-(* The user-facing availability claim, made checkable: whenever an         *)
-(* auto-restore is in flight the shard is not RED, and RED never coexists  *)
-(* with a live restore target.                                             *)
+(* The user-facing availability claim, made checkable: health never       *)
+(* OVERSTATES availability. An in-flight restore reports RED (it cannot   *)
+(* serve queries yet), and GREEN appears only when the routing has an     *)
+(* assigned serving writer.                                                *)
 HealthFaithful ==
-  /\ (rState = "initializing_remote") => (Health = "YELLOW")
-  /\ (Health = "RED") => (\A w \in Writers : wState[w] /= "restoring")
+  /\ (rState = "initializing_remote") => (Health = "RED")
+  /\ (Health = "GREEN") => (rState = "assigned" /\ rWriter /= NoWriter)
 
 (***************************************************************************)
 (* LIVENESS: the shard does not rest in RED. Every entry into the          *)
