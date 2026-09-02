@@ -202,9 +202,9 @@ public class MultiValueFieldMapperTests extends MapperServiceTestCase {
             .putList("index.sort.field", "field")
             .putList("index.sort.order", "asc")
             .build();
-        DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> b.startObject("field").field("type", "integer").endObject()));
+        DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
 
-        ParsedDocument parsed = mapper.parse(source(b -> b.array("field", 2, 1)), new CapturingDocumentInput());
+        ParsedDocument parsed = mapper.parse(source(b -> b.array("field", "z", "a")), new CapturingDocumentInput());
         assertNotNull(parsed.dynamicMappingsUpdate());
         FieldMapper update = (FieldMapper) parsed.dynamicMappingsUpdate().root().getMapper("field");
         assertEquals(MappedFieldType.MultiValueState.LIST, update.fieldType().multiValueState());

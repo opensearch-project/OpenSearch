@@ -273,6 +273,105 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         assertTrue(rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
     }
 
+    /**
+     * Verifies that promotion retires a scalar writer that still holds buffered rows. No refresh or
+     * flush occurs between the scalar and LIST documents, so the second write must reconcile the
+     * active writer, preserve its scalar row, and retry against a new LIST writer.
+     */
+    public void testAdaptiveKeywordPromotionRetiresActiveScalarWriterWithoutRefresh() throws Exception {
+        String indexName = "test-adaptive-active-writer";
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(Settings.builder().put(parquetPrimaryLuceneSecondarySettings()).put("index.refresh_interval", "-1"))
+            .setMapping("tags", "type=keyword")
+            .get();
+        assertTrue(createResponse.isAcknowledged());
+        ensureGreen(indexName);
+
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource("tags", "solo").get().status());
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(indexName).setSource("tags", List.of("prod", "error", "prod")).get().status()
+        );
+
+        assertBusy(() -> assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value")));
+
+        List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+        assertEquals(2, rows.size());
+        assertTrue("the buffered scalar row must survive writer retirement", rows.stream().anyMatch(row -> "solo".equals(row.get("tags"))));
+        assertTrue(
+            "the retried array document must use LIST storage",
+            rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags")))
+        );
+    }
+
+    /**
+     * Verifies concurrent AUTO promotion across independent indices. Every request has a unique ID,
+     * and each index receives a deterministic mix of scalar and LIST values while mapping updates
+     * and writer rotations race with other writes.
+     */
+    public void testConcurrentAutoPromotionAcrossIndices() throws Throwable {
+        final int indexCount = 3;
+        final int threadCount = 8;
+        final int operationsPerThread = 24;
+        final int expectedDocumentsPerIndex = threadCount * operationsPerThread / indexCount;
+        final List<String> indexNames = new ArrayList<>(indexCount);
+        Settings settings = Settings.builder().put(parquetPrimaryLuceneSecondarySettings()).put("index.refresh_interval", "-1").build();
+
+        for (int i = 0; i < indexCount; i++) {
+            String indexName = "test-auto-concurrent-" + i;
+            CreateIndexResponse createResponse = client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(settings)
+                .setMapping("tags", "type=keyword")
+                .get();
+            assertTrue(createResponse.isAcknowledged());
+            ensureGreen(indexName);
+            indexNames.add(indexName);
+        }
+
+        CountDownLatch startLatch = new CountDownLatch(1);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            final int threadId = i;
+            threads[i] = new Thread(() -> {
+                try {
+                    startLatch.await();
+                    for (int operation = 0; operation < operationsPerThread; operation++) {
+                        int indexOrdinal = (threadId + operation) % indexCount;
+                        String value = "tag-" + threadId + "-" + operation;
+                        Object tags = ((threadId * 31 + operation * 17) & 3) == 0 ? List.of(value, "shared") : value;
+                        IndexResponse response = client().prepareIndex(indexNames.get(indexOrdinal)).setSource("tags", tags).get();
+                        if (response.status() != RestStatus.CREATED) {
+                            throw new AssertionError("concurrent index request failed with " + response.status());
+                        }
+                    }
+                } catch (Throwable t) {
+                    error.compareAndSet(null, t);
+                }
+            }, "auto-promotion-" + i);
+            threads[i].start();
+        }
+
+        startLatch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        if (error.get() != null) {
+            throw error.get();
+        }
+
+        for (String indexName : indexNames) {
+            assertBusy(() -> assertEquals(Boolean.TRUE, clusterStateFieldMapping(indexName, "tags").get("multi_value")));
+            List<Map<String, Object>> rows = refreshFlushAndReadParquetRows(indexName);
+            assertEquals("every successful request must be persisted", expectedDocumentsPerIndex, rows.size());
+            assertTrue("each index must contain LIST-backed rows", rows.stream().anyMatch(row -> isListColumnPlaceholder(row.get("tags"))));
+        }
+    }
+
     /** Verifies that explicit SCALAR state rejects an array without publishing a mapping update. */
     public void testExplicitScalarKeywordRejectsArrayWithoutUpdatingClusterState() throws Exception {
         String indexName = "test-scalar-keyword";

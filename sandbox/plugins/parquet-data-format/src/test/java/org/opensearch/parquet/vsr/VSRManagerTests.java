@@ -629,42 +629,15 @@ public class VSRManagerTests extends ParquetBaseTests {
         }
     }
 
-    public void testMultiValueNumericFieldWritesListColumnAndFlushes() throws Exception {
-        String filePath = createTempDir().resolve("multi-value-numeric.parquet").toString();
-        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
-        try {
-            List<Field> fields = new ArrayList<>(schema.getFields());
-            fields.addAll(metadataFields());
-            fields.add(new IntegerParquetField().toArrowField("numbers", true));
-            manager.reconcileSchema(new Schema(fields));
-
-            NumberFieldMapper.NumberFieldType numbers = new NumberFieldMapper.NumberFieldType(
-                "numbers",
-                NumberFieldMapper.NumberType.INTEGER
-            );
-            numbers.setMultiValued(true);
-            numbers.setMultiValueSupported(true);
-            assignTestCapabilities(numbers, PARQUET_FORMAT);
-
-            ParquetDocumentInput doc = new ParquetDocumentInput();
-            populateMetadataFields(doc);
-            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0L);
-            doc.addField(numbers, 10);
-            doc.addField(numbers, 20);
-            manager.addDocument(doc);
-
-            ListVector vector = (ListVector) manager.getActiveManagedVSR().getVector("numbers");
-            assertEquals(2, vector.getInnerValueCountAt(0));
-            IntVector elements = (IntVector) vector.getDataVector();
-            assertEquals(10, elements.get(0));
-            assertEquals(20, elements.get(1));
-
-            ParquetFileMetadata metadata = manager.flush();
-            assertNotNull(metadata);
-            assertEquals(1, metadata.numRows());
-        } finally {
-            manager.close();
-        }
+    public void testMultiValueNumericFieldIsRejected() {
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IntegerParquetField().toArrowField("numbers", true)
+        );
+        assertEquals(
+            "Field [numbers] cannot be stored as multi-valued: type [IntegerParquetField] does not support list storage",
+            error.getMessage()
+        );
     }
 
     public void testMultiValueFieldWritesEmptyListDistinctFromAbsent() throws Exception {
@@ -723,6 +696,25 @@ public class VSRManagerTests extends ParquetBaseTests {
             assertEquals(1, tagsField.getChildren().size());
             assertEquals(ParquetField.LIST_ELEMENT_NAME, tagsField.getChildren().get(0).getName());
             assertEquals(new ArrowType.Utf8(), tagsField.getChildren().get(0).getType());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testReconcileSchemaReusesUnchangedListVectorWhenAddingField() throws Exception {
+        String filePath = createTempDir().resolve("reconcile-list-idempotent.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            Schema listSchema = schemaWithMultiValue("tags");
+            assertTrue(manager.reconcileSchema(listSchema));
+            ListVector existingListVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+
+            List<Field> expandedFields = new ArrayList<>(listSchema.getFields());
+            expandedFields.add(new Field("new_field", FieldType.nullable(new ArrowType.Utf8()), null));
+
+            assertTrue(manager.reconcileSchema(new Schema(expandedFields)));
+            assertSame(existingListVector, manager.getActiveManagedVSR().getVector("tags"));
+            assertNotNull(manager.getActiveManagedVSR().getVector("new_field"));
         } finally {
             manager.close();
         }

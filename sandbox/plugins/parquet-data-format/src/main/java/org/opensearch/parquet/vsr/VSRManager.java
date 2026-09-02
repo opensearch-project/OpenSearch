@@ -372,7 +372,7 @@ public class VSRManager implements AutoCloseable {
                 // would drop getChildren(), leaving a LIST column with no element vector.
                 activeVSR.addFieldVector(schemaField);
                 changed = true;
-            } else if (existingVector.getField().equals(schemaField) == false) {
+            } else if (hasSameStorageShape(existingVector.getField(), schemaField) == false) {
                 throw new SchemaChangeRequiresWriterRotationException(
                     schemaField.getName(),
                     existingVector.getField().getType(),
@@ -386,6 +386,28 @@ public class VSRManager implements AutoCloseable {
             logger.debug("no changes in schema despite change in mapping version");
         }
         return changed;
+    }
+
+    /**
+     * Compares the Arrow storage shape of two fields while ignoring field names. Arrow Java
+     * renames a {@code ListVector} child from {@code element} to {@code $data$} internally, so
+     * full {@link Field#equals(Object)} comparisons spuriously report a schema change.
+     */
+    private static boolean hasSameStorageShape(Field existingField, Field schemaField) {
+        if (existingField.getType().equals(schemaField.getType()) == false) {
+            return false;
+        }
+        List<Field> existingChildren = existingField.getChildren();
+        List<Field> schemaChildren = schemaField.getChildren();
+        if (existingChildren.size() != schemaChildren.size()) {
+            return false;
+        }
+        for (int i = 0; i < existingChildren.size(); i++) {
+            if (hasSameStorageShape(existingChildren.get(i), schemaChildren.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
