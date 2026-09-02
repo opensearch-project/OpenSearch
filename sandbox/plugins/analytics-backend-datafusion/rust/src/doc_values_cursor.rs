@@ -15,27 +15,36 @@
 //!
 //! v1 scope: numeric fixed-width leaf columns only (INT32/INT64/FLOAT/DOUBLE).
 //! Values are exported to Java zero-copy by borrowing the Arrow buffers.
+//!
+//! # Handles
+//!
+//! `parquet_df_open_iter` returns an opaque cursor handle, not a pointer: it keys a
+//! process-wide registry, so an unknown or stale handle is reported as an error rather
+//! than dereferenced. `0` is never a live handle. Java owns the lifecycle and calls
+//! `parquet_df_close_iter` exactly once.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use arrow::array::Array;
+use arrow::datatypes::DataType;
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
+use datafusion::error::DataFusionError;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
-use datafusion::execution::cache::DefaultFilesMetadataCache;
 use datafusion_datasource::PartitionedFile;
 use native_bridge_common::ffm_safe;
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectPath;
-use object_store::{ObjectMeta, ObjectStore, ObjectStoreExt};
+use object_store::{ObjectStore, ObjectStoreExt};
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, RwLock};
-use parquet::arrow::ProjectionMask;
-use parquet::basic::Type as PhysicalType;
-use tokio::runtime::{Builder, Runtime};
+use parking_lot::Mutex;
+use parquet::arrow::{parquet_to_arrow_schema_by_columns, ProjectionMask};
+#[cfg(test)]
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
 
-use crate::cache::metadata_cache::MutexFileMetadataCache;
 use crate::cache::page_index::load_scoped_page_index_cols;
 use crate::forward_reader::{ParquetForwardBatchReader, ParquetForwardBatchReaderFactory};
 use crate::indexed_table::parquet_bridge::{
@@ -49,92 +58,54 @@ const MAX_BATCH_SIZE: usize = 8192;
 const RC_OK: i64 = 0;
 const RC_EOF: i64 = 2;
 
-static NEXT_HANDLE: AtomicI64 = AtomicI64::new(0);
+static NEXT_HANDLE: AtomicI64 = AtomicI64::new(1); // 0 is never a live handle
 static CURSORS: Lazy<DashMap<i64, Arc<Mutex<DocValuesCursor>>>> = Lazy::new(DashMap::new);
 
-/// File path to the DataFusion shard store that owns it. Weak references avoid
-/// extending a shard view's lifetime.
-static STORES: Lazy<DashMap<String, Weak<dyn ObjectStore>>> = Lazy::new(DashMap::new);
-
-/// The node's DataFusion file-metadata cache, registered with the global runtime.
-static METADATA_CACHE: RwLock<Option<Weak<dyn FileMetadataCache>>> = RwLock::new(None);
-
-static FALLBACK_METADATA_CACHE: Lazy<Arc<MutexFileMetadataCache>> = Lazy::new(|| {
-    Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
-        64 * 1024 * 1024,
-    )))
-});
-
-static FALLBACK_RUNTIME: Lazy<Arc<Runtime>> = Lazy::new(|| {
-    Arc::new(
-        Builder::new_multi_thread()
-            .worker_threads(2)
-            .thread_name("df-docvalues-io")
-            .enable_all()
-            .build()
-            .expect("failed to build doc-values fallback runtime"),
-    )
-});
-
-pub fn register_metadata_cache(cache: Arc<dyn FileMetadataCache>) {
-    *METADATA_CACHE.write() = Some(Arc::downgrade(&cache));
+/// The global runtime's cache, so reopening a cursor does not re-read the Parquet footer. Required
+/// rather than defaulted: a cache created here would hold a second copy of every footer, outside the
+/// node's configured budget.
+fn metadata_cache() -> Result<Arc<dyn FileMetadataCache>, DataFusionError> {
+    crate::cache::global_metadata_cache().ok_or_else(|| {
+        DataFusionError::Configuration(
+            "no global file-metadata cache; the analytics-backend-datafusion global runtime must be \
+             created before Parquet doc-values reads"
+                .to_string(),
+        )
+    })
 }
 
-pub fn register_store(object_metas: &[ObjectMeta], store: Arc<dyn ObjectStore>) {
-    STORES.retain(|_, weak| weak.strong_count() > 0);
-    let weak = Arc::downgrade(&store);
-    for meta in object_metas {
-        STORES.insert(normalize_path(meta.location.as_ref()), Weak::clone(&weak));
+/// The shared IO runtime, used only to block on object-store fetches; decode is synchronous and runs
+/// on the calling thread. Required rather than defaulted: `RuntimeManager` sizes this pool from the
+/// core count and monitors it, and a pool created here would be neither sized nor monitored.
+fn io_runtime() -> Result<Arc<Runtime>, DataFusionError> {
+    if let Some(manager) = crate::ffm::try_get_rt_manager() {
+        return Ok(Arc::clone(&manager.io_runtime));
     }
-}
-
-fn normalize_path(path: &str) -> String {
-    path.strip_prefix("file://")
-        .unwrap_or(path)
-        .trim_start_matches('/')
-        .to_string()
-}
-
-fn registered_store(filename: &str, location: &ObjectPath) -> Option<Arc<dyn ObjectStore>> {
-    for key in [normalize_path(filename), normalize_path(location.as_ref())] {
-        if let Some(entry) = STORES.get(&key) {
-            if let Some(store) = entry.value().upgrade() {
-                return Some(store);
-            }
-            drop(entry);
-            STORES.remove(&key);
-        }
+    #[cfg(test)]
+    {
+        // Tests reach the entry points without DataFusionService. Current-thread: no worker threads.
+        Ok(Arc::new(
+            Builder::new_current_thread().enable_all().build()?,
+        ))
     }
-    None
-}
-
-fn metadata_cache() -> Arc<dyn FileMetadataCache> {
-    METADATA_CACHE
-        .read()
-        .as_ref()
-        .and_then(Weak::upgrade)
-        .unwrap_or_else(|| Arc::clone(&FALLBACK_METADATA_CACHE) as Arc<dyn FileMetadataCache>)
-}
-
-fn io_runtime() -> Arc<Runtime> {
-    crate::ffm::try_get_rt_manager()
-        .map(|manager| Arc::clone(&manager.io_runtime))
-        .unwrap_or_else(|| Arc::clone(&FALLBACK_RUNTIME))
+    #[cfg(not(test))]
+    Err(DataFusionError::Configuration(
+        "DataFusion runtime manager is not initialized; the analytics-backend-datafusion plugin \
+         must start before Parquet doc-values reads"
+            .to_string(),
+    ))
 }
 
 struct DocValuesCursor {
     reader: ParquetForwardBatchReader,
-    /// Retained to reopen the reader on reset without re-resolving metadata,
-    /// page index, or store registrations.
+    /// Retained so a reset can rebuild the reader without re-resolving metadata or the page index.
     factory: ParquetForwardBatchReaderFactory,
     row_count: i64,
     initial_batch_size: usize,
     batch_size: usize,
     has_decoded_batch: bool,
-    /// The batch Java last borrowed buffers from, held so the exported pointers stay valid.
-    ///
-    /// Released at the start of the next `parquet_df_next_batch`, on reset, or when close drops the
-    /// cursor - whichever comes first - so a cursor never holds more than one batch.
+    /// The batch Java last borrowed from, held so the exported pointers stay valid. Released on the
+    /// next batch call, on reset, or when close drops the cursor.
     borrowed_batch: Option<RecordBatch>,
     /// Retained so tests can assert on the number of object-store range reads;
     /// also handed to the reader factory to attribute I/O.
@@ -142,6 +113,9 @@ struct DocValuesCursor {
 }
 
 impl DocValuesCursor {
+    /// Opens a cursor over one column. `store_override` is the store that owns `filename`; `None`
+    /// uses the local filesystem, which is what local-tier shard files need. A non-local store is
+    /// supplied by the caller along with its own `location_override`.
     async fn open(
         filename: &str,
         column: &str,
@@ -149,38 +123,42 @@ impl DocValuesCursor {
         store_override: Option<Arc<dyn ObjectStore>>,
         location_override: Option<ObjectPath>,
         runtime: Arc<Runtime>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, DataFusionError> {
         let location = location_override.unwrap_or_else(|| ObjectPath::from(filename));
-        let store = store_override
-            .or_else(|| registered_store(filename, &location))
-            .unwrap_or_else(|| Arc::new(LocalFileSystem::new())); // local filesystem
+        // Ask the store where the object lives rather than probing the filesystem for `filename`:
+        // only a local-filesystem store can name a descriptor, and only it knows how an object path
+        // maps onto one. A caller-supplied store reads through its own IO.
+        let (store, local_path): (Arc<dyn ObjectStore>, Option<PathBuf>) = match store_override {
+            Some(store) => (store, None),
+            None => {
+                let local = LocalFileSystem::new();
+                let path = local.path_to_filesystem(&location).ok();
+                (Arc::new(local), path)
+            }
+        };
 
-        let object_meta = store
-            .head(&location)
-            .await
-            .map_err(|e| format!("df_docvalues: object-store head {location}: {e}"))?; // stat the file (size, etc.)
+        let object_meta = store.head(&location).await?;
         let (_arrow_schema, file_size, footer) = load_parquet_metadata_with_meta(
             Arc::clone(&store),
             &location,
             object_meta,
-            metadata_cache(),
+            metadata_cache()?,
         )
-        .await?;
+        .await
+        .map_err(DataFusionError::Execution)?;
 
-        let schema = footer.file_metadata().schema_descr(); // list of all leaf columns
-        // Collect every candidate rather than taking the first: two leaves in different groups can
-        // share a name, and a group root can cover several leaves. Serving whichever happened to be
-        // first would silently read the wrong column, so ambiguity is an error.
+        let schema = footer.file_metadata().schema_descr();
+
+        // Collect every candidate rather than taking the first: two leaves in different row groups
+        // can share a name, and a group root can cover several leaves. Serving whichever came first
+        // would read the wrong column silently, so an ambiguous name is an error.
         //
-        // Unreachable for files this plugin writes today: every mapped field produces a flat Arrow
-        // type, so each column is a top-level leaf whose path equals its name. The guard is here for
-        // files written with a nested schema - by a future mapping type, or by another writer - where
-        // first-match-wins would return wrong values with no error. The tests build such a schema
-        // directly to keep this covered.
+        // Flat schemas cannot produce an ambiguity, so this only applies to files written with a
+        // nested schema, by a future mapping type or another writer.
         let matches = (0..schema.num_columns())
             .filter(|&idx| {
                 let descriptor = schema.column(idx);
-                descriptor.name() == column   // match by leaf name
+                descriptor.name() == column
                     || descriptor.path().string() == column
                     || descriptor
                         .path()
@@ -192,9 +170,9 @@ impl DocValuesCursor {
         let leaf_idx = match matches.as_slice() {
             [only] => *only,
             [] => {
-                return Err(format!(
-                    "df_docvalues: column '{column}' not found in {filename}"
-                ))
+                return Err(DataFusionError::Plan(format!(
+                    "column '{column}' not found in {filename}"
+                )))
             }
             several => {
                 let paths = several
@@ -202,29 +180,34 @@ impl DocValuesCursor {
                     .map(|&idx| schema.column(idx).path().string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                return Err(format!(
-                    "df_docvalues: column '{column}' is ambiguous in {filename}; it matches {paths}"
-                ));
+                return Err(DataFusionError::Plan(format!(
+                    "column '{column}' is ambiguous in {filename}; it matches {paths}"
+                )));
             }
         };
-        let descriptor = schema.column(leaf_idx);
-        let physical_type = descriptor.physical_type();
-        if !matches!(
-            physical_type,
-            PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::FLOAT | PhysicalType::DOUBLE
-        ) {
-            return Err(format!(
-                "df_docvalues: unsupported physical type {physical_type:?} for column '{column}'"
-            ));
+        // Reject on the Arrow type the reader will produce, not the Parquet physical type: an INT64
+        // decimal is a valid physical type but decodes to `Decimal128`, which cannot be borrowed.
+        // Converted with the same projection and key-value metadata the reader uses, so the two
+        // cannot disagree.
+        let leaf_schema = parquet_to_arrow_schema_by_columns(
+            schema,
+            ProjectionMask::leaves(schema, [leaf_idx]),
+            footer.file_metadata().key_value_metadata(),
+        )?;
+        let data_type = leaf_schema.field(0).data_type();
+        if BorrowKind::for_arrow(data_type).is_none() {
+            return Err(DataFusionError::NotImplemented(format!(
+                "unsupported type {data_type} for column '{column}'"
+            )));
         }
 
         let metadata =
             load_scoped_page_index_cols(&store, &location, &footer, &[leaf_idx], &[leaf_idx])
                 .await
                 .ok_or_else(|| {
-                    format!(
-                        "df_docvalues: no page index available for column '{column}' in {filename}"
-                    )
+                    DataFusionError::Execution(format!(
+                        "no page index available for column '{column}' in {filename}"
+                    ))
                 })?; // OffsetIndex + ColumnIndex scoped to just this column
         let stats = Arc::new(ReadIoStats::default());
         let projection =
@@ -241,10 +224,9 @@ impl DocValuesCursor {
             batch_size,
             Arc::clone(&runtime),
         )
-        .with_local_file_if_exists(filename);
-        let reader = factory
-            .open()
-            .map_err(|e| format!("df_docvalues: build forward reader for {filename}: {e}"))?;
+        // Local files read through a synchronous `ChunkReader`; anything else goes via the store.
+        .with_local_file(local_path);
+        let reader = factory.open()?;
         let row_count = reader.row_count() as i64;
 
         Ok(Self {
@@ -262,9 +244,12 @@ impl DocValuesCursor {
     /// Chooses the decode window for `target_row` and returns `(window, rows)`:
     /// `window` is the adaptive size to remember for next time, `rows` is how much
     /// to decode now, never past the end of `target_row`'s page.
-    fn planned_batch(&self, target_row: i64) -> Result<(usize, usize), String> {
+    fn planned_batch(&self, target_row: i64) -> Result<(usize, usize), DataFusionError> {
         if target_row < 0 || target_row >= self.row_count {
-            return Err(format!("df_docvalues: row {target_row} out of range"));
+            return Err(DataFusionError::Internal(format!(
+                "row {target_row} out of range (0..{})",
+                self.row_count
+            )));
         }
         let target_row = target_row as usize;
         let position = self.reader.position();
@@ -275,35 +260,33 @@ impl DocValuesCursor {
         // patterns don't pay a full re-ramp after every jump.
         let dense = self.has_decoded_batch
             && target_row >= position
-            && target_row - position <= self.batch_size; //the forward jump is no bigger than one current window.
+            && target_row - position <= self.batch_size;
         let window = if dense {
-            self.batch_size.saturating_mul(2).min(MAX_BATCH_SIZE) //  double, cap at 8192
+            self.batch_size.saturating_mul(2).min(MAX_BATCH_SIZE)
         } else if self.has_decoded_batch {
-            (self.batch_size / 2).max(self.initial_batch_size) // DECAY: halve, floor at initial
+            (self.batch_size / 2).max(self.initial_batch_size)
         } else {
-            self.batch_size // CALL: use current (=initial)
+            self.batch_size
         };
-        let page_rows = self
-            .reader
-            .page_row_count(target_row) // how many rows total are in the page that contains row
-            .map_err(|e| format!("df_docvalues: find page at row {target_row}: {e}"))?;
-        let page_remaining = self
-            .reader
-            .rows_remaining_in_page(target_row) //from row target_row to the end of that page
-            .map_err(|e| format!("df_docvalues: find page end at row {target_row}: {e}"))?;
-        let window = window.min(page_rows); // never plan a window bigger than a whole page
-        Ok((window, window.min(page_remaining))) // return window (next time batch size saved) , rows remaining
+        // A read never crosses a page boundary, so a window larger than one page cannot be
+        // satisfied. The remembered window is capped at the whole page; only the rows decoded now
+        // are additionally limited to what is left of it.
+        let page_rows = self.reader.page_row_count(target_row)?;
+        let page_remaining = self.reader.rows_remaining_in_page(target_row)?;
+        let window = window.min(page_rows);
+        Ok((window, window.min(page_remaining)))
     }
 
-    fn next_batch(&mut self, target_row: i64) -> Result<RecordBatch, String> {
+    fn next_batch(&mut self, target_row: i64) -> Result<RecordBatch, DataFusionError> {
         // `window` is the size to remember for next time; `rows` is what we
         // actually decode now.
         let (window, rows) = self.planned_batch(target_row)?;
         let batch = self
             .reader
-            .read_batch_at(target_row as usize, rows)
-            .map_err(|e| format!("df_docvalues: read row {target_row}: {e}"))?
-            .ok_or_else(|| format!("df_docvalues: reader exhausted before row {target_row}"))?;
+            .read_batch_at(target_row as usize, rows)?
+            .ok_or_else(|| {
+                DataFusionError::Internal(format!("reader exhausted before row {target_row}"))
+            })?;
         self.batch_size = window;
         self.has_decoded_batch = true;
         Ok(batch)
@@ -311,20 +294,27 @@ impl DocValuesCursor {
 }
 
 /// Shared entry-point prologue: resolves a live cursor handle.
-fn cursor_for(handle: i64, fn_name: &str) -> Result<Arc<Mutex<DocValuesCursor>>, String> {
+fn cursor_for(handle: i64, fn_name: &str) -> Result<Arc<Mutex<DocValuesCursor>>, DataFusionError> {
     CURSORS
         .get(&handle)
         .map(|entry| Arc::clone(entry.value()))
-        .ok_or_else(|| format!("{fn_name}: unknown handle {handle}"))
+        .ok_or_else(|| DataFusionError::Internal(format!("{fn_name}: unknown handle {handle}")))
 }
 
 /// Validates `target_row`, returning `true` when the cursor is exactly at end-of-column.
-fn at_eof(cursor: &DocValuesCursor, target_row: i64, fn_name: &str) -> Result<bool, String> {
+fn at_eof(
+    cursor: &DocValuesCursor,
+    target_row: i64,
+    fn_name: &str,
+) -> Result<bool, DataFusionError> {
     if target_row == cursor.row_count {
         return Ok(true);
     }
     if target_row < 0 || target_row > cursor.row_count {
-        return Err(format!("{fn_name}: row {target_row} out of range"));
+        return Err(DataFusionError::Internal(format!(
+            "{fn_name}: row {target_row} out of range (0..={})",
+            cursor.row_count
+        )));
     }
     Ok(false)
 }
@@ -336,17 +326,59 @@ unsafe fn write_out(ptr: *mut i64, value: i64) {
     }
 }
 
-/// Java-side interpretation of a borrowed values buffer. Mirrors the
-/// `KIND_*` constants in `DecodedBatch.java`; keep in sync.
-const BORROW_KIND_LONG: i64 = 1; // i64 / u64 raw bits, 8 bytes per row
-const BORROW_KIND_INT: i64 = 2; // i32 / date32, sign-extended, 4 bytes per row
-const BORROW_KIND_UINT_BITS: i64 = 3; // u32 raw bits, zero-extended, 4 bytes per row
-const BORROW_KIND_SHORT: i64 = 4; // i16, sign-extended, 2 bytes per row
-const BORROW_KIND_USHORT: i64 = 5; // u16, zero-extended, 2 bytes per row
-const BORROW_KIND_BYTE: i64 = 6; // i8, sign-extended, 1 byte per row
-const BORROW_KIND_UBYTE: i64 = 7; // u8, zero-extended, 1 byte per row
-const BORROW_KIND_DOUBLE: i64 = 8; // f64 raw bits; Java re-encodes to a Lucene sortable long, 8 bytes per row
-const BORROW_KIND_FLOAT: i64 = 9; // f32 raw bits; Java re-encodes to a sign-extended sortable int, 4 bytes per row
+/// Java-side interpretation of a borrowed values buffer, and the single place a supported column
+/// type is defined. Discriminants are the wire values; mirrors `DecodedBatch.KIND_*`.
+///
+/// Adding a type means adding a variant here plus arms in [`BorrowKind::for_arrow`] and
+/// [`BorrowKind::width`], and a matching constant on the Java side.
+#[repr(i64)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum BorrowKind {
+    Long = 1,     // i64 / u64 raw bits
+    Int = 2,      // i32 / date32, sign-extended
+    UintBits = 3, // u32 raw bits, zero-extended
+    Short = 4,    // i16, sign-extended
+    Ushort = 5,   // u16, zero-extended
+    Byte = 6,     // i8, sign-extended
+    Ubyte = 7,    // u8, zero-extended
+    Double = 8,   // f64 raw bits; Java re-encodes to a Lucene sortable long
+    Float = 9,    // f32 raw bits; Java re-encodes to a sign-extended sortable int
+}
+
+impl BorrowKind {
+    /// Keyed on the Arrow type, which is the decode output: Parquet INT32 arrives as
+    /// Int8/Int16/Int32/Date32 depending on its logical type.
+    ///
+    /// TODO: boolean needs a bit-packed values buffer with a value bit offset, mirroring the
+    /// validity bitmap. Binary and variable-width columns come after that. `Float16`
+    /// (OpenSearch `half_float`) needs a kind whose Java side re-encodes to a sortable short.
+    fn for_arrow(data_type: &DataType) -> Option<Self> {
+        match data_type {
+            DataType::Int64 | DataType::UInt64 | DataType::Date64 | DataType::Timestamp(_, _) => {
+                Some(Self::Long)
+            }
+            DataType::Float64 => Some(Self::Double),
+            DataType::Int32 | DataType::Date32 | DataType::Time32(_) => Some(Self::Int),
+            DataType::UInt32 => Some(Self::UintBits),
+            DataType::Float32 => Some(Self::Float),
+            DataType::Int16 => Some(Self::Short),
+            DataType::UInt16 => Some(Self::Ushort),
+            DataType::Int8 => Some(Self::Byte),
+            DataType::UInt8 => Some(Self::Ubyte),
+            _ => None,
+        }
+    }
+
+    /// Bytes per row. Mirrors `ParquetColumnReader.widthForKind`.
+    fn width(self) -> usize {
+        match self {
+            Self::Long | Self::Double => 8,
+            Self::Int | Self::UintBits | Self::Float => 4,
+            Self::Short | Self::Ushort => 2,
+            Self::Byte | Self::Ubyte => 1,
+        }
+    }
+}
 
 struct BorrowedBuffers {
     values_addr: usize,
@@ -357,40 +389,19 @@ struct BorrowedBuffers {
 
 /// Exposes an Arrow primitive array's buffers for zero-copy reads from Java.
 ///
-/// Java reads the Arrow values buffer and validity bitmap in place, widening per
-/// accessed row, so a sparse reader pays O(rows accessed) rather than O(rows
-/// served) and avoids a per-batch copy or narrow-integer cast. Keyed on the
-/// Arrow type (the decode output), not the Parquet physical type: Parquet INT32
-/// arrives as Int8/Int16/Int32/Date32 depending on the logical type.
+/// Java reads the values buffer and validity bitmap in place, widening per accessed row, so a sparse
+/// reader pays O(rows accessed) rather than O(rows served) and avoids a per-batch copy.
 ///
-/// TODO: extend to boolean (bit-packed values buffer + a value bit offset,
-/// mirroring the validity bitmap), then binary/variable-width columns. Until
-/// then non-numeric arrays return `None` and the caller rejects them.
-///
-/// TODO: `Float16` (OpenSearch `half_float`) has no arm, so it is rejected both
-/// here and by the physical-type guard in `open`. Adding it needs a new borrow
-/// kind whose Java side re-encodes to a sortable short, not a sortable int.
+/// `open` rejects an unsupported column, so `None` here means the column's Arrow type changed
+/// between open and read.
 fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
-    use arrow::datatypes::DataType as DT;
-    let (kind, width) = match array.data_type() {
-        DT::Int64 | DT::UInt64 | DT::Date64 | DT::Timestamp(_, _) => (BORROW_KIND_LONG, 8usize),
-        DT::Float64 => (BORROW_KIND_DOUBLE, 8),
-        DT::Int32 | DT::Date32 | DT::Time32(_) => (BORROW_KIND_INT, 4),
-        DT::UInt32 => (BORROW_KIND_UINT_BITS, 4),
-        DT::Float32 => (BORROW_KIND_FLOAT, 4),
-        DT::Int16 => (BORROW_KIND_SHORT, 2),
-        DT::UInt16 => (BORROW_KIND_USHORT, 2),
-        DT::Int8 => (BORROW_KIND_BYTE, 1),
-        DT::UInt8 => (BORROW_KIND_UBYTE, 1),
-        _ => return None,
-    };
+    let kind = BorrowKind::for_arrow(array.data_type())?;
+    let width = kind.width();
     debug_assert_eq!(array.data_type().primitive_width(), Some(width));
     let data = array.to_data();
     let buffer = data.buffers().first()?; // buffer 0 holds the values for a primitive array
-    // Fold the array's logical offset into the pointer so it addresses row 0. Always zero for the
-    // primitive arrays accepted today, because Arrow carries their window in the buffer pointer and
-    // never writes the offset back. `BooleanArray` does report one here, so the term is needed as
-    // soon as the boolean arm above lands.
+                                          // Fold the array offset into the pointer so it addresses row 0. Zero for primitive arrays, whose
+                                          // window Arrow folds into the buffer pointer, but not for `BooleanArray`.
     let values_addr = buffer.as_ptr() as usize + data.offset() * width;
     let (validity_addr, validity_bit_offset) = match data.nulls() {
         None => (0, 0),
@@ -400,12 +411,12 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
         values_addr,
         validity_addr, // start of the null-bitmap buffer; the bit offset is applied separately
         validity_bit_offset, // bit index of row 0 within that bitmap (bitmaps are bit-addressable)
-        kind,
+        kind: kind as i64,
     })
 }
 
-fn open(filename: &str, column: &str, initial_batch_size: usize) -> Result<i64, String> {
-    let runtime = io_runtime(); // the shared Tokio runtime
+fn open(filename: &str, column: &str, initial_batch_size: usize) -> Result<i64, DataFusionError> {
+    let runtime = io_runtime()?;
     let cursor = runtime.block_on(DocValuesCursor::open(
         filename,
         column,
@@ -414,33 +425,35 @@ fn open(filename: &str, column: &str, initial_batch_size: usize) -> Result<i64, 
         None,
         Arc::clone(&runtime),
     ))?;
-    let handle = NEXT_HANDLE.fetch_add(1, Ordering::SeqCst); // allocate a fresh handle number
-    CURSORS.insert(handle, Arc::new(Mutex::new(cursor))); // register cursor in the global map
+    let handle = NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    CURSORS.insert(handle, Arc::new(Mutex::new(cursor)));
     Ok(handle)
 }
 
-unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
+unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, DataFusionError> {
     if ptr.is_null() {
-        return Err("null string pointer".to_string());
+        return Err(DataFusionError::Internal("null string pointer".to_string()));
     }
     if len < 0 {
-        return Err(format!("negative string length: {len}"));
+        return Err(DataFusionError::Internal(format!(
+            "negative string length: {len}"
+        )));
     }
     std::str::from_utf8(std::slice::from_raw_parts(ptr, len as usize))
-        .map_err(|e| format!("invalid UTF-8: {e}"))
+        .map_err(|e| DataFusionError::Internal(format!("invalid UTF-8: {e}")))
 }
 
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_df_open_iter(
-    file_ptr: *const u8, // filepath (location in machine) as raw bytes + length to share across FFM
+    file_ptr: *const u8, // path bytes and length, since FFM cannot pass a Rust &str
     file_len: i64,
     column_ptr: *const u8,
     column_len: i64,
     initial_batch_size: i64,
 ) -> i64 {
     let filename =
-        str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_df_open_iter file: {e}"))?; // reconstruct &str from raw bytes
+        str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_df_open_iter file: {e}"))?;
     let column = str_from_raw(column_ptr, column_len)
         .map_err(|e| format!("parquet_df_open_iter column: {e}"))?;
     if initial_batch_size <= 0 || initial_batch_size > MAX_BATCH_SIZE as i64 {
@@ -448,7 +461,9 @@ pub unsafe extern "C" fn parquet_df_open_iter(
             "parquet_df_open_iter: initial batch size {initial_batch_size} outside 1..={MAX_BATCH_SIZE}"
         ));
     }
-    open(filename, column, initial_batch_size as usize)
+    // The FFM contract carries only a message (see native_bridge_common::error), so the typed
+    // error is flattened here at the boundary.
+    open(filename, column, initial_batch_size as usize).map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
@@ -458,14 +473,17 @@ pub unsafe extern "C" fn parquet_df_close_iter(handle: i64) -> i64 {
     Ok(RC_OK)
 }
 
-/// Rewinds a cursor to row zero. The forward reader only moves forward, so
-/// serving a target below the current position (a backward seek) requires
-/// rebuilding the inner Parquet decoder; the factory reopens it while reusing
-/// the already-resolved metadata, page index, and store registration.
+/// Rewinds a cursor to row zero, rebuilding the Parquet decoder while reusing the resolved metadata
+/// and page index, so the rewind costs no IO.
+///
+/// Only reached when a request lands below the resident batch, which a caller honouring Lucene's
+/// non-decreasing `advanceExact` contract never does. Kept because Lucene's own dense numeric
+/// doc values tolerate a backward target (their layout is seekable), so a non-compliant caller
+/// would fail here and nowhere else; this turns that into a slow read rather than a shard failure.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_df_reset_iter(handle: i64) -> i64 {
-    let cursor = cursor_for(handle, "parquet_df_reset_iter")?;
+    let cursor = cursor_for(handle, "parquet_df_reset_iter").map_err(|e| e.to_string())?;
     let mut cursor = cursor.lock();
     cursor.reader = cursor
         .factory
@@ -492,27 +510,26 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     out_validity_bit_offset: *mut i64,
     out_value_kind: *mut i64,
 ) -> i64 {
-    const FN: &str = "parquet_df_next_batch";
-    let cursor = cursor_for(handle, FN)?;
+    static FN: &str = "parquet_df_next_batch";
+    let cursor = cursor_for(handle, FN).map_err(|e| e.to_string())?;
     let mut cursor = cursor.lock();
 
-    // Release the previous batch first. Java clears its resident batch before calling, so nothing
-    // can read those buffers any more; releasing here rather than on success means no early return
-    // below leaves a batch held that nothing will read.
+    // Released here rather than on success, so no early return below leaves buffers held. Java
+    // clears its resident batch before calling.
     cursor.borrowed_batch = None;
 
-    if at_eof(&cursor, target_row, FN)? {
+    if at_eof(&cursor, target_row, FN).map_err(|e| e.to_string())? {
         return Ok(RC_EOF); // target is past the last row (e.g. a scan running off the end)
     }
 
-    let batch = cursor.next_batch(target_row)?;
+    let batch = cursor.next_batch(target_row).map_err(|e| e.to_string())?;
     let rows = batch.num_rows();
     if rows == 0 || rows > MAX_BATCH_SIZE {
         return Err(format!("{FN}: Arrow returned {rows} rows"));
     }
 
-    // Scoped so the borrow of `batch` ends before it is moved onto the cursor; `BorrowedBuffers`
-    // holds plain addresses, not a reference into the array.
+    // Scoped so the borrow ends before `batch` moves onto the cursor; `BorrowedBuffers` holds
+    // plain addresses.
     let borrow = {
         let array = batch.column(0); // single projected column
         borrowable_buffers(array.as_ref())
@@ -538,6 +555,7 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
+    use datafusion::execution::cache::DefaultFilesMetadataCache;
     use object_store::memory::InMemory;
     use object_store::ObjectStoreExt;
     use parquet::arrow::ArrowWriter;
@@ -545,8 +563,23 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::*;
+    use crate::cache::metadata_cache::MutexFileMetadataCache;
 
     const ROWS_PER_PAGE: usize = 64;
+
+    /// Stands in for the cache that production registers from `create_global_runtime`.
+    /// Held in a static because the registry keeps only a `Weak`: a cache dropped at the end of a
+    /// test would leave later opens with nothing registered.
+    pub(super) fn register_test_metadata_cache() {
+        static CACHE: Lazy<Arc<MutexFileMetadataCache>> = Lazy::new(|| {
+            Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+                64 * 1024 * 1024,
+            )))
+        });
+        crate::cache::register_global_metadata_cache(
+            Arc::clone(&CACHE) as Arc<dyn FileMetadataCache>
+        );
+    }
 
     pub(super) fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
         let schema = Arc::new(Schema::new(vec![Field::new(
@@ -625,9 +658,8 @@ mod tests {
         Bytes::from(writer.into_inner().unwrap().into_inner())
     }
 
-    /// A decimal column, which Parquet stores as INT64 at precision 18 and Arrow decodes back to
-    /// `Decimal128`. That combination passes `open`'s physical-type guard but has no arm in
-    /// [`borrowable_buffers`], so it can only be rejected once a batch has been decoded.
+    /// A decimal column: Parquet stores precision 18 as INT64, and Arrow decodes it back to
+    /// `Decimal128`, which has no [`BorrowKind`].
     pub(super) fn parquet_fixture_with_decimal_column(rows_per_page: usize) -> Bytes {
         let schema = Arc::new(Schema::new(vec![Field::new(
             "value",
@@ -654,7 +686,8 @@ mod tests {
         Bytes::from(writer.into_inner().unwrap().into_inner())
     }
 
-    fn open_named_column(bytes: Bytes, column: &str) -> Result<DocValuesCursor, String> {
+    fn open_named_column(bytes: Bytes, column: &str) -> Result<DocValuesCursor, DataFusionError> {
+        register_test_metadata_cache();
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let location = ObjectPath::from(format!(
@@ -682,12 +715,25 @@ mod tests {
         // serve doc values for the wrong column.
         let error = open_named_column(bytes.clone(), "group")
             .err()
-            .expect("an ambiguous column must not open");
+            .expect("an ambiguous column must not open")
+            .to_string();
         assert!(error.contains("ambiguous"), "{error}");
-        assert!(error.contains("group.left") && error.contains("group.right"), "{error}");
+        assert!(
+            error.contains("group.left") && error.contains("group.right"),
+            "{error}"
+        );
 
-        // An unambiguous leaf under the same group still resolves.
-        assert!(open_named_column(bytes, "left").is_ok());
+        // An unambiguous leaf resolves to a single column, but a nested leaf projects as a struct
+        // rather than a flat primitive, so it is refused at open instead of on the first read.
+        let error = open_named_column(bytes, "left")
+            .err()
+            .expect("a nested leaf is not a supported column type")
+            .to_string();
+        assert!(error.contains("unsupported type Struct"), "{error}");
+        assert!(
+            !error.contains("ambiguous"),
+            "resolution must still pick a single leaf: {error}"
+        );
     }
 
     fn open_parquet_fixture(bytes: Bytes, batch_size: usize) -> (DocValuesCursor, Arc<Runtime>) {
@@ -839,7 +885,7 @@ mod tests {
             int64_values(&batch),
             (second_rg + 11..second_rg + 19).collect::<Vec<_>>()
         );
-        let error = cursor.next_batch(second_rg - 1).unwrap_err();
+        let error = cursor.next_batch(second_rg - 1).unwrap_err().to_string();
         assert!(error.contains("backward seek"), "{error}");
     }
 
@@ -942,23 +988,34 @@ mod tests {
             UInt32Array, UInt64Array, UInt8Array,
         };
 
-        let cases: Vec<(ArrayRef, i64)> = vec![
-            (Arc::new(Int64Array::from(vec![1])), BORROW_KIND_LONG),
-            (Arc::new(UInt64Array::from(vec![1])), BORROW_KIND_LONG),
-            (Arc::new(Float64Array::from(vec![1.0])), BORROW_KIND_DOUBLE),
-            (Arc::new(Int32Array::from(vec![1])), BORROW_KIND_INT),
-            (Arc::new(UInt32Array::from(vec![1])), BORROW_KIND_UINT_BITS),
-            (Arc::new(Float32Array::from(vec![1.0])), BORROW_KIND_FLOAT),
-            (Arc::new(Int16Array::from(vec![1])), BORROW_KIND_SHORT),
-            (Arc::new(UInt16Array::from(vec![1])), BORROW_KIND_USHORT),
-            (Arc::new(Int8Array::from(vec![1])), BORROW_KIND_BYTE),
-            (Arc::new(UInt8Array::from(vec![1])), BORROW_KIND_UBYTE),
+        let cases: Vec<(ArrayRef, BorrowKind)> = vec![
+            (Arc::new(Int64Array::from(vec![1])), BorrowKind::Long),
+            (Arc::new(UInt64Array::from(vec![1])), BorrowKind::Long),
+            (Arc::new(Float64Array::from(vec![1.0])), BorrowKind::Double),
+            (Arc::new(Int32Array::from(vec![1])), BorrowKind::Int),
+            (Arc::new(UInt32Array::from(vec![1])), BorrowKind::UintBits),
+            (Arc::new(Float32Array::from(vec![1.0])), BorrowKind::Float),
+            (Arc::new(Int16Array::from(vec![1])), BorrowKind::Short),
+            (Arc::new(UInt16Array::from(vec![1])), BorrowKind::Ushort),
+            (Arc::new(Int8Array::from(vec![1])), BorrowKind::Byte),
+            (Arc::new(UInt8Array::from(vec![1])), BorrowKind::Ubyte),
         ];
 
         for (array, expected_kind) in cases {
             let borrow = borrowable_buffers(array.as_ref())
                 .unwrap_or_else(|| panic!("{} must be borrowable", array.data_type()));
-            assert_eq!(borrow.kind, expected_kind, "kind for {}", array.data_type());
+            assert_eq!(
+                borrow.kind,
+                expected_kind as i64,
+                "kind for {}",
+                array.data_type()
+            );
+            assert_eq!(
+                expected_kind.width(),
+                array.data_type().primitive_width().unwrap(),
+                "width for {}",
+                array.data_type()
+            );
         }
     }
 
@@ -1021,8 +1078,7 @@ mod tests {
         );
     }
 
-    /// Rejected rather than exported as raw bytes Java would silently misread. Decimal is the
-    /// reachable case: it survives `open`'s physical-type guard as INT32/INT64.
+    /// Rejected rather than exported as raw bytes Java would silently misread.
     #[test]
     fn a_type_with_no_borrow_kind_is_not_borrowable() {
         let decimal = arrow::array::Decimal128Array::from(vec![1_i128, 2])
@@ -1041,8 +1097,8 @@ mod tests {
     }
 }
 
-/// Tests driving the `extern "C"` entry points, the way Java reaches them. The tests above call the
-/// inherent methods, which never touch the handle registry, the status codes or `borrowed_batch`.
+/// Tests driving the `extern "C"` entry points: handle registry, status codes, and `borrowed_batch`,
+/// none of which the inherent-method tests above touch.
 #[cfg(test)]
 mod ffm_tests {
     use std::ffi::{c_char, CString};
@@ -1050,7 +1106,7 @@ mod ffm_tests {
 
     use tempfile::NamedTempFile;
 
-    use super::tests::parquet_fixture_with_page_rows;
+    use super::tests::{parquet_fixture_with_page_rows, register_test_metadata_cache};
     use super::*;
 
     const ROWS_PER_PAGE: usize = 64;
@@ -1077,6 +1133,7 @@ mod ffm_tests {
     }
 
     fn open_iter(path: &str, initial: i64) -> i64 {
+        register_test_metadata_cache();
         let column = "value";
         unsafe {
             parquet_df_open_iter(
@@ -1159,13 +1216,16 @@ mod ffm_tests {
         let file = fixture_file();
         let handle = open_fixture(&file);
 
-        assert!(!holds_borrow(handle), "nothing is borrowed before the first read");
+        assert!(
+            !holds_borrow(handle),
+            "nothing is borrowed before the first read"
+        );
         let batch = next_batch(handle, 0);
         assert_eq!(batch.rc, RC_OK);
         assert_eq!(batch.first_row, 0);
         assert_eq!(batch.last_row, 7, "the initial window is eight rows");
         assert_ne!(batch.values_addr, 0, "a borrowed batch must expose values");
-        assert_eq!(batch.value_kind, BORROW_KIND_LONG);
+        assert_eq!(batch.value_kind, BorrowKind::Long as i64);
         assert!(holds_borrow(handle), "the served batch must be retained");
 
         assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
@@ -1185,7 +1245,7 @@ mod ffm_tests {
             let batch = next_batch(handle, row);
             assert_eq!(batch.rc, RC_OK, "row {row}");
             assert_eq!(batch.first_row, row);
-            assert_eq!(batch.value_kind, BORROW_KIND_LONG);
+            assert_eq!(batch.value_kind, BorrowKind::Long as i64);
             assert_eq!(
                 batch.validity_addr, 0,
                 "the fixture column is required, so no bitmap should be exported"
@@ -1269,12 +1329,11 @@ mod ffm_tests {
         assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
     }
 
-    /// `open` guards on the Parquet *physical* type, which a decimal column passes: precision 18
-    /// is stored as INT64. It decodes to Arrow `Decimal128`, which cannot be borrowed, so the
-    /// rejection lands after a batch has already been decoded - the one failure path that reaches
-    /// the export step itself.
+    /// A decimal is a supported Parquet physical type (precision 18 is stored as INT64) that decodes
+    /// to Arrow `Decimal128`, which cannot be borrowed. `open` gates on the decoded Arrow type, so it
+    /// is refused before a cursor exists rather than on the first read.
     #[test]
-    fn a_column_that_cannot_be_borrowed_is_rejected_at_read_time() {
+    fn a_column_that_cannot_be_borrowed_is_rejected_at_open() {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(&super::tests::parquet_fixture_with_decimal_column(
             ROWS_PER_PAGE,
@@ -1282,24 +1341,14 @@ mod ffm_tests {
         .unwrap();
         file.flush().unwrap();
 
-        let handle = open_iter(file.path().to_str().unwrap(), 8);
-        assert!(
-            handle >= 0,
-            "a decimal column must open, so the read path is what rejects it: {}",
-            error_message(handle)
+        let before = CURSORS.len();
+        let message = error_message(open_iter(file.path().to_str().unwrap(), 8));
+        assert!(message.contains("unsupported type Decimal128"), "{message}");
+        assert_eq!(
+            CURSORS.len(),
+            before,
+            "a rejected open must not register a cursor"
         );
-
-        let message = error_message(next_batch(handle, 0).rc);
-        assert!(
-            message.contains("unsupported non-numeric array"),
-            "{message}"
-        );
-        assert!(
-            !holds_borrow(handle),
-            "a batch that could not be exported must not stay held"
-        );
-
-        assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
     }
 
     #[test]
@@ -1314,7 +1363,10 @@ mod ffm_tests {
         assert!(holds_borrow(handle));
 
         assert_eq!(unsafe { parquet_df_reset_iter(handle) }, RC_OK);
-        assert!(!holds_borrow(handle), "reset must release the retained batch");
+        assert!(
+            !holds_borrow(handle),
+            "reset must release the retained batch"
+        );
 
         // Without the reset this would be a rejected backward seek.
         let rewound = next_batch(handle, 0);
@@ -1330,7 +1382,10 @@ mod ffm_tests {
         let handle = open_fixture(&file);
 
         assert_eq!(next_batch(handle, 0).rc, RC_OK);
-        assert!(holds_borrow(handle), "close is exercised with a batch still held");
+        assert!(
+            holds_borrow(handle),
+            "close is exercised with a batch still held"
+        );
 
         assert_eq!(unsafe { parquet_df_close_iter(handle) }, RC_OK);
         assert!(
@@ -1376,6 +1431,7 @@ mod ffm_tests {
 
     #[test]
     fn a_missing_column_is_reported_without_leaving_a_handle_behind() {
+        register_test_metadata_cache();
         let file = fixture_file();
         let path = file.path().to_str().unwrap();
         let column = "absent";
