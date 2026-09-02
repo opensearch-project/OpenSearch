@@ -39,13 +39,22 @@ public class WorkloadGroupThrottleSettings {
     /** Per-node in-flight allowance admitted locally with no coordination. {@code -1} means unset. */
     public static final Setting<Integer> NODE_LIMIT = Setting.intSetting("node_limit", UNSET_LIMIT, UNSET_LIMIT);
 
+    /** {@link #ATTRIBUTE} value keying the limit to the group as a whole: one bucket per node for every request tagged to it. */
+    public static final String ATTRIBUTE_GROUP = "group";
+
+    /** {@link #ATTRIBUTE} value keying the limit to the caller's username, giving each principal its own bucket per node. */
+    public static final String ATTRIBUTE_USERNAME = "username";
+
+    /** {@link #ATTRIBUTE} value keying the limit to the caller's role, giving each role its own bucket per node. */
+    public static final String ATTRIBUTE_ROLE = "role";
+
     /**
-     * Allowed attribute values; {@code username} / {@code role} map to the security {@code principal.*} attributes at
-     * enforcement. Ordered so validation errors enumerate them the same way every time ({@code Set.of} iteration order
-     * varies between JVM runs).
+     * Allowed attribute values; {@link #ATTRIBUTE_USERNAME} / {@link #ATTRIBUTE_ROLE} map to the security
+     * {@code principal.*} attributes at enforcement. Ordered so validation errors enumerate them the same way every time
+     * ({@code Set.of} iteration order varies between JVM runs).
      */
     public static final Set<String> ALLOWED_ATTRIBUTES = Collections.unmodifiableSet(
-        new LinkedHashSet<>(List.of("group", "username", "role"))
+        new LinkedHashSet<>(List.of(ATTRIBUTE_GROUP, ATTRIBUTE_USERNAME, ATTRIBUTE_ROLE))
     );
 
     private static final Map<String, Setting<?>> REGISTERED_SETTINGS = Map.of(

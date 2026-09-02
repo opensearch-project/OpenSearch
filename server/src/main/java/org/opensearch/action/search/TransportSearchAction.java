@@ -500,13 +500,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 try {
                     Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject(
                         (WorkloadGroupTask) task,
-                        bucketsHeldByAncestors(task)
+                        parentAlreadyCounted(task)
                     );
                     if (throttlePermit != null) {
-                        // runAfter, not runBefore: it releases in a finally, so a failure to release cannot turn a
-                        // successful search into a client-visible error, and the slot is held until the response has
-                        // actually been handed downstream rather than freed just before it.
-                        updatedListener = ActionListener.runAfter(updatedListener, throttlePermit::close);
+                        // Give the slot back before notifying downstream, not after: a completion listener can synchronously
+                        // start new work in this same bucket, and an _msearch does exactly that. See
+                        // WorkloadGroupService#releaseThrottlePermitBeforeCompletion.
+                        updatedListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(updatedListener, throttlePermit);
                     }
                 } catch (OpenSearchRejectedExecutionException e) {
                     updatedListener.onFailure(e);
@@ -543,17 +543,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
                         // Parent the rewrite phase's searches (a terms lookup with a subquery issues one) on this task,
-                        // so throttle admission can recognise them as nested and not charge the request twice for its
-                        // own bucket. See bucketsHeldByAncestors.
+                        // so throttle admission can recognise them as nested and not charge the request family twice.
+                        // See parentAlreadyCounted.
                         //
-                        // Only when this request actually holds a permit. Otherwise there is no bucket to inherit, and
+                        // Only when this request's work is actually counted. Otherwise there is nothing to inherit, and
                         // EMPTY_TASK_ID leaves the rewrite client unwrapped -- so a search in a group without throttling
                         // behaves exactly as before, rather than every search in the cluster gaining a parent task it
-                        // never had.
+                        // never had. A consequence worth naming: a nested search whose own group is throttled while its
+                        // parent's is not sees no parent here and is charged on its own merits, so the throttle applies to
+                        // the first eligible search in a nested chain and an unthrottled parent cannot launder work into a
+                        // throttled group.
                         searchService.getRewriteContext(
                             timeProvider::getAbsoluteStartMillis,
                             searchRequest,
-                            holdsThrottlePermit(task) ? localTaskId(task) : TaskId.EMPTY_TASK_ID
+                            isThrottleCounted(task) ? localTaskId(task) : TaskId.EMPTY_TASK_ID
                         ),
                         rewriteListener
                     );
@@ -570,72 +573,44 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Throttle buckets that ancestor tasks of this request already hold a permit for.
+     * Whether this request's parent task is already accounted for against a node-level throttle bucket, in which case
+     * admission charges this request nothing; see
+     * {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, boolean)}.
      * <p>
-     * A coordinator search can issue a nested coordinator search on the same node while holding a permit -- a terms
-     * lookup with a subquery does this during the rewrite phase -- and the nested request resolves to the same bucket.
-     * Admission uses this set to admit such a request without charging it a second permit; see
-     * {@link WorkloadGroupService#acquireThrottleOrReject(WorkloadGroupTask, Set)}.
+     * A coordinator search can issue a nested coordinator search on the same node while holding a permit -- a terms lookup
+     * with a subquery does this during the rewrite phase -- and charging the nested request again would make the request
+     * compete with itself.
      * <p>
-     * Only local ancestors are visible, which is exactly the right scope: the throttle is per node, so an ancestor on
-     * another node holds a permit against that node's budget rather than this one's.
+     * Only the immediate parent is inspected, and that is sufficient rather than a simplification: the only thing that
+     * parents a coordinator search on another coordinator search is the rewrite client, and it is wrapped only when the
+     * parent itself was counted (see the {@code getRewriteContext} call in {@code executeRequest}). So a counted ancestor,
+     * when one exists at all, is always the immediate parent. Parents that are not coordinator searches -- an
+     * {@code _msearch}'s multi-search task, a reindex/by-query task -- never carry the flag, so their child searches are
+     * each charged, which is intended: they are independent units of client work.
+     * <p>
+     * Local parents only, which is exactly the right scope: the throttle is per node, so a parent on another node was
+     * counted against that node's budget rather than this one's. {@code TaskManager#getTask} is keyed by a node-local id,
+     * so skipping remote parents also avoids resolving a remote id to an unrelated local task.
      */
-    private Set<String> bucketsHeldByAncestors(final Task task) {
+    private boolean parentAlreadyCounted(final Task task) {
         TaskId parentTaskId = task.getParentTaskId();
         if (parentTaskId == null || parentTaskId.isSet() == false) {
-            return Set.of();
+            return false;
         }
-        final String localNodeId = localNodeId();
-        if (localNodeId == null) {
-            return Set.of();
+        if (clusterService.localNode().getId().equals(parentTaskId.getNodeId()) == false) {
+            return false;
         }
-        Set<String> held = null;
-        // Real depth is 1 (a nested rewrite search under a coordinator search); the bound only guards against a
-        // pathological or cyclic parent chain.
-        for (int depth = 0; depth < 10 && parentTaskId.isSet() && localNodeId.equals(parentTaskId.getNodeId()); depth++) {
-            Task ancestor = taskManager.getTask(parentTaskId.getId());
-            if (ancestor == null) {
-                break;
-            }
-            if (ancestor instanceof WorkloadGroupTask) {
-                String bucketKey = ((WorkloadGroupTask) ancestor).getHeldThrottleBucket();
-                if (bucketKey != null) {
-                    if (held == null) {
-                        held = new HashSet<>();
-                    }
-                    held.add(bucketKey);
-                }
-            }
-            parentTaskId = ancestor.getParentTaskId();
-            if (parentTaskId == null) {
-                break;
-            }
-        }
-        return held == null ? Set.of() : held;
+        return isThrottleCounted(taskManager.getTask(parentTaskId.getId()));
     }
 
-    /** Whether this request took a throttle permit, and therefore has a bucket a nested search could inherit. */
-    private static boolean holdsThrottlePermit(final Task task) {
-        return task instanceof WorkloadGroupTask && ((WorkloadGroupTask) task).getHeldThrottleBucket() != null;
+    /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */
+    private static boolean isThrottleCounted(final Task task) {
+        return task instanceof WorkloadGroupTask && ((WorkloadGroupTask) task).isThrottleCounted();
     }
 
-    /**
-     * The local node's id, or {@code null} if this node is not in the applied cluster state yet. Read via
-     * {@code state().nodes()} rather than {@link ClusterService#localNode()} because that throws when the node is not
-     * started, and neither parenting the rewrite phase nor the re-entrancy check is worth failing a search over.
-     */
-    private String localNodeId() {
-        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
-        return localNode == null ? null : localNode.getId();
-    }
-
-    /**
-     * A {@link TaskId} addressing {@code task} on this node, or {@link TaskId#EMPTY_TASK_ID} if the local node id is
-     * unavailable -- in which case the rewrite phase simply issues unparented requests, as it did before.
-     */
+    /** A {@link TaskId} addressing {@code task} on this node. */
     private TaskId localTaskId(final Task task) {
-        String localNodeId = localNodeId();
-        return localNodeId == null ? TaskId.EMPTY_TASK_ID : new TaskId(localNodeId, task.getId());
+        return new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
     private Task extractParentTask(final SearchRequest searchRequest) {

@@ -32,12 +32,17 @@ public class WorkloadGroupTask extends CancellableTask {
     public static final String WORKLOAD_GROUP_ID_HEADER = "workloadGroupId";
     /** Separator between the {@code subfield|value} principal tokens carried by {@link #getThrottlePrincipal()}. */
     public static final String WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER = "\u001F";
+    /**
+     * Separator between the subfield name and its value inside a single principal token, as in {@code username|alice}.
+     * Part of the contract with whichever plugin supplies the principal, so it is named rather than spelled inline.
+     */
+    public static final String WORKLOAD_GROUP_PRINCIPAL_SUBFIELD_DELIMITER = "|";
     public static final Supplier<String> DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER = () -> "DEFAULT_WORKLOAD_GROUP";
     private final LongSupplier nanoTimeSupplier;
     private String workloadGroupId;
     private boolean isWorkloadGroupSet = false;
     private volatile String throttlePrincipal;
-    private volatile String heldThrottleBucket;
+    private volatile boolean throttleCounted;
 
     public WorkloadGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -120,25 +125,38 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * Records the throttle bucket this task successfully took a permit for, so a nested coordinator search issued
-     * while this one is in flight can recognise that its bucket is already paid for and skip admission. Set by
-     * {@code WorkloadGroupService#acquireThrottleOrReject} on a successful acquire only.
+     * Marks this task's work as accounted for against a node-level throttle bucket, so a nested coordinator search issued
+     * while this one is in flight can recognise that its request family has already been admitted and skip admission. Set by
+     * {@code WorkloadGroupService#acquireThrottleOrReject} in both cases that leave the work accounted for: when this task
+     * took the permit itself, and when it was admitted without one because its parent was already counted.
      * <p>
-     * Deliberately not cleared on release: the value is scoped to the task, which is unregistered when the request
+     * Never set when admission declined to throttle the request (WLM disabled, default group, no {@code node_limit}, no
+     * resolvable bucket). That is what makes the throttle charge the <em>first eligible</em> search in a nested chain rather
+     * than only the outermost one: a nested search whose group is throttled is still charged on its own merits when its
+     * parent's group was not, so an unthrottled parent cannot launder work into a throttled group.
+     * <p>
+     * Release is driven solely by the {@link org.opensearch.common.lease.Releasable} handed to the caller, never by this
+     * flag, so marking a task that holds no permit of its own cannot double-release. Marking it is what makes the
+     * accounting transitive: a request admitted for free because its parent was counted must still advertise that to its
+     * own nested searches, or a second level of nesting (a terms lookup whose subquery is itself a terms lookup) would
+     * find nothing on its parent and be charged a fresh permit — competing with the very request family that already paid.
+     * <p>
+     * Deliberately not cleared on release: the flag is scoped to the task, which is unregistered when the request
      * finishes, and a rewrite round that issues a nested search after the outer permit has been released must still
      * be recognised as nested rather than charged a fresh permit.
      *
-     * @param heldThrottleBucket the bucket key a permit is held for
+     * @param throttleCounted whether this task's work is accounted for against a throttle bucket
      */
-    public void setHeldThrottleBucket(final String heldThrottleBucket) {
-        this.heldThrottleBucket = heldThrottleBucket;
+    public void setThrottleCounted(final boolean throttleCounted) {
+        this.throttleCounted = throttleCounted;
     }
 
     /**
-     * The throttle bucket this task holds (or held) a permit for, or {@code null} if it was never throttled.
+     * Whether this task's work is accounted for against a node-level throttle bucket — either because it took the permit
+     * itself or because its parent was already counted. {@code false} if it was never throttled.
      */
-    public String getHeldThrottleBucket() {
-        return heldThrottleBucket;
+    public boolean isThrottleCounted() {
+        return throttleCounted;
     }
 
     public long getElapsedTime() {
