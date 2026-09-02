@@ -577,7 +577,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
         }
 
-        List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
+        // Substrait's Root.names must be depth-first flattened: one name per top-level column plus one
+        // per inner struct child. root.fields has only the top-level names, which is short for a nested
+        // ARRAY(ROW(...)) column — DataFusion then throws "Named schema must contain names for all
+        // fields". flattenOutputNames appends the inner names (a no-op for scalar rows).
+        List<String> topLevelNames = root.fields.stream().map(field -> field.getValue()).toList();
+        List<String> fieldNames = flattenOutputNames(topLevelNames, root.validatedRowType);
 
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
@@ -588,6 +593,40 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         byte[] bytes = protoPlan.toByteArray();
         LOGGER.debug("Substrait plan: {} bytes", bytes.length);
         return bytes;
+    }
+
+    /**
+     * Builds the depth-first flattened name list for Substrait's {@code Root.names}: one name per
+     * top-level column plus every inner struct child. Top-level names come from {@code topLevelNames}
+     * (keeping projection aliases), inner names from {@code rowType}. Scalar-only rows return
+     * {@code topLevelNames} unchanged. A Calcite MAP reports no struct/component type, so it adds no
+     * inner names — which is what the DataFusion consumer expects.
+     */
+    static List<String> flattenOutputNames(List<String> topLevelNames, RelDataType rowType) {
+        List<RelDataTypeField> fields = rowType.getFieldList();
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < fields.size(); i++) {
+            String name = i < topLevelNames.size() ? topLevelNames.get(i) : fields.get(i).getName();
+            out.add(name);
+            appendNestedNames(fields.get(i).getType(), out);
+        }
+        return out;
+    }
+
+    /**
+     * Appends {@code type}'s inner field names to {@code out}, depth-first: an ARRAY/MULTISET recurses
+     * into its element, a ROW emits each child name then recurses, scalars add nothing. Mirrors the
+     * DataFusion consumer's schema walk.
+     */
+    static void appendNestedNames(RelDataType type, List<String> out) {
+        if (type.getComponentType() != null) {
+            appendNestedNames(type.getComponentType(), out);
+        } else if (type.isStruct()) {
+            for (RelDataTypeField child : type.getFieldList()) {
+                out.add(child.getName());
+                appendNestedNames(child.getType(), out);
+            }
+        }
     }
 
     /** Converts a single operator into a Substrait {@link Rel}; children are discarded and rewired by {@link #rewire}. */
