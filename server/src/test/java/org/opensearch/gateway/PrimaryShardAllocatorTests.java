@@ -184,7 +184,8 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
      * The auto-restore trigger: a fenced, auto-restore-enabled remote index whose primary has no valid copy on any
      * live node is converted to a remote-store recovery instead of being parked at NO_VALID_SHARD_COPY. The shard
      * stays in the unassigned list (the shards allocator places it later in the same round), carries a fresh
-     * REMOTE_STORE recovery source, and reports YELLOW while it initializes.
+     * REMOTE_STORE recovery source, and deliberately stays RED while it hydrates (a restoring primary cannot serve
+     * queries), converging to GREEN without operator action - the improvement is convergence, not the color.
      */
     public void testAutoRestoreConvertsNoValidShardCopyToRemoteStoreRecovery() {
         final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(
