@@ -9,7 +9,9 @@
 package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -41,6 +43,38 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
         assertEquals(SqlKind.SUM, call.getAggregation().getKind());
         assertEquals("total", call.getName());
+    }
+
+    /**
+     * Every metric translator declares the input column's OWN type — {@code sum} included. This is the
+     * "widened exactly once" pin: {@code DslTypeSystems.NANO_TIMESTAMP} widens a {@code SUM} to the
+     * engine's accumulator width, and the ONE place that widening is applied to a declared type is
+     * {@code AggregationMetadataBuilder#build} (see
+     * {@code AggregationMetadataBuilderTests#testSumOverAnIntegerColumnIsDeclaredBigint}). A translator
+     * that also widened would apply {@code deriveSumType} twice on the same call, so this test fails if
+     * that second mechanism is ever reintroduced here.
+     */
+    public void testEveryMetricDeclaresTheInputColumnType() throws ConversionException {
+        RelDataType priceType = ctx.getRowType().getField("price", false, false).getType();
+        assertEquals(SqlTypeName.INTEGER, priceType.getSqlTypeName());
+
+        assertEquals(
+            "sum must NOT widen here — AggregationMetadataBuilder is the single widening point",
+            priceType,
+            new SumMetricTranslator().toAggregateCall(new SumAggregationBuilder("s").field("price"), ctx.getRowType()).getType()
+        );
+        assertEquals(
+            priceType,
+            new AvgMetricTranslator().toAggregateCall(new AvgAggregationBuilder("a").field("price"), ctx.getRowType()).getType()
+        );
+        assertEquals(
+            priceType,
+            new MinMetricTranslator().toAggregateCall(new MinAggregationBuilder("mn").field("price"), ctx.getRowType()).getType()
+        );
+        assertEquals(
+            priceType,
+            new MaxMetricTranslator().toAggregateCall(new MaxAggregationBuilder("mx").field("price"), ctx.getRowType()).getType()
+        );
     }
 
     public void testMinTranslator() throws ConversionException {

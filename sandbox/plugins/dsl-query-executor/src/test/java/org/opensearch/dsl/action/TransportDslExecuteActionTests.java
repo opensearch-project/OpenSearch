@@ -26,9 +26,13 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.dsl.settings.DslGateInputs;
+import org.opensearch.dsl.settings.DslQuerySettings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -38,6 +42,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -81,7 +87,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
     }
 
     public void testDoExecuteFailsWhenIndexNotInClusterState() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = clusterService();
         when(clusterService.state()).thenReturn(mock(ClusterState.class));
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
@@ -95,7 +101,9 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             clusterService,
             mock(IndicesService.class),
             resolver,
-            mockThreadPool()
+            mockThreadPool(),
+            new DslQuerySettings(clusterService),
+            new DslGateInputs(clusterService.getClusterSettings())
         );
 
         TestListener listener = executeWith(action, "bogus-index");
@@ -130,8 +138,12 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
                 false
             );
         }
+        // A real state (not a bare mock): doExecute pins the request's mapping off
+        // state.metadata().getIndexSafe(...), so the resolved indices must actually exist in it.
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-        ClusterService clusterService = mock(ClusterService.class);
+        // A settings-bearing cluster service, not a bare mock: the action now builds a DslQuerySettings
+        // and a DslGateInputs off it.
+        ClusterService clusterService = clusterService();
         when(clusterService.state()).thenReturn(state);
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
@@ -145,7 +157,9 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             clusterService,
             mock(IndicesService.class),
             resolver,
-            mockThreadPool()
+            mockThreadPool(),
+            new DslQuerySettings(clusterService),
+            new DslGateInputs(clusterService.getClusterSettings())
         );
     }
 
@@ -173,6 +187,20 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
             }
         });
         return schema;
+    }
+
+    /**
+     * A mock cluster service with the settings surface both DSL settings holders read at construction:
+     * {@code DslQuerySettings} takes its initial value from the node settings and registers an update
+     * consumer on the registry, and {@code DslGateInputs} reads the registry per call.
+     */
+    private static ClusterService clusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registered.addAll(DslQuerySettings.all());
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, registered));
+        return clusterService;
     }
 
     private static ThreadPool mockThreadPool() {
