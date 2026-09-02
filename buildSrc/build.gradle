@@ -128,7 +128,7 @@ dependencies {
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.1'
   api 'com.netflix.nebula:nebula-publishing-plugin:23.0.0'
   api 'com.netflix.nebula:gradle-info-plugin:16.2.1'
-  api 'org.apache.rat:apache-rat:0.15'
+  api 'org.apache.rat:apache-rat:0.18'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.16.0"
   api 'com.gradleup.shadow:shadow-gradle-plugin:9.4.2'
@@ -204,11 +204,12 @@ if (project != rootProject) {
   apply plugin: 'opensearch.build'
   apply plugin: 'opensearch.publish'
 
-  allprojects {
-    java {
-        targetCompatibility = JavaVersion.VERSION_21
-        sourceCompatibility = JavaVersion.VERSION_21
-    }
+  // Not allprojects: :build-tools:reaper applies the java plugin in its own build script and sets the
+  // same compatibility there, so reaching into it from here is an implicit lookup of a parent
+  // project's method, which is deprecated and fails in Gradle 10.
+  java {
+    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_21
   }
 
   // groovydoc succeeds, but has some weird internal exception...
