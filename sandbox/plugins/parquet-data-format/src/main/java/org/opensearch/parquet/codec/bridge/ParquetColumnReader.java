@@ -29,26 +29,24 @@ import java.nio.file.Path;
  * points off-heap views at them and reads values in place, with no copy. Those views are valid only
  * until the next batch call on this reader, which always replaces the batch first.
  *
- * <p>TODO (numeric-only v1): the following are intentionally not implemented yet and are tracked
- * here so callers know the gaps:
- * <ul>
- *   <li>boolean values (Arrow packs them bit-wise, so borrowing needs a value bit offset like the
- *       validity bitmap);</li>
- *   <li>repeated / multi-valued numerics (more than one value per document);</li>
- *   <li>binary / keyword columns;</li>
- *   <li>{@code half_float}: written as Arrow Float16, which the native cursor rejects up front, so the
- *       field is unreadable here rather than wrong. TODO: add a half-float value kind that re-encodes
- *       to {@code HalfFloatPoint.halfFloatToSortableShort}, the form OpenSearch's fielddata expects.</li>
- *   <li>{@code scaled_float}: mapped to a plain long column on the write side, while OpenSearch stores
- *       {@code round(value * scaling_factor)} in doc values. TODO: confirm the write path stores the
- *       pre-scaled long before treating this type as supported.</li>
- *   <li>a copy fallback and its overflow-retry, which are only needed if a non-borrowable path is
- *       ever served here.</li>
- *   <li>the Parquet page index (per-page min/max/null-count) and a {@code pageIndex()} accessor: the
- *       page-index FFM path was left out of this numeric bridge. A future DocValues skipper needs it
- *       to skip whole pages without decoding. TODO: add the page-index read (Rust cursor + bridge)
- *       when the skipper lands.</li>
- * </ul>
+ * <p>Scope is numeric fixed-width columns. Types the native cursor cannot borrow are rejected when
+ * the cursor is opened, so an unsupported field is unreadable rather than read incorrectly.
+ *
+ * <p>Out of scope for this reader: booleans (Arrow packs them bit-wise, so borrowing needs a value
+ * bit offset like the validity bitmap), repeated numerics, binary and keyword columns,
+ * {@code half_float} (written as Arrow Float16, which would need a value kind that re-encodes to
+ * {@code HalfFloatPoint.halfFloatToSortableShort}), and {@code scaled_float}.
+ *
+ * <p>{@code scaled_float} needs care because it cannot be rejected here: it is written as a plain
+ * long column ({@code CoreDataFieldPlugin} maps it to {@code LongParquetField}), so on the wire it
+ * is indistinguishable from a long, while OpenSearch doc values hold
+ * {@code round(value * scaling_factor)}. This reader is given a file and a column name, not a
+ * {@code MappedFieldType}, so the field must be excluded where the mapping type is known before it
+ * reaches this reader.
+ *
+ * <p>The Parquet page index is also not exposed here. A future DocValues skipper needs it to skip
+ * whole pages without decoding, which requires a page-index read in both the native cursor and this
+ * bridge.
  */
 public final class ParquetColumnReader implements Closeable, NumericValueReader {
 

@@ -61,6 +61,9 @@ const BATCH_SIZE_HARD_LIMIT: usize = 8_192;
 /// about a different cap pass their own, since the value is per cursor.
 #[cfg(test)]
 const TEST_MAX_BATCH_SIZE: usize = BATCH_SIZE_HARD_LIMIT;
+
+/// Status codes returned to Java. A negative return is an error-message pointer produced by
+/// `ffm_safe`, so only non-negative values are status; 1 is unused. Mirrors `ParquetCodecBridge`.
 const RC_OK: i64 = 0;
 const RC_EOF: i64 = 2;
 
@@ -268,11 +271,13 @@ impl DocValuesCursor {
         }
         let target_row = target_row as usize;
         let position = self.reader.position();
-        // Adaptive decode window: geometric growth with multiplicative backoff. A forward
-        // skip no larger than the current window still indicates page-scale dense access
-        // (e.g. a 10-30% selective filter that touches every page), so the window doubles.
-        // A jump beyond the window halves it (rather than resetting), so mixed access
-        // patterns don't pay a full re-ramp after every jump.
+        // Adaptive decode window: geometric growth with multiplicative backoff. A forward skip no
+        // larger than the current window is treated as dense access, so the window doubles; a jump
+        // beyond it halves the window rather than resetting, so mixed access does not re-ramp from
+        // the initial size after every jump.
+        //
+        // TODO: the growth and backoff factors are not benchmarked. Tune them, and the default
+        // ceiling, against representative query shapes.
         let dense = self.has_decoded_batch
             && target_row >= position
             && target_row - position <= self.batch_size;
@@ -430,7 +435,8 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     })
 }
 
-fn open(
+/// Opens a cursor and registers it, returning the handle Java holds.
+fn open_and_register(
     filename: &str,
     column: &str,
     initial_batch_size: usize,
@@ -474,25 +480,24 @@ pub unsafe extern "C" fn parquet_df_open_iter(
     initial_batch_size: i64,
     max_batch_size: i64,
 ) -> i64 {
-    let filename =
-        str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_df_open_iter file: {e}"))?;
-    let column = str_from_raw(column_ptr, column_len)
-        .map_err(|e| format!("parquet_df_open_iter column: {e}"))?;
+    static FN: &str = "parquet_df_open_iter";
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("{FN} file: {e}"))?;
+    let column = str_from_raw(column_ptr, column_len).map_err(|e| format!("{FN} column: {e}"))?;
     // Re-checked here because these arrive as untrusted `i64`: a negative would wrap to an enormous
     // `usize` on cast, and the Java reader exposes an int overload that bypasses settings resolution.
     if max_batch_size <= 0 || max_batch_size > BATCH_SIZE_HARD_LIMIT as i64 {
         return Err(format!(
-            "parquet_df_open_iter: max batch size {max_batch_size} outside 1..={BATCH_SIZE_HARD_LIMIT}"
+            "{FN}: max batch size {max_batch_size} outside 1..={BATCH_SIZE_HARD_LIMIT}"
         ));
     }
     if initial_batch_size <= 0 || initial_batch_size > max_batch_size {
         return Err(format!(
-            "parquet_df_open_iter: initial batch size {initial_batch_size} outside 1..={max_batch_size}"
+            "{FN}: initial batch size {initial_batch_size} outside 1..={max_batch_size}"
         ));
     }
     // The FFM contract carries only a message (see native_bridge_common::error), so the typed
     // error is flattened here at the boundary.
-    open(
+    open_and_register(
         filename,
         column,
         initial_batch_size as usize,
@@ -518,12 +523,10 @@ pub unsafe extern "C" fn parquet_df_close_iter(handle: i64) -> i64 {
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn parquet_df_reset_iter(handle: i64) -> i64 {
-    let cursor = cursor_for(handle, "parquet_df_reset_iter").map_err(|e| e.to_string())?;
+    static FN: &str = "parquet_df_reset_iter";
+    let cursor = cursor_for(handle, FN).map_err(|e| e.to_string())?;
     let mut cursor = cursor.lock();
-    cursor.reader = cursor
-        .factory
-        .open()
-        .map_err(|e| format!("parquet_df_reset_iter: {e}"))?;
+    cursor.reader = cursor.factory.open().map_err(|e| format!("{FN}: {e}"))?;
     cursor.batch_size = cursor.initial_batch_size;
     cursor.has_decoded_batch = false;
     cursor.borrowed_batch = None;
