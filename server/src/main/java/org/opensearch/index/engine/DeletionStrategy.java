@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.seqno.SequenceNumbers;
 
@@ -16,8 +17,9 @@ import java.util.Objects;
 /**
  * The deletion strategy
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class DeletionStrategy extends OperationStrategy {
 
     public final boolean currentlyDeleted;
