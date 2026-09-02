@@ -1,0 +1,165 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * TLA+ model checking of the formal specifications in this directory.
+ *
+ * Each module models the protocol as IMPLEMENTED. Alternative designs that were evaluated and
+ * rejected are described in the README rather than kept here as live configurations.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * DELIBERATELY NOT WIRED INTO `check`, AND DELIBERATELY DOES NOT DOWNLOAD ANYTHING.
+ *
+ * TLC ships in tla2tools.jar, which is not published to Maven Central or any other dependency
+ * registry we already trust. Fetching it from a GitHub release asset and verifying a pinned SHA-256
+ * afterwards is not good enough, for two reasons:
+ *
+ *   1. A checksum pinned in the same change that introduces the download only proves the bytes
+ *      are self-consistent. It cannot establish that the URL, the release asset, or the digest
+ *      itself are the upstream project's - all three need corroborating out of band, by a person.
+ *   2. Wired into `check`, it would have every CI environment running `./gradlew check` pull an
+ *      unmanaged third-party binary from the network. Supplementary verification of a design spec
+ *      is not worth that blast radius, and it breaks air-gapped builds.
+ *
+ * So the jar must be supplied explicitly, and these tasks are opt-in:
+ *
+ *   ./gradlew :formal-models:modelCheck -PtlaToolsJar=/path/to/tla2tools.jar
+ *   TLA_TOOLS_JAR=/path/to/tla2tools.jar ./gradlew :formal-models:modelCheck
+ *
+ * If no jar is supplied the tasks fail with instructions. Nothing is fetched.
+ *
+ * AND DELIBERATELY NO PINNED CHECKSUM. Pinning a SHA-256 here and comparing the supplied jar
+ * against it would be worse than nothing: the digest could only be recorded by whoever added the
+ * reference, so it cannot vouch for itself, and a disclaimed pin sitting in the repository invites
+ * exactly the false confidence it warns against.
+ * Because the operator supplies the jar, comparing it against a number written here establishes
+ * nothing - if they vetted it the check is redundant, and if they did not, our digest cannot help.
+ *
+ * Verifying the artifact is therefore explicitly the caller's job, and belongs where the jar is
+ * obtained rather than where it is used:
+ *
+ *   1. Obtain tla2tools.jar from the TLA+ project's own release channel.
+ *   2. Corroborate it against upstream's own published checksum, a distribution package, or a
+ *      fetch from a different network and host.
+ *   3. Mirror the vetted jar into artifact storage the project already trusts, and have any CI job
+ *      take it from there rather than from a third-party release URL.
+ *
+ * Step 3 is where a checksum belongs, enforced by whatever guards that storage. This build takes
+ * the jar it is given and does not pretend to have verified it.
+ * ---------------------------------------------------------------------------------------------
+ */
+
+plugins {
+  id 'base'
+}
+
+// The version these specs were last checked with, for the error message below. Not a dependency
+// declaration: nothing here resolves, downloads or verifies a jar.
+def tlaToolsVersion = '1.8.0'
+
+/*
+ * Resolve an explicitly supplied jar. Order: -PtlaToolsJar, then TLA_TOOLS_JAR. No network and no
+ * implicit fallback - an unset property fails loudly rather than silently skipping the check.
+ */
+def resolveTlaToolsJar = {
+  def supplied = findProperty('tlaToolsJar') ?: System.getenv('TLA_TOOLS_JAR')
+  if (supplied == null || supplied.toString().trim().isEmpty()) {
+    throw new GradleException(
+      "tla2tools.jar was not supplied, so the TLA+ specs cannot be model-checked.\n" +
+      "  Pass -PtlaToolsJar=/path/to/tla2tools.jar or set TLA_TOOLS_JAR.\n" +
+      "  tla2tools ${tlaToolsVersion} is not on Maven Central; obtain it from the TLA+ project and\n" +
+      "  verify its provenance yourself. This build deliberately does not download or checksum it."
+    )
+  }
+  def jar = file(supplied.toString())
+  if (jar.exists() == false) {
+    throw new GradleException("tla2tools.jar not found at [${jar}]")
+  }
+  return jar
+}
+
+/* Registers one TLC run; every run must complete without finding an error. */
+def registerTlcTask = { String name, String specDir, String spec, String description ->
+  tasks.register(name, JavaExec) {
+    it.group = 'verification'
+    it.description = description
+    it.inputs.dir(file(specDir))
+    // Resolved at execution time so that configuring the build without a jar does not fail.
+    it.doFirst { it.classpath = files(resolveTlaToolsJar()) }
+    it.classpath = files()
+    it.mainClass = 'tlc2.TLC'
+    it.workingDir = file(specDir)
+    it.jvmArgs '-XX:+UseParallelGC'
+    it.args '-workers', 'auto', '-noGenerateSpecTE', '-cleanup',
+            '-metadir', "${buildDir}/tlc/${name}", spec
+    it.ignoreExitValue = true
+    def captured = new ByteArrayOutputStream()
+    it.standardOutput = captured
+    it.errorOutput = captured
+    it.doLast {
+      def output = captured.toString()
+      if (it.executionResult.get().exitValue != 0 || output.contains('No error has been found') == false) {
+        logger.error(output)
+        throw new GradleException("${name}: model check did not complete cleanly")
+      }
+      /*
+       * Read TLC's FINAL summary, not a mid-run Progress(...) line. Both contain the phrase
+       * "distinct states found", so matching the first occurrence reports whatever snapshot the
+       * progress printer happened to emit - a number that varies run to run and understates the
+       * real total. The comma-free number format below appears only in the final summary, since
+       * progress lines group digits and interleave "(N s/min)" between the fields.
+       */
+      def summary = (output =~ /(\d+) states generated, (\d+) distinct states found, (\d+) states left on queue/)
+      if (summary.find() == false) {
+        logger.error(output)
+        throw new GradleException("${name}: TLC printed no final summary line")
+      }
+      def distinct = summary.group(2) as long
+      def queued = summary.group(3) as long
+      // The claim these models rest on is a COMPLETE state graph, so enforce it rather than assume it.
+      if (queued != 0) {
+        throw new GradleException("${name}: TLC left ${queued} states on queue - state graph not fully explored")
+      }
+      logger.lifecycle(
+        String.format("${name}: all properties hold (%,d distinct states, complete state graph)", distinct)
+      )
+    }
+  }
+}
+
+def fenceSpecDir = 'remote-store-fence/tla'
+
+// Seal ordering: a takeover claims the fence before reading the restore point it will serve from.
+registerTlcTask('tlcRemoteStoreFence', fenceSpecDir, 'RemoteStoreFence.tla',
+  'Seal-before-restore ordering and acked-write loss')
+
+// Cross-term takeover: term-scoped acknowledgement paths make a higher-term takeover deterministic.
+registerTlcTask('tlcFenceTakeover', fenceSpecDir, 'FenceTakeover.tla',
+  'Term-scoped takeover: mutual exclusion, no acked write loss, deterministic higher-term victory')
+
+// Equal-term relocation handoff: an aborted handoff must not fence a healthy source.
+registerTlcTask('tlcFenceHandoff', fenceSpecDir, 'FenceHandoff.tla',
+  'Relocation handoff: source-performed ownership transfer with revert on abort')
+
+// The segment flow as a second path needing the fence, plus garbage collection: hydration by the
+// fence owner must never lose a file it still needs.
+registerTlcTask('tlcFenceSegmentFlow', fenceSpecDir, 'FenceSegmentFlow.tla',
+  'Segment flow and GC: seal before reading either flow, and gate publication and collection on ownership')
+
+/*
+ * Opt-in entry point. NOT hooked to `check`: see the header. A maintainer who has vetted and
+ * mirrored tla2tools can wire this into a dedicated CI job that supplies the jar.
+ */
+tasks.register('modelCheck') {
+  group = 'verification'
+  description = 'Model-checks every TLA+ spec here. Requires -PtlaToolsJar or TLA_TOOLS_JAR.'
+  dependsOn 'tlcRemoteStoreFence', 'tlcFenceTakeover', 'tlcFenceHandoff', 'tlcFenceSegmentFlow'
+}

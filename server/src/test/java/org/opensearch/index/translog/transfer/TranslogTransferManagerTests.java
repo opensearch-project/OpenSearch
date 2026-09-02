@@ -16,6 +16,8 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -39,6 +41,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -387,6 +390,292 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             assertEquals("Failed to upload test-to-string", exception.get().getMessage());
         });
         uploadThread.get().interrupt();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mockSuccessfulFileUploads() throws Exception {
+        doAnswer(invocationOnMock -> {
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
+            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
+            transferFileSnapshots.forEach(listener::onResponse);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), any());
+    }
+
+    /**
+     * The fence wrappers answer for both configurations. With no fence (fencing disabled) callers get the safe
+     * defaults - never superseded, a handoff transfer is a no-op, an aborted handoff may resume - so gating code
+     * never needs to know whether the feature is on. With a fence they delegate to it.
+     */
+    public void testFenceOwnershipWrappers() throws Exception {
+        // Fencing disabled: no fence.
+        TranslogTransferManager unfenced = fencedTransferManager(null, tracker);
+        assertFalse(unfenced.isFenceSuperseded(primaryTerm));
+        unfenced.transferFenceOwnership(primaryTerm, "target-alloc"); // no fence to hand over: a no-op
+        assertTrue(unfenced.revertFenceOwnership(primaryTerm));
+
+        // Fencing enabled: delegation to the fence.
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        fence.validateAndAdvance(primaryTerm);
+        TranslogTransferManager fenced = fencedTransferManager(fence, tracker);
+        assertFalse(fenced.isFenceSuperseded(primaryTerm));
+        fenced.transferFenceOwnership(primaryTerm, "target-alloc");
+        assertTrue("the target never wrote, so the revert reclaims ownership", fenced.revertFenceOwnership(primaryTerm));
+        // A strictly higher term supersedes this copy.
+        new RemoteStoreFence(container, "node-2-alloc", "node-2", shardId).validateAndAdvance(primaryTerm + 1);
+        assertTrue(fenced.isFenceSuperseded(primaryTerm));
+    }
+
+    private FsBlobContainer fenceContainer() throws IOException {
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        return (FsBlobContainer) blobStore.blobContainer(BlobPath.cleanPath());
+    }
+
+    private TranslogTransferManager fencedTransferManager(RemoteStoreFence fence, FileTransferTracker fileTransferTracker) {
+        return new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            isTranslogMetadataEnabled,
+            fence
+        );
+    }
+
+    public void testTransferSnapshotAdvancesFence() throws Exception {
+        mockSuccessfulFileUploads();
+        RemoteStoreFence fence = new RemoteStoreFence(fenceContainer(), "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicInteger uploadComplete = new AtomicInteger();
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                uploadComplete.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(primaryTerm, fence.getTerm());
+        assertEquals(0, fence.getSeq());
+
+        // A subsequent sync advances the same CAS chain
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(1, fence.getSeq());
+
+        assertEquals(2, uploadComplete.get());
+        assertNull(uploadFailure.get());
+    }
+
+    public void testTransferSnapshotFencedByNewOwnerAtSameTerm() throws Exception {
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-source-alloc", "node-source", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicInteger uploadComplete = new AtomicInteger();
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                uploadComplete.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+
+        // Relocation target (or a new primary) takes over the fence out of band
+        new RemoteStoreFence(container, "node-target-alloc", "node-target", shardId).validateAndAdvance(primaryTerm);
+
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertEquals(1, uploadComplete.get());
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+        assertTrue(uploadFailure.get().getMessage(), uploadFailure.get().getMessage().contains("fenced"));
+    }
+
+    public void testTransferSnapshotFencedByHigherTermBeforeBootstrap() throws Exception {
+        primaryTerm = randomLongBetween(1, 1000);
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        // A higher-term primary already owns the fence
+        new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId).validateAndAdvance(primaryTerm + 1);
+
+        RemoteStoreFence stalePrimaryFence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId);
+        TranslogTransferManager manager = fencedTransferManager(stalePrimaryFence, tracker);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                throw new AssertionError("upload must not be acknowledged for a fenced primary");
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        }, null));
+
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+    }
+
+    /**
+     * The fatal/retryable boundary: only a genuinely lost CAS may fail the shard. A transient repository error during
+     * the fence CAS must surface as an ordinary retryable upload failure — never as {@link TranslogFencedException},
+     * which callers treat as tragic — and the next sync must recover and claim the chain.
+     */
+    public void testTransientFenceErrorIsRetryableNotFatal() throws Exception {
+        mockSuccessfulFileUploads();
+        AtomicBoolean failNextCas = new AtomicBoolean(true);
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        FsBlobContainer container = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+                throws IOException {
+                if (failNextCas.getAndSet(false)) {
+                    throw new IOException("simulated transient repository error");
+                }
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+        };
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        TranslogTransferListener listener = new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        };
+
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNotNull(uploadFailure.get());
+        assertFalse(
+            "a transient fence error must not be classified as fenced: " + uploadFailure.get(),
+            uploadFailure.get() instanceof TranslogFencedException
+        );
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogUploadFailedException);
+
+        // The retry recovers: the fence bootstraps and the upload is acknowledged.
+        uploadFailure.set(null);
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
+        assertNull(uploadFailure.get());
+        assertEquals(primaryTerm, fence.getTerm());
+        assertEquals(0, fence.getSeq());
+    }
+
+    public void testFenceValidationRunsAfterMetadataUpload() throws Exception {
+        mockSuccessfulFileUploads();
+
+        // Order witness: the CAS must be issued only after the metadata upload completed ("the chain gates the
+        // ack, and the CAS follows the metadata"). A successful CAS then proves the metadata was already visible
+        // when any later takeover reads its restore point. Issued concurrently instead, the CAS can win before a
+        // takeover's sweep while the metadata PUT is still in flight; the takeover then reads a restore point
+        // without this generation and the writer acknowledges an operation no recovery will ever resolve -
+        // acked-write loss (RemoteStoreFence.tla in formal-models/ exhibits the trace with SEQUENCED = FALSE).
+        AtomicBoolean metadataUploaded = new AtomicBoolean();
+        AtomicBoolean casSawMetadataUploaded = new AtomicBoolean();
+
+        Path repoPath = createTempDir();
+        FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
+        FsBlobContainer container = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
+            @Override
+            public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
+                throws IOException {
+                casSawMetadataUploaded.set(metadataUploaded.get());
+                return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+        };
+
+        doAnswer(invocationOnMock -> {
+            metadataUploaded.set(true);
+            return null;
+        }).when(transferService).uploadBlob(any(TransferFileSnapshot.class), any(BlobPath.class), any(WritePriority.class), any());
+
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-1-alloc", "node-1", shardId);
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }, null));
+
+        assertTrue("fence CAS was issued before the metadata upload completed", casSawMetadataUploaded.get());
+        assertEquals(0, fence.getSeq());
+    }
+
+    public void testTakeoverBetweenMetadataUploadAndCasIsNotAcknowledged() throws Exception {
+        mockSuccessfulFileUploads();
+        FsBlobContainer container = fenceContainer();
+        RemoteStoreFence fence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId);
+        fence.validateAndAdvance(primaryTerm); // this copy owns the chain
+
+        // The interleaving that lost acked writes under the concurrent design: a new primary claims the fence
+        // while this upload's metadata PUT is in flight, then reads its restore point - which cannot include this
+        // generation. Sequenced, the CAS comes after the metadata and finds the chain taken, so the operation is
+        // refused rather than acknowledged: the metadata file is a harmless never-acknowledged orphan.
+        doAnswer(invocationOnMock -> {
+            new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId).validateAndAdvance(primaryTerm + 1);
+            return null;
+        }).when(transferService).uploadBlob(any(TransferFileSnapshot.class), any(BlobPath.class), any(WritePriority.class), any());
+
+        TranslogTransferManager manager = fencedTransferManager(fence, tracker);
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        assertFalse(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                throw new AssertionError("an upload whose fence was taken over mid-flight must not be acknowledged");
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                uploadFailure.set(ex);
+            }
+        }, null));
+        assertNotNull(uploadFailure.get());
+        assertTrue(uploadFailure.get().toString(), uploadFailure.get() instanceof TranslogFencedException);
+    }
+
+    public void testTransferSnapshotWithoutFenceDoesNotRequireConditionalWrites() throws Exception {
+        mockSuccessfulFileUploads();
+        // The default (unfenced) manager must behave exactly as before, i.e. no fence blob and no CAS requirement
+        assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }, null));
     }
 
     private TransferSnapshot createTransferSnapshot() throws IOException {
