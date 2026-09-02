@@ -57,6 +57,8 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -254,6 +256,89 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertNotNull(sendListenerFailure.get());
         assertTrue(sendListenerFailure.get() instanceof StreamException);
         assertEquals(StreamErrorCode.UNAVAILABLE, ((StreamException) sendListenerFailure.get()).getErrorCode());
+    }
+
+    // ── cancelling a stream that has not produced a first batch ────────────────
+
+    /**
+     * The transport must hand a stream to its handler before prefetching the first batch, and
+     * cancelling it from another thread must release the parked prefetch.
+     *
+     * <p>Regression cover for the wedged-query shape: the prefetch's own {@code next()} has no
+     * deadline, and {@code handleStreamResponse} only runs once that read returns. A producer that
+     * stalls before sending anything therefore parks the prefetch thread in a window that a handler
+     * registering its cancellation from {@code handleStreamResponse} never covers — the query then
+     * leaks a live task and a parked thread until the node restarts, and {@code _tasks/_cancel} is a
+     * no-op. Given the stream up front, the same cancel lands.
+     */
+    public void testHandlerIsGivenStreamBeforeFirstBatchAndCanCancelParkedPrefetch() throws Exception {
+        CountDownLatch producerStalled = new CountDownLatch(1);
+        CountDownLatch streamCancelled = new CountDownLatch(1);
+        FlightStream stream = mock(FlightStream.class);
+        // A producer that never sends: the read parks, and only cancellation makes it return — as a
+        // cancelled Flight stream does, by failing the parked next().
+        when(stream.next()).thenAnswer(inv -> {
+            producerStalled.countDown();
+            assertTrue("the parked prefetch must be released by cancellation", streamCancelled.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+            throw CallStatus.CANCELLED.withDescription("cancelled by test").toRuntimeException();
+        });
+        doAnswer(inv -> {
+            streamCancelled.countDown();
+            return null;
+        }).when(stream).cancel(anyString(), any());
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenReturn(stream);
+
+        channel = createChannel(mockFlightClient, stubHeaderContext(), new FlightTransportConfig());
+
+        AtomicReference<StreamTransportResponse<TestResponse>> handedOver = new AtomicReference<>();
+        CountDownLatch streamHandedOver = new CountDownLatch(1);
+        AtomicBoolean consumerRan = new AtomicBoolean();
+        AtomicReference<TransportException> failure = new AtomicReference<>();
+        CountDownLatch handlerNotified = new CountDownLatch(1);
+
+        sendStreamRequest(new StreamTransportResponseHandler<>() {
+            @Override
+            public void onStreamCreated(StreamTransportResponse<TestResponse> streamResponse) {
+                handedOver.set(streamResponse);
+                streamHandedOver.countDown();
+            }
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                consumerRan.set(true);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                failure.set(exp);
+                handlerNotified.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        });
+
+        assertTrue("handler must be given the stream before it is opened", streamHandedOver.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertTrue("the prefetch must be parked on the stalled producer", producerStalled.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertFalse("the consumer callback cannot have run: the first batch never arrived", consumerRan.get());
+
+        // Delivered from this thread, as a task-cancellation hook or a timeout would.
+        handedOver.get().cancelStreamOnly("test cancel");
+
+        assertTrue(
+            "cancelling the stream must release the parked prefetch and fail the request",
+            handlerNotified.await(TIMEOUT_SEC, TimeUnit.SECONDS)
+        );
+        assertNotNull(failure.get());
+        assertFalse("a stream that never produced a batch must not reach the consumer", consumerRan.get());
+        verify(stream, atLeastOnce()).cancel(anyString(), any());
     }
 
     // ── channel close vs. active streams ───────────────────────────────────────
