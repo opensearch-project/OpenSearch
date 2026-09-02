@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
@@ -104,6 +105,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, Set<String>> nodesPerAttributeNames;
     private final Map<String, Set<String>> searchNodesPerAttributeNames;
+    // Dedicated to AwarenessAllocationDecider: distinct awareness attribute values after applying the cluster
+    // allocation exclude filters, partitioned by node type (data vs search) and keyed by attribute name.
+    private final Map<String, Set<String>> awarenessAttributeValues;
+    private final Map<String, Set<String>> searchAwarenessAttributeValues;
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
     private final Map<String, Recoveries> initialReplicaRecoveries = new HashMap<>();
     private final Map<String, Recoveries> initialPrimaryRecoveries = new HashMap<>();
@@ -118,6 +123,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
         this.searchNodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
+        this.awarenessAttributeValues = Collections.synchronizedMap(new HashMap<>());
+        this.searchAwarenessAttributeValues = Collections.synchronizedMap(new HashMap<>());
 
         // fill in the nodeToShards with the "live" nodes
         for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
@@ -340,6 +347,40 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesPerAttributeNames.computeIfAbsent(
             attributeName,
             ignored -> stream().filter(routingNodeFilter).map(r -> r.node().getAttributes().get(attributeName)).collect(Collectors.toSet())
+        );
+    }
+
+    /**
+     * Retrieves the distinct values of an awareness attribute across the nodes eligible to hold the shard,
+     * dropping any node matched by the cluster-level allocation exclude filters. Nodes are partitioned by type:
+     * search-only shards look at search nodes, every other shard looks at data nodes. A value therefore leaves
+     * the awareness balance only when every node carrying it is excluded, letting a fully drained value (for
+     * example a zone being replaced) release its shards onto the remaining values.
+     * <p>
+     * The result is memoized per attribute name for the lifetime of this {@link RoutingNodes} instance. That is
+     * safe because both the node attributes and the exclude filters are constant over that lifetime: any change
+     * produces a new cluster state and therefore a new {@link RoutingNodes} with a fresh cache. This cache is
+     * dedicated to {@code AwarenessAllocationDecider} and is intentionally kept separate from
+     * {@link #nodesPerAttributesCounts(String)} so the weighted-routing path is left untouched.
+     *
+     * @param attributeName the awareness attribute to collect values for
+     * @param searchOnly whether the shard is search-only (selects search nodes rather than data nodes)
+     * @param excludeFilters the cluster-level allocation exclude filters, or {@code null} if none are configured
+     * @return the distinct, non-excluded values for the attribute
+     */
+    public Set<String> getAwarenessAttributeValues(
+        String attributeName,
+        boolean searchOnly,
+        @Nullable DiscoveryNodeFilters excludeFilters
+    ) {
+        final Map<String, Set<String>> cache = searchOnly ? searchAwarenessAttributeValues : awarenessAttributeValues;
+        return cache.computeIfAbsent(
+            attributeName,
+            attr -> stream().filter(routingNode -> routingNode.node().isSearchNode() == searchOnly)
+                .filter(routingNode -> excludeFilters == null || excludeFilters.match(routingNode.node()) == false)
+                .map(routingNode -> routingNode.node().getAttributes().get(attr))
+                .filter(value -> value != null)
+                .collect(Collectors.toSet())
         );
     }
 

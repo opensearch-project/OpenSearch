@@ -1154,4 +1154,129 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
     }
+
+    public void testExcludedZoneIsIgnoredInAwarenessCount() {
+        // zone awareness is enabled and zone "b" is fully excluded from allocation via the cluster exclude filter
+        final Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.exclude.zone", "b")
+            .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        // 1 primary + 2 replicas = 3 copies of the shard
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .build();
+
+        // zone a has two nodes, zone c has one, and the excluded zone b has one
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("a1", singletonMap("zone", "a")))
+            .add(newNode("a2", singletonMap("zone", "a")))
+            .add(newNode("c1", singletonMap("zone", "c")))
+            .add(newNode("b1", singletonMap("zone", "b")))
+            .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .nodes(nodes)
+                .build(),
+            strategy
+        );
+
+        // Because every node in zone b is excluded, awareness counts only zones {a, c}, so the per-zone cap is
+        // ceil(3/2) = 2. All three copies allocate onto the two remaining zones and nothing is left unassigned.
+        // Previously all three zones were counted (ceil(3/3) = 1) and the third copy would stay UNASSIGNED.
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(3));
+        assertThat(routingNodes.shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(routingNodes.node("b1").size(), equalTo(0));
+        assertThat(routingNodes.node("a1").size(), equalTo(1));
+        assertThat(routingNodes.node("a2").size(), equalTo(1));
+        assertThat(routingNodes.node("c1").size(), equalTo(1));
+    }
+
+    public void testAllZonesCountedWhenNothingExcluded() {
+        // same topology as the excluded-zone test but with no exclude filter: all three zones must still count
+        final Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .build();
+
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("a1", singletonMap("zone", "a")))
+            .add(newNode("a2", singletonMap("zone", "a")))
+            .add(newNode("c1", singletonMap("zone", "c")))
+            .add(newNode("b1", singletonMap("zone", "b")))
+            .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .nodes(nodes)
+                .build(),
+            strategy
+        );
+
+        // With nothing excluded, awareness counts all three zones {a, b, c}, so the per-zone cap is ceil(3/3) = 1.
+        // The three copies spread one per zone: zone a receives a single copy (not two), and zone b is used.
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(3));
+        assertThat(routingNodes.shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(routingNodes.node("a1").size() + routingNodes.node("a2").size(), equalTo(1));
+        assertThat(routingNodes.node("b1").size(), equalTo(1));
+        assertThat(routingNodes.node("c1").size(), equalTo(1));
+    }
+
+    public void testZoneStillCountedWhenOnlySomeOfItsNodesExcluded() {
+        // exclude a single node in zone a by id; zone a still has a non-excluded node, so zone a must keep counting
+        final Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put("cluster.routing.allocation.exclude._id", "a1")
+            .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        // 1 primary + 3 replicas = 4 copies of the shard
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
+            .build();
+
+        // zone a: a1 (excluded) and a2 (usable); zone b: three usable nodes
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("a1", singletonMap("zone", "a")))
+            .add(newNode("a2", singletonMap("zone", "a")))
+            .add(newNode("b1", singletonMap("zone", "b")))
+            .add(newNode("b2", singletonMap("zone", "b")))
+            .add(newNode("b3", singletonMap("zone", "b")))
+            .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .nodes(nodes)
+                .build(),
+            strategy
+        );
+
+        // Zone a keeps counting because a2 is not excluded, so awareness sees zones {a, b} and the per-zone cap is
+        // ceil(4/2) = 2. Only a2 is usable in zone a (1 copy) and zone b is capped at 2, so a fourth copy cannot be
+        // placed and stays UNASSIGNED. If zone a had been wrongly dropped, the cap would be ceil(4/1) = 4 and all
+        // four copies would fit, so this asserts we drop a value only when every one of its nodes is excluded.
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(3));
+        assertThat(routingNodes.shardsWithState(UNASSIGNED).size(), equalTo(1));
+        assertThat(routingNodes.node("a1").size(), equalTo(0));
+        assertThat(routingNodes.node("a2").size(), equalTo(1));
+        assertThat(routingNodes.node("b1").size() + routingNodes.node("b2").size() + routingNodes.node("b3").size(), equalTo(2));
+    }
 }
