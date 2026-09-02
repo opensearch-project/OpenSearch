@@ -16,6 +16,7 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -27,7 +28,9 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.translog.Translog;
@@ -41,6 +44,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -59,6 +63,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,7 +80,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -85,7 +92,8 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class))
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -136,6 +144,127 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    /**
+     * Verifies the end-to-end periodic flush trigger on a remote-store shard: with the uncommitted-segment-bytes
+     * threshold lowered to 1b, a refresh-driven segments upload publishes the accounting and the next write
+     * operation's periodic flush poll fires the async flush.
+     */
+    public void testPeriodicFlushOnUncommittedSegmentBytes() throws Exception {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(remoteStoreIndexSettings(0))
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+        assertBusy(() -> {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * End-to-end reproduction of an update-heavy workload with regular refreshes on a remote-store shard, where
+     * every successful segments upload suppresses the translog based flush condition and soft-deleted documents
+     * pile up unreclaimed. Asserts the full recovery chain through the uncommitted-segment-bytes condition:
+     * periodic flushes fire, the safe commit advances past the workload, and a non-flushing expunge-deletes merge
+     * is able to reclaim the tombstones.
+     */
+    public void testPeriodicFlushReclaimsSoftDeletesUnderUpdateHeavyWorkload() throws Exception {
+        final int docCount = 20;
+        final int rounds = 8;
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(remoteStoreIndexSettings(0))
+                // refreshes are driven manually by the workload below
+                .put("index.refresh_interval", "-1")
+                // do not make writes wait on the translog upload batching window
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms")
+                // let the primary's own peer-recovery retention lease follow the global checkpoint at test speed;
+                // otherwise the renewal gate (half the 12h lease period) keeps retention pinned at the initial
+                // checkpoint for the whole test regardless of commits
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "0ms")
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                // pin the (suppressed anyway) translog condition high so any observed periodic flush is attributable
+                // to the uncommitted-segment-bytes condition only
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "5kb")
+                // any segment with at least one reclaimable delete qualifies for the expunge-deletes merge below,
+                // independent of the randomized merge policy defaults
+                .put("index.merge.policy.expunge_deletes_allowed", "0.0")
+                // the random index template may set retention.operations up to 1000 which would retain the whole
+                // workload below the global checkpoint no matter how far the safe commit advances
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+
+        // overwrite the same document ids round after round; every round turns the previous round's documents into
+        // soft-deleted tombstones, and the refresh drives a remote segments upload
+        for (int round = 0; round < rounds; round++) {
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < docCount; i++) {
+                bulk.add(
+                    client().prepareIndex(INDEX_NAME)
+                        .setId(String.valueOf(i))
+                        .setSource("field", "value-" + round + "-" + randomAlphaOfLength(100))
+                );
+            }
+            assertFalse(bulk.get().hasFailures());
+            refresh(INDEX_NAME);
+        }
+
+        // the periodic flush condition is polled on write operations and the counter is republished on each
+        // successful upload, so nudge with write+refresh cycles until the flushes have carried the safe commit past
+        // the whole workload (the flush is async, so a single trip is not enough on its own)
+        final long maxSeqNoAfterWorkload = indexShard.seqNoStats().getMaxSeqNo();
+        assertBusy(() -> {
+            client().prepareIndex(INDEX_NAME).setId("0").setSource("field", randomAlphaOfLength(100)).get();
+            refresh(INDEX_NAME);
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
+            long committedCheckpoint = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            assertThat(committedCheckpoint, greaterThanOrEqualTo(maxSeqNoAfterWorkload));
+        }, 30, TimeUnit.SECONDS);
+
+        // without the fix the soft-deletes floor never moves off the initial commit and the deleted-docs count can
+        // never drop below the full tombstone pile -- so ANY reclamation proves the chain. Each retry keeps writing
+        // so the retention lease and the async flush pipeline keep advancing.
+        final long tombstonesCreated = (long) (rounds - 1) * docCount;
+        final AtomicInteger nudge = new AtomicInteger();
+        assertBusy(() -> {
+            client().prepareIndex(INDEX_NAME).setId("nudge-" + nudge.incrementAndGet()).setSource("field", "x").get();
+            refresh(INDEX_NAME);
+            assertEquals(
+                0,
+                client().admin().indices().prepareForceMerge(INDEX_NAME).setOnlyExpungeDeletes(true).setFlush(false).get().getFailedShards()
+            );
+            refresh(INDEX_NAME);
+            long deletedDocs = client().admin().indices().prepareStats(INDEX_NAME).get().getPrimaries().getDocs().getDeleted();
+            assertThat(
+                "deleted="
+                    + deletedDocs
+                    + " commitCkpt="
+                    + indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    + " gcp="
+                    + indexShard.getLastSyncedGlobalCheckpoint()
+                    + " leases="
+                    + indexShard.getRetentionLeases(),
+                deletedDocs,
+                lessThan(tombstonesCreated)
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {

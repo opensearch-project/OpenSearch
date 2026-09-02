@@ -1364,6 +1364,32 @@ public class MetadataCreateIndexService {
                 }
             }
         }
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+    }
+
+    /**
+     * Stamps the dynamic cluster-level fencing default ({@code cluster.remote_store.fencing.enabled}) into the final
+     * per-index setting at creation time, for remote-store-backed indices that do not set it explicitly. The index
+     * setting is final because the fence is the primary's write witness: toggling it on a live index would leave a
+     * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
+     * in here means flipping the cluster setting only affects indices created afterwards.
+     */
+    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+        final Settings current = settingsBuilder.build();
+        // Read the raw value rather than going through INDEX_REMOTE_STORE_ENABLED_SETTING.get(). That setting carries a
+        // validator which cross-checks index.replication.type, and this helper also runs from snapshot restore's
+        // override-settings step - where restoring a remote-store snapshot onto a document-replication index is a
+        // combination the restore path itself must reject, with a SnapshotRestoreException. Validating it here instead
+        // would pre-empt that with an IllegalArgumentException from a read that only ever wanted a boolean. Deciding
+        // whether to stamp a default is not this method's place to validate the settings it is handed.
+        final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
+        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        if (remoteStoreEnabled
+            && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
+            && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+        }
     }
 
     /**

@@ -1233,6 +1233,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
+     * Publishes the total size of segment bytes not yet referenced by the last commit point, computed from the
+     * post-refresh local segment file sizes. Engine-generic: the notion of "bytes since the last commit" is not
+     * remote-specific -- only the publisher (the remote segment upload path) is. The default is a no-op so that
+     * engines which never publish (e.g. {@link NRTReplicationEngine}, read-only engines) are correct by
+     * construction; {@link InternalEngine} overrides it to drive its uncommitted-segment-bytes flush condition.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     */
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap) {}
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
@@ -1774,9 +1785,23 @@ public abstract class Engine implements LifecycleAware, Closeable {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
+        return prepareDelete(id, null, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.Delete prepareDelete(
+        String id,
+        @Nullable String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
         long startTime = System.nanoTime();
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     /**
@@ -1907,6 +1932,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public static class Delete extends Operation {
 
         private final String id;
+        private final @Nullable String routing;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
@@ -1922,6 +1948,22 @@ public abstract class Engine implements LifecycleAware, Closeable {
             long ifSeqNo,
             long ifPrimaryTerm
         ) {
+            this(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, null);
+        }
+
+        public Delete(
+            String id,
+            Term uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            VersionType versionType,
+            Origin origin,
+            long startTime,
+            long ifSeqNo,
+            long ifPrimaryTerm,
+            @Nullable String routing
+        ) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
             assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             assert ifPrimaryTerm >= 0 : "ifPrimaryTerm [" + ifPrimaryTerm + "] must be non negative";
@@ -1929,6 +1971,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM)
                 : "cas operations are only allowed if origin is primary. get [" + origin + "]";
             this.id = Objects.requireNonNull(id);
+            this.routing = routing;
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
@@ -1944,7 +1987,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 Origin.PRIMARY,
                 System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                null
             );
         }
 
@@ -1959,13 +2003,21 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 template.origin(),
                 template.startTime(),
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                template.routing()
             );
         }
 
         @Override
         public String id() {
             return this.id;
+        }
+
+        /**
+         * Returns the routing value for this delete operation, or {@code null} if no custom routing was specified.
+         */
+        public @Nullable String routing() {
+            return this.routing;
         }
 
         @Override

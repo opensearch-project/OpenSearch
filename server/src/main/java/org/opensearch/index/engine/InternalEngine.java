@@ -37,6 +37,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -118,6 +119,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -160,6 +162,24 @@ public class InternalEngine extends Engine {
     protected final SoftDeletesPolicy softDeletesPolicy;
     protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
     protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
+
+    /**
+     * Size of segment bytes not yet referenced by the last commit point on a remote-store shard, published by the
+     * remote segment upload path after every successful segments sync (see RemoteStoreRefreshListener). Stamped with
+     * the commit generation it was computed against: a value whose generation does not match the current last commit
+     * is stale (e.g. right after a flush) and is ignored until the next sync republishes.
+     */
+    private volatile UncommittedSegmentBytes uncommittedSegmentBytes;
+
+    private static final class UncommittedSegmentBytes {
+        private final long bytes;
+        private final long committedInfosGeneration;
+
+        private UncommittedSegmentBytes(long bytes, long committedInfosGeneration) {
+            this.bytes = bytes;
+            this.committedInfosGeneration = committedInfosGeneration;
+        }
+    }
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
@@ -1173,7 +1193,8 @@ public class InternalEngine extends Engine {
                         delete.origin(),
                         delete.startTime(),
                         delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm()
+                        delete.getIfPrimaryTerm(),
+                        delete.routing()
                     );
 
                     advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
@@ -1257,7 +1278,7 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id(), delete.routing());
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.version);
@@ -1495,6 +1516,9 @@ public class InternalEngine extends Engine {
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
         }
+        if (shouldFlushOnUncommittedSegmentBytes()) {
+            return true;
+        }
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
@@ -1502,6 +1526,69 @@ public class InternalEngine extends Engine {
             localCheckpointOfLastCommit,
             config().getIndexSettings().getFlushThresholdSize().getBytes()
         );
+    }
+
+    /**
+     * Updates the uncommitted segment bytes accounting for this (remote-store) shard. Invoked by the remote segment
+     * upload path after a successful segments sync, passing the post-refresh local segment file sizes. The uncommitted
+     * bytes are computed as the total size of local segment files that are not referenced by the last commit point,
+     * which includes newly written segments as well as updated per-segment files (e.g. live docs and doc-values
+     * updates) of already committed segments. The value is stamped with the generation of the commit point it was
+     * computed against, so a commit implicitly invalidates it.
+     *
+     * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     */
+    @Override
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap) {
+        // the file set and the generation stamp are both taken from this single snapshot, so the published value is
+        // always internally consistent. If a flush lands between this snapshot and the publish below, the stamp no
+        // longer matches the new last commit and shouldFlushOnUncommittedSegmentBytes() rejects the value -- the
+        // race can only suppress a flush trigger until the next successful segments sync republishes, never cause
+        // a spurious flush.
+        final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
+        if (committedInfos == null) {
+            return;
+        }
+        final Set<String> committedFiles;
+        try {
+            committedFiles = new HashSet<>(committedInfos.files(false));
+        } catch (IOException e) {
+            // best-effort accounting, a failed computation must never affect the segment upload path
+            logger.debug("failed to compute uncommitted segment bytes", e);
+            return;
+        }
+        long bytes = 0;
+        for (Map.Entry<String, Long> file : localSegmentsSizeMap.entrySet()) {
+            if (committedFiles.contains(file.getKey()) == false && file.getKey().startsWith(IndexFileNames.SEGMENTS) == false) {
+                bytes += file.getValue();
+            }
+        }
+        uncommittedSegmentBytes = new UncommittedSegmentBytes(bytes, committedInfos.getGeneration());
+    }
+
+    /**
+     * Checks whether the uncommitted segment bytes published by the remote segment upload path breach
+     * {@link IndexSettings#INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING}. Only ever
+     * effective on remote-store shards since the accounting is only published there, and only when
+     * {@link IndexSettings#INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING} is enabled; the stamped
+     * commit generation must match the current last commit so that stale values (e.g. right after a flush, before the
+     * next successful segments sync) can never re-trigger a flush.
+     */
+    private boolean shouldFlushOnUncommittedSegmentBytes() {
+        final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
+        if (current == null) {
+            return false;
+        }
+        final IndexSettings indexSettings = config().getIndexSettings();
+        if (indexSettings.isFlushOnUncommittedSegmentsEnabled() == false) {
+            return false;
+        }
+        // snapshot the volatile once so the null check and the generation comparison observe the same commit point
+        final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
+        // the threshold setting has a hard 1-byte minimum, so current.bytes >= threshold already implies bytes > 0
+        return committedInfos != null
+            && current.bytes >= indexSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes()
+            && current.committedInfosGeneration == committedInfos.getGeneration();
     }
 
     @Override

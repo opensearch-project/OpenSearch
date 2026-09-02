@@ -423,7 +423,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * types now promote via {@link #activeReplicaWithOldestVersion(ShardId)}.
      */
     @Deprecated
-    @DeprecatedApi(since = "3.8.0", forRemoval = "4.0.0")
+    @DeprecatedApi(since = "3.9.0", forRemoval = "4.0.0")
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
