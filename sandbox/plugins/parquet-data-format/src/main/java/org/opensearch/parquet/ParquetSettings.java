@@ -118,12 +118,9 @@ public final class ParquetSettings {
      * ceiling and the upper bound accepted for either batch-size setting, so the ceiling can only
      * be lowered.
      * <p>
-     * Growing a window only amortises the fixed per-batch cost (one native call, its out-parameter
-     * validation, one page lookup) over more rows; the Arrow decode itself is per-row. That benefit
-     * flattens out well below this value, and a window is separately clamped to the data page
-     * holding the requested row, so raising it has no measured upside. Mirrored by
-     * {@code BATCH_SIZE_HARD_LIMIT} in {@code doc_values_cursor.rs}, which re-checks the value
-     * arriving over FFM.
+     * 8192 matches the batch size the DataFusion engine uses elsewhere in this plugin
+     * ({@code datafusion_query_config.rs}). Mirrored by {@code BATCH_SIZE_HARD_LIMIT} in
+     * {@code doc_values_cursor.rs}, which re-checks the value arriving over FFM.
      */
     public static final int DEFAULT_DOCVALUES_MAX_BATCH_SIZE = 8_192;
 
