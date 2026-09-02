@@ -16,9 +16,12 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.WorkerFragmentExecutionAction;
+import org.opensearch.analytics.exec.action.WorkerFragmentRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.indices.IndicesService;
@@ -129,8 +132,52 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Both streaming handlers must drain on the analytics stream pool, never on the caller's thread.
+     *
+     * <p>{@link ThreadPool.Names#SAME} here means the drain runs on the Flight transport's per-stream
+     * virtual thread, where feeding a batch into the native sink leaves a native frame on the stack,
+     * pins the carrier, and deadlocks the node against the Netty allocator locks. The two
+     * {@code executor()} overrides are one line each and reverting either is invisible in a diff,
+     * which is why this asserts on the handler the real dispatch path builds. See
+     * {@link NativeCallPlatformThreadTests} for the pool's own properties.
+     */
+    public void testStreamHandlersDrainOnTheStreamPool() {
+        StreamingResponseListener<FragmentExecutionArrowResponse> noop = new StreamingResponseListener<>() {
+            @Override
+            public boolean onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+                return true;
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+
+        assertEquals(
+            "fragment-execution drain must be dispatched to the analytics stream pool",
+            AnalyticsPlugin.STREAM_THREAD_POOL_NAME,
+            captureHandler(FragmentExecutionAction.NAME, noop).executor()
+        );
+        assertEquals(
+            "worker-fragment drain must be dispatched to the analytics stream pool",
+            AnalyticsPlugin.STREAM_THREAD_POOL_NAME,
+            captureHandler(WorkerFragmentExecutionAction.NAME, noop).executor()
+        );
+    }
+
     /** Builds and registers the service, captures the streaming handler passed to sendChildRequest. */
     private TransportResponseHandler<FragmentExecutionArrowResponse> captureHandler(
+        StreamingResponseListener<FragmentExecutionArrowResponse> listener
+    ) {
+        return captureHandler(FragmentExecutionAction.NAME, listener);
+    }
+
+    /**
+     * As {@link #captureHandler(StreamingResponseListener)}, for whichever streaming dispatch sends
+     * {@code actionName}: {@link FragmentExecutionAction} or {@link WorkerFragmentExecutionAction}.
+     */
+    private TransportResponseHandler<FragmentExecutionArrowResponse> captureHandler(
+        String actionName,
         StreamingResponseListener<FragmentExecutionArrowResponse> listener
     ) {
         StreamTransportService transportService = mock(StreamTransportService.class);
@@ -155,27 +202,30 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
         );
         // Capture the handler instead of actually sending.
         doAnswer(inv -> null).when(transportService)
-            .sendChildRequest(
-                any(Transport.Connection.class),
-                eq(FragmentExecutionAction.NAME),
-                any(),
-                any(),
-                any(),
-                handlerCaptor.capture()
-            );
+            .sendChildRequest(any(Transport.Connection.class), eq(actionName), any(), any(), any(), handlerCaptor.capture());
 
         // dispatch looks up the connection directly from the passed DiscoveryNode (no cluster-state re-resolution).
         DiscoveryNode target = mock(DiscoveryNode.class);
         when(target.getId()).thenReturn("node-1");
         when(transportService.getConnection(target)).thenReturn(mock(Transport.Connection.class));
-        service.dispatchFragmentStreaming(
-            mock(FragmentExecutionRequest.class),
-            target,
-            listener,
-            mock(Task.class),
-            new PendingExecutions(1),
-            null
-        );
+        if (WorkerFragmentExecutionAction.NAME.equals(actionName)) {
+            service.dispatchWorkerFragmentStreaming(
+                mock(WorkerFragmentRequest.class),
+                target,
+                listener,
+                mock(Task.class),
+                new PendingExecutions(1)
+            );
+        } else {
+            service.dispatchFragmentStreaming(
+                mock(FragmentExecutionRequest.class),
+                target,
+                listener,
+                mock(Task.class),
+                new PendingExecutions(1),
+                null
+            );
+        }
 
         List<TransportResponseHandler<FragmentExecutionArrowResponse>> handlers = handlerCaptor.getAllValues();
         assertFalse("handler must have been dispatched to sendChildRequest", handlers.isEmpty());

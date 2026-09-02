@@ -25,10 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Per-query context — immutable config (DAG, executor, parent task) + lazy per-query
- * resources (Arrow buffer allocator, virtual-thread executor for LOCAL tasks).
+ * resources (Arrow buffer allocator, platform thread-per-task executor for LOCAL tasks).
  *
  * <p>The phased MPP dispatcher ({@code UnifiedDispatch}) needs a derived context pointing at
  * a different DAG (e.g. the broadcast-free residual after build capture) that still shares this
@@ -332,7 +333,7 @@ public class QueryContext {
         this.importStagingAllocator = importStagingAllocator;
     }
 
-    /** Lazy per-query virtual-thread executor for LOCAL tasks. Shared across phased contexts. */
+    /** Lazy per-query thread-per-task executor for LOCAL tasks. Shared across phased contexts. */
     public ExecutorService localTaskExecutor() {
         ExecutorService exec = sharedState.localTaskExecutor;
         if (exec == null) {
@@ -342,14 +343,35 @@ public class QueryContext {
                     if (sharedState.executorClosed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
-                    exec = Executors.newThreadPerTaskExecutor(
-                        Thread.ofVirtual().name("analytics-local-task-" + dag.queryId() + "-", 0).factory()
-                    );
+                    exec = Executors.newThreadPerTaskExecutor(localTaskThreadFactory(dag.queryId()));
                     sharedState.localTaskExecutor = exec;
                 }
             }
         }
         return exec;
+    }
+
+    /**
+     * Platform — deliberately NOT virtual — threads for local tasks.
+     *
+     * <p>A local task executes a fragment through the native backend, and the Arrow C Data Interface
+     * runs its release callbacks synchronously on whichever thread drops an exported array. That
+     * leaves a native frame on the stack, which pins a virtual thread to its carrier; if it then
+     * blocks on a Netty allocator lock it never yields the carrier, and once every carrier is pinned
+     * the thread holding the lock can never be scheduled — the node deadlocks at 0% CPU.
+     *
+     * <p>Thread-per-task is still right: local tasks are per-stage, not per-batch, so the count is
+     * small and bounded by the query's plan rather than by its data volume.
+     *
+     * <p>{@code daemon(true)} is not optional. Virtual threads are always daemon, so switching to
+     * platform threads silently made the daemon flag inherited from whichever thread submits the
+     * first task ({@code newThreadPerTaskExecutor} calls {@code newThread} on the submitter). A
+     * non-daemon local task stuck in a native call would then keep the JVM from exiting. Hand-rolled
+     * rather than {@code OpenSearchExecutors.daemonThreadFactory} so the name can carry the query id,
+     * which is what makes these threads attributable in a jstack of a wedged node.
+     */
+    static ThreadFactory localTaskThreadFactory(String queryId) {
+        return Thread.ofPlatform().daemon(true).name("analytics-local-task-" + queryId + "-", 0).factory();
     }
 
     boolean ownsAllocator() {
@@ -396,7 +418,13 @@ public class QueryContext {
             if (sharedState.executorClosed) return;
             sharedState.executorClosed = true;
             if (sharedState.localTaskExecutor != null) {
-                sharedState.localTaskExecutor.shutdown();
+                // shutdownNow, not shutdown: these are platform threads now, so a straggler still
+                // running here costs an OS thread and its 1MB stack for the node's lifetime — and we
+                // are about to drop the last reference to the executor, so nothing could ever reach
+                // it again. Interrupting surfaces the straggler instead of silently stranding it.
+                // Nothing is dropped by cancelling queued work: a thread-per-task executor has no
+                // queue, so every submitted task is already running.
+                sharedState.localTaskExecutor.shutdownNow();
                 sharedState.localTaskExecutor = null;
             }
         }

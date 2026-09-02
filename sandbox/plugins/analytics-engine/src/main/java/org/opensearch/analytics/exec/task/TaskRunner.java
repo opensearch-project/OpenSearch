@@ -13,7 +13,7 @@ import org.opensearch.core.action.ActionListener;
 
 /**
  * Per-stage transport mechanism for a {@link StageTask} variant. Arrow Flight stream
- * for shard fragments, virtual-thread executor for local work, shuffle / broadcast
+ * for shard fragments, per-query local-task executor for local work, shuffle / broadcast
  * variants in the future. A stage owns both its task variant and its runner, so
  * dispatch is statically typed end-to-end.
  *
