@@ -395,6 +395,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         String ruleId = "wlm_nested_rule";
         String indexName = "orders";
         String lookupIndex = "lookupidx";
+        String secondLookupIndex = "lookupidx2";
 
         setWlmMode("enabled");
         // node_limit=1 is the case that exposes re-entrancy: the outer search holds the group's only permit while its
@@ -427,6 +428,18 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             .setSource(Map.of("uid", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        // A second rule-free lookup index, so a terms lookup can nest inside a terms lookup and reach depth 2.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(secondLookupIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        client().prepareIndex(secondLookupIndex)
+            .setId("1")
+            .setSource(Map.of("uid", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         assertBusy(() -> {
             int before = getCompletions(workloadGroupId);
@@ -445,6 +458,28 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             .actionGet(TIMEOUT);
         assertEquals(RestStatus.OK, response.status());
         assertEquals("a nested rewrite search must not be counted as throttled", throttledBefore, getThrottled(workloadGroupId));
+
+        // Two levels deep. A terms lookup whose subquery is itself a terms lookup issues a nested search from inside a
+        // nested search, and each level can only see the ancestor chain it was handed. The middle request holds no permit of
+        // its own -- it was exempted -- so unless an exempt request still advertises the bucket it is covered by, the
+        // grandchild finds no covered ancestor, takes a fresh permit, and 429s the single request that spawned it.
+        TermsLookup innerLookup = new TermsLookup(secondLookupIndex, null, "uid", org.opensearch.index.query.QueryBuilders.matchAllQuery());
+        TermsLookup outerLookup = new TermsLookup(
+            lookupIndex,
+            null,
+            "uid",
+            org.opensearch.index.query.QueryBuilders.termsLookupQuery("uid", innerLookup)
+        );
+        SearchResponse twoLevel = client().prepareSearch(indexName)
+            .setQuery(org.opensearch.index.query.QueryBuilders.termsLookupQuery("field", outerLookup))
+            .execute()
+            .actionGet(TIMEOUT);
+        assertEquals(RestStatus.OK, twoLevel.status());
+        assertEquals(
+            "no level of one request's own nested rewrite may be counted as throttled",
+            throttledBefore,
+            getThrottled(workloadGroupId)
+        );
 
         // The exemption must be scoped to nesting only -- a genuinely concurrent second request still gets a 429,
         // otherwise the fix would have silently disabled throttling for this group.

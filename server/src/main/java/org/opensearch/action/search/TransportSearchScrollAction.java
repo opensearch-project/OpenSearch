@@ -45,8 +45,6 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
-import java.util.Set;
-
 /**
  * Perform the search scroll
  *
@@ -88,11 +86,12 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
                 // A scroll continuation occupies the node like any other search, so it draws on the same node-level
                 // budget. Exempting it would make node_limit evadable by appending ?scroll= to a query.
-                // A scroll continuation issues no nested coordinator search of its own, so there is no ancestor bucket
-                // to inherit; see TransportSearchAction#bucketsHeldByAncestors.
-                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, Set.of());
+                // A scroll continuation arrives as a fresh client request with no parent task, and issues no nested
+                // coordinator search of its own, so there is nothing to inherit; see
+                // TransportSearchAction#parentAlreadyCounted.
+                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, false);
                 if (throttlePermit != null) {
-                    throttledListener = ActionListener.runAfter(throttledListener, throttlePermit::close);
+                    throttledListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(throttledListener, throttlePermit);
                 }
             }
 

@@ -408,7 +408,7 @@ public class WorkloadGroupPersistenceService {
         // partial update that only changes the limit. Only an explicitly principal-keyed attribute is checked here; the
         // merged config is validated separately.
         String attribute = WorkloadGroupThrottleSettings.ATTRIBUTE.get(throttling);
-        if (attribute == null || attribute.isEmpty() || "group".equals(attribute)) {
+        if (attribute == null || attribute.isEmpty() || WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP.equals(attribute)) {
             return;
         }
         try {
@@ -418,7 +418,9 @@ public class WorkloadGroupPersistenceService {
                     "throttling attribute ["
                         + attribute
                         + "] needs a principal attribute provider (the security plugin) to be installed, otherwise the "
-                        + "limit can never be enforced. Use attribute [group] instead."
+                        + "limit can never be enforced. Use attribute ["
+                        + WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP
+                        + "] instead."
                 );
             }
         } catch (ResourceNotFoundException e) {

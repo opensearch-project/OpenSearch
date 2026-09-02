@@ -183,10 +183,16 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
     }
 
     public void testApplyTwiceOnOneThreadContextIsTolerated() {
-        // _msearch dispatches each sub-search through the filter chain on a single ThreadContext with no
-        // stashContext(), and ThreadContext.putHeader throws when the key is already present. The filter must therefore
-        // tolerate running more than once, otherwise every sub-request after the first fails. Carrying the principal on
-        // the task instead of in the thread context is what makes that safe, and gives each sub-request its own value.
+        // The filter can run more than once against one ThreadContext, and ThreadContext.putHeader throws when the key is
+        // already present -- so anything the filter writes there must tolerate a repeat, or the second run fails the
+        // request. Carrying the principal on the task instead is what makes that safe, and gives each sub-request its own
+        // value.
+        //
+        // Note the repeat is not the ordinary _msearch dispatch loop: TransportAction.execute takes
+        // taskManager.taskExecutionStarted(task) and closes it in a finally, which restores the request headers between
+        // sub-searches. It happens when a sub-search is dispatched from inside a previous one's response handling -- the
+        // queue drain once numRequests exceeds max_concurrent_searches -- where the sender's context, header included, is
+        // the one restored.
         Attribute principalAttr = new Attribute() {
             @Override
             public String getName() {
