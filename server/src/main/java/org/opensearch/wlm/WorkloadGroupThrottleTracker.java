@@ -97,7 +97,9 @@ public class WorkloadGroupThrottleTracker {
         return inFlightByBucket.size();
     }
 
-    // Wraps release in a one-shot guard so a double close (e.g. onRequestEnd and onRequestFailure) decrements once.
+    // Wraps release in a one-shot guard so a double close decrements once. No wired path closes twice today -- the permit
+    // is closed from exactly one place, the listener wrapper in WorkloadGroupService -- so this is defence in depth
+    // against a listener that gets notified more than once, which would otherwise free a slot the request still holds.
     private Releasable releaseOnce(String bucketKey, AtomicInteger counter) {
         AtomicBoolean released = new AtomicBoolean(false);
         return () -> {
