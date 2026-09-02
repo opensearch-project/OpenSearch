@@ -85,10 +85,24 @@ public class CollapseContext {
      * @throws IllegalStateException if field type is not keyword or numeric
      */
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
+        return createTopDocs(sort, topN, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Creates a CollapsingTopDocsCollector for field collapsing without search_after support.
+     *
+     * @param sort               The sort order for collapsed groups
+     * @param topN               Maximum number of collapsed groups to collect
+     * @param totalHitsThreshold The total hit count up to which an accurate count is required.
+     *                           Once exceeded the collector may set a minimum competitive score.
+     * @return CollapsingTopDocsCollector instance based on field type
+     * @throws IllegalStateException if field type is not keyword or numeric
+     */
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, int totalHitsThreshold) {
         if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, totalHitsThreshold);
         } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, totalHitsThreshold);
         } else {
             throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
         }
@@ -104,10 +118,25 @@ public class CollapseContext {
      * @throws IllegalStateException if field type is not keyword or numeric
      */
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter) {
+        return createTopDocs(sort, topN, searchAfter, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Creates a CollapsingTopDocsCollector for field collapsing with search_after support.
+     *
+     * @param sort               The sort order for collapsed groups (must match collapse field for search_after)
+     * @param topN               Maximum number of collapsed groups to collect
+     * @param searchAfter        The last sort value from previous page for pagination
+     * @param totalHitsThreshold The total hit count up to which an accurate count is required.
+     *                           Once exceeded the collector may set a minimum competitive score.
+     * @return CollapsingTopDocsCollector instance based on field type
+     * @throws IllegalStateException if field type is not keyword or numeric
+     */
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter, int totalHitsThreshold) {
         if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter, totalHitsThreshold);
         } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter);
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter, totalHitsThreshold);
         } else {
             throw new IllegalStateException(
                 "unsupported type for collapse field " + fieldName + ", only keywords and numbers are accepted"
