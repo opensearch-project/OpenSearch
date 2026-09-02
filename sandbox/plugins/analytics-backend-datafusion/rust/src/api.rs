@@ -1605,7 +1605,7 @@ fn derive_schema_from_partial_plan(
     use datafusion::prelude::SessionContext;
     use datafusion_substrait::extensions::Extensions;
     use datafusion_substrait::logical_plan::consumer::{
-        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+        from_substrait_named_struct, DefaultSubstraitConsumer,
     };
     use prost::Message;
     use substrait::proto::{read_rel::ReadType, Plan};
@@ -1693,7 +1693,9 @@ fn derive_schema_from_partial_plan(
         })
         .unwrap_or_default();
 
-    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let logical_plan = futures::executor::block_on(
+        crate::substrait_consumer::from_substrait_plan(&session_state, &plan),
+    )?;
     let physical_plan =
         futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 

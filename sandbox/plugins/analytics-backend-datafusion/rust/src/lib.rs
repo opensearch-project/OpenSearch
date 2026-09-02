@@ -50,6 +50,7 @@ pub mod scalar_to_list_adapter;
 pub mod schema_coerce;
 pub mod session_context;
 pub mod shard_table_provider;
+pub mod substrait_consumer;
 
 pub mod native_node_stats;
 pub mod scoped_index_optimizer;

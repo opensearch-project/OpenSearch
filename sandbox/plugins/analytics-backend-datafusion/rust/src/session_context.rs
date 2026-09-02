@@ -580,7 +580,6 @@ pub async fn prepare_partial_plan(
     handle: &mut SessionContextHandle,
     substrait_bytes: &[u8],
 ) -> Result<(), datafusion::common::DataFusionError> {
-    use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
     use prost::Message;
     use substrait::proto::Plan;
 
@@ -592,7 +591,8 @@ pub async fn prepare_partial_plan(
             e
         ))
     })?;
-    let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
 
