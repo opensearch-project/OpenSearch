@@ -333,12 +333,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO
             && unassignedInfo.getNumFailedAllocations() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-            // A primary recovering from the remote store is an unexceptional, converging state: the data is
-            // durable and hydration is in flight (the auto-restore of a primary with no surviving copy on any
-            // live node, or a manual _remotestore/_restore of a RED index). Reporting it YELLOW like a snapshot
-            // restore - rather than RED - is what distinguishes "recovering without operator action" from "data
-            // unavailable, waiting for a node that may never return".
-                || recoveryType == RecoverySource.Type.REMOTE_STORE
+            // REMOTE_STORE is deliberately NOT in this list: a primary hydrating from the remote store cannot
+            // serve queries until recovery completes, so reporting it YELLOW would overstate availability. It
+            // stays RED while unassigned/initializing and converges to GREEN without operator action. Revisit
+            // when warm/searchable-remote shards can serve queries directly off the remote store mid-hydration.
                 || recoveryType == RecoverySource.Type.SNAPSHOT)) {
             return ClusterHealthStatus.YELLOW;
         } else {

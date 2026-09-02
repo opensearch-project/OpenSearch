@@ -184,22 +184,27 @@ public abstract class BaseGatewayShardAllocator {
         if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
             return false;
         }
-        // Raw reads rather than Setting#get: get() re-runs the setting validators, and this guard must DECLINE on
-        // inconsistent metadata (e.g. auto_restore without fencing), never throw inside the reroute path.
+        // Raw VALUE reads rather than Setting#get: get() re-runs the setting validators, and this guard must DECLINE
+        // on inconsistent metadata (e.g. auto_restore without fencing), never throw inside the reroute path. The KEYS
+        // come from the Setting constants themselves, so a setting rename cannot silently detach this guard from the
+        // settings the operator actually toggles.
         final Settings indexSettings = indexMetadata.getSettings();
-        if (indexSettings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
-            || indexSettings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false) == false
-            || indexSettings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, false) == false) {
+        if (indexSettings.getAsBoolean(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), false) == false
+            || indexSettings.getAsBoolean(IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.getKey(), false) == false
+            || indexSettings.getAsBoolean(IndexMetadata.INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING.getKey(), false) == false) {
             return false;
         }
+        // As on the manual restore path (RemoteStoreRestoreService), this IndexId is unrelated to snapshot restore,
+        // so the ctor without a pathType is used: the remote path layout is resolved from the index's remote store
+        // custom metadata by the directory factories, never from the recovery source's IndexId.
         final RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
             UUIDs.randomBase64UUID(),
             indexMetadata.getCreationVersion(),
             new IndexId(shardRouting.getIndexName(), indexMetadata.getIndexUUID(), IndexId.DEFAULT_SHARD_PATH_TYPE)
         );
         // A fresh UnassignedInfo with the original reason and a zero failure count: the conversion is not a failed
-        // allocation, and keeping numFailedAllocations at 0 with a non-DECIDERS_NO status is what lets
-        // ClusterShardHealth report the initializing restore as YELLOW rather than RED.
+        // allocation. Health stays RED while the restore hydrates (a hydrating primary cannot serve queries; see
+        // ClusterShardHealth#getInactivePrimaryHealth) and converges to GREEN without operator action.
         final UnassignedInfo unassignedInfo = new UnassignedInfo(
             shardRouting.unassignedInfo().getReason(),
             "auto-restoring from remote store: no valid local copy on any live node [" + shardRouting.unassignedInfo().getMessage() + "]",

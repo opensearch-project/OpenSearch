@@ -203,10 +203,9 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
         final ShardRouting converted = allocation.routingNodes().unassigned().iterator().next();
         assertThat(converted.recoverySource().getType(), equalTo(RecoverySource.Type.REMOTE_STORE));
         assertThat(converted.unassignedInfo().getNumFailedAllocations(), equalTo(0));
-        assertThat(
-            ClusterShardHealth.getInactivePrimaryHealth(converted),
-            equalTo(org.opensearch.cluster.health.ClusterHealthStatus.YELLOW)
-        );
+        // Health deliberately stays RED while the restore hydrates: the primary cannot serve queries until it
+        // starts, so YELLOW would overstate availability. It converges to GREEN without operator action.
+        assertThat(ClusterShardHealth.getInactivePrimaryHealth(converted), equalTo(org.opensearch.cluster.health.ClusterHealthStatus.RED));
     }
 
     /**

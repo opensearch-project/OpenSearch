@@ -197,11 +197,13 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
     }
 
     /**
-     * An inactive primary recovering from the remote store reports YELLOW, not RED: the data is durable and hydration
-     * is converging without operator action - the auto-restore of a lost zero-replica primary, or a manual
-     * _remotestore/_restore of a RED index. RED remains the parked no-valid-copy state.
+     * An inactive primary recovering from the remote store deliberately reports RED, not YELLOW: a hydrating primary
+     * cannot serve queries until recovery completes, so YELLOW would overstate availability - even though the data is
+     * durable and the restore (auto-restore of a primary with no surviving copy, or a manual _remotestore/_restore)
+     * converges without operator action. Revisit when warm/searchable-remote shards can serve queries directly off
+     * the remote store mid-hydration.
      */
-    public void testRemoteStoreRestorePrimaryIsYellow() {
+    public void testRemoteStoreRestorePrimaryIsRedUntilStarted() {
         RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
             UUID.randomUUID().toString(),
             Version.CURRENT,
@@ -223,9 +225,9 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
                 Collections.emptySet()
             )
         );
-        assertEquals(ClusterHealthStatus.YELLOW, ClusterShardHealth.getInactivePrimaryHealth(unassignedRemoteRestore));
+        assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getInactivePrimaryHealth(unassignedRemoteRestore));
 
-        // a failed allocation or a deciders-refused shard stays RED even with a remote-store source
+        // a failed allocation stays RED as well, with or without a remote-store source
         ShardRouting failedOnce = ShardRouting.newUnassigned(
             new ShardId(new Index("test", UUID.randomUUID().toString()), 0),
             true,

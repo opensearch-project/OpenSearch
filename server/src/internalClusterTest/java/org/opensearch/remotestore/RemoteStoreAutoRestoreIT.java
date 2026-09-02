@@ -49,7 +49,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
  * when no valid copy of a fenced, remote-backed primary survives on any live node - zero replicas losing its one
  * node, or N replicas losing every copy-holding node - the shard is re-pointed at a
  * {@link RecoverySource.RemoteStoreRecoverySource} inside the allocation round instead of being parked RED at
- * {@code NO_VALID_SHARD_COPY}, health reports YELLOW while the restore hydrates, and the restored primary serves every
+ * {@code NO_VALID_SHARD_COPY}, health stays RED while the restore hydrates (a hydrating primary cannot serve queries;
+ * YELLOW is deferred until warm/searchable-remote shards can serve queries directly off the remote store) and
+ * converges to GREEN without operator action, and the restored primary serves every
  * acknowledged operation. While an in-sync replica survives, promotion wins and the trigger stays out of the way. The
  * multi-writer safety of the sequence (a departed primary that is still alive behind a partition) rides on the fence
  * takeover verified in {@code FenceAutoRestore.tla} and shipped with the fence PR.
@@ -90,11 +92,13 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
      * Observes every published cluster state on the cluster manager. The restore window is precisely the states in
      * which the primary carries a {@code REMOTE_STORE} recovery source (set on conversion, cleared on shard start);
      * the observer records that the window was entered at all - proof the trigger fired rather than some other
-     * allocation path - and any state in that window whose computed index health was RED.
+     * allocation path - and any state in that window whose computed index health was NOT RED. A hydrating primary
+     * cannot serve queries, so health deliberately stays RED until the shard starts (see
+     * {@code ClusterShardHealth#getInactivePrimaryHealth}); YELLOW would overstate availability.
      */
     private final class RestoreWindowObserver implements ClusterStateListener, AutoCloseable {
         private final AtomicBoolean sawRemoteStoreRecoverySource = new AtomicBoolean();
-        private final List<String> redStatesDuringRestore = new CopyOnWriteArrayList<>();
+        private final List<String> nonRedStatesDuringRestore = new CopyOnWriteArrayList<>();
         private final ClusterService clusterService;
 
         RestoreWindowObserver() {
@@ -116,20 +120,23 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
             if (primary.recoverySource().getType() == RecoverySource.Type.REMOTE_STORE) {
                 sawRemoteStoreRecoverySource.set(true);
                 ClusterHealthStatus health = new ClusterIndexHealth(state.metadata().index(INDEX_NAME), indexRoutingTable).getStatus();
-                if (health == ClusterHealthStatus.RED) {
-                    redStatesDuringRestore.add("state version [" + state.version() + "] primary [" + primary + "]");
+                if (health != ClusterHealthStatus.RED) {
+                    nonRedStatesDuringRestore.add(
+                        "state version [" + state.version() + "] health [" + health + "] primary [" + primary + "]"
+                    );
                 }
             }
         }
 
-        void assertRestoredYellowNeverRed() {
+        void assertRestoredRedUntilStarted() {
             assertTrue(
                 "the allocator should have re-pointed the lost primary at a REMOTE_STORE recovery source",
                 sawRemoteStoreRecoverySource.get()
             );
             assertTrue(
-                "index health must be YELLOW, never RED, while the primary restores from the remote store: " + redStatesDuringRestore,
-                redStatesDuringRestore.isEmpty()
+                "index health must stay RED (a hydrating primary cannot serve queries) until the restored primary starts: "
+                    + nonRedStatesDuringRestore,
+                nonRedStatesDuringRestore.isEmpty()
             );
         }
 
@@ -148,9 +155,9 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
 
     /**
      * The headline flow: kill the node holding a fenced zero-replica primary and assert the shard auto-restores from
-     * the remote store - YELLOW (never RED) for every published cluster state in which the shard carries a
-     * {@code REMOTE_STORE} recovery source, GREEN once hydrated, all acknowledged operations present, and the index
-     * writable again.
+     * the remote store - RED (deliberately, a hydrating primary cannot serve queries) for every published cluster
+     * state in which the shard carries a {@code REMOTE_STORE} recovery source, GREEN once hydrated with no operator
+     * action, all acknowledged operations present, and the index writable again.
      */
     public void testAutoRestoreOnNodeLoss() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -166,7 +173,7 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
 
             ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
 
-            observer.assertRestoredYellowNeverRed();
+            observer.assertRestoredRedUntilStarted();
         }
 
         // Every acknowledged operation survived the node loss ...
@@ -369,7 +376,7 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
                 assertTrue("restored primary should be started, was " + primary, primary.started());
             }, 60, TimeUnit.SECONDS);
 
-            observer.assertRestoredYellowNeverRed();
+            observer.assertRestoredRedUntilStarted();
         }
 
         refresh(INDEX_NAME);
