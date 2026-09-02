@@ -85,6 +85,9 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
             .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_STORE_AUTO_RESTORE_ENABLED, autoRestoreEnabled)
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST.name())
+            // The trigger honors the node-left grace window before converting; zero it so these tests exercise
+            // immediate conversion. testAutoRestoreWaitsOutNodeLeftDelay covers the non-zero window explicitly.
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
     }
 
@@ -440,6 +443,53 @@ public class RemoteStoreAutoRestoreIT extends RemoteStoreBaseIntegTestCase {
         refresh(INDEX_NAME);
         assertBusy(
             () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    /**
+     * The trigger honors the node-left grace window: with a non-zero
+     * {@code index.unassigned.node_left.delayed_timeout}, the conversion is declined while the delay marker is live
+     * (so a bouncing node can rejoin and recover its local copy - a converted primary has no rejoin-cancellation
+     * path today), and fires on the reroute {@code DelayedAllocationService} schedules once the window expires.
+     */
+    public void testAutoRestoreWaitsOutNodeLeftDelay() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        Settings indexSettings = Settings.builder()
+            .put(autoRestoreIndexSettings(0, true))
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(15))
+            .build();
+        createIndex(INDEX_NAME, indexSettings);
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 4), true, INDEX_NAME);
+        String primaryNode = primaryNodeName(INDEX_NAME);
+
+        try (RestoreWindowObserver observer = new RestoreWindowObserver()) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+
+            // Wait for the node-left state to apply, then assert the shard is parked with its EXISTING_STORE source
+            // and a live delay marker. Deterministic: the conversion cannot legally happen before the 15s window
+            // expires, and this assertBusy caps at 10s.
+            assertBusy(() -> {
+                ClusterState state = client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
+                ShardRouting primary = state.routingTable().index(INDEX_NAME).shard(0).primaryShard();
+                assertTrue("primary should be parked during the node-left grace window, was " + primary, primary.unassigned());
+                assertEquals(RecoverySource.Type.EXISTING_STORE, primary.recoverySource().getType());
+                assertTrue("the node-left delay marker should be live", primary.unassignedInfo().isDelayed());
+            }, 10, TimeUnit.SECONDS);
+            assertFalse(observer.sawRemoteStoreRecoverySource.get());
+
+            // Once the window expires, DelayedAllocationService's reroute clears the marker and the trigger fires.
+            ensureGreen(TimeValue.timeValueSeconds(60), INDEX_NAME);
+            observer.assertRestoredRedUntilStarted();
+        }
+
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
             30,
             TimeUnit.SECONDS
         );

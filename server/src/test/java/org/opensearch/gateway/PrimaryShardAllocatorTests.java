@@ -45,6 +45,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
@@ -260,6 +261,70 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             allocation.routingNodes().unassigned().ignored().get(0).recoverySource().getType(),
             equalTo(RecoverySource.Type.EXISTING_STORE)
         );
+    }
+
+    /**
+     * The trigger honors the node-left grace window ({@code index.unassigned.node_left.delayed_timeout}): while the
+     * delay marker set at node-left is live, the conversion is declined so a bouncing node can rejoin and reclaim
+     * its local copy. Prevention is the primary's only protection today - the rejoin cancellation machinery
+     * ({@code ReplicaShardAllocator#processExistingRecoveries}) covers replicas only, since historically an
+     * initializing primary WAS the only copy and there was nothing to cancel in favor of. The flag is cleared by
+     * {@code AllocationService#removeDelayMarkers} on the reroute {@code DelayedAllocationService} schedules at
+     * expiry, after which the conversion proceeds (the cleared-flag path is what
+     * {@link #testAutoRestoreConvertsNoValidShardCopyToRemoteStoreRecovery} exercises).
+     */
+    public void testAutoRestoreWaitsOutNodeLeftDelay() {
+        final Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT).put(autoRestoreEligibleSettings()))
+                    .state(IndexMetadata.State.OPEN)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putInSyncAllocationIds(shardId.id(), Sets.newHashSet("in-sync-id"))
+            )
+            .build();
+        // The unassigned primary exactly as disassociateDeadNodes leaves it when the index carries a non-zero
+        // delayed_timeout: NODE_LEFT with a live delay marker. (Constructed directly because ShardRouting forbids
+        // the non-delayed -> delayed transition via updateUnassigned.)
+        final ShardRouting delayedPrimary = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                "node_left [node1]",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                true,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+        final RoutingTable routingTable = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(shardId.getIndex()).addShard(delayedPrimary))
+            .build();
+        final ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        final RoutingAllocation allocation = new RoutingAllocation(
+            yesAllocationDeciders(),
+            new RoutingNodes(state, false),
+            state,
+            null,
+            null,
+            System.nanoTime()
+        );
+        testAllocator.addData(node1, "stale-id", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        final ShardRouting parked = allocation.routingNodes().unassigned().ignored().get(0);
+        assertThat(parked.recoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
+        assertTrue("the delay marker must survive the declined conversion", parked.unassignedInfo().isDelayed());
     }
 
     /**

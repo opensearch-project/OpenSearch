@@ -156,6 +156,9 @@ public abstract class BaseGatewayShardAllocator {
      * is what excludes a resize (shrink/split/clone) target mid-{@code LOCAL_SHARDS}-recovery, whose remote store is
      * still empty and whose restore would lose the resize data, and a snapshot-restore target, which carries a
      * {@code SNAPSHOT} source and its own retry semantics.</li>
+     * <li><b>Node-left delay expired.</b> The conversion waits out {@code index.unassigned.node_left.delayed_timeout}
+     * so a bouncing node can rejoin and recover its local copy - once converted there is no way back, since the
+     * rejoin cancellation machinery only covers replicas.</li>
      * <li><b>Index {@code OPEN} only.</b> A closed index acknowledges nothing and may be mid-in-place-snapshot-restore;
      * its lifecycle operations own the shard.</li>
      * <li><b>Fencing required.</b> The trigger fires on the cluster manager's membership view; the departed primary
@@ -178,6 +181,19 @@ public abstract class BaseGatewayShardAllocator {
             return false;
         }
         if (shardRouting.primary() == false || shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
+            return false;
+        }
+        // Honor the node-left grace window (index.unassigned.node_left.delayed_timeout): while the delay marker set
+        // at node-left is live, decline the conversion so a bouncing node can rejoin and reclaim its local copy.
+        // Today only replicas get the rejoin cancellation path (ReplicaShardAllocator#processExistingRecoveries ->
+        // cancelExistingRecoveryForBetterMatch) - primaries never did, because historically an initializing primary
+        // WAS the only copy, so there was nothing to cancel in favor of. A remote-store hydration changes that (the
+        // durable copy is the remote store), making primary-side cancellation feasible future work; until it exists,
+        // this gate is the only protection, since a conversion cannot be reclaimed once made and the rejoined copy
+        // is dropped as stale. No extra scheduling is needed here: DelayedAllocationService already schedules a
+        // reroute at expiry for any delayed unassigned shard, and AllocationService#removeDelayMarkers clears the
+        // flag on that reroute, which re-runs this decision.
+        if (shardRouting.unassignedInfo().isDelayed()) {
             return false;
         }
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
