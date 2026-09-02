@@ -327,6 +327,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (disableObjectsNode != null) {
                 parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
             }
+            // Same map-iteration-order reason: parse dynamic first so it's set before the check below runs.
+            Object dynamicNode = node.remove("dynamic");
+            if (dynamicNode != null) {
+                parseObjectOrDocumentTypeProperties("dynamic", dynamicNode, parserContext, builder);
+            }
             Object compositeField = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -345,6 +350,22 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // after parsing all other properties
             if (compositeField != null) {
                 parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
+            }
+            // Composite (pluggable data format) constraint: an undeclared nested leaf can silently vanish
+            // from Parquet while still reaching Lucene's coarse projection, diverging between formats.
+            // Requiring dynamic:false/strict keeps it from reaching either format at all — declare every
+            // leaf explicitly in [properties] instead.
+            if (builder.nested.isNested()
+                && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings())
+                && builder.dynamic != Dynamic.FALSE
+                && builder.dynamic != Dynamic.STRICT) {
+                throw new MapperParsingException(
+                    "Nested field ["
+                        + name
+                        + "] must set [dynamic: false] or [dynamic: strict] on composite (pluggable data "
+                        + "format) indices; a dynamically-mapped leaf inside nested cannot be reliably "
+                        + "represented in this storage mode."
+                );
             }
             return builder;
         }

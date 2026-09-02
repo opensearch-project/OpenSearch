@@ -28,7 +28,10 @@ import static org.hamcrest.Matchers.containsString;
  *       "index" key at all must keep working.);</li>
  *   <li>a plain {@code object} sub-field is rejected, whether written explicitly (a {@code properties}
  *       block), implicitly (a bare {@code properties} block with no {@code type}), or via a dotted
- *       field name that implicitly builds the same intermediate object wrapper.</li>
+ *       field name that implicitly builds the same intermediate object wrapper; and</li>
+ *   <li>a nested field itself must set {@code dynamic: false} or {@code dynamic: strict} — otherwise a
+ *       dynamically-discovered leaf can silently vanish from Parquet while still reaching Lucene,
+ *       diverging between formats.</li>
  * </ol>
  * Both are gated on {@link org.opensearch.index.mapper.Mapper#isPluggableDataFormatEnabled} so that
  * vanilla (non-pluggable) indices keep their existing behavior — the vanilla cases below assert the
@@ -42,9 +45,17 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
 
     /** Builds a {@code _doc} mapping with a single {@code nested} field {@code n} whose sole sub-field is supplied by the caller. */
     private XContentBuilder nestedWith(CheckedConsumer<XContentBuilder, IOException> subField) throws IOException {
+        return nestedWith(null, subField);
+    }
+
+    /** As above, additionally setting {@code n}'s own {@code dynamic} value (skipped if {@code null}). */
+    private XContentBuilder nestedWith(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> subField) throws IOException {
         return mapping(b -> {
             b.startObject("n");
             b.field("type", "nested");
+            if (dynamicValue != null) {
+                b.field("dynamic", dynamicValue);
+            }
             b.startObject("properties");
             subField.accept(b);
             b.endObject();
@@ -70,14 +81,11 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testObjectInsideNestedRejectedForPluggable() throws IOException {
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
-                b.startObject("obj").field("type", "object").startObject("properties");
-                b.startObject("x").field("type", "keyword").endObject();
-                b.endObject().endObject();
-            }))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
+            b.startObject("obj").field("type", "object").startObject("properties");
+            b.startObject("x").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        })));
         assertThat(e.getMessage(), containsString("Object field [obj] inside nested field [n]"));
         assertThat(e.getMessage(), containsString("not supported on composite (pluggable data format)"));
     }
@@ -85,14 +93,11 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
     /** An implicit object (a bare {@code properties} block with no {@code type}) resolves to CONTENT_TYPE and is rejected too. */
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testImplicitObjectInsideNestedRejectedForPluggable() throws IOException {
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
-                b.startObject("obj").startObject("properties");
-                b.startObject("x").field("type", "keyword").endObject();
-                b.endObject().endObject();
-            }))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
+            b.startObject("obj").startObject("properties");
+            b.startObject("x").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        })));
         assertThat(e.getMessage(), containsString("Object field [obj] inside nested field [n]"));
     }
 
@@ -101,20 +106,23 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testFlatObjectInsideNestedAllowedForPluggable() throws IOException {
         // flat_object is the intended container for open key spaces inside nested — must be accepted.
-        createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("meta").field("type", "flat_object").endObject()));
+        createDocumentMapper(PLUGGABLE, nestedWith("false", b -> b.startObject("meta").field("type", "flat_object").endObject()));
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testIndexFalseInsideNestedAllowedForPluggable() throws IOException {
         // Only an explicit index:true is rejected; index:false is the supported (doc-values-only) shape.
-        createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("a").field("type", "keyword").field("index", false).endObject()));
+        createDocumentMapper(
+            PLUGGABLE,
+            nestedWith("false", b -> b.startObject("a").field("type", "keyword").field("index", false).endObject())
+        );
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testDefaultLeafInsideNestedAllowedForPluggable() throws IOException {
         // A leaf with no explicit index parameter must still be accepted (rule keys off explicit
         // index:true only — see the class-level javadoc for why the default is deliberately not checked).
-        createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("a").field("type", "keyword").endObject()));
+        createDocumentMapper(PLUGGABLE, nestedWith("false", b -> b.startObject("a").field("type", "keyword").endObject()));
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
@@ -133,16 +141,65 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
     public void testMultiFieldIndexTrueInsideNestedRejectedForPluggable() throws IOException {
         // The parent ("author") sets index:false — only its multi-field ("raw") sets explicit index:true
         // — so the check must inspect multi-fields' own "index" property too, not just the parent's.
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
-                b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
-                b.startObject("raw").field("type", "keyword").field("index", true).endObject();
-                b.endObject().endObject();
-            }))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> {
+            b.startObject("author").field("type", "keyword").field("index", false).startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("index", true).endObject();
+            b.endObject().endObject();
+        })));
         assertThat(e.getMessage(), containsString("Field [author.raw] inside nested field [n]"));
         assertThat(e.getMessage(), containsString("index: true"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNestedWithoutDynamicFalseRejectedForPluggable() throws IOException {
+        // No "dynamic" key at all — inherits the TRUE default, which is what must be rejected.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(PLUGGABLE, nestedWith(b -> b.startObject("a").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Nested field [n]"));
+        assertThat(e.getMessage(), containsString("dynamic: false"));
+        assertThat(e.getMessage(), containsString("dynamic: strict"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNestedDynamicTrueRejectedForPluggable() throws IOException {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(PLUGGABLE, nestedWith("true", b -> b.startObject("a").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Nested field [n]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNestedDynamicFalseAllowTemplatesRejectedForPluggable() throws IOException {
+        // A matching dynamic template can still add a brand-new mapper under this mode, so it's just as
+        // unsafe as dynamic:true for this purpose.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                PLUGGABLE,
+                nestedWith("false_allow_templates", b -> b.startObject("a").field("type", "keyword").endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("Nested field [n]"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNestedDynamicStrictAllowedForPluggable() throws IOException {
+        // strict is equally safe as false: an undeclared leaf is rejected outright rather than skipped,
+        // but either way it never reaches the write path.
+        createDocumentMapper(PLUGGABLE, nestedWith("strict", b -> b.startObject("a").field("type", "keyword").endObject()));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNestedWithNoPropertiesAtAllRejectedForPluggable() throws IOException {
+        // No properties block at all — must still be rejected, even though parseProperties never runs.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(PLUGGABLE, mapping(b -> b.startObject("n").field("type", "nested").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("Nested field [n]"));
     }
 
     // ---- Vanilla: behavior unchanged (identical mappings must still parse) ----------------------
@@ -170,5 +227,11 @@ public class NestedPluggableDataFormatValidationTests extends MapperServiceTestC
             b.startObject("raw").field("type", "keyword").field("index", true).endObject();
             b.endObject().endObject();
         }));
+    }
+
+    public void testNestedWithoutDynamicFalseAllowedForVanilla() throws IOException {
+        // Vanilla nested fields default to dynamic:true just fine — only pluggable-format indices require
+        // dynamic:false/strict.
+        createDocumentMapper(nestedWith(b -> b.startObject("a").field("type", "keyword").endObject()));
     }
 }

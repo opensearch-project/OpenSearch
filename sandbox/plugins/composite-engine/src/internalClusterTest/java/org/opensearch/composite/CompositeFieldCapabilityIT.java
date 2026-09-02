@@ -196,7 +196,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
 
     public void testNestedFieldSupported() {
         startCluster();
-        assertIndexCreationSucceeds("test-nested", "field", "type=nested");
+        assertIndexCreationSucceeds("test-nested", "field", "type=nested,dynamic=false");
     }
 
     /**
@@ -213,6 +213,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
             + "    \"title\": { \"type\": \"keyword\" },\n"
             + "    \"comments\": {\n"
             + "      \"type\": \"nested\",\n"
+            + "      \"dynamic\": \"false\",\n"
             + "      \"properties\": {\n"
             + "        \"author\": { \"type\": \"keyword\" },\n"
             + "        \"score\": { \"type\": \"integer\" }\n"
