@@ -8,6 +8,9 @@
 
 package org.opensearch.parquet.codec.bridge;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.parquet.ParquetSettings;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -51,35 +54,54 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
 
     private static final long CLOSED_HANDLE = -1L;
 
-    private static final int DEFAULT_INITIAL_BATCH_SIZE = 32;
-
     /** Number of scalar out-parameters {@code nextBatch} writes back. */
     private static final int OUT_PARAM_COUNT = 6;
-
-    /** Java-side cap on a returned batch; mirrors {@code MAX_BATCH_SIZE} in doc_values_cursor.rs. */
-    private static final int MAX_BATCH_ROWS = 8192;
 
     private final Path file;
     private final String column;
 
+    /**
+     * Ceiling on the rows the native cursor may return, captured once at open and handed to the
+     * native side in the same call. Deliberately a value rather than a live setting lookup: the
+     * cursor is configured once, so re-reading a dynamic setting here could reject a batch the
+     * native cursor was legitimately told to produce.
+     */
+    private final int maxBatchSize;
+
     private long handle;
     private DecodedBatch decodedBatch;
 
-    private ParquetColumnReader(long handle, Path file, String column) {
+    private ParquetColumnReader(long handle, Path file, String column, int maxBatchSize) {
         this.handle = handle;
         this.file = file;
         this.column = column;
+        this.maxBatchSize = maxBatchSize;
     }
 
-    /** Opens a numeric cursor with the default starting window. */
+    /** Opens a numeric cursor using the default batch-size settings. */
     public static ParquetColumnReader open(Path file, String column) throws IOException {
-        return open(file, column, DEFAULT_INITIAL_BATCH_SIZE);
+        return open(file, column, Settings.EMPTY);
     }
 
-    /** Opens a numeric cursor with an explicit starting window. */
-    public static ParquetColumnReader open(Path file, String column, int initialBatchSize) throws IOException {
-        long handle = ParquetCodecBridge.openColumnCursor(file.toString(), column, initialBatchSize);
-        return new ParquetColumnReader(handle, file, column);
+    /**
+     * Opens a numeric cursor sized from {@code index.parquet.docvalues.initial_batch_size} and
+     * {@code index.parquet.docvalues.max_batch_size}.
+     *
+     * @param settings index settings, or {@link Settings#EMPTY} to take the defaults
+     */
+    public static ParquetColumnReader open(Path file, String column, Settings settings) throws IOException {
+        return open(file, column, ParquetSettings.docValuesInitialBatchSize(settings), ParquetSettings.docValuesMaxBatchSize(settings));
+    }
+
+    /**
+     * Opens a numeric cursor with explicit window sizes, bypassing settings resolution.
+     *
+     * @param initialBatchSize rows in the first decode window; must be in {@code 1..=maxBatchSize}
+     * @param maxBatchSize     ceiling the adaptive window grows to
+     */
+    public static ParquetColumnReader open(Path file, String column, int initialBatchSize, int maxBatchSize) throws IOException {
+        long handle = ParquetCodecBridge.openColumnCursor(file.toString(), column, initialBatchSize, maxBatchSize);
+        return new ParquetColumnReader(handle, file, column, maxBatchSize);
     }
 
     @Override
@@ -171,8 +193,8 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
             throw contractViolation(row, "row range [" + firstRow + ", " + lastRow + "]");
         }
         long batchRowsLong = lastRow - firstRow + 1;
-        if (batchRowsLong > MAX_BATCH_ROWS) {
-            throw contractViolation(row, batchRowsLong + " rows exceeds cap " + MAX_BATCH_ROWS);
+        if (batchRowsLong > maxBatchSize) {
+            throw contractViolation(row, batchRowsLong + " rows exceeds cap " + maxBatchSize);
         }
         if (valuesAddr == 0 || bitOffset < 0) {
             throw contractViolation(row, "values address " + valuesAddr + ", bit offset " + bitOffset);

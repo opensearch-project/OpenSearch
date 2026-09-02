@@ -52,9 +52,15 @@ use crate::indexed_table::parquet_bridge::{
 };
 use datafusion::datasource::physical_plan::parquet::ParquetFileReaderFactory;
 
-/// Hard ceiling for the adaptive decode window. Mirrored by
-/// `ParquetColumnReader.MAX_BATCH_ROWS` on the Java side; keep the two in sync.
-const MAX_BATCH_SIZE: usize = 8192;
+/// Largest decode window this reader will accept, whatever the caller asks for.
+/// `index.parquet.docvalues.max_batch_size` can only lower a cursor's ceiling, never raise it past
+/// this. Mirrored by `ParquetSettings.DEFAULT_DOCVALUES_MAX_BATCH_SIZE` on the Java side.
+const BATCH_SIZE_HARD_LIMIT: usize = 8_192;
+
+/// Default ceiling, as a cursor opened through the FFM boundary would receive it. Tests that care
+/// about a different cap pass their own, since the value is per cursor.
+#[cfg(test)]
+const TEST_MAX_BATCH_SIZE: usize = BATCH_SIZE_HARD_LIMIT;
 const RC_OK: i64 = 0;
 const RC_EOF: i64 = 2;
 
@@ -102,6 +108,10 @@ struct DocValuesCursor {
     factory: ParquetForwardBatchReaderFactory,
     row_count: i64,
     initial_batch_size: usize,
+    /// Ceiling the window grows to, captured at open from
+    /// `index.parquet.docvalues.max_batch_size` so a later setting update cannot disagree with
+    /// `initial_batch_size` mid-cursor.
+    max_batch_size: usize,
     batch_size: usize,
     has_decoded_batch: bool,
     /// The batch Java last borrowed from, held so the exported pointers stay valid. Released on the
@@ -120,6 +130,7 @@ impl DocValuesCursor {
         filename: &str,
         column: &str,
         batch_size: usize,
+        max_batch_size: usize,
         store_override: Option<Arc<dyn ObjectStore>>,
         location_override: Option<ObjectPath>,
         runtime: Arc<Runtime>,
@@ -212,7 +223,10 @@ impl DocValuesCursor {
         let stats = Arc::new(ReadIoStats::default());
         let projection =
             ProjectionMask::leaves(metadata.file_metadata().schema_descr(), [leaf_idx]);
-        let batch_size = batch_size.clamp(1, MAX_BATCH_SIZE);
+        // Clamp the ceiling first, then the starting window against it, so the decay floor
+        // (`initial_batch_size`) can never exceed the growth cap.
+        let max_batch_size = max_batch_size.clamp(1, BATCH_SIZE_HARD_LIMIT);
+        let batch_size = batch_size.clamp(1, max_batch_size);
         let reader_factory: Arc<dyn ParquetFileReaderFactory> = Arc::new(
             CachedMetadataReaderFactory::new(store, Arc::clone(&metadata), Arc::clone(&stats)),
         );
@@ -234,6 +248,7 @@ impl DocValuesCursor {
             factory,
             row_count,
             initial_batch_size: batch_size,
+            max_batch_size,
             batch_size,
             has_decoded_batch: false,
             borrowed_batch: None,
@@ -262,7 +277,7 @@ impl DocValuesCursor {
             && target_row >= position
             && target_row - position <= self.batch_size;
         let window = if dense {
-            self.batch_size.saturating_mul(2).min(MAX_BATCH_SIZE)
+            self.batch_size.saturating_mul(2).min(self.max_batch_size)
         } else if self.has_decoded_batch {
             (self.batch_size / 2).max(self.initial_batch_size)
         } else {
@@ -415,12 +430,18 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     })
 }
 
-fn open(filename: &str, column: &str, initial_batch_size: usize) -> Result<i64, DataFusionError> {
+fn open(
+    filename: &str,
+    column: &str,
+    initial_batch_size: usize,
+    max_batch_size: usize,
+) -> Result<i64, DataFusionError> {
     let runtime = io_runtime()?;
     let cursor = runtime.block_on(DocValuesCursor::open(
         filename,
         column,
         initial_batch_size,
+        max_batch_size,
         None,
         None,
         Arc::clone(&runtime),
@@ -451,19 +472,33 @@ pub unsafe extern "C" fn parquet_df_open_iter(
     column_ptr: *const u8,
     column_len: i64,
     initial_batch_size: i64,
+    max_batch_size: i64,
 ) -> i64 {
     let filename =
         str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_df_open_iter file: {e}"))?;
     let column = str_from_raw(column_ptr, column_len)
         .map_err(|e| format!("parquet_df_open_iter column: {e}"))?;
-    if initial_batch_size <= 0 || initial_batch_size > MAX_BATCH_SIZE as i64 {
+    // Re-checked here because these arrive as untrusted `i64`: a negative would wrap to an enormous
+    // `usize` on cast, and the Java reader exposes an int overload that bypasses settings resolution.
+    if max_batch_size <= 0 || max_batch_size > BATCH_SIZE_HARD_LIMIT as i64 {
         return Err(format!(
-            "parquet_df_open_iter: initial batch size {initial_batch_size} outside 1..={MAX_BATCH_SIZE}"
+            "parquet_df_open_iter: max batch size {max_batch_size} outside 1..={BATCH_SIZE_HARD_LIMIT}"
+        ));
+    }
+    if initial_batch_size <= 0 || initial_batch_size > max_batch_size {
+        return Err(format!(
+            "parquet_df_open_iter: initial batch size {initial_batch_size} outside 1..={max_batch_size}"
         ));
     }
     // The FFM contract carries only a message (see native_bridge_common::error), so the typed
     // error is flattened here at the boundary.
-    open(filename, column, initial_batch_size as usize).map_err(|e| e.to_string())
+    open(
+        filename,
+        column,
+        initial_batch_size as usize,
+        max_batch_size as usize,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
@@ -524,8 +559,11 @@ pub unsafe extern "C" fn parquet_df_next_batch(
 
     let batch = cursor.next_batch(target_row).map_err(|e| e.to_string())?;
     let rows = batch.num_rows();
-    if rows == 0 || rows > MAX_BATCH_SIZE {
-        return Err(format!("{FN}: Arrow returned {rows} rows"));
+    if rows == 0 || rows > cursor.max_batch_size {
+        return Err(format!(
+            "{FN}: Arrow returned {rows} rows, expected 1..={}",
+            cursor.max_batch_size
+        ));
     }
 
     // Scoped so the borrow ends before `batch` moves onto the cursor; `BorrowedBuffers` holds
@@ -701,6 +739,7 @@ mod tests {
             location.as_ref(),
             column,
             8,
+            TEST_MAX_BATCH_SIZE,
             Some(store),
             Some(location.clone()),
             Arc::clone(&runtime),
@@ -737,6 +776,14 @@ mod tests {
     }
 
     fn open_parquet_fixture(bytes: Bytes, batch_size: usize) -> (DocValuesCursor, Arc<Runtime>) {
+        open_parquet_fixture_with_max(bytes, batch_size, TEST_MAX_BATCH_SIZE)
+    }
+
+    fn open_parquet_fixture_with_max(
+        bytes: Bytes,
+        batch_size: usize,
+        max_batch_size: usize,
+    ) -> (DocValuesCursor, Arc<Runtime>) {
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let location = ObjectPath::from(format!(
@@ -751,6 +798,7 @@ mod tests {
                 location.as_ref(),
                 "value",
                 batch_size,
+                max_batch_size,
                 Some(store),
                 Some(location.clone()),
                 Arc::clone(&runtime),
@@ -852,6 +900,7 @@ mod tests {
                 filename,
                 "value",
                 8,
+                TEST_MAX_BATCH_SIZE,
                 None,
                 None,
                 Arc::clone(&runtime),
@@ -950,31 +999,74 @@ mod tests {
 
     #[test]
     fn adaptive_window_is_capped_at_max_batch_size() {
-        let rows_per_page = MAX_BATCH_SIZE * 2;
+        let rows_per_page = BATCH_SIZE_HARD_LIMIT * 2;
         let (mut cursor, _runtime) =
-            open_fixture_with_page_rows(1, rows_per_page, MAX_BATCH_SIZE / 2);
+            open_fixture_with_page_rows(1, rows_per_page, BATCH_SIZE_HARD_LIMIT / 2);
 
-        assert_eq!(cursor.next_batch(0).unwrap().num_rows(), MAX_BATCH_SIZE / 2);
         assert_eq!(
-            cursor
-                .next_batch((MAX_BATCH_SIZE / 2) as i64)
-                .unwrap()
-                .num_rows(),
-            MAX_BATCH_SIZE
+            cursor.next_batch(0).unwrap().num_rows(),
+            BATCH_SIZE_HARD_LIMIT / 2
         );
         assert_eq!(
             cursor
-                .next_batch((MAX_BATCH_SIZE + MAX_BATCH_SIZE / 2) as i64)
+                .next_batch((BATCH_SIZE_HARD_LIMIT / 2) as i64)
                 .unwrap()
                 .num_rows(),
-            MAX_BATCH_SIZE / 2,
+            BATCH_SIZE_HARD_LIMIT
+        );
+        assert_eq!(
+            cursor
+                .next_batch((BATCH_SIZE_HARD_LIMIT + BATCH_SIZE_HARD_LIMIT / 2) as i64)
+                .unwrap()
+                .num_rows(),
+            BATCH_SIZE_HARD_LIMIT / 2,
             "the max-sized window is clamped at the page boundary"
         );
         assert_eq!(
             cursor.next_batch(rows_per_page as i64).unwrap().num_rows(),
-            MAX_BATCH_SIZE,
+            BATCH_SIZE_HARD_LIMIT,
             "the adaptive window must not grow beyond the configured maximum"
         );
+    }
+
+    /// `index.parquet.docvalues.max_batch_size` lowers the ceiling per cursor, so growth has to stop
+    /// at the configured value rather than the compile-time limit.
+    #[test]
+    fn a_lowered_maximum_caps_growth_below_the_hard_limit() {
+        let configured_max = 64;
+        let (mut cursor, _runtime) = open_parquet_fixture_with_max(
+            parquet_fixture_with_page_rows(1, 1024),
+            8,
+            configured_max,
+        );
+
+        // 8 -> 16 -> 32 -> 64, then held: doubling would pass the configured ceiling.
+        let mut row = 0i64;
+        for expected in [8, 16, 32, 64, 64, 64] {
+            let rows = cursor.next_batch(row).unwrap().num_rows();
+            assert_eq!(rows, expected, "window at row {row}");
+            row += rows as i64;
+        }
+        assert!(
+            configured_max < BATCH_SIZE_HARD_LIMIT,
+            "the test is only meaningful below the hard limit"
+        );
+    }
+
+    /// The starting window is clamped to the ceiling, so the decay floor can never sit above the
+    /// growth cap however the two settings are combined.
+    #[test]
+    fn a_starting_window_above_the_maximum_is_lowered_to_it() {
+        let configured_max = 32;
+        let (cursor, _runtime) = open_parquet_fixture_with_max(
+            parquet_fixture_with_page_rows(1, 1024),
+            4096,
+            configured_max,
+        );
+
+        assert_eq!(cursor.initial_batch_size, configured_max);
+        assert_eq!(cursor.batch_size, configured_max);
+        assert_eq!(cursor.max_batch_size, configured_max);
     }
 
     /// The kind is the whole of the Rust-to-Java type contract: Java picks a byte width and a
@@ -1133,6 +1225,10 @@ mod ffm_tests {
     }
 
     fn open_iter(path: &str, initial: i64) -> i64 {
+        open_iter_with_max(path, initial, TEST_MAX_BATCH_SIZE as i64)
+    }
+
+    fn open_iter_with_max(path: &str, initial: i64, max: i64) -> i64 {
         register_test_metadata_cache();
         let column = "value";
         unsafe {
@@ -1142,6 +1238,7 @@ mod ffm_tests {
                 column.as_ptr(),
                 column.len() as i64,
                 initial,
+                max,
             )
         }
     }
@@ -1419,7 +1516,7 @@ mod ffm_tests {
 
     #[test]
     fn an_out_of_range_initial_window_is_rejected() {
-        for initial in [0, -1, MAX_BATCH_SIZE as i64 + 1] {
+        for initial in [0, -1, BATCH_SIZE_HARD_LIMIT as i64 + 1] {
             // Rejected before the file is touched, so the path is irrelevant.
             let message = error_message(open_iter("/nonexistent/never-opened.parquet", initial));
             assert!(
@@ -1443,6 +1540,7 @@ mod ffm_tests {
                 column.as_ptr(),
                 column.len() as i64,
                 8,
+                TEST_MAX_BATCH_SIZE as i64,
             )
         };
         let message = error_message(rc);

@@ -13,6 +13,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -381,5 +382,35 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
                 ParquetSettings.MERGE_BATCH_SIZE_CEIL
             )
         );
+    }
+
+    public void testDocValuesBatchSizeDefaults() {
+        assertEquals(ParquetSettings.DEFAULT_DOCVALUES_INITIAL_BATCH_SIZE, ParquetSettings.docValuesInitialBatchSize(Settings.EMPTY));
+        assertEquals(ParquetSettings.DEFAULT_DOCVALUES_MAX_BATCH_SIZE, ParquetSettings.docValuesMaxBatchSize(Settings.EMPTY));
+    }
+
+    public void testDocValuesInitialBatchSizeIsResolvedDownToTheCeiling() {
+        // The two settings are independent, so a smaller ceiling must win rather than error.
+        Settings settings = Settings.builder()
+            .put(ParquetSettings.DOCVALUES_INITIAL_BATCH_SIZE.getKey(), 4096)
+            .put(ParquetSettings.DOCVALUES_MAX_BATCH_SIZE.getKey(), 64)
+            .build();
+        assertEquals(64, ParquetSettings.docValuesInitialBatchSize(settings));
+        assertEquals(64, ParquetSettings.docValuesMaxBatchSize(settings));
+    }
+
+    public void testDocValuesBatchSizeRejectsValuesOutsideTheLimit() {
+        for (Setting<Integer> setting : List.of(ParquetSettings.DOCVALUES_INITIAL_BATCH_SIZE, ParquetSettings.DOCVALUES_MAX_BATCH_SIZE)) {
+            Settings tooLarge = Settings.builder().put(setting.getKey(), ParquetSettings.DEFAULT_DOCVALUES_MAX_BATCH_SIZE + 1).build();
+            expectThrows(IllegalArgumentException.class, () -> setting.get(tooLarge));
+
+            Settings tooSmall = Settings.builder().put(setting.getKey(), 0).build();
+            expectThrows(IllegalArgumentException.class, () -> setting.get(tooSmall));
+        }
+    }
+
+    public void testDocValuesBatchSizeSettingsAreRegistered() {
+        assertTrue(ParquetSettings.getSettings().contains(ParquetSettings.DOCVALUES_INITIAL_BATCH_SIZE));
+        assertTrue(ParquetSettings.getSettings().contains(ParquetSettings.DOCVALUES_MAX_BATCH_SIZE));
     }
 }
