@@ -1948,6 +1948,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Creates a new {@link CatalogSnapshot} pinned to the most recent commit of the currently running indexer.
+     * All files referenced by this snapshot won't be freed until the returned handle is closed.
+     * <p>
+     * This is the format-neutral replacement for {@link #acquireLastIndexCommit(boolean)}: it goes through the
+     * {@link Indexer} contract rather than {@link #applyOnEngine}, so it works for multi-format
+     * (catalog-based) indexers as well as Lucene-backed ones.
+     *
+     * @param flushFirst {@code true} if the shard should be flushed before the snapshot is taken
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        final IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
+            return getIndexer().acquireLastCommittedSnapshot(flushFirst);
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
+
+    /**
+     * Same as {@link #acquireLastCommittedSnapshot(boolean)} but additionally triggers a refresh so that the
+     * remote store upload of the pinned commit is kicked off. Format-neutral replacement for
+     * {@link #acquireLastIndexCommitAndRefresh(boolean)}.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshotAndRefresh(boolean flushFirst) throws EngineException, IOException {
+        GatedCloseable<CatalogSnapshot> catalogSnapshot = acquireLastCommittedSnapshot(flushFirst);
+        getIndexer().refresh("Snapshot for Remote Store based Shard");
+        return catalogSnapshot;
+    }
+
+    /**
      *
      * @param snapshotId Snapshot UUID.
      * @param primaryTerm current primary term.
