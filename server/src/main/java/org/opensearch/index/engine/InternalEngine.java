@@ -1602,14 +1602,16 @@ public class InternalEngine extends Engine {
      * nulling the field is all that is needed.
      * <p>
      * The publisher calls this on every segments sync while the condition is disabled, so the write is guarded: only the
-     * first such sync dirties the field, the rest are a volatile read and nothing else. A plain guarded write rather
-     * than a compare-and-set is sufficient because the field is only ever written from the segments sync path, which is
-     * serialized per shard by the refresh listener's permit; and even a lost race here could only suppress a flush
-     * trigger until the next sync, never cause a spurious flush.
+     * first such sync dirties the field, the rest are a single volatile read and nothing else. A plain guarded write
+     * rather than a compare-and-set is sufficient because the field is only ever written from the segments sync path,
+     * which is serialized per shard by the refresh listener's permit; and even a lost race here could only suppress a
+     * flush trigger until the next sync, never cause a spurious flush.
      */
     @Override
     public void clearUncommittedSegmentBytes() {
-        if (uncommittedSegmentBytes != null) {
+        // snapshot the volatile once, as shouldFlushOnUncommittedSegmentBytes() does
+        final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
+        if (current != null) {
             uncommittedSegmentBytes = null;
         }
     }
