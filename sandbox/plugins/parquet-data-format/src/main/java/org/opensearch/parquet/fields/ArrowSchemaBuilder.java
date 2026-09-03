@@ -142,11 +142,38 @@ public final class ArrowSchemaBuilder {
     }
 
     /**
+     * Returns the struct-child leaf name {@code candidate} should use directly under {@code parentPath},
+     * or {@code null} if it belongs elsewhere. A field with no further dot after stripping the prefix is
+     * always a direct leaf. A field WITH a further dot is a multi-field sibling (e.g. {@code author.raw}
+     * next to {@code author}) — not real nesting, since a plain object can never be a descendant of a
+     * nested field — UNLESS that dot's first segment is itself a registered nested-in-nested object
+     * mapper, in which case the field belongs to that mapper's own subtree and is handled by the
+     * object-mapper loop instead. Multi-fields keep their full dotted name as a flat leaf, exactly like
+     * the top-level (non-nested) schema path already does.
+     */
+    private static String directLeafName(String candidate, String parentPath, Map<String, ObjectMapper> objectMappersByPath) {
+        if (candidate.length() <= parentPath.length() || candidate.startsWith(parentPath + ".") == false) {
+            return null;
+        }
+        String remainder = candidate.substring(parentPath.length() + 1);
+        int dot = remainder.indexOf('.');
+        if (dot < 0) {
+            return remainder;
+        }
+        String firstSegment = remainder.substring(0, dot);
+        if (objectMappersByPath.containsKey(parentPath + "." + firstSegment)) {
+            return null;
+        }
+        return remainder;
+    }
+
+    /**
      * Builds the Arrow LIST&lt;STRUCT&gt; field for the nested mapper at {@code path} (one element per
-     * array entry). Struct children are the mapper's direct leaf fields (named by leaf segment) plus,
-     * recursively, one LIST&lt;STRUCT&gt; per directly-contained nested mapper. A plain (non-nested)
-     * object can never be a descendant of a nested field — see the call site's note — so every
-     * descendant object mapper found here is itself nested.
+     * array entry). Struct children are the mapper's direct leaf fields — including multi-fields, kept
+     * as their own flat sibling leaf (see {@link #directLeafName}) — plus, recursively, one
+     * LIST&lt;STRUCT&gt; per directly-contained nested mapper. A plain (non-nested) object can never be
+     * a descendant of a nested field — see the call site's note — so every descendant object mapper
+     * found here is itself nested.
      */
     private static Field buildNestedListField(
         String path,
@@ -155,10 +182,13 @@ public final class ArrowSchemaBuilder {
     ) {
         List<Field> structChildren = new ArrayList<>();
         for (Mapper mapper : documentMapper.mappers()) {
-            if (isUnsupportedMetadataField(mapper) || isDirectChild(mapper.name(), path) == false) {
+            if (isUnsupportedMetadataField(mapper)) {
                 continue;
             }
-            String leafName = mapper.name().substring(path.length() + 1);
+            String leafName = directLeafName(mapper.name(), path, objectMappersByPath);
+            if (leafName == null) {
+                continue;
+            }
             if (FLAT_OBJECT_TYPE.equals(mapper.typeName())) {
                 // A flat_object inside a nested field (e.g. events.attributes) becomes a
                 // MAP<Utf8,Utf8> child of the element struct — the open attribute key space.

@@ -128,6 +128,54 @@ public class ArrowSchemaBuilderNestedTests extends MapperServiceTestCase {
     }
 
     /**
+     * A multi-field inside nested (e.g. a {@code .raw} sub-field on a keyword) becomes its own flat
+     * sibling struct child — {@code author.raw} next to {@code author} — instead of being excluded for
+     * looking like a deeper nesting level. Also covers nested-in-nested in the SAME mapping, to prove
+     * the multi-field discriminator doesn't disturb real nesting.
+     */
+    public void testMultiFieldInNestedBecomesFlatSiblingLeaf() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("author");
+                    {
+                        b.field("type", "keyword");
+                        b.startObject("fields");
+                        b.startObject("raw").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("replies");
+                    {
+                        b.field("type", "nested");
+                        b.startObject("properties");
+                        b.startObject("text").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        Schema schema = ArrowSchemaBuilder.getSchema(mapperService);
+        Field element = onlyChild(findTop(schema, "comments"));
+        assertTrue(element.getType() instanceof ArrowType.Struct);
+        // Struct children, name-sorted: [author, author.raw, replies].
+        assertEquals(List.of("author", "author.raw", "replies"), childNames(element));
+        assertTrue("multi-field sibling is a flat leaf", child(element, "author.raw").getType() instanceof ArrowType.Utf8);
+
+        // Nested-in-nested is unaffected: "replies" is still its own LIST<STRUCT>, not a flat leaf.
+        Field replies = child(element, "replies");
+        assertTrue("real nesting is still a LIST", replies.getType() instanceof ArrowType.List);
+        assertEquals(List.of("text"), childNames(onlyChild(replies)));
+    }
+
+    /**
      * A {@code flat_object} inside a nested field (the OTel {@code events.attributes} shape) becomes a
      * {@code MAP<Utf8,Utf8>} child of the element struct — the open key space — instead of exploded
      * dotted leaf columns. Regression guard: before {@code buildMapField} was shared with
