@@ -109,6 +109,7 @@ import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
@@ -3858,12 +3859,51 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
+    /**
+     * Adapts the deprecated {@link IndexCommit}-based entry point onto the catalog-based implementation.
+     */
     @Override
     public void snapshotRemoteStoreIndexShard(
         Store store,
         SnapshotId snapshotId,
         IndexId indexId,
         IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        Map<String, Long> indexFilesToFileLengthMap,
+        ActionListener<String> listener
+    ) {
+        final CatalogSnapshot catalogSnapshot;
+        try {
+            catalogSnapshot = snapshotIndexCommit == null ? null : toCatalogSnapshot(snapshotIndexCommit, store);
+        } catch (IOException e) {
+            listener.onFailure(new IndexShardSnapshotFailedException(store.shardId(), "Failed to read commit point", e));
+            return;
+        }
+        snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            indexFilesToFileLengthMap,
+            listener
+        );
+    }
+
+    @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
         String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
@@ -3886,11 +3926,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexTotalFileSize = 0;
             List<String> fileNames;
 
-            if (snapshotIndexCommit != null) {
+            if (catalogSnapshot != null) {
                 // local store is being used here to fetch the files metadata instead of remote store as currently
                 // remote store is mirroring the local store.
-                fileNames = new ArrayList<>(snapshotIndexCommit.getFileNames());
-                Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
+                fileNames = new ArrayList<>(catalogSnapshot.getFiles(true));
+                Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(catalogSnapshot);
                 for (String fileName : fileNames) {
                     indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
                 }
@@ -3951,6 +3991,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Builds the {@link CatalogSnapshot} view of a Lucene {@link IndexCommit}, mirroring what
+     * {@link Store#getMetadata(IndexCommit)} does internally: a multi-format snapshot is recovered from commit
+     * user data when present, otherwise the {@link org.apache.lucene.index.SegmentInfos} is wrapped as-is.
+     */
+    private static CatalogSnapshot toCatalogSnapshot(IndexCommit snapshotIndexCommit, Store store) throws IOException {
+        return Store.fromSegmentInfos(Lucene.readSegmentInfos(snapshotIndexCommit), store.shardFormatDirectoryResolver());
+    }
+
+    /**
+     * Adapts the deprecated {@link IndexCommit}-based entry point onto the catalog-based implementation.
+     * Retained for repository callers that have not been converted to
+     * {@link org.opensearch.index.engine.exec.coord.CatalogSnapshot}.
+     */
     @Override
     public void snapshotShard(
         Store store,
@@ -3958,6 +4012,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotId snapshotId,
         IndexId indexId,
         IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
+    ) {
+        final CatalogSnapshot catalogSnapshot;
+        try {
+            catalogSnapshot = toCatalogSnapshot(snapshotIndexCommit, store);
+        } catch (IOException e) {
+            listener.onFailure(new IndexShardSnapshotFailedException(store.shardId(), "Failed to read commit point", e));
+            return;
+        }
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            indexMetadata
+        );
+    }
+
+    @Override
+    public void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
         String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
@@ -4024,9 +4114,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                     try {
-                        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
-                        metadataFromStore = store.getMetadata(snapshotIndexCommit);
-                        fileNames = snapshotIndexCommit.getFileNames();
+                        logger.trace(
+                            "[{}] [{}] Loading store metadata using catalog snapshot generation [{}]",
+                            shardId,
+                            snapshotId,
+                            catalogSnapshot.getGeneration()
+                        );
+                        metadataFromStore = store.getMetadata(catalogSnapshot);
+                        fileNames = catalogSnapshot.getFiles(true);
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                     }
@@ -4119,7 +4214,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
-                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(catalogSnapshot.getGeneration());
 
                 // now create and write the commit point
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
