@@ -87,6 +87,22 @@ import java.util.Optional;
  *       opposite direction.</li>
  * </ul>
  *
+ * <p><b>Two constraints for the doc-values work.</b> Once lucene declares a DocValues scan
+ * capability rather than only {@code Index}:
+ *
+ * <ul>
+ *   <li>{@code OpenSearchTableScanRule}'s hardcoded {@code metadataOnlyDriver = "lucene"} exemption
+ *       becomes wrong — it exempts lucene from the strict per-field check on the assumption that it
+ *       is metadata-only, so a value-producing lucene would stay viable for fields it cannot scan.
+ *       That rule's own TODO already calls for a first-class metadata-driver marker; this is on the
+ *       critical path for doc values.</li>
+ *   <li>The lucene backend declares no project or scalar-function capabilities at all, and
+ *       {@code MAKE_STRUCT} is registered only on the DataFusion side. So once leaves become
+ *       lucene-scannable, {@code fields city} has a scan lucene could serve but a project only
+ *       DataFusion can — either lucene must declare {@code MAKE_STRUCT} or object queries need to be
+ *       pinned to a DataFusion-capable fragment.</li>
+ * </ul>
+ *
  * <p>Acceptance tests already exist and are storage-agnostic: {@code ObjectFieldIT},
  * {@code ApmServiceMapObjectIT}, and {@code ObjectFieldMultiShardIT} assert PPL results — nested
  * JSON shape, types, group counts — not plan shapes, so they should pass unchanged.
@@ -134,10 +150,10 @@ public final class ObjectStructMaterializer {
                 leafTypeBuilder.add(field.getName(), field.getType());
             }
             RelDataType leafRowType = leafTypeBuilder.build();
-            if (leafRowType.getFieldCount() == 0) {
-                // Nothing physical to read — don't emit a scan with an empty row type.
-                return scan;
-            }
+            // Strip the struct even when it leaves nothing behind. An index whose only mapped
+            // fields are objects has no leaves at all, and a zero-column scan is fine — leaving the
+            // struct in instead makes OpenSearchTableScanRule fail with "No backend can scan all
+            // requested fields", since the column has no storage for any backend to claim.
 
             RelOptTable leafTable = new LeafOnlyTable(scan.getTable(), leafRowType);
             RelNode leafScan = LogicalTableScan.create(scan.getCluster(), leafTable, scan.getHints());

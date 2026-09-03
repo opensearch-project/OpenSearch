@@ -286,4 +286,49 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         assertRowsEqual("source=" + index + " | fields attrs", row((Object) null));
         assertRowsEqual("source=" + index + " | fields id, attrs", row("1", null));
     }
+
+    /**
+     * An index whose ONLY mapped field is an object, with {@code dynamic: false} so nothing else is
+     * ever added. Every query against it used to fail with {@code No backend can scan all requested
+     * fields}: the materializer had no leaves to read, so it left the struct column in the scan, and
+     * no backend can claim a column that has no storage. It now strips the struct regardless, leaving
+     * a zero-column scan.
+     *
+     * <p>Known gap, deliberately not asserted here: a scalar aggregate on such an index while it is
+     * still <em>empty</em> returns zero rows rather than one row containing 0. That needs all of —
+     * every field an object, zero documents, and a scalar aggregate — and resolves on first ingest.
+     * Cause: with no fields requested, {@code OpenSearchTableScanRule}'s viability loop never runs, so
+     * {@code metadataOnlyCoversAny} stays false and the metadata driver (lucene) is vetoed for
+     * covering no field, when vacuously it covers everything and a metadata-driven count is exactly
+     * what is wanted. An index with an ordinary column keeps lucene and correctly returns 0.
+     */
+    public void testObjectOnlyIndexIsQueryable() throws IOException {
+        String index = "object_only_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"dynamic\":false,"
+                + "\"properties\":{\"meta\":{\"type\":\"object\"}}}}"
+        );
+        client().performRequest(create);
+
+        // Empty index: no documents, so no rows — and no error, which is the point.
+        assertRowsEqual("source=" + index + " | fields meta");
+
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity("{\"index\":{}}\n{\"meta\":{\"x\":1}}\n");
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
+
+        // The object is unmapped inside (dynamic: false), so it has no leaves and resolves to null.
+        assertRowsEqual("source=" + index + " | fields meta", row((Object) null));
+        assertRowsEqual("source=" + index + " | stats count()", row(1));
+    }
 }
