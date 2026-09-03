@@ -423,6 +423,122 @@ public class BlockCacheKeyIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocCount(indexName + "-copy", 50L);
     }
 
+    // ── Tiered-mode coverage ─────────────────────────────────────────────────
+
+    /**
+     * Tiered mode (default): both the data tier and the metadata tier each persist
+     * their own {@code key_index.json} on graceful warm-node restart.
+     *
+     * <p>With {@code block_cache.foyer.metadata_cache_ratio > 0} (5% by default) the
+     * Foyer block cache splits into two independent instances under
+     * {@code foyer-block-cache/data} and {@code foyer-block-cache/metadata}. Each
+     * tier has its own Drop impl writing its own snapshot. This test guards against
+     * a regression where one tier's persistence wiring is broken while the other
+     * appears healthy — the previous helper would only see the data tier and miss
+     * a metadata-tier failure entirely.
+     */
+    public void testTieredBothTiersWriteKeyIndexOnShutdown() throws Exception {
+        final Client client = client();
+        final String indexName = "test-tiered-shutdown";
+
+        setupWarmNodeWithIndex(client, indexName);
+        assertDocCount(indexName + "-copy", 50L);
+
+        logger.info("[tiered-shutdown-01] restarting warm node '{}'", getWarmNodeName());
+        internalCluster().restartNode(getWarmNodeName());
+        ensureGreen();
+
+        Path dataDir = findFoyerCacheDir();
+        Path metaDir = findFoyerMetadataCacheDir();
+        assertNotNull("data-tier cache directory must exist on warm node after restart", dataDir);
+        assertNotNull(
+            "metadata-tier cache directory must exist on warm node after restart "
+                + "(check block_cache.foyer.metadata_cache_ratio is > 0)",
+            metaDir
+        );
+
+        // Both tiers wrote a key_index.json.
+        Path dataKeyIndex = dataDir.resolve(KEY_INDEX_FILENAME);
+        Path metaKeyIndex = metaDir.resolve(KEY_INDEX_FILENAME);
+        assertTrue("data-tier key_index.json must exist after restart", Files.exists(dataKeyIndex));
+        assertTrue("metadata-tier key_index.json must exist after restart", Files.exists(metaKeyIndex));
+
+        // No leftover .tmp files on either tier.
+        assertFalse(
+            "data-tier .key_index.json.tmp must not exist after successful rename",
+            Files.exists(dataDir.resolve(KEY_INDEX_TMP_FILENAME))
+        );
+        assertFalse(
+            "metadata-tier .key_index.json.tmp must not exist after successful rename",
+            Files.exists(metaDir.resolve(KEY_INDEX_TMP_FILENAME))
+        );
+
+        // Both snapshots are valid JSON with version=1.
+        String dataContent = Files.readString(dataKeyIndex);
+        String metaContent = Files.readString(metaKeyIndex);
+        assertFalse("data-tier key_index.json must not be empty", dataContent.isBlank());
+        assertFalse("metadata-tier key_index.json must not be empty", metaContent.isBlank());
+        assertTrue("data-tier key_index.json must contain version:1", dataContent.contains("\"version\":1"));
+        assertTrue("metadata-tier key_index.json must contain version:1", metaContent.contains("\"version\":1"));
+
+        // Cluster healthy after restart.
+        assertDocCount(indexName + "-copy", 50L);
+    }
+
+    /**
+     * Tiered mode: the periodic persist task fires independently on both tiers
+     * and writes {@code key_index.json} within the configured interval.
+     *
+     * <p>Each tier owns its own persist task, so this test catches the case where
+     * one tier's task is starved or never spawned — symptoms that would otherwise
+     * only surface on shutdown.
+     */
+    public void testTieredBothTiersPeriodicPersistFires() throws Exception {
+        final Client client = client();
+        final String indexName = "test-tiered-periodic";
+
+        setupWarmNodeWithIndex(client, indexName);
+        assertDocCount(indexName + "-copy", 50L);
+
+        Path dataDir = findFoyerCacheDir();
+        Path metaDir = findFoyerMetadataCacheDir();
+        assertNotNull("data-tier cache directory must exist on warm node", dataDir);
+        assertNotNull(
+            "metadata-tier cache directory must exist on warm node " + "(check block_cache.foyer.metadata_cache_ratio is > 0)",
+            metaDir
+        );
+
+        logger.info("[tiered-periodic-01] waiting up to 30s for periodic persist (interval=5s) on data and metadata tiers");
+
+        // Persist interval is 5s (set in nodeSettings); allow up to 30s for both tiers.
+        assertBusy(() -> {
+            assertTrue(
+                "data-tier key_index.json must be written by periodic persist task within interval",
+                Files.exists(dataDir.resolve(KEY_INDEX_FILENAME))
+            );
+            assertTrue(
+                "metadata-tier key_index.json must be written by periodic persist task within interval",
+                Files.exists(metaDir.resolve(KEY_INDEX_FILENAME))
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        // No leftover .tmp files after successful rename on either tier.
+        assertFalse(
+            "data-tier .key_index.json.tmp must not exist after successful periodic persist",
+            Files.exists(dataDir.resolve(KEY_INDEX_TMP_FILENAME))
+        );
+        assertFalse(
+            "metadata-tier .key_index.json.tmp must not exist after successful periodic persist",
+            Files.exists(metaDir.resolve(KEY_INDEX_TMP_FILENAME))
+        );
+
+        // Both tiers' content is valid JSON with version=1.
+        String dataContent = Files.readString(dataDir.resolve(KEY_INDEX_FILENAME));
+        String metaContent = Files.readString(metaDir.resolve(KEY_INDEX_FILENAME));
+        assertTrue("data-tier key_index.json must contain version:1", dataContent.contains("\"version\":1"));
+        assertTrue("metadata-tier key_index.json must contain version:1", metaContent.contains("\"version\":1"));
+    }
+
     // ── Helper methods ────────────────────────────────────────────────────────
 
     /**
@@ -520,7 +636,44 @@ public class BlockCacheKeyIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
      * different node ordinals. Fails the test with a descriptive message if the directory is
      * not found — this ensures file-level assertions are never silently skipped.
      */
+    /**
+     * Locates the Foyer block cache directory that holds {@code key_index.json}.
+     *
+     * <p>In tiered mode (default — {@code block_cache.foyer.metadata_cache_ratio > 0})
+     * the layout is {@code foyer-block-cache/data/} and {@code foyer-block-cache/metadata/};
+     * each subdir has its own {@code key_index.json}. This helper returns the data
+     * subdir in that case. In single-cache mode the file lives directly under
+     * {@code foyer-block-cache/}, which is what gets returned then.
+     *
+     * <p>Use {@link #findFoyerMetadataCacheDir()} for the metadata-tier subdir.
+     */
     private Path findFoyerCacheDir() {
+        Path root = findFoyerCacheRoot();
+        if (root == null) {
+            return null;
+        }
+        Path dataSubdir = root.resolve("data");
+        if (Files.isDirectory(dataSubdir)) {
+            return dataSubdir;       // tiered mode
+        }
+        return root;                 // single-cache mode
+    }
+
+    /**
+     * Returns the metadata-tier subdir ({@code foyer-block-cache/metadata}) when
+     * the cache is in tiered mode, or {@code null} in single-cache mode.
+     */
+    private Path findFoyerMetadataCacheDir() {
+        Path root = findFoyerCacheRoot();
+        if (root == null) {
+            return null;
+        }
+        Path metaSubdir = root.resolve("metadata");
+        return Files.isDirectory(metaSubdir) ? metaSubdir : null;
+    }
+
+    /** Locates the {@code foyer-block-cache} parent directory on the warm node. */
+    private Path findFoyerCacheRoot() {
         String warmName = getWarmNodeName();
         assertNotNull("A warm node must be present in the cluster", warmName);
 

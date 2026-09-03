@@ -72,7 +72,8 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     private void setupKafka(int numKafkaPartitions) {
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))
             // disable topic auto creation
-            .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false");
+            .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
+            .withStartupAttempts(3);
         kafka.start();
 
         // setup producer

@@ -29,6 +29,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
@@ -39,6 +40,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;
@@ -64,6 +66,11 @@ public class EngineConfigFactory {
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private final List<AdditionalCodecs> additionalCodecs;
     private final CommitterFactory committerFactory;
+    private final PrimaryOperationPolicy primaryOperationPolicy;
+    @Nullable
+    private final DocumentLookupProvider documentLookupProvider;
+    @Nullable
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -77,8 +84,31 @@ public class EngineConfigFactory {
         this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings);
     }
 
-    /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
+    /**
+     * Factory wiring the optional {@link DocumentLookupProvider} and {@link DocumentMetadataResolver}
+     * (pluggable get-by-id path) into the produced {@link EngineConfig}.
+     */
+    public EngineConfigFactory(
+        PluginsService pluginsService,
+        IndexSettings idxSettings,
+        @Nullable DocumentLookupProvider documentLookupProvider,
+        @Nullable DocumentMetadataResolver documentMetadataResolver
+    ) {
+        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings, documentLookupProvider, documentMetadataResolver);
+    }
+
+    /* package-private constructor from specific EnginePlugins and IndexSettings without document-lookup wiring */
     EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
+        this(enginePlugins, idxSettings, null, null);
+    }
+
+    /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
+    EngineConfigFactory(
+        Collection<EnginePlugin> enginePlugins,
+        IndexSettings idxSettings,
+        @Nullable DocumentLookupProvider documentLookupProvider,
+        @Nullable DocumentMetadataResolver documentMetadataResolver
+    ) {
         final List<AdditionalCodecs> codecRegistries = new ArrayList<>();
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
@@ -87,6 +117,8 @@ public class EngineConfigFactory {
         Optional<TranslogDeletionPolicyFactory> translogDeletionPolicyFactory = Optional.empty();
         String translogDeletionPolicyOverridingPlugin = null;
         List<CommitterFactory> committerFactories = new ArrayList<>();
+        Optional<PrimaryOperationPolicy> primaryOperationPolicy = Optional.empty();
+        String primaryOperationPolicyPlugin = null;
 
         for (EnginePlugin enginePlugin : enginePlugins) {
             // get overriding codec service from EnginePlugin
@@ -129,6 +161,21 @@ public class EngineConfigFactory {
             enginePlugin.getAdditionalCodecs(idxSettings).ifPresent(codecRegistries::add);
 
             enginePlugin.getCommitterFactory(idxSettings).ifPresent(committerFactories::add);
+
+            // get overriding PrimaryOperationPolicy from EnginePlugin
+            final Optional<PrimaryOperationPolicy> pluginPrimaryOperationPolicy = enginePlugin.getPrimaryOperationPolicy(idxSettings);
+            if (pluginPrimaryOperationPolicy.isPresent()) {
+                if (primaryOperationPolicy.isPresent()) {
+                    throw new IllegalStateException(
+                        "existing PrimaryOperationPolicy is already overridden in: "
+                            + primaryOperationPolicyPlugin
+                            + " attempting to override again by: "
+                            + enginePlugin.getClass().getName()
+                    );
+                }
+                primaryOperationPolicy = pluginPrimaryOperationPolicy;
+                primaryOperationPolicyPlugin = enginePlugin.getClass().getName();
+            }
         }
 
         if (codecService.isPresent() && codecServiceFactory.isPresent()) {
@@ -149,6 +196,9 @@ public class EngineConfigFactory {
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
         this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
         this.committerFactory = committerFactories.isEmpty() ? null : committerFactories.getFirst();
+        this.primaryOperationPolicy = primaryOperationPolicy.orElse(DefaultPrimaryOperationPolicy.INSTANCE);
+        this.documentLookupProvider = documentLookupProvider;
+        this.documentMetadataResolver = documentMetadataResolver;
     }
 
     /**
@@ -229,6 +279,9 @@ public class EngineConfigFactory {
             .mapperService(mapperService)
             .committerFactory(committerFactory)
             .checksumStrategies(checksumStrategies)
+            .documentLookupProvider(documentLookupProvider)
+            .documentMetadataResolver(documentMetadataResolver)
+            .primaryOperationPolicy(primaryOperationPolicy)
             .build();
     }
 

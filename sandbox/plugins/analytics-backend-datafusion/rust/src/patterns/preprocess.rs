@@ -249,9 +249,8 @@ mod tests {
 
     #[test]
     fn preprocess_substitutes_uuid() {
-        let tokens = pp(
-            "[PlaceOrder] user_id=d664d7be-77d8-11f0-8880-0242f00b101d user_currency=USD",
-        );
+        let tokens =
+            pp("[PlaceOrder] user_id=d664d7be-77d8-11f0-8880-0242f00b101d user_currency=USD");
         // testBrainParseWithUUID_NotShowNumberedToken expects:
         // "[PlaceOrder] user_id=<*UUID*> user_currency=USD"
         assert_eq!(
@@ -265,11 +264,9 @@ mod tests {
         // From testBrainLabelMode_NotShowNumberedToken second row, the
         // task_id like `_task_200811092030_0002_r_000296_0/part-00296.` should
         // see every number-segment between underscores substituted to `<*>`.
-        let tokens = pp(
-            "BLOCK* NameSystem.allocateBlock: \
+        let tokens = pp("BLOCK* NameSystem.allocateBlock: \
              /user/root/sortrand/_temporary/_task_200811092030_0002_r_000296_0/part-00296. \
-             blk_-6620182933895093708",
-        );
+             blk_-6620182933895093708");
         // Just sanity-check that the multi-digit numbers got substituted somewhere.
         let joined = tokens.join(" ");
         assert!(

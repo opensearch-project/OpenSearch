@@ -37,6 +37,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -127,5 +128,12 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (non-numeric/non-indexed
+        // field, script/missing, overlapping ranges, or nested) — see DateHistogramAggregatorFactory.
+        return RangeAggregatorBridge.filterRewriteFastPathApplies(parent, config, ranges) == false;
     }
 }

@@ -128,7 +128,7 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         // For a multi-shard scan, the planner inserts an OpenSearchExchangeReducer at the root.
         OpenSearchExchangeReducer originalReducer = (OpenSearchExchangeReducer) cbo;
 
-        ExchangeInfo customInfo = new ExchangeInfo(RelDistribution.Type.HASH_DISTRIBUTED, List.of(0));
+        ExchangeInfo customInfo = ExchangeInfo.hashDistributed(List.of(0), /* partitionCount */ 2);
         OpenSearchExchangeReducer customReducer = new OpenSearchExchangeReducer(
             originalReducer.getCluster(),
             originalReducer.getTraitSet(),

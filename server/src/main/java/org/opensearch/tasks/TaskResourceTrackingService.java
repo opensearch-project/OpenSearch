@@ -14,9 +14,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.WriteableBase64;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -62,21 +66,49 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    // Kill-switch for emitting the Base64 binary TASK_RESOURCE_USAGE response header. When false,
+    // data nodes always emit the legacy JSON header. The consumer always falls back to JSON regardless.
+    public static final Setting<Boolean> BINARY_RESOURCE_USAGE_HEADER_ENABLED = Setting.boolSetting(
+        "task_resource_tracking.binary_header.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final String TASK_ID = "TASK_ID";
     public static final String TASK_RESOURCE_USAGE = "TASK_RESOURCE_USAGE";
+
+    // First OpenSearch version that emits and parses the Base64 binary form of the
+    // TASK_RESOURCE_USAGE response header. Coordinators older than this only understand JSON.
+    static final Version BINARY_RESOURCE_USAGE_HEADER_VERSION = Version.V_3_8_0;
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private volatile boolean taskResourceTrackingEnabled;
+    private volatile boolean binaryResourceUsageHeaderEnabled;
 
     @Inject
-    public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public TaskResourceTrackingService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
+        this.binaryResourceUsageHeaderEnabled = BINARY_RESOURCE_USAGE_HEADER_ENABLED.get(settings);
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
+        clusterSettings.addSettingsUpdateConsumer(BINARY_RESOURCE_USAGE_HEADER_ENABLED, this::setBinaryResourceUsageHeaderEnabled);
+    }
+
+    // Without ClusterService, writeTaskResourceUsage cannot verify the coordinator's version
+    // and will always emit the legacy JSON header. Forgoes the binary CPU win but is rolling-upgrade safe.
+    public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, null);
     }
 
     public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
@@ -85,6 +117,14 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     public boolean isTaskResourceTrackingEnabled() {
         return taskResourceTrackingEnabled;
+    }
+
+    public void setBinaryResourceUsageHeaderEnabled(boolean binaryResourceUsageHeaderEnabled) {
+        this.binaryResourceUsageHeaderEnabled = binaryResourceUsageHeaderEnabled;
+    }
+
+    public boolean isBinaryResourceUsageHeaderEnabled() {
+        return binaryResourceUsageHeaderEnabled;
     }
 
     public boolean isTaskResourceTrackingSupported() {
@@ -321,11 +361,36 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                     )
                 )
                 .build();
+            String headerValue = canCoordinatorReadBinaryHeader(task)
+                ? WriteableBase64.encode(taskResourceInfo)
+                : taskResourceInfo.toString();
             // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
-            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
+            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, headerValue);
         } catch (Exception e) {
             logger.debug("Error during writing task resource usage: ", e);
         }
+    }
+
+    // Returns true only with positive confirmation that the coordinator can parse the binary header.
+    // Any unknown — kill-switch off, no ClusterService, empty parent task, coordinator missing from
+    // cluster state — falls back to JSON, since the cost of an unwarranted JSON emission is small and
+    // bounded, while the cost of an unwarranted binary emission to an old coordinator is a hung search.
+    private boolean canCoordinatorReadBinaryHeader(SearchShardTask task) {
+        if (isBinaryResourceUsageHeaderEnabled() == false) {
+            return false;
+        }
+        if (clusterService == null) {
+            return false;
+        }
+        String coordinatorNodeId = task.getParentTaskId().getNodeId();
+        if (coordinatorNodeId.isEmpty()) {
+            return false;
+        }
+        DiscoveryNode coordinator = clusterService.state().nodes().get(coordinatorNodeId);
+        if (coordinator == null) {
+            return false;
+        }
+        return coordinator.getVersion().onOrAfter(BINARY_RESOURCE_USAGE_HEADER_VERSION);
     }
 
     /**
@@ -336,29 +401,46 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     /**
-     * Get the task resource usages from {@link ThreadContext}
+     * Get the task resource usages from {@link ThreadContext}.
+     * <p>
+     * Tries the new Base64 binary format first; on failure falls back to the legacy JSON form so
+     * that resource usage from older data nodes is preserved during a rolling upgrade.
      *
-     * @return {@link TaskResourceInfo}
+     * @return {@link TaskResourceInfo} or null if the header is absent or cannot be deserialized
      */
     public TaskResourceInfo getTaskResourceUsageFromThreadContext() {
         List<String> taskResourceUsages = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE);
-        if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
-            String usage = taskResourceUsages.get(0);
+        if (taskResourceUsages == null || taskResourceUsages.isEmpty()) {
+            return null;
+        }
+        String usage = taskResourceUsages.get(0);
+        if (usage == null || usage.isEmpty()) {
+            return null;
+        }
+        try {
+            return WriteableBase64.decode(usage, TaskResourceInfo::readFromStream);
+        } catch (Exception binaryFailure) {
             try {
-                if (usage != null && !usage.isEmpty()) {
-                    XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        new BytesArray(usage),
-                        MediaTypeRegistry.JSON
-                    );
-                    return TaskResourceInfo.PARSER.apply(parser, null);
-                }
-            } catch (IOException e) {
-                logger.debug("fail to parse phase resource usages: ", e);
+                return deserializeFromJson(usage);
+            } catch (Exception jsonFailure) {
+                logger.debug("failed to parse task resource usage header (binary and JSON), skipping: ", jsonFailure);
+                return null;
             }
         }
-        return null;
+    }
+
+    // Legacy JSON parser for headers emitted by pre-V_3_8_0 data nodes during rolling upgrade.
+    static TaskResourceInfo deserializeFromJson(String headerValue) throws IOException {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                new BytesArray(headerValue),
+                MediaTypeRegistry.JSON
+            )
+        ) {
+            return TaskResourceInfo.PARSER.apply(parser, null);
+        }
     }
 
     /**

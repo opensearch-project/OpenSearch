@@ -108,7 +108,7 @@ public class DataFusionStatsPropertyTests extends OpenSearchTestCase {
     }
 
     private CacheStats randomCacheStats() {
-        return new CacheStats(randomCacheGroupStats(), randomCacheGroupStats());
+        return new CacheStats(randomCacheGroupStats(), randomCacheGroupStats(), randomCacheGroupStats(), randomCacheGroupStats());
     }
 
     private SearchStats randomSearchStats() {

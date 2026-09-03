@@ -58,7 +58,36 @@ public class CompositeMergeExecutor {
                 : null;
 
             for (DataFormat secondary : plan.secondaryFormats()) {
-                completed.add(mergeFormat(plan, secondary, mapping));
+                FormatMergeResult secondaryResult = mergeFormat(plan, secondary, mapping);
+                // Verify secondary produced output when primary did
+                if (primaryResult.mergedFiles() != null && secondaryResult.mergedFiles() == null) {
+                    throw new IllegalStateException(
+                        "Primary format ["
+                            + plan.primaryFormat().name()
+                            + "] produced merged output but secondary format ["
+                            + secondary.name()
+                            + "] returned null — possible concurrent merge consumed segments"
+                    );
+                }
+                // Verify secondary merged row count matches primary
+                if (primaryResult.mergedFiles() != null && secondaryResult.mergedFiles() != null) {
+                    long primaryRows = primaryResult.mergedFiles().numRows();
+                    long secondaryRows = secondaryResult.mergedFiles().numRows();
+                    if (primaryRows != secondaryRows) {
+                        throw new IllegalStateException(
+                            "Row count mismatch after merge: primary format ["
+                                + plan.primaryFormat().name()
+                                + "] has "
+                                + primaryRows
+                                + " rows but secondary format ["
+                                + secondary.name()
+                                + "] has "
+                                + secondaryRows
+                                + " rows"
+                        );
+                    }
+                }
+                completed.add(secondaryResult);
             }
 
             return toMergeResult(completed, mapping);

@@ -50,7 +50,9 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Fields};
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::{Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Accumulator, AggregateUDF, AggregateUDFImpl, Signature, Volatility,
+};
 use datafusion::physical_expr::expressions::Literal;
 
 use crate::patterns::brain::{BrainLogParser, PatternEntry};
@@ -177,7 +179,10 @@ impl AggregateUDFImpl for InternalPatternUdaf {
             DataType::List(_) | DataType::LargeList(_) | DataType::FixedSizeList(_, _)
         );
         let config = AggConfig::from_args(&acc_args)?;
-        Ok(Box::new(InternalPatternAccumulator::new(arg0_is_list, config)))
+        Ok(Box::new(InternalPatternAccumulator::new(
+            arg0_is_list,
+            config,
+        )))
     }
 
     fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<FieldRef>> {
@@ -343,7 +348,11 @@ impl InternalPatternAccumulator {
             }
             return Ok(());
         }
-        exec_err!("{}: expected string column, got {:?}", NAME, arr.data_type())
+        exec_err!(
+            "{}: expected string column, got {:?}",
+            NAME,
+            arr.data_type()
+        )
     }
 
     fn append_list(&mut self, arr: &ArrayRef) -> Result<()> {
@@ -405,12 +414,7 @@ impl Accumulator for InternalPatternAccumulator {
     }
 
     fn size(&self) -> usize {
-        std::mem::size_of_val(self)
-            + self
-                .buffer
-                .iter()
-                .map(|s| s.capacity())
-                .sum::<usize>()
+        std::mem::size_of_val(self) + self.buffer.iter().map(|s| s.capacity()).sum::<usize>()
     }
 
     fn state(&mut self) -> Result<Vec<ScalarValue>> {
@@ -438,7 +442,10 @@ fn sorted_pattern_entries(stats: HashMap<String, PatternEntry>) -> Vec<PatternEn
 /// to numbered-token form (`<token1>@<token2>.<token3>`) and the tokens map
 /// captures the extracted variables; otherwise tokens is empty and pattern
 /// stays raw (`<*>@<*>.<*>`).
-fn build_list_struct_scalar(entries: &[PatternEntry], show_numbered_token: bool) -> Result<ScalarValue> {
+fn build_list_struct_scalar(
+    entries: &[PatternEntry],
+    show_numbered_token: bool,
+) -> Result<ScalarValue> {
     let array = build_list_struct_array(entries, show_numbered_token)?;
     Ok(ScalarValue::List(Arc::new(array)))
 }
@@ -451,7 +458,10 @@ fn empty_list_struct_scalar() -> Result<ScalarValue> {
 
 /// Builds a one-row `ListArray` whose single element is the per-pattern
 /// StructArray with `entries.len()` rows.
-fn build_list_struct_array(entries: &[PatternEntry], show_numbered_token: bool) -> Result<ListArray> {
+fn build_list_struct_array(
+    entries: &[PatternEntry],
+    show_numbered_token: bool,
+) -> Result<ListArray> {
     let struct_array = build_struct_array(entries, show_numbered_token)?;
     let offsets = OffsetBuffer::new(vec![0i32, entries.len() as i32].into());
     let item_field = Field::new("item", struct_element_type(), true);
@@ -559,14 +569,13 @@ mod tests {
         (0..s.len())
             .map(|i| {
                 let sample_inner = sample_logs_col.value(i);
-                let samples = sample_inner
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap();
+                let samples = sample_inner.as_any().downcast_ref::<StringArray>().unwrap();
                 PatternEntry {
                     pattern: pattern_col.value(i).to_string(),
                     pattern_count: count_col.value(i) as u64,
-                    sample_logs: (0..samples.len()).map(|j| samples.value(j).to_string()).collect(),
+                    sample_logs: (0..samples.len())
+                        .map(|j| samples.value(j).to_string())
+                        .collect(),
                 }
             })
             .collect()
@@ -596,7 +605,10 @@ mod tests {
         ];
         let entries = run(&logs, false);
         let top = &entries[0];
-        assert_eq!(top.pattern_count, 5, "expected 5 in top group, got {entries:?}");
+        assert_eq!(
+            top.pattern_count, 5,
+            "expected 5 in top group, got {entries:?}"
+        );
     }
 
     #[test]

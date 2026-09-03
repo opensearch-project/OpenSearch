@@ -24,10 +24,19 @@ import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.ReaderContextStore;
 import org.opensearch.analytics.exec.Scheduler;
+import org.opensearch.analytics.exec.action.AnalyticsClearShuffleAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.action.AnalyticsShuffleDataAction;
+import org.opensearch.analytics.exec.action.TransportAnalyticsClearShuffleAction;
+import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
+import org.opensearch.analytics.exec.join.MppStrategyMetrics;
+import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.rest.RestMppStrategyStatsAction;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
+import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.stats.AnalyticsStats;
 import org.opensearch.analytics.stats.AnalyticsStatsCollector;
@@ -68,6 +77,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -99,9 +109,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
     private static final int REDUCE_QUEUE_SIZE = 200;
 
+    // Per-query coordinator allocator cap in bytes. 0 (default) → no per-query child allocator;
+    // queries share the coordinator allocator with no per-query cap.
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
-        256L * 1024 * 1024,
+        0L,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -135,6 +147,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private AnalyticsSearchService searchService;
+    private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
+    private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
+    // Resolved once at startup: <path.data>/shuffle_spill, used when the spill.directory setting is
+    // left at its empty default. Null only when the node has no data path (never in practice).
+    private Path shuffleSpillDefaultRoot;
     private AnalyticsSearchSlowLog analyticsSearchSlowLog;
     private AnalyticsFragmentSlowLog analyticsFragmentSlowLog;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
@@ -183,16 +200,98 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             namedWriteableRegistry,
             readerContextStore
         );
+        searchService.setShuffleBufferRegistry(shuffleBufferManager);
+        // Wire the node-level shuffle budget from settings (initial value + dynamic updates). The
+        // budget is a percent of max heap; node budget == per-query max (a lone query may use the
+        // whole budget, but no single query may exceed it — that fails fast, non-retryably). Without
+        // this the manager's budget stays Long.MAX_VALUE and a large shuffle accumulates its whole
+        // input on-heap as byte[] until the node OOMs (the inert-cap bug; observed on TPC-H q17 sf=10).
+        applyShuffleBudget(clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_NODE_BUDGET_PERCENT, this::applyShuffleBudget);
+        // Resolve the spill root once from the environment's first data path (settings default ""
+        // means "use <path.data>/shuffle_spill"); a non-empty setting overrides it. Then wire the
+        // spill config from settings (initial value + dynamic updates). Default OFF — when disabled
+        // a per-query budget breach stays the fail-fast throw (behavior unchanged).
+        this.shuffleSpillDefaultRoot = environment.dataFiles().length > 0 ? environment.dataFiles()[0].resolve("shuffle_spill") : null;
+        applyShuffleSpillConfig(clusterService.getClusterSettings());
+        ClusterSettings cs = clusterService.getClusterSettings();
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_ENABLED, enabled -> applyShuffleSpillConfig(cs));
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_DIRECTORY, dir -> applyShuffleSpillConfig(cs));
+        cs.addSettingsUpdateConsumer(AnalyticsSettings.MPP_SHUFFLE_SPILL_MAX_BYTES, max -> applyShuffleSpillConfig(cs));
+        searchService.setShuffleSenderDeps(client, threadPool, clusterService);
         DefaultEngineContextProvider ctx = new DefaultEngineContextProvider(clusterService, indexNameExpressionResolver, backEndsByName);
         // Build the coordinator allocator under POOL_QUERY here, in the plugin, so that the
         // plugin's lifecycle owns its lifetime. The Guice-bound DefaultPlanExecutor consumes
         // it via the handle without taking on close responsibility — mirroring how
         // AnalyticsSearchService's allocator is owned and closed by this plugin.
+        // The import staging allocator is created and closed by the search service; the handle only
+        // carries it so the coordinator-reduce path stages its imports on the same node-scoped allocator.
         coordinatorAllocatorHandle = new CoordinatorAllocatorHandle(
-            nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE)
+            nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY).newChildAllocator("coordinator", 0, Long.MAX_VALUE),
+            searchService.getImportStagingAllocator()
         );
 
-        return List.of(searchService, ctx, capabilityRegistry, coordinatorAllocatorHandle, analyticsSearchSlowLog, statsCollector);
+        // Returned as components so Guice can inject them into DefaultPlanExecutor
+        // (a HandledTransportAction registered via getActions() — constructed by Guice
+        // after createComponents) and into AnalyticsSearchTransportService. The shuffle
+        // buffer manager is exposed both here (for Guice-injected consumers like
+        // DefaultPlanExecutor) and via createGuiceModules' toInstance binding so the
+        // transport handler that populates buffers from the wire side sees the same instance.
+        return List.of(
+            searchService,
+            ctx,
+            capabilityRegistry,
+            mppStrategyMetrics,
+            shuffleBufferManager,
+            coordinatorAllocatorHandle,
+            analyticsSearchSlowLog,
+            statsCollector
+        );
+    }
+
+    /**
+     * Resolve the node-level shuffle byte budget from {@code percent}% of the JVM max heap and apply
+     * it to the manager. Node budget == per-query max: a lone query may use the whole budget, but a
+     * single query whose footprint exceeds it fails fast (non-retryable). {@code percent==0} disables
+     * the budget (Long.MAX_VALUE — pre-fix behavior). Called at startup and on dynamic updates.
+     */
+    private void applyShuffleBudget(int percent) {
+        long budget;
+        if (percent <= 0) {
+            budget = Long.MAX_VALUE;
+        } else {
+            long maxHeap = Runtime.getRuntime().maxMemory();
+            budget = maxHeap == Long.MAX_VALUE ? Long.MAX_VALUE : (long) (maxHeap * (percent / 100.0));
+        }
+        shuffleBufferManager.setBudgets(budget, budget);
+        logger.info("[analytics] hash-shuffle node budget set to {}% of max heap = {} bytes", percent, budget);
+    }
+
+    /**
+     * Resolve and apply the hash-shuffle disk-spill config from current settings. The directory is
+     * the {@code analytics.mpp.shuffle.spill.directory} setting when non-empty, else
+     * {@code <path.data>/shuffle_spill}. When spill is enabled but no spill root can be resolved (no
+     * data path), spill is left OFF (the manager falls back to the fail-fast budget path). Called at
+     * startup and on any of the three spill settings changing.
+     */
+    private void applyShuffleSpillConfig(ClusterSettings clusterSettings) {
+        boolean enabled = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_ENABLED);
+        String configuredDir = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_DIRECTORY);
+        long maxBytes = clusterSettings.get(AnalyticsSettings.MPP_SHUFFLE_SPILL_MAX_BYTES);
+        Path dir;
+        if (configuredDir != null && configuredDir.isEmpty() == false) {
+            dir = Path.of(configuredDir);
+        } else {
+            dir = shuffleSpillDefaultRoot;
+        }
+        boolean effective = enabled && dir != null;
+        shuffleBufferManager.setSpillConfig(effective, dir, maxBytes);
+        if (enabled && dir == null) {
+            logger.warn("[analytics] hash-shuffle spill requested but no data path is available; spill stays disabled");
+        } else {
+            logger.info("[analytics] hash-shuffle spill enabled={}, dir={}, max_bytes={}", effective, dir, maxBytes);
+        }
     }
 
     @Override
@@ -205,7 +304,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestAnalyticsStatsAction());
+        return List.of(new RestMppStrategyStatsAction(mppStrategyMetrics), new RestAnalyticsStatsAction());
     }
 
     @Override
@@ -221,6 +320,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
+            // ShuffleBufferManager is auto-bound by OpenSearch as a node-level component (we
+            // return the singleton instance from createComponents), so DefaultPlanExecutor,
+            // TransportAnalyticsShuffleDataAction, and AnalyticsSearchService all see the same
+            // node-local registry. No explicit Guice binding needed here — adding one would
+            // collide with the auto-bind ("already configured at _unknown_").
         });
     }
 
@@ -228,18 +332,20 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(AnalyticsShuffleDataAction.INSTANCE, TransportAnalyticsShuffleDataAction.class),
+            new ActionHandler<>(AnalyticsClearShuffleAction.INSTANCE, TransportAnalyticsClearShuffleAction.class),
             new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new java.util.ArrayList<>();
+        List<Setting<?>> settings = new ArrayList<>(AnalyticsSettings.ALL_SETTINGS);
         settings.add(COORDINATOR_BUFFER_LIMIT);
         settings.add(PREFER_METADATA_DRIVER);
         settings.add(ReaderContextStore.READER_CONTEXT_KEEP_ALIVE);
-        settings.addAll(org.opensearch.analytics.settings.AnalyticsApproximationSettings.all());
-        settings.addAll(org.opensearch.analytics.settings.AnalyticsQuerySettings.all());
+        settings.addAll(AnalyticsApproximationSettings.all());
+        settings.addAll(AnalyticsQuerySettings.all());
         return List.copyOf(settings);
     }
 
@@ -258,11 +364,26 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public SearchStats contributeSearchStats() {
-        AnalyticsStats.LatencyStats elapsed = statsCollector.snapshot().queries().elapsedMs();
-        if (elapsed.count() == 0) {
+        // Contribute per-shard fragment task counts so the node-level search counters
+        // exposed via _nodes/stats match Lucene's per-shard accounting (one increment
+        // per shard query phase, not per user query).
+        //
+        // The queries.elapsed_ms bucket counts 1-per-query, which undercounts the
+        // rate by the shard fan-out factor and drops most queries' latency (the
+        // start/end window in AnalyticsStatsCollector#recordExecution is commonly
+        // 0 when stage timestamps aren't populated). The SHARD_FRAGMENT stage
+        // bucket counts 1-per-(query, node-hosting-shards), still missing the
+        // per-shard granularity Lucene reports. fragments.total walks each
+        // SHARD_FRAGMENT execution's per-shard StageTasks, giving per-shard
+        // counts matching Lucene's onPreQueryPhase semantics.
+        AnalyticsStats snapshot = statsCollector.snapshot();
+        AnalyticsStats.Fragments fragments = snapshot.fragments();
+        if (fragments == null || fragments.total() == 0) {
             return null;
         }
-        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(elapsed.count()).queryTimeInMillis(elapsed.sumMs()).build();
+        SearchStats.Stats stats = new SearchStats.Stats.Builder().queryCount(fragments.total())
+            .queryTimeInMillis(fragments.elapsedMs().sumMs())
+            .build();
         return new SearchStats(stats, 0, null);
     }
 

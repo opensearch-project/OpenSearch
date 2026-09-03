@@ -5,7 +5,7 @@
 //! Stats packing helpers for the FFM `df_stats()` function.
 //!
 //! Packs Tokio runtime metrics and per-operation task monitor metrics
-//! into a `#[repr(C)]` `DfStatsBuffer` struct (600 bytes) for efficient
+//! into a `#[repr(C)]` `DfStatsBuffer` struct (680 bytes) for efficient
 //! transfer across the FFM boundary.
 //!
 //! ## Struct layout
@@ -20,7 +20,7 @@
 //! | `plan_setup`         | `TaskMonitorRepr`    | 5 × i64 |
 //! | `fragment_executor_gate` | `PartitionGateRepr`  | 8 × i64 |
 //! | `adaptive_budget`       | `AdaptiveBudgetRepr`    | 2 × i64 |
-//! | `cache_stats`        | `CacheStatsRepr`     | 10 × i64 (2 × 5: metadata + statistics caches) |
+//! | `cache_stats`        | `CacheStatsRepr`     | 20 × i64 (4 × 5: metadata, statistics, column_index, offset_index) |
 //! | `search_stats`       | `SearchStatsRepr`    | 17 × i64 |
 
 use tokio::runtime::Handle;
@@ -92,6 +92,8 @@ pub struct CacheGroupRepr {
 pub struct CacheStatsRepr {
     pub metadata_cache: CacheGroupRepr,
     pub statistics_cache: CacheGroupRepr,
+    pub column_index_cache: CacheGroupRepr,
+    pub offset_index_cache: CacheGroupRepr,
 }
 
 impl Default for CacheGroupRepr {
@@ -111,6 +113,8 @@ impl Default for CacheStatsRepr {
         Self {
             metadata_cache: CacheGroupRepr::default(),
             statistics_cache: CacheGroupRepr::default(),
+            column_index_cache: CacheGroupRepr::default(),
+            offset_index_cache: CacheGroupRepr::default(),
         }
     }
 }
@@ -156,19 +160,19 @@ pub struct AdaptiveBudgetRepr {
     pub rejections: i64,
 }
 
-const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
-const _: () = assert!(std::mem::size_of::<TaskMonitorRepr>() == 5 * 8);
-const _: () = assert!(std::mem::size_of::<PartitionGateRepr>() == 8 * 8);
-const _: () = assert!(std::mem::size_of::<AdaptiveBudgetRepr>() == 2 * 8);
-const _: () = assert!(std::mem::size_of::<CacheGroupRepr>() == 5 * 8);
-const _: () = assert!(std::mem::size_of::<CacheStatsRepr>() == 10 * 8);
-const _: () = assert!(std::mem::size_of::<SearchStatsRepr>() == 17 * 8);
-const _: () = assert!(std::mem::size_of::<DfStatsBuffer>() == 75 * 8);
+const _: () = assert!(size_of::<RuntimeMetricsRepr>() == 9 * 8);
+const _: () = assert!(size_of::<TaskMonitorRepr>() == 5 * 8);
+const _: () = assert!(size_of::<PartitionGateRepr>() == 8 * 8);
+const _: () = assert!(size_of::<AdaptiveBudgetRepr>() == 2 * 8);
+const _: () = assert!(size_of::<CacheGroupRepr>() == 5 * 8);
+const _: () = assert!(size_of::<CacheStatsRepr>() == 20 * 8);
+const _: () = assert!(size_of::<SearchStatsRepr>() == 17 * 8);
+const _: () = assert!(size_of::<DfStatsBuffer>() == 85 * 8);
 
 pub mod layout {
     use super::*;
-    pub const BUFFER_BYTE_SIZE: usize = std::mem::size_of::<DfStatsBuffer>();
-    const _: () = assert!(BUFFER_BYTE_SIZE == 600);
+    pub const BUFFER_BYTE_SIZE: usize = size_of::<DfStatsBuffer>();
+    const _: () = assert!(BUFFER_BYTE_SIZE == 680);
 }
 
 /// Snapshot a `RuntimeMonitor` and return a populated `RuntimeMetricsRepr`.
@@ -215,7 +219,6 @@ pub fn pack_runtime_metrics(_monitor: &RuntimeMonitor, handle: &Handle) -> Runti
         total_local_queue_depth: total_local_queue as i64,
     }
 }
-
 
 /// Snapshot a `TaskMonitor` and return a populated `TaskMonitorRepr`.
 ///
@@ -289,6 +292,9 @@ pub fn pack_cache_stats(mgr: &CustomCacheManager) -> CacheStatsRepr {
         .get_memory_consumed_by_type(crate::cache::CACHE_TYPE_STATS)
         .unwrap_or(0) as i64;
 
+    let ci = crate::cache::page_index::column_index_cache_stats();
+    let oi = crate::cache::page_index::offset_index_cache_stats();
+
     CacheStatsRepr {
         metadata_cache: CacheGroupRepr {
             hit_count: mgr.metadata_cache_hit_count() as i64,
@@ -304,6 +310,20 @@ pub fn pack_cache_stats(mgr: &CustomCacheManager) -> CacheStatsRepr {
             memory_bytes: statistics_memory,
             size_limit_bytes: mgr.statistics_cache_size_limit() as i64,
         },
+        column_index_cache: CacheGroupRepr {
+            hit_count: ci.hits as i64,
+            miss_count: ci.misses as i64,
+            entry_count: ci.entries as i64,
+            memory_bytes: ci.used_bytes as i64,
+            size_limit_bytes: ci.limit_bytes as i64,
+        },
+        offset_index_cache: CacheGroupRepr {
+            hit_count: oi.hits as i64,
+            miss_count: oi.misses as i64,
+            entry_count: oi.entries as i64,
+            memory_bytes: oi.used_bytes as i64,
+            size_limit_bytes: oi.limit_bytes as i64,
+        },
     }
 }
 
@@ -311,8 +331,8 @@ pub fn pack_cache_stats(mgr: &CustomCacheManager) -> CacheStatsRepr {
 mod tests {
     use super::*;
     use crate::task_monitors::{
-        coordinator_reduce_monitor, query_execution_monitor,
-        stream_next_monitor, plan_setup_monitor,
+        coordinator_reduce_monitor, plan_setup_monitor, query_execution_monitor,
+        stream_next_monitor,
     };
 
     #[test]
@@ -364,7 +384,11 @@ mod tests {
         assert_eq!(result, 42);
 
         let tm = pack_task_monitor(monitor);
-        assert!(tm.total_poll_duration_ms >= 0, "total_poll_duration should be >= 0, got {}", tm.total_poll_duration_ms);
+        assert!(
+            tm.total_poll_duration_ms >= 0,
+            "total_poll_duration should be >= 0, got {}",
+            tm.total_poll_duration_ms
+        );
     }
 
     #[tokio::test]
@@ -396,12 +420,24 @@ mod tests {
             search_stats: crate::search_stats::snapshot(),
         };
 
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 600);
-        assert!(buf.io_runtime.workers_count > 0, "IO runtime workers_count should be > 0, got {}", buf.io_runtime.workers_count);
-        assert!(buf.fragment_executor_gate.max_permits > 0, "fragment_executor_gate max_permits should be > 0, got {}", buf.fragment_executor_gate.max_permits);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 680);
+        assert!(
+            buf.io_runtime.workers_count > 0,
+            "IO runtime workers_count should be > 0, got {}",
+            buf.io_runtime.workers_count
+        );
+        assert!(
+            buf.fragment_executor_gate.max_permits > 0,
+            "fragment_executor_gate max_permits should be > 0, got {}",
+            buf.fragment_executor_gate.max_permits
+        );
 
         if mgr.cpu_monitor.is_some() {
-            assert!(buf.cpu_runtime.workers_count > 0, "CPU runtime workers_count should be > 0, got {}", buf.cpu_runtime.workers_count);
+            assert!(
+                buf.cpu_runtime.workers_count > 0,
+                "CPU runtime workers_count should be > 0, got {}",
+                buf.cpu_runtime.workers_count
+            );
         }
 
         mgr.cpu_executor.shutdown();
@@ -411,9 +447,9 @@ mod tests {
     #[test]
     fn test_df_stats_buffer_too_small() {
         // Verify that the buffer size assertion holds
-        assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 600);
-        assert_eq!(layout::BUFFER_BYTE_SIZE, 600);
-        // A buffer smaller than 600 bytes should be rejected by df_stats.
+        assert_eq!(size_of::<DfStatsBuffer>(), 680);
+        assert_eq!(layout::BUFFER_BYTE_SIZE, 680);
+        // A buffer smaller than 680 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);
@@ -437,8 +473,8 @@ mod tests {
     fn test_pack_cache_stats_reflects_underlying_counters() {
         use std::sync::Arc;
 
-        use datafusion::execution::cache::DefaultFilesMetadataCache;
         use datafusion::execution::cache::CacheAccessor;
+        use datafusion::execution::cache::DefaultFilesMetadataCache;
         use object_store::path::Path;
 
         use crate::cache::MutexFileMetadataCache;
@@ -446,9 +482,9 @@ mod tests {
         use crate::eviction_policy::PolicyType;
         use crate::statistics_cache::CustomStatisticsCache;
 
-        let metadata_cache = Arc::new(MutexFileMetadataCache::new(
-            DefaultFilesMetadataCache::new(50 * 1024 * 1024),
-        ));
+        let metadata_cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+            50 * 1024 * 1024,
+        )));
         let stats_cache = Arc::new(CustomStatisticsCache::new(
             PolicyType::Lru,
             10 * 1024 * 1024,
@@ -461,7 +497,9 @@ mod tests {
             assert!(metadata_cache.get(&p).is_none());
             assert!(stats_cache.get(&p).is_none());
         }
-        assert!(metadata_cache.get(&Path::from("/test/missing/extra.parquet")).is_none());
+        assert!(metadata_cache
+            .get(&Path::from("/test/missing/extra.parquet"))
+            .is_none());
 
         let mut mgr = CustomCacheManager::new();
         mgr.set_file_metadata_cache(metadata_cache);

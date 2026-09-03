@@ -68,10 +68,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -437,6 +439,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public static final Setting<Boolean> INDEX_APPEND_ONLY_ENABLED_SETTING = Setting.boolSetting(
         SETTING_INDEX_APPEND_ONLY_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final String SETTING_REMOTE_STORE_FENCING_ENABLED = "index.remote_store.fencing.enabled";
+
+    /**
+     * Used to enable object-store-backed primary fencing for remote-store-backed indices. When enabled, every
+     * translog upload on the acknowledgement path performs a compare-and-swap on a per-shard fence blob in the
+     * translog repository, so a stale primary fails itself instead of acknowledging writes that would be lost on
+     * failover. Requires the translog repository to support conditional writes.
+     * <p>
+     * Must not be enabled for an index migrating between document replication and remote store: fencing assumes
+     * every writer acknowledges through the remote translog upload path, and a docrep-backed writer during
+     * migration never touches the fence, so it could not be fenced by it. Enable only on indices that are
+     * remote-store-backed end to end.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE_FENCING_ENABLED,
         false,
         Property.IndexScope,
         Property.Final
@@ -1046,6 +1068,29 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Setting for the payload decoder type.
+     * The built-in decoder is {@code xcontent} (JSON). Plugins may register
+     * additional decoder names (e.g. {@code avro}).
+     */
+    public static final String SETTING_INGESTION_SOURCE_DECODER_TYPE = "index.ingestion_source.decoder_type";
+    public static final Setting<String> INGESTION_SOURCE_DECODER_TYPE_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_DECODER_TYPE,
+        XContentIngestionPayloadDecoder.NAME,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Prefix setting for decoder-specific options. Each decoder factory validates
+     * supported and required keys. Example:
+     * {@code index.ingestion_source.decoder_settings.schema_registry_url: https://...}
+     */
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_DECODER_SETTINGS = Setting.prefixKeySetting(
+        "index.ingestion_source.decoder_settings.",
+        key -> new Setting<>(key, "", (value) -> value, Property.IndexScope, Property.Final)
+    );
+
+    /**
      * Defines the maximum time to wait for lag to catch up during warmup phase.
      * A value of -1 means warmup is disabled (the default). A value >= 0 enables warmup with that timeout.
      */
@@ -1341,6 +1386,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
             final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
+            final String decoderType = INGESTION_SOURCE_DECODER_TYPE_SETTING.get(settings);
+            final Map<String, Object> decoderSettings = INGESTION_SOURCE_DECODER_SETTINGS.getAsMap(settings);
             final IngestionSource.SourcePartitionStrategy sourcePartitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(
                 settings
             );
@@ -1362,6 +1409,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
                 .setMapperSettings(mapperSettings)
+                .setDecoderType(decoderType)
+                .setDecoderSettings(decoderSettings)
                 .setSourcePartitionStrategy(sourcePartitionStrategy)
                 .setWarmupConfig(warmupConfig)
                 .build();
@@ -2490,7 +2539,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.get(settings);
             final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit =
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
-            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings)
+                || IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 

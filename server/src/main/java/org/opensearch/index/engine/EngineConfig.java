@@ -43,6 +43,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -56,6 +57,7 @@ import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
@@ -69,6 +71,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -126,7 +129,12 @@ public final class EngineConfig {
     private final DataFormatRegistry dataFormatRegistry;
     private final MapperService mapperService;
     private final CommitterFactory committerFactory;
+    private final PrimaryOperationPolicy primaryOperationPolicy;
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
+    @Nullable
+    private final DocumentLookupProvider documentLookupProvider;
+    @Nullable
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -320,7 +328,12 @@ public final class EngineConfig {
         this.dataFormatRegistry = builder.dataFormatRegistry;
         this.mapperService = builder.mapperService;
         this.committerFactory = builder.committerFactory;
+        this.primaryOperationPolicy = builder.primaryOperationPolicy != null
+            ? builder.primaryOperationPolicy
+            : DefaultPrimaryOperationPolicy.INSTANCE;
         this.checksumStrategies = builder.checksumStrategies;
+        this.documentLookupProvider = builder.documentLookupProvider;
+        this.documentMetadataResolver = builder.documentMetadataResolver;
     }
 
     /**
@@ -369,7 +382,14 @@ public final class EngineConfig {
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
-            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker);
+            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
+            .dataFormatRegistry(this.dataFormatRegistry)
+            .mapperService(this.mapperService)
+            .committerFactory(this.committerFactory)
+            .checksumStrategies(this.checksumStrategies)
+            .documentLookupProvider(this.documentLookupProvider)
+            .documentMetadataResolver(this.documentMetadataResolver)
+            .primaryOperationPolicy(this.primaryOperationPolicy);
     }
 
     /**
@@ -607,6 +627,14 @@ public final class EngineConfig {
         ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
+         * Creates a tombstone document for a delete operation with routing.
+         * Default ignores routing for backward compatibility; override to preserve it.
+         */
+        default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+            return newDeleteTombstoneDoc(id);
+        }
+
+        /**
          * Creates a tombstone document for a noop operation.
          * @param reason the reason of an a noop
          */
@@ -660,8 +688,30 @@ public final class EngineConfig {
         return this.committerFactory;
     }
 
+    /**
+     * Returns the policy describing how a writable primary sources sequence numbers and plans
+     * operations. Never {@code null}; defaults to {@link DefaultPrimaryOperationPolicy}, which
+     * reproduces the standard primary behavior.
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return this.primaryOperationPolicy;
+    }
+
     public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
         return this.checksumStrategies;
+    }
+
+    /** Optional {@link DocumentLookupProvider} for the pluggable get-by-id path, or {@code null}. */
+    @Nullable
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return this.documentLookupProvider;
+    }
+
+    /** Optional {@link DocumentMetadataResolver} passed per-call to the provider, or {@code null}. */
+    @Nullable
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return this.documentMetadataResolver;
     }
 
     /**
@@ -705,7 +755,12 @@ public final class EngineConfig {
         private DataFormatRegistry dataFormatRegistry;
         private MapperService mapperService;
         private CommitterFactory committerFactory;
+        private PrimaryOperationPolicy primaryOperationPolicy;
         private Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
+        @Nullable
+        private DocumentLookupProvider documentLookupProvider;
+        @Nullable
+        private DocumentMetadataResolver documentMetadataResolver;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -877,8 +932,28 @@ public final class EngineConfig {
             return this;
         }
 
+        /**
+         * Sets the indexing/sequence-number policy for a writable primary. A {@code null} value
+         * selects {@link DefaultPrimaryOperationPolicy}, which reproduces the standard behavior.
+         */
+        @ExperimentalApi
+        public Builder primaryOperationPolicy(@Nullable PrimaryOperationPolicy primaryOperationPolicy) {
+            this.primaryOperationPolicy = primaryOperationPolicy;
+            return this;
+        }
+
         public Builder checksumStrategies(Map<String, FormatChecksumStrategy> checksumStrategies) {
             this.checksumStrategies = checksumStrategies;
+            return this;
+        }
+
+        public Builder documentLookupProvider(@Nullable DocumentLookupProvider documentLookupProvider) {
+            this.documentLookupProvider = documentLookupProvider;
+            return this;
+        }
+
+        public Builder documentMetadataResolver(@Nullable DocumentMetadataResolver documentMetadataResolver) {
+            this.documentMetadataResolver = documentMetadataResolver;
             return this;
         }
 

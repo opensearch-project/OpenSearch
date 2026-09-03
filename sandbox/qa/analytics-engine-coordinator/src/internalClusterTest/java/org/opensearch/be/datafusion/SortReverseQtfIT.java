@@ -311,7 +311,6 @@ public class SortReverseQtfIT extends OpenSearchIntegTestCase {
             for (int i = 0; i < DOCS_PER_FLUSH; i++) {
                 long ts = (long) batch * DOCS_PER_FLUSH + i;
                 client().prepareIndex(INDEX)
-                    .setId(String.valueOf(ts))
                     .setSource(
                         "ts",
                         ts,

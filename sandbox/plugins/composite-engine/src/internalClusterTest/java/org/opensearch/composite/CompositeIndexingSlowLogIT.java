@@ -36,13 +36,13 @@ public class CompositeIndexingSlowLogIT extends AbstractCompositeEngineIT {
             appender.addExpectation(expectSeen("contains index name", ".*slowlog-test-idx.*"));
             appender.addExpectation(expectSeen("contains took", ".*took\\[.*\\].*"));
             appender.addExpectation(expectSeen("contains took_millis", ".*took_millis\\[\\d+\\].*"));
-            appender.addExpectation(expectSeen("contains document id", ".*id\\[1\\].*"));
+            appender.addExpectation(expectSeen("contains document id", ".*id\\[.*\\].*"));
             appender.addExpectation(expectSeen("contains routing field", ".*routing\\[.*\\].*"));
             appender.addExpectation(expectSeen("contains document source", ".*source\\[.*test_value.*\\].*"));
 
             assertEquals(
                 RestStatus.CREATED,
-                client().prepareIndex().setIndex(INDEX_NAME).setId("1").setSource("name", "test_value", "value", 42).get().status()
+                client().prepareIndex().setIndex(INDEX_NAME).setSource("name", "test_value", "value", 42).get().status()
             );
 
             appender.assertAllExpectationsMatched();
@@ -59,7 +59,7 @@ public class CompositeIndexingSlowLogIT extends AbstractCompositeEngineIT {
 
             assertEquals(
                 RestStatus.CREATED,
-                client().prepareIndex().setIndex(INDEX_NAME).setId("1").setSource("name", "fast_doc", "value", 1).get().status()
+                client().prepareIndex().setIndex(INDEX_NAME).setSource("name", "fast_doc", "value", 1).get().status()
             );
 
             appender.assertAllExpectationsMatched();

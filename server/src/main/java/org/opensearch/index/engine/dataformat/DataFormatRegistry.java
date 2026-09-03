@@ -13,10 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -47,6 +50,12 @@ public class DataFormatRegistry {
     private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    /** The single registered document lookup provider (engine-backed get-by-id execution), or {@code null} if none. */
+    private final DocumentLookupProvider documentLookupProvider;
+
+    /** The single registered document metadata resolver (id-to-row-location), or {@link DocumentMetadataResolver#NOOP} if none. */
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
@@ -84,6 +93,38 @@ public class DataFormatRegistry {
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
         this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
+
+        List<DocumentLookupProvider> lookupProviders = pluginsService.filterPlugins(DocumentLookupProvider.class);
+        if (lookupProviders.size() > 1) {
+            throw new IllegalStateException("multiple DocumentLookupProvider implementations registered: " + lookupProviders);
+        }
+        this.documentLookupProvider = lookupProviders.isEmpty() ? null : lookupProviders.getFirst();
+
+        List<DocumentMetadataResolver> resolvers = pluginsService.filterPlugins(DocumentMetadataResolver.class);
+        if (resolvers.size() > 1) {
+            throw new IllegalStateException("multiple DocumentMetadataResolver implementations registered: " + resolvers);
+        }
+        this.documentMetadataResolver = resolvers.isEmpty() ? DocumentMetadataResolver.NOOP : resolvers.getFirst();
+    }
+
+    /**
+     * Returns the single registered {@link DocumentLookupProvider} that backs the engine's
+     * get-by-id / version-resolution path, or {@code null} when no provider is registered.
+     *
+     * @return the document lookup provider, or null
+     */
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return documentLookupProvider;
+    }
+
+    /**
+     * Returns the single registered {@link DocumentMetadataResolver} that maps an {@code _id}
+     * to its row location, or {@link DocumentMetadataResolver#NOOP} when none is registered.
+     *
+     * @return the document metadata resolver (never null)
+     */
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return documentMetadataResolver;
     }
 
     /**
@@ -100,6 +141,52 @@ public class DataFormatRegistry {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
         return plugin.indexingEngine(settings);
+    }
+
+    /**
+     * Returns the plugin-contributed parameters applicable to the given content type, scoped to the data format the
+     * given index actually uses. Resolves the active data format from {@code indexSettings} via the
+     * {@code pluggable_dataformat} setting and delegates to that single plugin; composite plugins fan out to their
+     * primary and secondary formats. Returns an empty list when no pluggable data format is configured.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings used to determine the active data format
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(String contentType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+                    return params == null ? List.of() : List.copyOf(params);
+                }
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Returns the plugin-contributed parameters for a specific data format, bypassing the {@code pluggable_dataformat}
+     * index setting lookup. Used by composite plugins to resolve child-format parameters without recursion.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get parameters for
+     * @return the parameters contributed by the plugin for {@code dataFormat}, or an empty list if not registered
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormat dataFormat
+    ) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+        return params == null ? List.of() : params;
     }
 
     public DataFormat format(String name) {

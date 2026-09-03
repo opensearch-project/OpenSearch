@@ -24,7 +24,15 @@ static QUERY_EXECUTION_MONITOR: Lazy<TaskMonitor> = Lazy::new(TaskMonitor::new);
 static STREAM_NEXT_MONITOR: Lazy<TaskMonitor> = Lazy::new(TaskMonitor::new);
 static PLAN_SETUP_MONITOR: Lazy<TaskMonitor> = Lazy::new(TaskMonitor::new);
 
-pub fn coordinator_reduce_monitor() -> &'static TaskMonitor { &COORDINATOR_REDUCE_MONITOR }
-pub fn query_execution_monitor() -> &'static TaskMonitor { &QUERY_EXECUTION_MONITOR }
-pub fn stream_next_monitor() -> &'static TaskMonitor { &STREAM_NEXT_MONITOR }
-pub fn plan_setup_monitor() -> &'static TaskMonitor { &PLAN_SETUP_MONITOR }
+pub fn coordinator_reduce_monitor() -> &'static TaskMonitor {
+    &COORDINATOR_REDUCE_MONITOR
+}
+pub fn query_execution_monitor() -> &'static TaskMonitor {
+    &QUERY_EXECUTION_MONITOR
+}
+pub fn stream_next_monitor() -> &'static TaskMonitor {
+    &STREAM_NEXT_MONITOR
+}
+pub fn plan_setup_monitor() -> &'static TaskMonitor {
+    &PLAN_SETUP_MONITOR
+}

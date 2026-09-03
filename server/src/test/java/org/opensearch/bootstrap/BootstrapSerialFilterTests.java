@@ -40,7 +40,7 @@ public class BootstrapSerialFilterTests extends OpenSearchTestCase {
         // or the framework already set it, the end-to-end tests are skipped.
         boolean installed = false;
         try {
-            ObjectInputFilter.Config.setSerialFilter(Bootstrap.REJECT_ALL_FILTER);
+            ObjectInputFilter.Config.setSerialFilter(BootstrapSettings.REJECT_ALL_FILTER);
             installed = true;
         } catch (IllegalStateException e) {
             // Already set
@@ -51,16 +51,16 @@ public class BootstrapSerialFilterTests extends OpenSearchTestCase {
     // --- Unit tests for the filter logic (always run) ---
 
     public void testRejectAllFilterRejectsClasses() {
-        assertEquals(ObjectInputFilter.Status.REJECTED, Bootstrap.REJECT_ALL_FILTER.checkInput(filterInfo(String.class)));
+        assertEquals(ObjectInputFilter.Status.REJECTED, BootstrapSettings.REJECT_ALL_FILTER.checkInput(filterInfo(String.class)));
     }
 
     public void testRejectAllFilterRejectsAnyClass() {
-        assertEquals(ObjectInputFilter.Status.REJECTED, Bootstrap.REJECT_ALL_FILTER.checkInput(filterInfo(Runtime.class)));
+        assertEquals(ObjectInputFilter.Status.REJECTED, BootstrapSettings.REJECT_ALL_FILTER.checkInput(filterInfo(Runtime.class)));
     }
 
     public void testRejectAllFilterUndecidedForNullClass() {
         // null serialClass = stream metadata check (depth, bytes, refs), not a class resolution
-        assertEquals(ObjectInputFilter.Status.UNDECIDED, Bootstrap.REJECT_ALL_FILTER.checkInput(filterInfo(null)));
+        assertEquals(ObjectInputFilter.Status.UNDECIDED, BootstrapSettings.REJECT_ALL_FILTER.checkInput(filterInfo(null)));
     }
 
     // --- End-to-end tests showing actual runtime behavior ---

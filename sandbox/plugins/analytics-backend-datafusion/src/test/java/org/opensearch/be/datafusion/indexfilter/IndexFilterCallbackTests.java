@@ -79,7 +79,8 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
      * Lifecycle assertion: invoking an upcall on an unregistered contextId trips
      * {@code assert binding != null}. With {@code -ea} on (test default), this throws
      * AssertionError rather than silently returning -1 — surfacing missing-register
-     * or premature-unregister bugs.
+     * or premature-teardown bugs. Under the refcounted lifecycle this is a genuine
+     * bug signal: bindings stay alive until the last native handle is released.
      */
     public void testUnregisteredContextIdAsserts() {
         FilterTreeCallbacks.unregister(CTX);
@@ -108,7 +109,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+            public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
                 return -1;
             }
 
@@ -165,7 +166,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+        public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
             this.lastCollectorKey = collectorKey;
             int wordCount = Math.min(cannedWords.length, (int) (out.byteSize() / Long.BYTES));
             for (int i = 0; i < wordCount; i++) {

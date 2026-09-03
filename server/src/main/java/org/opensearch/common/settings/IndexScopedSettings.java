@@ -250,11 +250,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for remote translog
                 IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING,
+                IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING,
+                IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING,
 
                 // Settings for remote store enablement
                 IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
                 IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
                 IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+                IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING,
 
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
@@ -293,6 +296,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
+                IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS,
                 IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
                 IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
 

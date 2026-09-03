@@ -67,12 +67,14 @@
 //! memory allows, reduced parallelism under pressure, rejection only at
 //! extreme saturation.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
-use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
+use datafusion::execution::memory_pool::{
+    MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation,
+};
 use once_cell::sync::Lazy;
 use parquet::file::metadata::ParquetMetaData;
 
@@ -109,7 +111,6 @@ pub fn set_min_target_partitions(value: usize) {
 pub fn get_min_target_partitions() -> usize {
     MIN_TARGET_PARTITIONS_SETTING.load(Ordering::Acquire)
 }
-
 
 /// How many batch-sized buffers exist per partition in the pipeline.
 ///
@@ -165,7 +166,13 @@ pub fn acquire_budget(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
-    acquire_budget_with_projection(pool, schema, configured_target_partitions, configured_batch_size, None)
+    acquire_budget_with_projection(
+        pool,
+        schema,
+        configured_target_partitions,
+        configured_batch_size,
+        None,
+    )
 }
 
 /// Acquire budget using measured row bytes from parquet metadata.
@@ -185,7 +192,13 @@ pub fn acquire_budget_from_metadata(
     let avg_row_bytes = estimate_row_bytes_from_metadata(schema, metadata)
         .unwrap_or_else(|| estimate_avg_row_bytes(schema));
     let num_columns = schema.fields().len();
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        configured_batch_size,
+    )
 }
 
 /// Same as [`acquire_budget`] but accepts an optional projection.
@@ -204,7 +217,13 @@ pub fn acquire_budget_with_projection(
         Some(indices) => indices.len(),
         None => schema.fields().len(),
     };
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, configured_batch_size)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        configured_batch_size,
+    )
 }
 
 /// Core budget acquisition logic. All public entry points delegate here.
@@ -254,14 +273,20 @@ fn acquire_budget_inner(
                     );
                     ADAPTIVE_BUDGET.rejections.fetch_add(1, Ordering::Relaxed);
                     return Err(crate::native_error::admission_rejected_error(
-                        compute_untracked_bytes_with_columns(min_partitions, MIN_BATCH_SIZE, avg_row_bytes, num_columns),
+                        compute_untracked_bytes_with_columns(
+                            min_partitions,
+                            MIN_BATCH_SIZE,
+                            avg_row_bytes,
+                            num_columns,
+                        ),
                         min_partitions,
                         MIN_BATCH_SIZE,
                         avg_row_bytes,
                     ));
                 }
                 // RSS between admission (70%) and operator (85%) — reduce partitions
-                let admission_threshold_bytes = (limit as f64 * thresholds.admission_throttle) as i64;
+                let admission_threshold_bytes =
+                    (limit as f64 * thresholds.admission_throttle) as i64;
                 if resident >= admission_threshold_bytes {
                     native_bridge_common::log_info!(
                         "Admission: pool reserved={}B, RSS={}B >= admission threshold ({:.0}%) — reducing to min partitions={}",
@@ -275,7 +300,10 @@ fn acquire_budget_inner(
 
     loop {
         let phantom_bytes = compute_untracked_bytes_with_columns(
-            target_partitions, batch_size, avg_row_bytes, num_columns,
+            target_partitions,
+            batch_size,
+            avg_row_bytes,
+            num_columns,
         );
 
         let consumer = MemoryConsumer::new(format!(
@@ -351,7 +379,6 @@ fn acquire_budget_inner(
     }
 }
 
-
 /// Attempt to acquire or grow the coordinator-reduce session's phantom
 /// reservation based on a child input's schema. Compares the estimated
 /// untracked memory for this schema against the reservation already held
@@ -370,13 +397,22 @@ pub fn try_grow_reduce_budget(
     let avg_row_bytes = estimate_avg_row_bytes(schema);
     let num_columns = schema.fields().len();
     let needed = compute_untracked_bytes_with_columns(
-        configured_target_partitions, batch_size, avg_row_bytes, num_columns,
+        configured_target_partitions,
+        batch_size,
+        avg_row_bytes,
+        num_columns,
     );
     if needed <= prior_partition_reservation_bytes {
         return Ok(None);
     }
-    acquire_budget_inner(pool, avg_row_bytes, num_columns, configured_target_partitions, batch_size)
-        .map(Some)
+    acquire_budget_inner(
+        pool,
+        avg_row_bytes,
+        num_columns,
+        configured_target_partitions,
+        batch_size,
+    )
+    .map(Some)
 }
 
 /// Compute the untracked byte envelope for given parameters.
@@ -396,8 +432,8 @@ fn compute_untracked_bytes_with_columns(
     num_columns: usize,
 ) -> usize {
     let batch_bytes = batch_size * avg_row_bytes;
-    let decode_overhead = PAGE_DECODE_BASE_OVERHEAD_BYTES
-        + num_columns * PER_COLUMN_DECODE_OVERHEAD_BYTES;
+    let decode_overhead =
+        PAGE_DECODE_BASE_OVERHEAD_BYTES + num_columns * PER_COLUMN_DECODE_OVERHEAD_BYTES;
 
     if target_partitions == 1 {
         // No CoalescePartitionsExec, no merge channel. Pipeline is:
@@ -533,7 +569,10 @@ fn estimate_field_bytes(dt: &DataType) -> usize {
             4 * estimate_field_bytes(inner.data_type())
         }
         DataType::FixedSizeList(inner, n) => *n as usize * estimate_field_bytes(inner.data_type()),
-        DataType::Struct(fields) => fields.iter().map(|f| estimate_field_bytes(f.data_type())).sum(),
+        DataType::Struct(fields) => fields
+            .iter()
+            .map(|f| estimate_field_bytes(f.data_type()))
+            .sum(),
         DataType::Map(entry, _) => estimate_field_bytes(entry.data_type()) * 4,
         _ => 32,
     }
@@ -549,7 +588,10 @@ fn pool_limit(pool: &Arc<dyn MemoryPool>) -> Option<usize> {
 
 /// Delegates to the common memory guard for admission-level override check.
 fn jemalloc_says_headroom_available(pool_limit_bytes: usize) -> bool {
-    crate::memory_guard::should_override(pool_limit_bytes, crate::memory_guard::OverrideContext::Admission)
+    crate::memory_guard::should_override(
+        pool_limit_bytes,
+        crate::memory_guard::OverrideContext::Admission,
+    )
 }
 
 #[cfg(test)]
@@ -734,7 +776,12 @@ mod tests {
     fn try_grow_reduce_budget_skips_when_existing_covers() {
         let pool = test_pool(1_000_000_000);
         let schema = schema_of(vec![("a", DataType::Int64), ("b", DataType::Int64)]);
-        let needed = compute_untracked_bytes_with_columns(4, 8192, estimate_avg_row_bytes(&schema), schema.fields().len());
+        let needed = compute_untracked_bytes_with_columns(
+            4,
+            8192,
+            estimate_avg_row_bytes(&schema),
+            schema.fields().len(),
+        );
 
         // Existing reservation is larger — should return Ok(None)
         let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, needed + 1).unwrap();
@@ -767,7 +814,11 @@ mod tests {
         let result = try_grow_reduce_budget(&pool, &schema, 8192, 4, 0).unwrap();
         assert!(result.is_some());
         let budget = result.unwrap();
-        assert!(budget.target_partitions < 4, "expected partitions < 4, got {}", budget.target_partitions);
+        assert!(
+            budget.target_partitions < 4,
+            "expected partitions < 4, got {}",
+            budget.target_partitions
+        );
     }
 
     #[test]

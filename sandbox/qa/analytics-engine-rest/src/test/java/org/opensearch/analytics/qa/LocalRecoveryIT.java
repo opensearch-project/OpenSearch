@@ -74,11 +74,11 @@ public class LocalRecoveryIT extends AnalyticsRestTestCase {
 
         // Bulk index documents
         StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\": {\"_id\": \"1\"}}\n{\"name\": \"alice\", \"age\": 30, \"score\": 95.5}\n");
-        bulk.append("{\"index\": {\"_id\": \"2\"}}\n{\"name\": \"bob\", \"age\": 25, \"score\": 88.0}\n");
-        bulk.append("{\"index\": {\"_id\": \"3\"}}\n{\"name\": \"carol\", \"age\": 35, \"score\": 92.3}\n");
-        bulk.append("{\"index\": {\"_id\": \"4\"}}\n{\"name\": \"dave\", \"age\": 28, \"score\": 76.8}\n");
-        bulk.append("{\"index\": {\"_id\": \"5\"}}\n{\"name\": \"eve\", \"age\": 32, \"score\": 91.0}\n");
+        bulk.append("{\"index\": {}}\n{\"name\": \"alice\", \"age\": 30, \"score\": 95.5}\n");
+        bulk.append("{\"index\": {}}\n{\"name\": \"bob\", \"age\": 25, \"score\": 88.0}\n");
+        bulk.append("{\"index\": {}}\n{\"name\": \"carol\", \"age\": 35, \"score\": 92.3}\n");
+        bulk.append("{\"index\": {}}\n{\"name\": \"dave\", \"age\": 28, \"score\": 76.8}\n");
+        bulk.append("{\"index\": {}}\n{\"name\": \"eve\", \"age\": 32, \"score\": 91.0}\n");
 
         Request bulkRequest = new Request("POST", "/" + INDEX_NAME + "/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
@@ -190,7 +190,7 @@ public class LocalRecoveryIT extends AnalyticsRestTestCase {
         for (int batch = 0; batch < numBatches; batch++) {
             StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < docsPerBatch; i++) {
-                bulk.append("{\"index\": {\"_id\": \"").append(docId).append("\"}}\n");
+                bulk.append("{\"index\": {}}\n");
                 bulk.append("{\"name\": \"user_")
                     .append(docId)
                     .append("\", \"age\": ")

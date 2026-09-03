@@ -47,6 +47,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,49 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         SearchRequestContext searchRequestContext,
         Tracer tracer
     ) {
-        // We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
+        this(
+            logger,
+            searchTransportService,
+            nodeIdToConnection,
+            aliasFilter,
+            concreteIndexBoosts,
+            indexRoutings,
+            executor,
+            request,
+            listener,
+            shardsIts,
+            buildActiveShardIndexLookup(shardsIts),
+            timeProvider,
+            clusterState,
+            task,
+            phaseFactory,
+            clusters,
+            searchRequestContext,
+            tracer
+        );
+    }
+
+    private CanMatchPreFilterSearchPhase(
+        Logger logger,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Map<String, Set<String>> indexRoutings,
+        Executor executor,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        int[] activeShardIndexLookup,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchTask task,
+        Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        Tracer tracer
+    ) {
+        // Use the active shard count so can_match is effectively unthrottled without over-sizing the concurrency budget.
         super(
             SearchPhaseName.CAN_MATCH.getName(),
             logger,
@@ -111,8 +154,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             timeProvider,
             clusterState,
             task,
-            new CanMatchSearchPhaseResults(shardsIts.size()),
-            shardsIts.size(),
+            new CanMatchSearchPhaseResults(shardsIts.size(), activeShardIndexLookup),
+            activeShardIndexLookup.length,
             clusters,
             searchRequestContext,
             tracer
@@ -146,6 +189,29 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
     }
 
+    private static int[] buildActiveShardIndexLookup(GroupShardsIterator<SearchShardIterator> shardsIts) {
+        int[] shardIndexes = new int[shardsIts.size()];
+        int activeShardCount = 0;
+        for (int i = 0; i < shardsIts.size(); i++) {
+            /*
+             * AbstractSearchAsyncAction executes only non-skipped shard iterators. This
+             * compacts the shard indexes observed by can_match responses: response index 0
+             * refers to the first active shard, not necessarily shardsIts.get(0).
+             *
+             * CanMatchPreFilterSearchPhase applies possibleMatches back onto the original
+             * GroupShardsIterator so skipped shard groups remain in their original positions
+             * for accounting and downstream phases.
+             *
+             * This lookup translates compacted active shard indexes back to original shard
+             * group indexes.
+             */
+            if (shardsIts.get(i).skip() == false) {
+                shardIndexes[activeShardCount++] = i;
+            }
+        }
+        return Arrays.copyOf(shardIndexes, activeShardCount);
+    }
+
     private GroupShardsIterator<SearchShardIterator> getIterator(
         CanMatchSearchPhaseResults results,
         GroupShardsIterator<SearchShardIterator> shardsIts
@@ -155,7 +221,9 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         if (cardinality == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
-            possibleMatches.set(0);
+            if (results.hasActiveShards()) {
+                possibleMatches.set(results.getFirstActiveShardIndex());
+            }
         }
         SearchSourceBuilder source = getRequest().source();
         int i = 0;
@@ -217,18 +285,22 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;
+        private final int[] activeShardIndexToOriginalShardIndex;
+        private final int firstActiveShardIndex;
         private int numPossibleMatches;
 
-        CanMatchSearchPhaseResults(int size) {
-            super(size);
-            possibleMatches = new FixedBitSet(size);
-            minAndMaxes = new MinAndMax[size];
+        CanMatchSearchPhaseResults(int originalShardCount, int[] activeShardIndexToOriginalShardIndex) {
+            super(originalShardCount);
+            possibleMatches = new FixedBitSet(originalShardCount);
+            minAndMaxes = new MinAndMax[originalShardCount];
+            this.activeShardIndexToOriginalShardIndex = activeShardIndexToOriginalShardIndex;
+            firstActiveShardIndex = activeShardIndexToOriginalShardIndex.length == 0 ? 0 : activeShardIndexToOriginalShardIndex[0];
         }
 
         @Override
         void consumeResult(CanMatchResponse result, Runnable next) {
             try {
-                consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
+                consumeResult(originalShardIndex(result.getShardIndex()), result.canMatch(), result.estimatedMinAndMax());
             } finally {
                 next.run();
             }
@@ -242,7 +314,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         @Override
         void consumeShardFailure(int shardIndex) {
             // we have to carry over shard failures in order to account for them in the response.
-            consumeResult(shardIndex, true, null);
+            consumeResult(originalShardIndex(shardIndex), true, null);
         }
 
         synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
@@ -259,6 +331,27 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
         synchronized FixedBitSet getPossibleMatches() {
             return possibleMatches;
+        }
+
+        int getFirstActiveShardIndex() {
+            return firstActiveShardIndex;
+        }
+
+        boolean hasActiveShards() {
+            return activeShardIndexToOriginalShardIndex.length > 0;
+        }
+
+        private int originalShardIndex(int activeShardIndex) {
+            if (activeShardIndex < 0 || activeShardIndex >= activeShardIndexToOriginalShardIndex.length) {
+                throw new IllegalStateException(
+                    "invalid can_match shard index ["
+                        + activeShardIndex
+                        + "] for active shard index range [0, "
+                        + activeShardIndexToOriginalShardIndex.length
+                        + ")"
+                );
+            }
+            return activeShardIndexToOriginalShardIndex[activeShardIndex];
         }
 
         @Override
