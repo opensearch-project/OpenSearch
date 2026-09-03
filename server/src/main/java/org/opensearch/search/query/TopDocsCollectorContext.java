@@ -953,6 +953,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         private final int trackTotalHitsUpTo;
         private final int hitCount;
         private final int numHits;
+        // stop once we've got numHits AND counted this many; 0 = stop right away, MAX_VALUE = never
+        private final int earlyTerminateThreshold;
         private FilterOnlyCollector filterCollector;
 
         FilterOnlyTopDocsCollectorContext(IndexReader reader, Query query, int numHits, int trackTotalHitsUpTo, boolean hasFilterCollector)
@@ -961,22 +963,29 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             this.numHits = numHits;
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+            if (this.hitCount >= 0 || trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                this.earlyTerminateThreshold = 0;
+            } else {
+                this.earlyTerminateThreshold = trackTotalHitsUpTo;
+            }
         }
 
         @Override
         Collector create(Collector in) throws IOException {
             assert in == null;
-            this.filterCollector = new FilterOnlyCollector(numHits);
+            this.filterCollector = new FilterOnlyCollector(numHits, earlyTerminateThreshold, new java.util.concurrent.atomic.LongAdder());
             return filterCollector;
         }
 
         @Override
         CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
             assert in == null;
+            // shared so the count check is global across slices
+            final java.util.concurrent.atomic.LongAdder sharedHitCount = new java.util.concurrent.atomic.LongAdder();
             return new CollectorManager<FilterOnlyCollector, ReduceableSearchResult>() {
                 @Override
                 public FilterOnlyCollector newCollector() {
-                    return new FilterOnlyCollector(numHits);
+                    return new FilterOnlyCollector(numHits, earlyTerminateThreshold, sharedHitCount);
                 }
 
                 @Override
@@ -1027,11 +1036,16 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      */
     static class FilterOnlyCollector implements Collector {
         final int numHits;
+        final int earlyTerminateThreshold;
+        // shared across slices so termination decision is global
+        final java.util.concurrent.atomic.LongAdder globalHitCount;
         int totalHits = 0;
         final List<ScoreDoc> collectedDocs = new ArrayList<>();
 
-        FilterOnlyCollector(int numHits) {
+        FilterOnlyCollector(int numHits, int earlyTerminateThreshold, java.util.concurrent.atomic.LongAdder globalHitCount) {
             this.numHits = numHits;
+            this.earlyTerminateThreshold = earlyTerminateThreshold;
+            this.globalHitCount = globalHitCount;
         }
 
         @Override
@@ -1039,8 +1053,16 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             return org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
         }
 
+        private boolean canTerminate() {
+            return collectedDocs.size() >= numHits && globalHitCount.sum() >= earlyTerminateThreshold;
+        }
+
         @Override
         public org.apache.lucene.search.LeafCollector getLeafCollector(LeafReaderContext context) {
+            // skip remaining leaves once we're done — CollectionTerminatedException only ends the current leaf
+            if (canTerminate()) {
+                throw new org.apache.lucene.search.CollectionTerminatedException();
+            }
             final int docBase = context.docBase;
             return new org.apache.lucene.search.LeafCollector() {
                 @Override
@@ -1051,18 +1073,30 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 @Override
                 public void collect(int doc) {
                     totalHits++;
+                    globalHitCount.increment();
                     if (collectedDocs.size() < numHits) {
                         collectedDocs.add(new ScoreDoc(doc + docBase, 0.0f));
+                    } else if (canTerminate()) {
+                        throw new org.apache.lucene.search.CollectionTerminatedException();
                     }
                 }
 
                 @Override
                 public void collect(org.apache.lucene.search.DocIdStream stream) throws IOException {
                     if (collectedDocs.size() >= numHits) {
-                        totalHits += stream.count();
+                        if (canTerminate()) {
+                            throw new org.apache.lucene.search.CollectionTerminatedException();
+                        }
+                        int c = stream.count();
+                        totalHits += c;
+                        globalHitCount.add(c);
+                        if (canTerminate()) {
+                            throw new org.apache.lucene.search.CollectionTerminatedException();
+                        }
                     } else {
                         stream.forEach(doc -> {
                             totalHits++;
+                            globalHitCount.increment();
                             if (collectedDocs.size() < numHits) {
                                 collectedDocs.add(new ScoreDoc(doc + docBase, 0.0f));
                             }
