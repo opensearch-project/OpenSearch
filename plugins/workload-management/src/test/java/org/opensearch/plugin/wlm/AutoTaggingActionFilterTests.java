@@ -92,6 +92,21 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         }
     }
 
+    public void testApplyDoesNotOverwriteExistingHeader() {
+        SearchRequest request = mock(SearchRequest.class);
+        ActionFilterChain<ActionRequest, ActionResponse> mockFilterChain = mock(TestActionFilterChain.class);
+        when(request.indices()).thenReturn(new String[] { "lookupidx" });
+        try (ThreadContext.StoredContext context = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "OuterQG_ID");
+            when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("NestedQG_ID"));
+
+            // Must not throw "value for key [workloadGroupId] already present"
+            autoTaggingActionFilter.apply(mock(Task.class), "Test", request, ActionRequestMetadata.empty(), null, mockFilterChain);
+
+            assertEquals("OuterQG_ID", threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
+        }
+    }
+
     public void testApplyForInValidRequest() {
         ActionFilterChain<ActionRequest, ActionResponse> mockFilterChain = mock(TestActionFilterChain.class);
         CancelTasksRequest request = new CancelTasksRequest();
