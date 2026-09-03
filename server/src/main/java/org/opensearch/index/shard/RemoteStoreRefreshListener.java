@@ -470,9 +470,14 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // The above trimming makes the translog-size based periodic flush condition ineffective on remote-store
         // shards, hence publish the size of segment bytes not yet referenced by the last commit point, together with
         // the threshold to flush at, so that the engine can flush once they breach it.
-        if (remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled()
-            && indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
-            engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap, flushOnUncommittedSegmentsThresholdBytes());
+        if (indexShard.getIndexer() instanceof EngineBackedIndexer engineBacked) {
+            if (remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled()) {
+                engineBacked.getEngine().updateUncommittedSegmentBytes(localFileSizeMap, flushOnUncommittedSegmentsThresholdBytes());
+            } else {
+                // discard whatever was published while the condition was on, otherwise it stays armed and can still
+                // trigger a flush after the operator turned the condition off
+                engineBacked.getEngine().clearUncommittedSegmentBytes();
+            }
         }
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);

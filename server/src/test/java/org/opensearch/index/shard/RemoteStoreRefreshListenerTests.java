@@ -1073,8 +1073,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexDocs(10, 1);
             indexShard.refresh("test");
             listener.afterRefresh(true);
-            // the sync itself still ran -- only the accounting publication is skipped
+            // the sync itself still ran -- it publishes nothing and instead disarms the condition
             verify(mockEngine, never()).updateUncommittedSegmentBytes(any(), anyLong());
+            verify(mockEngine, atLeastOnce()).clearUncommittedSegmentBytes();
         } finally {
             listener.drainRefreshes();
         }
@@ -1110,6 +1111,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             publishes.incrementAndGet();
             return null;
         }).when(mockEngine).updateUncommittedSegmentBytes(any(), anyLong());
+        final AtomicInteger disarms = new AtomicInteger();
+        doAnswer(invocation -> {
+            disarms.incrementAndGet();
+            return null;
+        }).when(mockEngine).clearUncommittedSegmentBytes();
 
         final AtomicInteger docId = new AtomicInteger(10);
         try {
@@ -1129,6 +1135,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
             // disabled on a live shard: no further publication, however many syncs run
             final int publishesAtDisable = publishes.get();
+            final int disarmsAtDisable = disarms.get();
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), false)
@@ -1141,6 +1148,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 listener.afterRefresh(true);
             }
             assertEquals("no publication once the switch is off", publishesAtDisable, publishes.get());
+            // the disable path does not merely stay silent, it actively discards the armed accounting
+            assertTrue("expected the disabled syncs to disarm the condition", disarms.get() > disarmsAtDisable);
 
             // re-enabled: publications resume
             clusterSettings.applySettings(

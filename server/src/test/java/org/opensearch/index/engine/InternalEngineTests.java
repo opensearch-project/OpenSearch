@@ -6845,6 +6845,36 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     /**
+     * Verifies that discarding the published accounting disarms the condition, which is how the publisher stops flushes
+     * when {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} is turned off, instead of leaving an
+     * already-armed value to trigger a flush later.
+     */
+    public void testClearUncommittedSegmentBytesDisarmsFlushCondition() throws Exception {
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Published bytes breach the threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Discarding the accounting disarms the condition", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // and it stays disarmed without a commit having happened, i.e. no flush is needed to make it stick
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+        // the publisher calls this on every sync while disabled, so repeating it must be a harmless no-op
+        engine.clearUncommittedSegmentBytes();
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Repeated discards remain a no-op", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("A fresh publication re-arms it", engine.shouldPeriodicallyFlush(), equalTo(true));
+    }
+
+    /**
      * Verifies the accounting inside {@code updateUncommittedSegmentBytes}: only segment files absent from the last
      * commit point are summed, while committed files and {@code segments_N} entries are excluded. The total is
      * asserted exactly by probing thresholds of the uncommitted size and one byte above it, and a publication

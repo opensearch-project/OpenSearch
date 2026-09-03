@@ -1560,9 +1560,10 @@ public class InternalEngine extends Engine {
      * computed against, so a commit implicitly invalidates it.
      *
      * The flush threshold is stamped in alongside the bytes rather than read from settings on the flush poll, so that
-     * the engine holds no opinion about how the index setting and its cluster fallback are resolved. A settings change
+     * the engine holds no opinion about how the index setting and its cluster fallback are resolved. A threshold change
      * therefore takes effect from the next successful segments sync, which on an actively written shard is the next
-     * refresh.
+     * refresh; turning the condition off instead discards the accounting on that sync, see
+     * {@link #clearUncommittedSegmentBytes()}.
      *
      * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
      * @param flushThresholdBytes  uncommitted segment bytes at or above which to flush, resolved by the publisher
@@ -1593,6 +1594,24 @@ public class InternalEngine extends Engine {
             }
         }
         uncommittedSegmentBytes = new UncommittedSegmentBytes(bytes, committedInfos.getGeneration(), flushThresholdBytes);
+    }
+
+    /**
+     * Discards the published accounting, disarming the uncommitted-segment-bytes flush condition until the next
+     * publication. {@link #shouldFlushOnUncommittedSegmentBytes()} already treats an absent value as "do not flush", so
+     * nulling the field is all that is needed.
+     * <p>
+     * The publisher calls this on every segments sync while the condition is disabled, so the write is guarded: only the
+     * first such sync dirties the field, the rest are a volatile read and nothing else. A plain guarded write rather
+     * than a compare-and-set is sufficient because the field is only ever written from the segments sync path, which is
+     * serialized per shard by the refresh listener's permit; and even a lost race here could only suppress a flush
+     * trigger until the next sync, never cause a spurious flush.
+     */
+    @Override
+    public void clearUncommittedSegmentBytes() {
+        if (uncommittedSegmentBytes != null) {
+            uncommittedSegmentBytes = null;
+        }
     }
 
     /**

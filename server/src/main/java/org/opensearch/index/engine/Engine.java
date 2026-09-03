@@ -1249,6 +1249,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap, long flushThresholdBytes) {}
 
     /**
+     * Discards any previously published uncommitted segment bytes accounting, so that it can no longer trigger a flush.
+     * Invoked by the publisher when the condition is turned off, since a value published while it was on would
+     * otherwise stay armed until the next commit invalidates it. The default is a no-op, mirroring
+     * {@link #updateUncommittedSegmentBytes(Map, long)}.
+     */
+    public void clearUncommittedSegmentBytes() {}
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.

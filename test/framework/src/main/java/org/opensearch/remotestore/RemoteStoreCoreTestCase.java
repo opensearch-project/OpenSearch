@@ -237,9 +237,9 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
         }, 30, TimeUnit.SECONDS);
 
-        // switching it back off stops the flushes again. The accounting published while it was on stays armed until a
-        // commit invalidates it, so one more flush may still land; after that nothing republishes it and the count
-        // must hold steady however much more the workload writes and refreshes.
+        // switching it back off stops the flushes again. The next successful segments sync discards the accounting
+        // published while it was on, so a flush can only still land in the gap before that sync; after that nothing
+        // republishes it and the count must hold steady however much more the workload writes and refreshes.
         assertAcked(
             client().admin()
                 .cluster()
@@ -254,11 +254,13 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             refresh(INDEX_NAME);
         }
         indexSingleDoc(INDEX_NAME);
-        // allow the at-most-one already-armed flush to complete before sampling the steady state
+        // allow any flush armed before the disarming sync to complete before sampling the steady state
         assertBusy(() -> assertFalse(indexShard.shouldPeriodicallyFlush()), 30, TimeUnit.SECONDS);
         final long periodicWhileDisabled = indexShard.flushStats().getPeriodic();
         assertThat(
-            "at most one already-armed flush may land after disabling, got " + (periodicWhileDisabled - periodicAfterDisable) + " more",
+            "at most one flush may land in the gap before the disarming sync, got "
+                + (periodicWhileDisabled - periodicAfterDisable)
+                + " more",
             periodicWhileDisabled,
             lessThanOrEqualTo(periodicAfterDisable + 1)
         );
@@ -268,7 +270,7 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         }
         indexSingleDoc(INDEX_NAME);
         assertEquals(
-            "no further periodic flush once the armed value went stale",
+            "no further periodic flush once the accounting has been discarded",
             periodicWhileDisabled,
             indexShard.flushStats().getPeriodic()
         );
