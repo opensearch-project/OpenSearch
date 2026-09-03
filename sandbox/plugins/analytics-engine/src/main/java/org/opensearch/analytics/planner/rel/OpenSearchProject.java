@@ -44,7 +44,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchProject extends Project implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
 
@@ -148,41 +148,18 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         return planner.getCostFactory().makeTinyCost();
     }
 
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
-
     /**
-     * A row-wise project imposes no partitioning requirement on its input (it neither needs nor breaks a
-     * distribution) — returns {@code null} so the input keeps whatever distribution it derived. A
-     * window-bearing project ({@code RexOver}) or a {@code pinAboveExchange} project needs fully-gathered
-     * input (global window frame / coordinator-pinned literal), so it requires {@code COORDINATOR+SINGLETON}.
+     * The distribution this project OUTPUTS given its child's. A plain project passes the child's
+     * distribution through, REMAPPED to output columns: a hash key at input column {@code k} moves to
+     * wherever the projection places {@code k} (and degrades to ANY if the projection drops it) — exactly
+     * {@link OpenSearchDistribution#apply} over the project's {@code getPartialMapping}. A window/pinned
+     * project gathers its input, so its output is SINGLETON. Returns {@code null} when the child
+     * distribution is unknown.
      */
-    @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        if (inputIndex != 0) {
+    private OpenSearchDistribution deriveOutputDistribution(OpenSearchDistribution childDist, OpenSearchDistributionTraitDef traitDef) {
+        if (childDist == null) {
             return null;
         }
-        if (!containsOver() && !pinAboveExchange) {
-            return null;
-        }
-        return traitDef.coordSingleton();
-    }
-
-    /**
-     * A plain project passes the child's distribution through, REMAPPED to output columns: a hash key at
-     * input column {@code k} moves to wherever the projection places {@code k} (and degrades to ANY if the
-     * projection drops it) — exactly {@link OpenSearchDistribution#apply} over the project's
-     * {@code getPartialMapping}. A window/pinned project gathered its input to SINGLETON, so its output is
-     * SINGLETON. Returns {@code null} when the child distribution is unknown.
-     */
-    @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        if (childDistributions.size() != 1 || childDistributions.get(0) == null) {
-            return null;
-        }
-        OpenSearchDistribution childDist = childDistributions.get(0);
         if (containsOver() || pinAboveExchange) {
             return traitDef.coordSingleton();
         }
@@ -195,7 +172,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
     }
 
     /**
-     * Top-down counterpart of {@link #requiredInputDistribution}: a row-transparent project RIDES the
+     * A row-transparent project RIDES the
      * requested distribution, so it demands the same distribution of its child and delivers it upward.
      * The demand is expressed in INPUT column space — a hash key on output column {@code k} refers to
      * whichever input column the projection reads there — so it is remapped through the inverse of the
@@ -257,7 +234,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
     }
 
     /**
-     * Bottom-up counterpart of {@link #deriveOutputDistribution}: reuse that algebra so the two
+     * Bottom-up counterpart of {@link #passThroughTraits}: reuses {@link #deriveOutputDistribution} so the two
      * propagation directions cannot drift apart.
      */
     @Override
@@ -271,12 +248,12 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         }
         OpenSearchDistribution out;
         try {
-            out = deriveOutputDistribution(List.of(childDistribution), (OpenSearchDistributionTraitDef) childDistribution.getTraitDef());
+            out = deriveOutputDistribution(childDistribution, (OpenSearchDistributionTraitDef) childDistribution.getTraitDef());
         } catch (RuntimeException e) {
             // RelDistribution.apply walks the projection's inverse mapping, and Calcite's
             // InverseMapping.getTargetOpt throws UnsupportedOperationException for mappings that are
             // not invertible (duplicated or computed columns). Bottom-up never reached this because the
-            // enforcement pass calls deriveOutputDistribution on an already-decided concrete tree;
+            // the deleted enforcement pass only ever applied this mapping to an already-decided tree;
             // top-down probes speculative child traits, so it does. No alternative is the safe answer.
             return null;
         }
@@ -292,7 +269,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
      * which happily builds a {@code Project(SINGLETON)} directly over a {@code RANDOM(SHARD)} input,
      * without inserting the gather that would make it legal — produces a dead memo entry and the whole
      * plan fails with "not enough rules ... cost is still infinite". Prohibiting derivation leaves the
-     * SINGLETON demand to {@link #requiredInputDistribution} / the enforcement path, which does gather.
+     * SINGLETON demand to {@link #passThroughTraits} and OpenSearchWindowProjectGatherRule, which do gather.
      */
     @Override
     public DeriveMode getDeriveMode() {

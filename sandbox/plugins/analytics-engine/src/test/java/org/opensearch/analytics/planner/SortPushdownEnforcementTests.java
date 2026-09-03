@@ -26,7 +26,7 @@ import java.util.List;
  * <p>These two run back-to-back in {@code DefaultPlanExecutor}: {@code PlannerImpl.createPlan} ends with
  * the sort-pushdown rewrite (a shard-local {@code Sort+fetch} below the ER, so each shard ships only its
  * local top-N), and then, when {@code analytics.mpp.enabled} is set, the enforcement pass walks that
- * output. {@code OpenSearchSort} is NOT {@link org.opensearch.analytics.planner.rel.DistributionAware},
+ * output. {@code OpenSearchSort} declares no distribution algebra of its own,
  * so without the {@code perPartition} marker it would land in the pass's non-aware branch, which
  * re-gathers the child and thereby HOISTS the shard Sort above the ER — leaving the shard fragment a bare
  * scan that streams its entire scan to the coordinator. That was a measured ClickBench regression

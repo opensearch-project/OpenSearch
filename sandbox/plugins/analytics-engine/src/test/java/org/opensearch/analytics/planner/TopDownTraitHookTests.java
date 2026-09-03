@@ -39,7 +39,7 @@ import java.util.Map;
  * ({@code passThroughTraits} / {@code deriveTraits}), plus {@code OpenSearchConvention.enforce}.
  *
  * <p>These are pure functions over {@link OpenSearchDistribution} — no planner run — and are the
- * top-down mirror of {@link DistributionAwareTests}, which covers the same algebra in the bottom-up
+ * companion of {@link JoinTraitDerivationTests}, which covers the join's half of the same algebra in the
  * direction. Both directions must agree, so each transparent operator is asserted to round-trip: the
  * distribution it demands downward is the one it reports upward.
  */

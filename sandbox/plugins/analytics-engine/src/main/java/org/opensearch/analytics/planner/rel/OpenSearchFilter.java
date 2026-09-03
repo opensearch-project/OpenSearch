@@ -33,7 +33,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class OpenSearchFilter extends Filter implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
 
@@ -71,23 +71,6 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode, Distr
         return planner.getCostFactory().makeTinyCost();
     }
 
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
-
-    /** Filter is fully transparent to distribution: it imposes no partitioning requirement on its input. */
-    @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        return null;
-    }
-
-    /** Filter doesn't change schema or partitioning — output distribution = the child's, verbatim. */
-    @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        return childDistributions.size() == 1 ? childDistributions.get(0) : null;
-    }
-
     // ---- PhysicalNode (top-down trait propagation) ----
 
     /**
@@ -104,7 +87,7 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode, Distr
         return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
     }
 
-    /** Mirror of {@link #deriveOutputDistribution}: the child's distribution is this filter's output. */
+    /** Mirror of {@link #passThroughTraits}: the child's distribution is this filter's output. */
     @Override
     public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
         if (childId != 0) {

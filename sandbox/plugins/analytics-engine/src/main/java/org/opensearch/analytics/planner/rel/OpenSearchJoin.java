@@ -38,17 +38,18 @@ import java.util.Set;
  * coordinator (enforced by {@link #computeSelfCost}). {@code right} is always the
  * build side (matches substrait {@code JoinRel.right}).
  *
- * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass
- * (CBO trait enforcement), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
- * on its equi keys — it requires {@code WORKER+HASH(leftKeys,N)} on the left input and
- * {@code WORKER+HASH(rightKeys,N)} on the right, and outputs {@code WORKER+HASH(leftKeys,N)}. That lets a
- * parent join/aggregate keyed on the same column consume the output with no further exchange, so the
- * multi-tier cascade emerges for any chain depth. A pure-theta join (no equi key) imposes no requirement
- * (stays coordinator-gathered).
+ * <p>Distribution is a search dimension, not a fixed shape: an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join
+ * can co-partition on its equi keys, requiring {@code WORKER+HASH(leftKeys,N)} on the left input and
+ * {@code WORKER+HASH(rightKeys,N)} on the right. That lets a parent join/aggregate keyed on the same
+ * column consume the output with no further exchange, so the multi-tier cascade emerges for any chain
+ * depth. A pure-theta join (no equi key) has no key to partition on and stays coordinator-gathered.
+ * {@link #passThroughTraits} and {@link #deriveTraits} express this to Calcite's top-down planner; only
+ * RIGHT and FULL decline to ADVERTISE the hash output, because their null-extended rows carry NULL left
+ * keys and never passed through the left-key hash.
  *
  * @opensearch.internal
  */
-public class OpenSearchJoin extends Join implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchJoin extends Join implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
 
@@ -118,14 +119,17 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
      *       an {@link OpenSearchShuffleExchange} on any input not already so distributed.</li>
      * </ul>
      *
-     * <p>TODO(trait-propagation): exchange PLACEMENT is already a trait algebra — see
-     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
-     * on this class, which CBO's trait machinery consults (the
-     * {@code passThroughTraits}/{@code deriveTraits} logic expressed as plain methods). Join-ALGORITHM
-     * selection (broadcast/shuffle/coord) still rides this cost gate because Volcano runs bottom-up. A
-     * future migration to top-down mode ({@code setTopDownOpt} + Calcite {@code PhysicalNode} hooks)
-     * would fold this derivation into the trait machinery and let this override shrink; deferred as a
-     * separate refactor, not a correctness blocker.
+     * <p>Why the mismatch cases are priced rather than declared: this class is BOTH the HEP marking output
+     * and the physical operator. {@code OpenSearchJoinRule} has to give the seed node a concrete
+     * distribution — it runs in HEP, where {@code convert()} is a no-op, so it cannot demand anything of
+     * its inputs — and a parent's own legality then depends on reading that claim. Seeding the join
+     * UNRESOLVED instead does not help: a demand for {@code Type.ANY} is satisfied by anything
+     * ({@link OpenSearchDistribution#satisfies}), so an ANY input subset makes every parent's check skip
+     * and a {@code SINGLE} aggregate over partitioned input wins on tiny cost (measured: 15 plan
+     * regressions, one of them a per-partition aggregate concatenated by the root gather with no merge).
+     * So this gate is the join's requirement DECLARATION, and it stays until Logical/Physical join nodes
+     * are split apart — then the seed carries no distribution and every alternative comes from
+     * {@link #passThroughTraits}/{@link #deriveTraits}, which set self and input traits together.
      */
     @Override
     public org.apache.calcite.plan.RelOptCost computeSelfCost(
@@ -443,72 +447,6 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode, Distribut
             if (trait instanceof OpenSearchDistribution dist) return dist;
         }
         return null;
-    }
-
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
-
-    /**
-     * An equi-join co-partitions on its equi keys: input 0 (left) must deliver
-     * {@code WORKER+HASH(leftKeys, N)}, input 1 (right) {@code WORKER+HASH(rightKeys, N)}. A pure-theta
-     * join (empty {@code leftKeys}) returns {@code null} — no key to hash-partition on, so it stays
-     * coordinator-gathered. Co-partitioning is sound for all of INNER/LEFT/RIGHT/FULL/SEMI/ANTI: a
-     * hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local because rows
-     * with the same key land in the same partition (standard Spark/Presto). The per-row null semantics
-     * live in the worker join operator, not the distribution.
-     */
-    @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        JoinInfo info = JoinKeyAnalysis.forDistribution(this);
-        if (info.leftKeys.isEmpty()) {
-            return null;
-        }
-        if (inputIndex == 0) {
-            return traitDef.hash(info.leftKeys, partitionCount);
-        }
-        if (inputIndex == 1) {
-            return traitDef.hash(info.rightKeys, partitionCount);
-        }
-        return null;
-    }
-
-    /**
-     * When the left input is hash-partitioned on this join's left equi keys, the join output is
-     * {@code WORKER+HASH(leftKeys, N)} — left key columns keep their output positions (left fields come
-     * first in the join row type), so a parent keyed on the same column consumes it without a re-shuffle.
-     * Anchored on the LEFT side only (the engine convention used by {@code OpenSearchHashJoinSplitRule} and
-     * the cost gate). Returns {@code null} (output not co-partitionable) when the left input is not
-     * hash-partitioned on exactly the left equi keys, or for a pure-theta join.
-     */
-    @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        if (childDistributions.size() != 2) {
-            return null;
-        }
-        OpenSearchDistribution leftDist = childDistributions.get(0);
-        if (leftDist == null || leftDist.getType() != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
-            return null;
-        }
-        JoinInfo info = JoinKeyAnalysis.forDistribution(this);
-        if (info.leftKeys.isEmpty()) {
-            return null;
-        }
-        // Left input must be hash-partitioned on exactly this join's left equi keys (order-sensitive)
-        // for the output-is-left-keys derivation to be sound.
-        if (!leftDist.getKeys().equals(info.leftKeys)) {
-            return null;
-        }
-        Integer n = leftDist.getPartitionCount();
-        if (n == null) {
-            return null;
-        }
-        // Same RIGHT/FULL restriction as the top-down deriveTraits path: a null-extended row has NULL
-        // left keys and does not obey the left-key hash, so such a join must not advertise a
-        // co-partitionable output. Without this the cascade in CBO's trait enforcement can reuse the
-        // partitioning and skip a required re-shuffle, silently dropping matches.
-        return advertisesLeftKeyHash() ? traitDef.hash(info.leftKeys, n) : null;
     }
 
     @Override

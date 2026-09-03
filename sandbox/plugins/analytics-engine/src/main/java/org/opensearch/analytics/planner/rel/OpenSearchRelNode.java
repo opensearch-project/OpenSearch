@@ -57,7 +57,7 @@ public interface OpenSearchRelNode extends PhysicalNode {
      * Most operators do not propagate a distribution. Returning {@code null} is Calcite's contract for
      * "no alternative for this request", which is the safe default: an operator that has not opted in
      * simply produces no top-down alternative, and the existing enforcement path still applies. This
-     * is what lets the ~10 rel nodes that are not {@link DistributionAware} stay untouched.
+     * is what lets the ~10 rel nodes with no distribution algebra of their own stay untouched.
      */
     @Override
     default Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {

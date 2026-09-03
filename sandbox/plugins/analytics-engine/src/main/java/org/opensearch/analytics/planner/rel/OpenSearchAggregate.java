@@ -48,7 +48,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode, DistributionAware {
+public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
 
     private final List<String> viableBackends;
     private final AggregateMode mode;
@@ -308,13 +308,16 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
      * tests happen to catch the current shapes, but they are not a substitute for this gate;
      * deleting it breaks correctness, not just a test.
      *
-     * <p>TODO(trait-propagation): PARTIAL/FINAL split PLACEMENT is already a trait algebra — see
-     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
-     * on this class, consulted by CBO's trait machinery. A future top-down
-     * migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode} {@code deriveTraits}/
-     * {@code passThroughTraits}) would fold the cost-RANKING part of this override into the trait
-     * machinery. NOTE: the SINGLE-mode infinite-cost gate below is a CORRECTNESS backstop, not cost
-     * ranking — it must survive any such migration (see the paragraph above).
+     * <p>Top-down does NOT retire that gate, which was measured rather than assumed. The gate reads the
+     * INPUT's trait, so it only works while the input subset carries a concrete distribution: seeding the
+     * child (a join) UNRESOLVED instead makes the check skip, because a demand for {@code Type.ANY} is
+     * satisfied by anything ({@link OpenSearchDistribution#satisfies}) and {@code ANY} means UNRESOLVED
+     * here. The measured result was a plan with a per-partition {@code SINGLE} aggregate directly over a
+     * 3-way hash-partitioned join, its groups concatenated by the root gather and never merged. The gate
+     * and the marking rules' concrete trait claims are ONE mechanism: the claim exists so this check can
+     * read it. Both retire together, when Logical/Physical aggregate nodes are split apart and every
+     * physical alternative comes from {@link #passThroughTraits}/{@link #deriveTraits} — which set self
+     * and input traits together, so the illegal pair cannot be constructed at all.
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
@@ -380,56 +383,6 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
             }
         }
         return planner.getCostFactory().makeTinyCost();
-    }
-
-    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
-
-    /**
-     * A {@code SINGLE} aggregate over a distributable input declares it needs its input hash-partitioned
-     * on the group keys, so the enforcement pass can split it into {@code Aggregate(PARTIAL)} on the
-     * workers + {@code Aggregate(FINAL)} on the coordinator (the existing {@code OpenSearchAggregateSplitRule}
-     * / {@code DistributedAggregateRewriter} machinery the pass reuses):
-     * <ul>
-     *   <li>non-empty group set → require {@code WORKER+HASH(groupKeys, N)} on the input;</li>
-     *   <li>empty group set (e.g. {@code stats sum(x)} no {@code by}) → require {@code COORDINATOR+SINGLETON}:
-     *       PARTIAL runs wherever the input is, FINAL merges the ≤N partials at the coordinator. The gather
-     *       is bounded (one partial row per partition), so no hash key is needed.</li>
-     * </ul>
-     * Returns {@code null} (no requirement → input left at its CBO-chosen shape) for non-SINGLE modes, or
-     * when the aggregate is not decomposable ({@code STATE_EXPANDING}/{@code DISTINCT}/percentile) — those
-     * stay coordinator-centric. The {@code groupSet} of a SINGLE aggregate indexes INPUT columns, so the
-     * hash keys are the group-set bits directly.
-     */
-    @Override
-    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
-        if (inputIndex != 0 || mode != AggregateMode.SINGLE) {
-            return null;
-        }
-        if (org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
-            return null;
-        }
-        if (getGroupSet().isEmpty()) {
-            // No partition key — the PARTIAL/FINAL split still distributes the work below, but the agg
-            // itself gathers its partials to the coordinator. Requiring SINGLETON here is a no-op when the
-            // input is already gathered; the distribution win comes from the input's own requirement.
-            return traitDef.coordSingleton();
-        }
-        return traitDef.hash(getGroupSet().asList(), partitionCount);
-    }
-
-    /**
-     * An aggregate's output is partitioned by its group keys only when it ran distributed (PARTIAL/FINAL)
-     * — but in the pre-split SINGLE form the pass hasn't decided that yet, and the FINAL gathers to the
-     * coordinator anyway. So we do not advertise a co-partitionable output here (returns {@code null}); a
-     * parent that needs a specific partitioning will demand its own exchange. (Aggregate output rarely
-     * feeds a co-partition-sensitive parent in PPL; revisit if a join-on-agg-output shape needs it.)
-     */
-    @Override
-    public OpenSearchDistribution deriveOutputDistribution(
-        List<OpenSearchDistribution> childDistributions,
-        OpenSearchDistributionTraitDef traitDef
-    ) {
-        return null;
     }
 
     // ---- PhysicalNode (top-down trait propagation) ----
@@ -498,8 +451,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
     /**
      * Only {@code PARTIAL} derives from its child, and only to report that it rides. {@code FINAL} always
      * outputs SINGLETON regardless of its child, and {@code SINGLE} stays undecided (see
-     * {@link #passThroughTraits}) — consistent with {@link #deriveOutputDistribution} returning null
-     * rather than advertising a co-partitionable output.
+     * {@link #passThroughTraits}). No mode advertises a co-partitionable output: an aggregate's groups are
+     * only hash-partitioned when it ran distributed, and FINAL gathers to the coordinator anyway.
      */
     @Override
     public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
