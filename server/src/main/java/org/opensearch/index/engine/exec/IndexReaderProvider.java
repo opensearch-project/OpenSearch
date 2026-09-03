@@ -63,5 +63,17 @@ public interface IndexReaderProvider {
         Object reader(DataFormat format);
 
         <R> R getReader(DataFormat format, Class<R> readerType);
+
+        /**
+         * Returns {@link LuceneReaderAccess} for this reader when a Lucene-backed format is present
+         * (for example, a composite index's Lucene secondary), or {@code null} when no Lucene-backed
+         * format reader exists. Lets core run Lucene operations — such as the Explain API — against
+         * the Lucene copy without knowing which {@link DataFormat} provides it.
+         *
+         * @return Lucene reader access, or {@code null} if no Lucene-backed format reader is present
+         */
+        default LuceneReaderAccess luceneReader() {
+            return null;
+        }
     }
 }

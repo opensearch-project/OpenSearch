@@ -65,6 +65,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LuceneReaderAccess;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -2530,6 +2531,16 @@ public class DataFormatAwareEngine implements Indexer {
         @Override
         public CatalogSnapshot catalogSnapshot() {
             return snapshotRef.get();
+        }
+
+        @Override
+        public LuceneReaderAccess luceneReader() {
+            for (Object reader : readers.values()) {
+                if (reader instanceof LuceneReaderAccess luceneReaderAccess) {
+                    return luceneReaderAccess;
+                }
+            }
+            return null;
         }
 
         @Override
