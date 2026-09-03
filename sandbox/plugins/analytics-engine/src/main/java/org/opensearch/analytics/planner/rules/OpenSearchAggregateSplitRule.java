@@ -16,35 +16,25 @@ import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
-import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
+import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Splits an {@link OpenSearchAggregate} into PARTIAL + FINAL when the input is partitioned. */
 public class OpenSearchAggregateSplitRule extends RelOptRule {
@@ -218,51 +208,15 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             return;
         }
 
-        List<AggregateCall> partialAggCalls = repairLossyReturnTypes(aggregate.getAggCallList(), child);
-        RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
-        OpenSearchAggregate partial = new OpenSearchAggregate(
-            aggregate.getCluster(),
-            partialTraits,
+        // Assembling the two phases is shared with the post-CBO pushdown rewriter; only the gather differs.
+        // Here it is convert(), so Volcano owns the exchange and can dedup it against a sibling subset.
+        OpenSearchDistributionTraitDef traitDef = context.getDistributionTraitDef();
+        RelNode finalAlternative = AggregatePartialFinalSplit.split(
+            aggregate,
             child,
-            aggregate.getGroupSet(),
-            aggregate.getGroupSets(),
-            partialAggCalls,
-            AggregateMode.PARTIAL,
-            aggregate.getViableBackends(),
-            aggregate.getCallAnnotations()
+            traitDef,
+            partial -> convert(partial, partial.getTraitSet().replace(traitDef.coordSingleton()))
         );
-        RelTraitSet finalTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
-        RelNode gathered = convert(partial, finalTraits);
-        Map<Integer, List<RexLiteral>> finalExtraLiterals = captureLiteralArgsForFinal(aggregate.getAggCallList(), child);
-
-        // Classify ORIGINAL aggCalls once and stash on FINAL for post-Volcano transformers.
-        List<IntermediateField> intermediateFields = FinalAggCallBuilder.classify(aggregate.getAggCallList());
-
-        // Build FINAL's aggCalls against gathered's row type so typeMatchesInferred passes.
-        List<AggregateCall> finalAggCalls = FinalAggCallBuilder.buildFinalCalls(
-            aggregate.getAggCallList(),
-            intermediateFields,
-            aggregate.getGroupSet().cardinality(),
-            gathered,
-            aggregate.getGroupSet().isEmpty()
-        );
-
-        OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
-            aggregate.getCluster(),
-            finalTraits,
-            gathered,
-            aggregate.getGroupSet(),
-            aggregate.getGroupSets(),
-            finalAggCalls,
-            AggregateMode.FINAL,
-            aggregate.getViableBackends(),
-            aggregate.getCallAnnotations(),
-            finalExtraLiterals,
-            intermediateFields
-        );
-
-        // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
-        RelNode finalAlternative = wrapWithCastIfNeeded(finalAggregate, aggregate);
 
         // Partitioned + splittable: the split is the only correct plan, so don't register the
         // gather-everything alternative. Volcano has nothing to cost-compare — placement is fixed.
@@ -308,6 +262,18 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * </ul>
      * Pass-through Project / Filter are walked past; scans/values and anything else end the walk
      * as not-gather-forcing (split allowed).
+     *
+     * <p><b>Why a trait check cannot replace this walk</b> (measured — removing the call costs 7
+     * {@code CannotPlanException}s in {@code WindowPlanShapeTests}, {@code AggregateSplitCostTests},
+     * {@code TopKRewriterPlanShapeTests} and {@code LateMaterializationPlanShapeTests}). The obvious
+     * simplification is to trust {@link #isPartitioned} alone, since that already reads the input's
+     * distribution trait. But a {@code RelSubset} can ADVERTISE a partitioned trait while every operator
+     * inside it is only implementable via a gather: a collated Sort or a window Project in the partitioned
+     * subset is priced at infinity there, so the subset is reachable only through its singleton sibling.
+     * The trait says "partitioned"; the cost says "not like this". Since {@link #onMatch} registers exactly
+     * ONE alternative, believing the trait leaves the query with no plan at all. Registering BOTH
+     * alternatives instead — the principled Cascades answer — was tried and measured too: no gain, and 4
+     * regressions where a 1-row estimate let SINGLE-over-gather beat a legitimate split.
      */
     private static boolean childForcesGather(RelNode node) {
         RelNode cur = unwrapForWalk(node);
@@ -356,111 +322,5 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     private static RelNode unwrapForWalk(RelNode node) {
         RelNode unwrapped = RelNodeUtils.unwrapHep(node);
         return unwrapped instanceof RelSubset subset ? subset.getBestOrOriginal() : unwrapped;
-    }
-
-    /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
-    public static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
-        RelDataType actualType = finalAggregate.getRowType();
-        RelDataType expectedType = expected.getRowType();
-        RexBuilder rexBuilder = finalAggregate.getCluster().getRexBuilder();
-
-        List<RexNode> projects = new ArrayList<>(actualType.getFieldCount());
-        boolean anyTypeDiffers = false;
-        for (int idx = 0; idx < actualType.getFieldCount(); idx++) {
-            RelDataType columnType = actualType.getFieldList().get(idx).getType();
-            RelDataType targetType = expectedType.getFieldList().get(idx).getType();
-            RexNode ref = new RexInputRef(idx, columnType);
-            if (columnType.equals(targetType)) {
-                projects.add(ref);
-            } else {
-                projects.add(rexBuilder.makeCast(targetType, ref));
-                anyTypeDiffers = true;
-            }
-        }
-        if (!anyTypeDiffers) return finalAggregate;
-
-        return new OpenSearchProject(
-            finalAggregate.getCluster(),
-            finalAggregate.getTraitSet(),
-            finalAggregate,
-            projects,
-            expectedType,
-            finalAggregate.getViableBackends()
-        );
-    }
-
-    /**
-     * Rebuild any LIST/VALUES aggCall to declare {@code ARRAY<actual-arg0>} instead of
-     * PPL's lossy {@code ARRAY<VARCHAR>}. Pass-through for every other call. Used on the
-     * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
-     * row-type check on transformTo passes.
-     *
-     * <p>Public so the post-CBO {@code OpenSearchPartialAggregatePushdownRewriter}
-     * can call it.
-     */
-    public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
-        List<AggregateCall> rebuilt = null;
-        for (int i = 0; i < aggCalls.size(); i++) {
-            AggregateCall call = aggCalls.get(i);
-            String name = call.getAggregation().getName();
-            if (!"LIST".equalsIgnoreCase(name) && !"VALUES".equalsIgnoreCase(name)) continue;
-            if (call.getArgList().isEmpty()) continue;
-            org.apache.calcite.rel.type.RelDataType arg0Type = input.getRowType().getFieldList().get(call.getArgList().get(0)).getType();
-            org.apache.calcite.rel.type.RelDataType repaired = input.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
-            if (repaired.equals(call.getType())) continue;
-            if (rebuilt == null) rebuilt = new ArrayList<>(aggCalls);
-            rebuilt.set(
-                i,
-                AggregateCall.create(
-                    call.getAggregation(),
-                    call.isDistinct(),
-                    call.isApproximate(),
-                    call.ignoreNulls(),
-                    call.rexList,
-                    call.getArgList(),
-                    call.filterArg,
-                    call.distinctKeys,
-                    call.collation,
-                    repaired,
-                    call.getName()
-                )
-            );
-        }
-        return rebuilt != null ? rebuilt : aggCalls;
-    }
-
-    /**
-     * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
-     * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
-     * pass (CBO trait enforcement) shares the exact capture the coord-centric split uses
-     * (keeps PARTIAL/FINAL literal handling identical).
-     */
-    public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
-        if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
-            return Map.of();
-        }
-        List<RexNode> projects = project.getProjects();
-        Map<Integer, List<RexLiteral>> captured = new LinkedHashMap<>();
-        for (int i = 0; i < aggCalls.size(); i++) {
-            AggregateCall call = aggCalls.get(i);
-            AggregateFunction fn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
-            if (fn == null || fn.getType() != AggregateFunction.Type.STATE_EXPANDING) continue;
-            List<Integer> args = call.getArgList();
-            if (args.size() < 2) continue;
-            List<RexLiteral> literals = new ArrayList<>(args.size() - 1);
-            boolean allLiteral = true;
-            for (int a = 1; a < args.size(); a++) {
-                int colIdx = args.get(a);
-                if (colIdx < 0 || colIdx >= projects.size() || !(projects.get(colIdx) instanceof RexLiteral lit)) {
-                    allLiteral = false;
-                    break;
-                }
-                literals.add(lit);
-            }
-            if (allLiteral && !literals.isEmpty()) {
-                captured.put(i, List.copyOf(literals));
-            }
-        }
-        return captured;
     }
 }

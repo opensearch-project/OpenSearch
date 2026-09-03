@@ -10,25 +10,19 @@ package org.opensearch.analytics.planner.rules;
 
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rex.RexLiteral;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
-import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
-import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -148,52 +142,17 @@ public final class OpenSearchPartialAggregatePushdownRewriter {
         return split(agg, partialInput, traitDef);
     }
 
-    /** Builds {@code FINAL(ExchangeReducer(PARTIAL(partitionedInput)))} for {@code agg}. */
+    /**
+     * Builds {@code FINAL(ExchangeReducer(PARTIAL(partitionedInput)))} for {@code agg}, reusing the same
+     * assembly the CBO-side {@link OpenSearchAggregateSplitRule} uses so the two cannot drift.
+     *
+     * <p>The gather is {@code buildReducer}, NOT {@code buildEnforcer}: the PARTIAL sits on a partitioned
+     * input whose traitSet may still carry CBO's coordSingleton, and the satisfies()-gated enforcer would
+     * then insert NOTHING — fusing PARTIAL and FINAL into one stage so DAGBuilder never cuts the worker
+     * boundary.
+     */
     private static RelNode split(OpenSearchAggregate agg, RelNode partitionedInput, OpenSearchDistributionTraitDef traitDef) {
-        List<AggregateCall> partialCalls = OpenSearchAggregateSplitRule.repairLossyReturnTypes(agg.getAggCallList(), partitionedInput);
-        OpenSearchAggregate partial = new OpenSearchAggregate(
-            agg.getCluster(),
-            partitionedInput.getTraitSet().replace(OpenSearchConvention.INSTANCE),
-            partitionedInput,
-            agg.getGroupSet(),
-            agg.getGroupSets(),
-            partialCalls,
-            AggregateMode.PARTIAL,
-            agg.getViableBackends(),
-            agg.getCallAnnotations()
-        );
-        // buildReducer, not buildEnforcer: the PARTIAL sits on a partitioned input whose traitSet may still
-        // carry CBO's coordSingleton, and the satisfies()-gated enforcer would then insert NOTHING — fusing
-        // PARTIAL and FINAL into one stage so DAGBuilder never cuts the worker boundary.
-        RelNode gathered = traitDef.buildReducer(partial);
-
-        Map<Integer, List<RexLiteral>> finalExtraLiterals = OpenSearchAggregateSplitRule.captureLiteralArgsForFinal(
-            agg.getAggCallList(),
-            partitionedInput
-        );
-        List<IntermediateField> intermediateFields = FinalAggCallBuilder.classify(agg.getAggCallList());
-        List<AggregateCall> finalCalls = FinalAggCallBuilder.buildFinalCalls(
-            agg.getAggCallList(),
-            intermediateFields,
-            agg.getGroupSet().cardinality(),
-            gathered,
-            agg.getGroupSet().isEmpty()
-        );
-        OpenSearchAggregate finalAgg = new OpenSearchAggregate(
-            agg.getCluster(),
-            gathered.getTraitSet().replace(traitDef.coordSingleton()),
-            gathered,
-            agg.getGroupSet(),
-            agg.getGroupSets(),
-            finalCalls,
-            AggregateMode.FINAL,
-            agg.getViableBackends(),
-            agg.getCallAnnotations(),
-            finalExtraLiterals,
-            intermediateFields
-        );
-        // Empty-group nullability gap (COUNT→SUM swap): wrap FINAL so its row type matches SINGLE's.
-        return OpenSearchAggregateSplitRule.wrapWithCastIfNeeded(finalAgg, agg);
+        return AggregatePartialFinalSplit.split(agg, partitionedInput, traitDef, traitDef::buildReducer);
     }
 
     /** True when {@code dist} describes data spread across shards or worker partitions. */
