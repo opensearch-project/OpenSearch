@@ -881,6 +881,40 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Controls whether a remote-store shard periodically flushes based on the total size of segment bytes that are
+     * refreshed and uploaded to the remote store but not yet referenced by the last commit point. On remote-store
+     * shards the translog based flush threshold ({@code index.translog.flush_threshold_size}) is ineffective because
+     * uploaded translog generations are trimmed continuously; this condition restores an equivalent size-based flush
+     * signal driven by uncommitted segment bytes. Low-throughput trickle workloads that never cross the byte
+     * threshold and never go idle can additionally enable {@code index.periodic_flush_interval} (disabled by
+     * default) for a wall-clock flush backstop.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING = Setting.boolSetting(
+        "index.remote_store.flush_on_uncommitted_segments.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * The minimum total size of segment bytes not yet referenced by the last commit point which triggers a flush on a
+     * remote-store shard. Only takes effect when
+     * {@link #INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING} is enabled. Defaults to the current
+     * value of {@code index.translog.flush_threshold_size} of the index.
+     */
+    public static final Setting<ByteSizeValue> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING = Setting
+        .byteSizeSetting(
+            "index.remote_store.flush_on_uncommitted_segments.threshold_size",
+            INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+            // a zero or negative threshold would flush on every successful segments sync; disablement has its own
+            // explicit setting above
+            new ByteSizeValue(1, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            Property.Dynamic,
+            Property.IndexScope
+        );
+
     public static final Setting<Long> INDEX_CONTEXT_CREATED_VERSION = Setting.longSetting(
         "index.context.created_version",
         0,
@@ -940,9 +974,12 @@ public final class IndexSettings {
     private final int numberOfShards;
     private volatile ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
+    private final boolean isRemoteStoreFencingEnabled;
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
+    private volatile boolean flushOnUncommittedSegmentsEnabled;
+    private volatile ByteSizeValue flushOnUncommittedSegmentsThresholdSize;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private volatile String remoteStoreSegmentPathPrefix;
@@ -1168,11 +1205,16 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteStoreFencingEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
+        flushOnUncommittedSegmentsEnabled = scopedSettings.get(INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING);
+        flushOnUncommittedSegmentsThresholdSize = scopedSettings.get(
+            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING
+        );
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
         String rawPrefix = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(settings);
@@ -1389,6 +1431,14 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING,
+            this::setFlushOnUncommittedSegmentsEnabled
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING,
+            this::setFlushOnUncommittedSegmentsThresholdSize
+        );
         this.autoForcemergeEnabled = scopedSettings.get(INDEX_AUTO_FORCE_MERGES_ENABLED);
         scopedSettings.addSettingsUpdateConsumer(INDEX_AUTO_FORCE_MERGES_ENABLED, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
@@ -1623,6 +1673,13 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns if object-store-backed primary fencing is enabled for this index.
+     */
+    public boolean isRemoteStoreFencingEnabled() {
+        return isRemoteStoreFencingEnabled;
+    }
+
+    /**
      * Returns if remote store is enabled for this index.
      */
     public String getRemoteStoreRepository() {
@@ -1772,6 +1829,31 @@ public final class IndexSettings {
 
     public int getRemoteTranslogExtraKeep() {
         return remoteTranslogKeepExtraGen;
+    }
+
+    /**
+     * Returns whether the periodic flush condition based on uncommitted segment bytes is enabled for this
+     * (remote-store) index.
+     */
+    public boolean isFlushOnUncommittedSegmentsEnabled() {
+        return flushOnUncommittedSegmentsEnabled;
+    }
+
+    /**
+     * Returns the threshold size of segment bytes not yet referenced by the last commit point when to forcefully
+     * flush a remote-store shard. Only takes effect when {@link #isFlushOnUncommittedSegmentsEnabled()}. Defaults to
+     * the current value of {@code index.translog.flush_threshold_size} of this index.
+     */
+    public ByteSizeValue getFlushOnUncommittedSegmentsThresholdSize() {
+        return flushOnUncommittedSegmentsThresholdSize;
+    }
+
+    private void setFlushOnUncommittedSegmentsEnabled(boolean flushOnUncommittedSegmentsEnabled) {
+        this.flushOnUncommittedSegmentsEnabled = flushOnUncommittedSegmentsEnabled;
+    }
+
+    private void setFlushOnUncommittedSegmentsThresholdSize(ByteSizeValue flushOnUncommittedSegmentsThresholdSize) {
+        this.flushOnUncommittedSegmentsThresholdSize = flushOnUncommittedSegmentsThresholdSize;
     }
 
     /**
