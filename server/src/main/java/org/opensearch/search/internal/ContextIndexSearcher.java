@@ -68,7 +68,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
@@ -652,38 +651,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final FilteredStatsCache cache = filteredStatsCache();
         for (LeafReaderContext ctx : leaves) {
             if (cache != null) {
-                bitSets[ctx.ord] = cache.getOrComputeVisibleBitSet(ctx, aliasFilter, () -> computeVisibleBitSet(weight, ctx));
+                bitSets[ctx.ord] = cache.getOrComputeVisibleBitSet(
+                    ctx,
+                    aliasFilter,
+                    () -> FilteredStatsCache.computeVisibleBitSet(weight, ctx)
+                );
             } else {
-                bitSets[ctx.ord] = computeVisibleBitSet(weight, ctx);
+                bitSets[ctx.ord] = FilteredStatsCache.computeVisibleBitSet(weight, ctx);
             }
         }
         this.visibleDocsPerSegment = bitSets;
         this.visibleDocsInitialized = true;
         return bitSets;
-    }
-
-    /**
-     * Builds the visible-doc bitset for a single segment from the (already rewritten) alias-filter weight. Returns
-     * {@code null} when no live document in the segment matches, matching the "no visible docs" contract above.
-     */
-    private static BitSet computeVisibleBitSet(Weight weight, LeafReaderContext ctx) throws IOException {
-        final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
-        if (scorerSupplier == null) {
-            return null;
-        }
-        final Scorer scorer = scorerSupplier.get(Long.MAX_VALUE);
-        if (scorer == null) {
-            return null;
-        }
-        final FixedBitSet bitSet = new FixedBitSet(ctx.reader().maxDoc());
-        final DocIdSetIterator iterator = scorer.iterator();
-        final Bits liveDocs = ctx.reader().getLiveDocs();
-        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-            if (liveDocs == null || liveDocs.get(doc)) {
-                bitSet.set(doc);
-            }
-        }
-        return bitSet.cardinality() > 0 ? bitSet : null;
     }
 
     private FilteredStatsCache filteredStatsCache() {
@@ -715,10 +694,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     ctx,
                     visibleDocsFilterKey,
                     field,
-                    () -> computeFieldContribution(ctx, visible, field)
+                    () -> FilteredStatsCache.computeFieldContribution(ctx, visible, field)
                 );
             } else {
-                contribution = computeFieldContribution(ctx, visible, field);
+                contribution = FilteredStatsCache.computeFieldContribution(ctx, visible, field);
             }
             docCount += contribution[0];
             sumTotalTermFreq += contribution[1];
@@ -736,35 +715,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         sumDocFreq = Math.max(sumDocFreq, docCount);
         sumTotalTermFreq = Math.max(sumTotalTermFreq, sumDocFreq);
         return new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
-    }
-
-    /**
-     * Computes a single segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} contribution for a field over the
-     * visible subset. This is the O(field postings) work {@link FilteredStatsCache} memoizes per (segment, filter).
-     */
-    private static long[] computeFieldContribution(LeafReaderContext ctx, BitSet visible, String field) throws IOException {
-        final Terms terms = ctx.reader().terms(field);
-        if (terms == null) {
-            return new long[] { 0, 0, 0 };
-        }
-        final TermsEnum termsEnum = terms.iterator();
-        final FixedBitSet docsWithField = new FixedBitSet(ctx.reader().maxDoc());
-        long sumTotalTermFreq = 0;
-        long sumDocFreq = 0;
-        PostingsEnum postings = null;
-        while (termsEnum.next() != null) {
-            postings = termsEnum.postings(postings, PostingsEnum.FREQS);
-            long termDocFreq = 0;
-            for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
-                if (visible.get(doc)) {
-                    termDocFreq++;
-                    sumTotalTermFreq += postings.freq();
-                    docsWithField.set(doc);
-                }
-            }
-            sumDocFreq += termDocFreq;
-        }
-        return new long[] { docsWithField.cardinality(), sumTotalTermFreq, sumDocFreq };
     }
 
     /**

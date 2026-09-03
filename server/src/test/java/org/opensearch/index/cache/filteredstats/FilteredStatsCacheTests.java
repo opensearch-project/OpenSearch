@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -131,6 +132,49 @@ public class FilteredStatsCacheTests extends OpenSearchTestCase {
             assertNull(termHit);
         }
         dir.close();
+    }
+
+    /**
+     * Warming a newly visible segment should pre-populate the (filter, field) pairs already in use, so the first query
+     * to touch that segment is a cache hit rather than paying the visible-postings build itself.
+     */
+    public void testWarmPrepopulatesInUseFilterAndField() throws IOException {
+        final Query filter = new TermQuery(new Term("dept", "cardiology"));
+        final FilteredStatsCache cache = newCache();
+
+        // A first segment: querying it records (filter, field) as in-use.
+        final Directory first = writeSingleSegment();
+        try (DirectoryReader reader = DirectoryReader.open(first)) {
+            final LeafReaderContext leaf = reader.leaves().get(0);
+            final FixedBitSet visible = new FixedBitSet(leaf.reader().maxDoc());
+            visible.set(0);
+            cache.getOrComputeVisibleBitSet(leaf, filter, () -> visible);
+            cache.getOrComputeFieldContribution(leaf, filter, "dept", () -> new long[] { 1, 1, 1 });
+        }
+        first.close();
+
+        // A second, independent segment stands in for one that just became visible after a refresh/merge.
+        final Directory second = writeSingleSegment();
+        try (DirectoryReader reader = DirectoryReader.open(second)) {
+            final LeafReaderContext leaf = reader.leaves().get(0);
+            final IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+
+            cache.warm(searcher, leaf);
+
+            // Both the bitset and the field contribution must now be served from cache: these computations would
+            // fail the test if warming had not already populated them.
+            assertNotNull("warming should have built the visible bitset", cache.getOrComputeVisibleBitSet(leaf, filter, () -> {
+                throw new AssertionError("bitset should be warm");
+            }));
+            assertNotNull(
+                "warming should have built the field contribution",
+                cache.getOrComputeFieldContribution(leaf, filter, "dept", () -> {
+                    throw new AssertionError("field should be warm");
+                })
+            );
+        }
+        second.close();
     }
 
     public void testEntriesEvictedWhenSegmentCloses() throws IOException {

@@ -10,9 +10,19 @@ package org.opensearch.index.cache.filteredstats;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -22,6 +32,7 @@ import org.opensearch.index.IndexSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -91,6 +102,7 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
      * A cached {@code null} (no visible docs in this segment) is preserved and returned as {@code null}.
      */
     public BitSet getOrComputeVisibleBitSet(LeafReaderContext ctx, Query filter, Computation<BitSet> compute) throws IOException {
+        track(filter, null);
         final SegmentEntry entry = entryFor(ctx);
         if (entry == null) {
             return compute.compute();
@@ -113,6 +125,7 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
      */
     public long[] getOrComputeFieldContribution(LeafReaderContext ctx, Query filter, String field, Computation<long[]> compute)
         throws IOException {
+        track(filter, field);
         final SegmentEntry entry = entryFor(ctx);
         if (entry == null) {
             return compute.compute();
@@ -183,6 +196,106 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         if (accountingBreaker != null) {
             accountingBreaker.addWithoutBreaking(bytes);
         }
+    }
+
+    /**
+     * Filters (and, per filter, the fields) this cache has actually been asked about, so a warmer can pre-populate
+     * exactly what is in use on a newly visible segment rather than guessing. Bounded so an unusual workload that
+     * cycles through many distinct filters cannot grow this without limit.
+     */
+    private static final int MAX_TRACKED_FILTERS = 32;
+    private static final int MAX_TRACKED_FIELDS_PER_FILTER = 32;
+    private final Map<Query, Set<String>> inUse = new ConcurrentHashMap<>();
+
+    private void track(Query filter, String field) {
+        Set<String> fields = inUse.get(filter);
+        if (fields == null) {
+            if (inUse.size() >= MAX_TRACKED_FILTERS) {
+                return;
+            }
+            fields = inUse.computeIfAbsent(filter, f -> ConcurrentHashMap.newKeySet());
+        }
+        if (field != null && fields.size() < MAX_TRACKED_FIELDS_PER_FILTER) {
+            fields.add(field);
+        }
+    }
+
+    /**
+     * Pre-populates the visible bitset and per-field statistics for {@code ctx} for every (filter, field) pair this
+     * cache has seen in use, so the first query to touch a newly refreshed or merged segment does not pay the
+     * O(visible postings) build itself. Best-effort: any failure is logged and skipped, because warming is an
+     * optimization and the query path recomputes on a miss anyway.
+     */
+    public void warm(IndexSearcher searcher, LeafReaderContext ctx) {
+        for (Map.Entry<Query, Set<String>> entry : inUse.entrySet()) {
+            final Query filter = entry.getKey();
+            try {
+                final Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                final BitSet visible = getOrComputeVisibleBitSet(ctx, filter, () -> computeVisibleBitSet(weight, ctx));
+                if (visible == null) {
+                    continue;
+                }
+                for (String field : entry.getValue()) {
+                    getOrComputeFieldContribution(ctx, filter, field, () -> computeFieldContribution(ctx, visible, field));
+                }
+            } catch (IOException | RuntimeException e) {
+                logger.debug(() -> "failed to warm filtered statistics for filter [" + filter + "]", e);
+            }
+        }
+    }
+
+    /**
+     * Builds the visible-doc bitset for a single segment from an (already rewritten) filter weight. Returns
+     * {@code null} when no live document in the segment matches, which callers treat as "no visible docs here".
+     * Only live documents are included so counts match what a physically filtered index would report.
+     */
+    public static BitSet computeVisibleBitSet(Weight weight, LeafReaderContext ctx) throws IOException {
+        final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+        if (scorerSupplier == null) {
+            return null;
+        }
+        final Scorer scorer = scorerSupplier.get(Long.MAX_VALUE);
+        if (scorer == null) {
+            return null;
+        }
+        final FixedBitSet bitSet = new FixedBitSet(ctx.reader().maxDoc());
+        final DocIdSetIterator iterator = scorer.iterator();
+        final Bits liveDocs = ctx.reader().getLiveDocs();
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            if (liveDocs == null || liveDocs.get(doc)) {
+                bitSet.set(doc);
+            }
+        }
+        return bitSet.cardinality() > 0 ? bitSet : null;
+    }
+
+    /**
+     * Computes a single segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} contribution for a field over the
+     * visible subset. This is the O(field postings) walk that {@link #getOrComputeFieldContribution} memoizes.
+     */
+    public static long[] computeFieldContribution(LeafReaderContext ctx, BitSet visible, String field) throws IOException {
+        final Terms terms = ctx.reader().terms(field);
+        if (terms == null) {
+            return new long[] { 0, 0, 0 };
+        }
+        final TermsEnum termsEnum = terms.iterator();
+        final FixedBitSet docsWithField = new FixedBitSet(ctx.reader().maxDoc());
+        long sumTotalTermFreq = 0;
+        long sumDocFreq = 0;
+        PostingsEnum postings = null;
+        while (termsEnum.next() != null) {
+            postings = termsEnum.postings(postings, PostingsEnum.FREQS);
+            long termDocFreq = 0;
+            for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
+                if (visible.get(doc)) {
+                    termDocFreq++;
+                    sumTotalTermFreq += postings.freq();
+                    docsWithField.set(doc);
+                }
+            }
+            sumDocFreq += termDocFreq;
+        }
+        return new long[] { docsWithField.cardinality(), sumTotalTermFreq, sumDocFreq };
     }
 
     /** Total bytes this cache is currently accounting for -- for tests and stats. */
