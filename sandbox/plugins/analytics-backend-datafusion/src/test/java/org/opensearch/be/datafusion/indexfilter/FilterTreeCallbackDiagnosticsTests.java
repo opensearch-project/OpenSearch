@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * fired. Only the {@code catch Throwable} path logged — and that one demonstrably had not fired
  * (zero occurrences of its message in the worker logs).
  *
- * <p>Each test asserts the specific give-up cause is now named in the logs. All of them failed before
+ * <p>Each test asserts the specific refusal cause is now named in the logs. All of them failed before
  * the fix (no log event was emitted at all) and pass after.
  */
 public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
@@ -155,12 +155,12 @@ public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
     }
 
     /**
-     * The give-up log is de-duplicated per (contextId, op, cause): {@code collectDocs} is a
+     * The refusal log is de-duplicated per (contextId, op, cause): {@code collectDocs} is a
      * per-row-group hot callback, and a torn-down query fails EVERY remaining row group. Without
      * dedup the fix would trade a silent failure for a log flood. Asserts the second call on the
      * same (contextId, cause) emits nothing.
      */
-    public void testRepeatedGiveUpsAreLoggedOnlyOnce() throws Exception {
+    public void testRepeatedRefusalsAreLoggedOnlyOnce() throws Exception {
         long contextId = freshContextId();
         FilterTreeCallbacks.register(contextId, new StubHandle(new AtomicBoolean(true)), null);
 
@@ -172,7 +172,7 @@ public class FilterTreeCallbackDiagnosticsTests extends OpenSearchTestCase {
             try (MockLogAppender appender = MockLogAppender.createForLoggers(callbackLogger)) {
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
-                        "repeat give-up must not re-log",
+                        "repeat refusal must not re-log",
                         LOGGER_NAME,
                         Level.DEBUG,
                         "*collectDocs(contextId=" + contextId + "*"

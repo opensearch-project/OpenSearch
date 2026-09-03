@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion.indexfilter;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -111,7 +112,7 @@ public final class FilterTreeCallbacks {
          */
         int createProvider(int annotationId) {
             if (refCounter.tryIncRef() == false) {
-                logGiveUp(contextId, annotationId, "createProvider", GiveUpCause.BINDING_CLOSED, null);
+                logRefusal(contextId, annotationId, "createProvider", RefusalCause.BINDING_CLOSED, null);
                 assert false : "createProvider: binding already fully closed for contextId=" + contextId;
                 return -1;
             }
@@ -120,7 +121,7 @@ public final class FilterTreeCallbacks {
                 int key = handle.createProvider(annotationId);
                 created = key >= 0;
                 if (created == false) {
-                    logGiveUp(contextId, annotationId, "createProvider", GiveUpCause.HANDLE_ERROR, null);
+                    logRefusal(contextId, annotationId, "createProvider", RefusalCause.HANDLE_ERROR, null);
                 }
                 return key;
             } finally {
@@ -133,7 +134,7 @@ public final class FilterTreeCallbacks {
         /** Collector twin of {@link #createProvider(int)} — same reference contract. */
         int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
             if (refCounter.tryIncRef() == false) {
-                logGiveUp(contextId, providerKey, "createCollector", GiveUpCause.BINDING_CLOSED, range(minDoc, maxDoc));
+                logRefusal(contextId, providerKey, "createCollector", RefusalCause.BINDING_CLOSED, range(minDoc, maxDoc));
                 assert false : "createCollector: binding already fully closed for contextId=" + contextId;
                 return -1;
             }
@@ -142,7 +143,7 @@ public final class FilterTreeCallbacks {
                 int key = handle.createCollector(providerKey, writerGeneration, minDoc, maxDoc);
                 created = key >= 0;
                 if (created == false) {
-                    logGiveUp(contextId, providerKey, "createCollector", GiveUpCause.HANDLE_ERROR, range(minDoc, maxDoc));
+                    logRefusal(contextId, providerKey, "createCollector", RefusalCause.HANDLE_ERROR, range(minDoc, maxDoc));
                 }
                 return key;
             } finally {
@@ -173,7 +174,7 @@ public final class FilterTreeCallbacks {
         /** Delegate a doc-collection call; refuses (-1) when the query is cancelled. */
         long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
             if (handle.isCancelled()) {
-                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.CANCELLED, range(minDoc, maxDoc));
+                logRefusal(contextId, collectorKey, "collectDocs", RefusalCause.CANCELLED, range(minDoc, maxDoc));
                 return -1L;
             }
             int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
@@ -186,7 +187,7 @@ public final class FilterTreeCallbacks {
             // 0x7FFFFFFF_FFFFFFFF — always positive.
             long packed = handle.collectDocs(collectorKey, minDoc, maxDoc, view);
             if (packed < 0) {
-                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.HANDLE_ERROR, range(minDoc, maxDoc));
+                logRefusal(contextId, collectorKey, "collectDocs", RefusalCause.HANDLE_ERROR, range(minDoc, maxDoc));
                 return -1L;
             }
             return packed;
@@ -217,135 +218,96 @@ public final class FilterTreeCallbacks {
     private FilterTreeCallbacks() {}
 
     /**
-     * Why an upcall gave up and returned {@code -1}. Every {@code -1} an upcall returns is
-     * attributed to exactly one of these, so the opaque native
-     * {@code "collectDocs(context_id=…, key=…) failed: -1"} that surfaces three layers away
-     * can be traced back to the Java-side decision that produced it.
+     * Why an upcall refused to do its work and returned {@code -1}, carrying the level and
+     * explanation it is logged with. Every {@code -1} an upcall returns is attributed to exactly one
+     * of these, so the opaque native {@code "collectDocs(context_id=…, key=…) failed: -1"} that
+     * surfaces three layers away traces back to the Java-side decision that produced it.
+     *
+     * <p>{@link #CANCELLED} is DEBUG — a cancelled query tearing down its in-flight collector calls
+     * is expected and not operator-actionable. The rest are WARN: each is a lifecycle bug or a
+     * genuine refusal by the accepting backend. Under the reference-counted lifecycle a binding
+     * outlives {@link #requestClose(long)} until its last native handle is released, so
+     * {@link #NO_BINDING} and {@link #BINDING_CLOSED} are real bugs, not the ordinary teardown race.
      */
-    private enum GiveUpCause {
-        /**
-         * No binding for this {@code contextId} at all. Under the reference-counted lifecycle a
-         * binding outlives {@link #requestClose(long)} until its last native handle is released,
-         * so this is a genuine lifecycle bug — {@link #register} never ran, or the binding was
-         * force-removed by the test-only {@link #unregister(long)} — rather than the ordinary
-         * teardown race.
-         */
-        NO_BINDING,
-        /**
-         * The binding is still mapped but already fully closed, so {@code tryIncRef} refused: a
-         * {@code create*} upcall arrived after the last reference dropped. Also a lifecycle bug —
-         * a native stream asking for a new provider/collector on a finished query.
-         */
-        BINDING_CLOSED,
-        /** The binding exists but its handle reports the owning query cancelled. */
-        CANCELLED,
-        /** The accepting backend's handle itself returned a negative result. */
-        HANDLE_ERROR
+    private enum RefusalCause {
+        NO_BINDING(
+            Level.WARN,
+            "NO BINDING registered — register() never ran, or the binding was force-removed while a native call was in flight"
+        ),
+        BINDING_CLOSED(Level.WARN, "the binding is already fully closed — a create* upcall arrived after its last reference dropped"),
+        CANCELLED(Level.DEBUG, "query cancelled — in-flight delegated collector calls are being torn down (expected)"),
+        HANDLE_ERROR(
+            Level.WARN,
+            "the accepting backend's FilterDelegationHandle returned a negative result (unknown key, or the segment/reader is gone)"
+        );
+
+        private final Level level;
+        private final String explanation;
+
+        RefusalCause(Level level, String explanation) {
+            this.level = level;
+            this.explanation = explanation;
+        }
     }
 
-    /**
-     * Bound on {@link #LOGGED_GIVE_UPS}. Each live query contributes at most one entry per
-     * (op, cause), so this holds many queries' worth of history while staying flat.
-     */
-    private static final int MAX_LOGGED_GIVE_UPS = 1024;
+    /** Bound on {@link #LOGGED_REFUSALS}: each live query adds at most one entry per (op, cause). */
+    private static final int MAX_LOGGED_REFUSALS = 1024;
 
     /**
-     * De-duplication set for give-up diagnostics: {@code contextId/op/cause} → present.
-     * {@code collectDocs} is a per-row-group hot callback and a torn-down query can fail
-     * every remaining row group, so each (query, op, cause) is logged exactly ONCE instead
-     * of once per call. FIFO-evicted past {@link #MAX_LOGGED_GIVE_UPS} — never wholesale
-     * cleared, so a long-lived node can't turn eviction into a log flood.
+     * De-duplication set for refusal diagnostics: {@code contextId/op/cause} → present. Why it
+     * exists: {@code collectDocs} runs once per ROW GROUP, so a single torn-down query refuses every
+     * remaining row group of every segment on the shard. Logging each one turns the silent failure
+     * this PR fixes into a log flood, so each (query, op, cause) is logged exactly ONCE.
      *
-     * <p>Entries are deliberately NOT dropped at query teardown: the give-ups we most want to see
-     * are the ones that arrive AFTER teardown (a native collector call still in flight), and
-     * clearing a query's marker would let those late calls re-log once per row group — exactly the
-     * flood the dedup exists to prevent. The FIFO cap bounds the set instead.
+     * <p>FIFO-evicted past {@link #MAX_LOGGED_REFUSALS} rather than cleared per query: the refusals
+     * that matter most arrive AFTER teardown, so dropping a query's marker would let those late
+     * calls re-log per row group — the very flood being prevented.
      */
-    private static final ConcurrentHashMap<String, Boolean> LOGGED_GIVE_UPS = new ConcurrentHashMap<>();
-    private static final Queue<String> LOGGED_GIVE_UP_ORDER = new ConcurrentLinkedQueue<>();
+    private static final ConcurrentHashMap<String, Boolean> LOGGED_REFUSALS = new ConcurrentHashMap<>();
+    private static final Queue<String> LOGGED_REFUSAL_ORDER = new ConcurrentLinkedQueue<>();
 
     /**
-     * Records that {@code op} on {@code contextId} gave up because of {@code cause}, returning
+     * Records that {@code op} on {@code contextId} refused because of {@code cause}, returning
      * {@code true} only for the FIRST occurrence of that triple so the caller logs once.
      */
-    private static boolean firstGiveUp(long contextId, String op, GiveUpCause cause) {
+    private static boolean firstRefusal(long contextId, String op, RefusalCause cause) {
         String key = contextId + "/" + op + "/" + cause;
-        if (LOGGED_GIVE_UPS.putIfAbsent(key, Boolean.TRUE) != null) {
+        if (LOGGED_REFUSALS.putIfAbsent(key, Boolean.TRUE) != null) {
             return false;
         }
-        LOGGED_GIVE_UP_ORDER.add(key);
-        while (LOGGED_GIVE_UP_ORDER.size() > MAX_LOGGED_GIVE_UPS) {
-            String evicted = LOGGED_GIVE_UP_ORDER.poll();
+        LOGGED_REFUSAL_ORDER.add(key);
+        while (LOGGED_REFUSAL_ORDER.size() > MAX_LOGGED_REFUSALS) {
+            String evicted = LOGGED_REFUSAL_ORDER.poll();
             if (evicted == null) {
                 break;
             }
-            LOGGED_GIVE_UPS.remove(evicted);
+            LOGGED_REFUSALS.remove(evicted);
         }
         return true;
     }
 
     /**
      * Logs — once per (contextId, op, cause) — that an upcall returned {@code -1}, naming WHICH
-     * condition fired and the doc range so the resulting native
-     * {@code "… failed: -1"} is traceable. {@code range} may be {@code null} for the
-     * lifecycle callbacks that have no doc range.
-     *
-     * <p>Levels: {@link GiveUpCause#CANCELLED} is DEBUG — a cancelled query tearing down its
-     * in-flight collector calls is expected and not operator-actionable. The rest are WARN: all
-     * were previously invisible, and each indicates either a lifecycle bug or a genuine refusal
-     * by the accepting backend. Every cause is de-duplicated, so nothing floods.
+     * condition fired plus the doc range, so the resulting native {@code "… failed: -1"} is
+     * traceable. {@code range} may be {@code null} for the callbacks that have no doc range.
      */
-    private static void logGiveUp(long contextId, int key, String op, GiveUpCause cause, String range) {
-        if (firstGiveUp(contextId, op, cause) == false) {
+    private static void logRefusal(long contextId, int key, String op, RefusalCause cause, String range) {
+        if (firstRefusal(contextId, op, cause) == false) {
             return;
         }
-        String detail = range == null ? "" : " " + range;
-        if (cause == GiveUpCause.CANCELLED) {
-            LOGGER.debug(
-                "{}(contextId={}, key={}){} returning -1: query cancelled — in-flight delegated collector calls "
-                    + "are being torn down (expected; logged once per query)",
-                op,
-                contextId,
-                key,
-                detail
-            );
-            return;
-        }
-        if (cause == GiveUpCause.NO_BINDING) {
-            LOGGER.warn(
-                "{}(contextId={}, key={}){} returning -1: NO BINDING registered — register() never ran, or the "
-                    + "binding was force-removed while a native collector call was still in flight. "
-                    + "Live contextIds: {} (logged once per query)",
-                op,
-                contextId,
-                key,
-                detail,
-                BINDINGS.keySet()
-            );
-            return;
-        }
-        if (cause == GiveUpCause.BINDING_CLOSED) {
-            LOGGER.warn(
-                "{}(contextId={}, key={}){} returning -1: the binding is already fully closed — a create* upcall "
-                    + "arrived after its last reference dropped (logged once per query)",
-                op,
-                contextId,
-                key,
-                detail
-            );
-            return;
-        }
-        LOGGER.warn(
-            "{}(contextId={}, key={}){} returning -1: the accepting backend's FilterDelegationHandle returned a "
-                + "negative result (unknown key, or the segment/reader is gone) (logged once per query)",
+        LOGGER.log(
+            cause.level,
+            "{}(contextId={}, key={}){} returning -1: {}. Live contextIds: {} (logged once per query)",
             op,
             contextId,
             key,
-            detail
+            range == null ? "" : " " + range,
+            cause.explanation,
+            BINDINGS.keySet()
         );
     }
 
-    /** Renders a doc range for the give-up diagnostics. */
+    /** Renders a doc range for the refusal diagnostics. */
     private static String range(int minDoc, int maxDoc) {
         return "[" + minDoc + ", " + maxDoc + ")";
     }
@@ -446,6 +408,21 @@ public final class FilterTreeCallbacks {
             + ")";
     }
 
+    /**
+     * Looks up the binding for {@code op}, returning {@code null} after diagnosing the miss so the
+     * caller just returns {@code -1}. The log comes BEFORE the assert because the diagnostic is the
+     * production signal and must not depend on {@code -ea} (on in tests, off in production). Every
+     * other {@code -1} is attributed inside {@link QueryBinding}, which can see the handle state.
+     */
+    private static QueryBinding bindingOrRefuse(long contextId, int key, String op, String range) {
+        QueryBinding binding = BINDINGS.get(contextId);
+        if (binding == null) {
+            logRefusal(contextId, key, op, RefusalCause.NO_BINDING, range);
+            assertBindingExists(binding, op, contextId);
+        }
+        return binding;
+    }
+
     // ── Provider lifecycle (cold path, once per query) ────────────────
 
     /**
@@ -454,13 +431,8 @@ public final class FilterTreeCallbacks {
     public static int createProvider(long contextId, int annotationId) {
         long tid = trackStart(contextId);
         try {
-            QueryBinding binding = BINDINGS.get(contextId);
+            QueryBinding binding = bindingOrRefuse(contextId, annotationId, "createProvider", null);
             if (binding == null) {
-                // Log BEFORE the assert: the diagnostic is the production signal and must not
-                // depend on -ea (which is on in tests, off in production). The remaining -1
-                // paths are attributed inside QueryBinding, which can see the handle state.
-                logGiveUp(contextId, annotationId, "createProvider", GiveUpCause.NO_BINDING, null);
-                assertBindingExists(binding, "createProvider", contextId);
                 return -1;
             }
             return binding.createProvider(annotationId);
@@ -505,10 +477,8 @@ public final class FilterTreeCallbacks {
     public static int createCollector(long contextId, int providerKey, long writerGeneration, int minDoc, int maxDoc) {
         long tid = trackStart(contextId);
         try {
-            QueryBinding binding = BINDINGS.get(contextId);
+            QueryBinding binding = bindingOrRefuse(contextId, providerKey, "createCollector", range(minDoc, maxDoc));
             if (binding == null) {
-                logGiveUp(contextId, providerKey, "createCollector", GiveUpCause.NO_BINDING, range(minDoc, maxDoc));
-                assertBindingExists(binding, "createCollector", contextId);
                 return -1;
             }
             return binding.createCollector(providerKey, writerGeneration, minDoc, maxDoc);
@@ -538,10 +508,8 @@ public final class FilterTreeCallbacks {
     public static long collectDocs(long contextId, int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
         long tid = trackStart(contextId);
         try {
-            QueryBinding binding = BINDINGS.get(contextId);
+            QueryBinding binding = bindingOrRefuse(contextId, collectorKey, "collectDocs", range(minDoc, maxDoc));
             if (binding == null) {
-                logGiveUp(contextId, collectorKey, "collectDocs", GiveUpCause.NO_BINDING, range(minDoc, maxDoc));
-                assertBindingExists(binding, "collectDocs", contextId);
                 return -1L;
             }
             return binding.collectDocs(collectorKey, minDoc, maxDoc, outPtr, outWordCap);
