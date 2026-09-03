@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.codec.bridge;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
@@ -37,23 +39,40 @@ import java.util.List;
  * End-to-end coverage for the numeric Parquet doc-values read bridge: writes a real Parquet fixture
  * with {@link NativeParquetWriter}, then walks it through the FFM zero-copy borrow path
  * (Java -> native Rust cursor -> Arrow decode -> borrowed buffers read back in Java).
+ *
+ * <p>Opening a cursor needs the DataFusion runtime manager and the global file-metadata cache the
+ * analytics-backend-datafusion plugin owns, so each test starts a runtime rather than the reader
+ * falling back to a private pool and cache of its own. Thread-leak detection is off because the
+ * Tokio runtime manager is a per-JVM singleton whose threads outlive any one test class.
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ParquetColumnReaderTests extends OpenSearchTestCase {
 
     private static final String COLUMN = "value";
 
     private BufferAllocator allocator;
+    private long globalRuntimePtr;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        // Idempotent: the manager is a OnceLock, so another test class may already have started it.
+        // Deliberately never shut down - doing so kills the shared executor for the rest of the JVM.
+        DataFusionRuntimeFixture.initRuntimeManager(2);
+        globalRuntimePtr = DataFusionRuntimeFixture.createGlobalRuntime(createTempDir("datafusion-spill"));
+        assertNotEquals("global runtime must start before a cursor can be opened", 0L, globalRuntimePtr);
         allocator = new RootAllocator();
     }
 
     @Override
     public void tearDown() throws Exception {
-        allocator.close();
+        if (allocator != null) {
+            allocator.close();
+        }
+        if (globalRuntimePtr != 0L) {
+            DataFusionRuntimeFixture.closeGlobalRuntime(globalRuntimePtr);
+        }
         super.tearDown();
     }
 
