@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -43,6 +44,9 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -182,6 +186,35 @@ final class DefaultSearchContext extends SearchContext {
     static boolean filteredStatisticsEnabled() {
         return Boolean.parseBoolean(System.getProperty(FILTERED_STATISTICS_PROPERTY, "false"));
     }
+
+    /**
+     * Guardrail for {@code filtered_stats}: the maximum number of visible (alias-filter-matching) documents for which
+     * filtered statistics will be computed. Filtered statistics cost O(visible postings) to build the first time a
+     * segment is queried, so on a very large view that first query can be slow; above this budget we fall back to the
+     * {@code constant_score} behavior, which is leak-free and flat but unranked. {@code -1} disables the guardrail.
+     */
+    static final String FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY = "opensearch.filter_aware_alias.filtered_stats.max_visible_docs";
+
+    static final long FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT = 1_000_000L;
+
+    static long filteredStatisticsMaxVisibleDocs() {
+        try {
+            return Long.parseLong(
+                System.getProperty(
+                    FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY,
+                    Long.toString(FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT)
+                )
+            );
+        } catch (NumberFormatException e) {
+            return FILTERED_STATISTICS_MAX_VISIBLE_DOCS_DEFAULT;
+        }
+    }
+
+    /**
+     * Memoized result of the {@code filtered_stats} small-view guardrail; see {@link #withinFilteredStatisticsBudget()}.
+     * {@code null} until first evaluated.
+     */
+    private Boolean filteredStatisticsWithinBudget;
 
     private final ReaderContext readerContext;
     private final Engine.Searcher engineSearcher;
@@ -883,7 +916,67 @@ final class DefaultSearchContext extends SearchContext {
             return false;
         }
         AliasFilter requestAliasFilter = request.getAliasFilter();
-        return requestAliasFilter != null && requestAliasFilter.getEnforcement() == AliasFilter.Enforcement.PRE_FILTER;
+        if (requestAliasFilter == null || requestAliasFilter.getEnforcement() != AliasFilter.Enforcement.PRE_FILTER) {
+            return false;
+        }
+        return withinFilteredStatisticsBudget();
+    }
+
+    /**
+     * Small-view guardrail for {@code filtered_stats}. Estimates how many documents the alias filter matches and
+     * returns {@code false} when that exceeds {@link #filteredStatisticsMaxVisibleDocs()}, so the caller falls back to
+     * the {@code constant_score} behavior (still leak-free and flat, but unranked) instead of paying an unbounded
+     * first-query cost on a very large view.
+     * <p>
+     * The estimate uses {@link ScorerSupplier#cost()}, which is an upper bound derived from postings metadata -- it
+     * does not iterate the filter, so the guardrail itself is cheap and, crucially, runs <em>before</em> the expensive
+     * visible-doc/statistics build it is protecting against.
+     * <p>
+     * The result is memoized for the life of this context because it is consulted twice per request -- once when
+     * choosing the query shape in {@link #buildFilteredQuery(Query)} and again when the searcher computes statistics.
+     * Those two decisions must agree: a filtered-stats query shape scored with whole-shard statistics would reintroduce
+     * the very whole-corpus IDF the pre-filter is meant to exclude.
+     */
+    private boolean withinFilteredStatisticsBudget() {
+        if (filteredStatisticsWithinBudget != null) {
+            return filteredStatisticsWithinBudget;
+        }
+        final long maxVisibleDocs = filteredStatisticsMaxVisibleDocs();
+        if (maxVisibleDocs < 0) {
+            filteredStatisticsWithinBudget = true;
+            return true;
+        }
+        boolean withinBudget;
+        try {
+            final Weight weight = searcher.createWeight(searcher.rewrite(aliasFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            long estimate = 0;
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+                if (scorerSupplier != null) {
+                    estimate += scorerSupplier.cost();
+                    if (estimate > maxVisibleDocs) {
+                        break;
+                    }
+                }
+            }
+            withinBudget = estimate <= maxVisibleDocs;
+            if (withinBudget == false) {
+                logger.debug(
+                    "filtered_stats disabled for this request: alias filter matches ~{} docs, above the {} budget "
+                        + "({}); falling back to constant_score",
+                    estimate,
+                    maxVisibleDocs,
+                    FILTERED_STATISTICS_MAX_VISIBLE_DOCS_PROPERTY
+                );
+            }
+        } catch (IOException e) {
+            // Fail closed onto constant_score: it is leak-free and cheaper, so an estimation failure degrades
+            // ranking rather than correctness or latency.
+            logger.debug("could not estimate alias-filter selectivity; falling back to constant_score", e);
+            withinBudget = false;
+        }
+        filteredStatisticsWithinBudget = withinBudget;
+        return withinBudget;
     }
 
     @Override

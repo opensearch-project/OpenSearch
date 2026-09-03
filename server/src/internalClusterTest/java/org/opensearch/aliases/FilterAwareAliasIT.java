@@ -226,6 +226,59 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         }
     }
 
+    /**
+     * Small-view guardrail: filtered statistics cost O(visible postings) to build, so above a configured
+     * visible-doc budget the request falls back to the default constant_score behavior instead of paying that
+     * cost. Asserts both sides of the switch on the same corpus and alias: with a generous budget the sample
+     * scores with real BM25 (not 1.0), and with a budget below the visible-subset size every hit scores exactly
+     * 1.0 -- still leak-free, just unranked.
+     */
+    public void testFilteredStatisticsGuardrailFallsBackToConstantScore() throws Exception {
+        buildCorpus();
+        addAlias("fs_guard", "pre_filter");
+
+        final String gate = "opensearch.filter_aware_alias.filtered_stats";
+        final String budget = "opensearch.filter_aware_alias.filtered_stats.max_visible_docs";
+        final String previousGate = System.getProperty(gate);
+        final String previousBudget = System.getProperty(budget);
+        try {
+            System.setProperty(gate, "true");
+
+            // Budget well above the ~21 visible docs: filtered_stats applies, so the restricted-only term is
+            // scored with real (visible-subset) BM25 rather than flattened.
+            System.setProperty(budget, "1000000");
+            float rankedScore = sampleScore("fs_guard", RESTRICTED_TERM);
+            assertTrue("sample found with filtered_stats in budget", rankedScore > 0f);
+            assertNotEquals(
+                "with filtered_stats applied the score should be real BM25, not the constant_score 1.0",
+                1.0f,
+                rankedScore,
+                0.0001f
+            );
+
+            // Budget below the visible-subset size: the guardrail trips and we fall back to constant_score,
+            // which scores every hit exactly 1.0.
+            System.setProperty(budget, "1");
+            float guardedScore = sampleScore("fs_guard", RESTRICTED_TERM);
+            assertEquals("guardrail should fall back to constant_score (flat 1.0)", 1.0f, guardedScore, 0.0001f);
+
+            // The fallback is still leak-free: a term confined to filtered-out docs is indistinguishable from
+            // a term that exists nowhere.
+            assertEquals("fallback stays leak-free", sampleScore("fs_guard", ABSENT_TERM), guardedScore, 0.0001f);
+        } finally {
+            restoreProperty(gate, previousGate);
+            restoreProperty(budget, previousBudget);
+        }
+    }
+
+    private static void restoreProperty(String key, String previous) {
+        if (previous == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, previous);
+        }
+    }
+
     /** Build a multi-shard corpus for the dfs test. Same shape as {@link #buildCorpus()} but spread
      *  across several shards so dfs_query_then_fetch must aggregate per-shard statistics. */
     private void buildMultiShardCorpus(String index, int shards) throws Exception {
