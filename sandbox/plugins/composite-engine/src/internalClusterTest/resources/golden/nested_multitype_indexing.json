@@ -1,0 +1,25 @@
+{
+  "mapping": {
+    "properties": {
+      "title": { "type": "keyword" },
+      "comments": {
+        "type": "nested",
+        "dynamic": "false",
+        "properties": {
+          "author": { "type": "keyword" },
+          "votes": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "document": {
+    "title": "golden doc",
+    "comments": [ { "author": "alice", "votes": 5 } ]
+  },
+  "expectedParquetTitle": "golden doc",
+  "expectedParquetCommentsShapeSubstrings": ["List", "Struct", "author", "votes"],
+  "expectedLuceneFieldsPresent": ["title", "comments", "comments._value", "comments._valueAndPath"],
+  "expectedLuceneFieldsAbsent": ["comments.author", "comments.votes"],
+  "expectedLuceneValueTermsPresent": ["comments.alice"],
+  "expectedLuceneValueTermsAbsent": ["comments.5"]
+}

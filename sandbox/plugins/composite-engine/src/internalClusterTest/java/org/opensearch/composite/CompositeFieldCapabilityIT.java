@@ -11,8 +11,10 @@ package org.opensearch.composite;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -275,6 +277,83 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         );
         assertTrue("nested column keeps the 'author' child field: " + commentsRepr, commentsRepr.contains("author"));
         assertTrue("nested column keeps the 'score' child field: " + commentsRepr, commentsRepr.contains("score"));
+    }
+
+    /**
+     * Reads a checked-in golden fixture ({@code src/internalClusterTest/resources/golden/}) that
+     * carries the mapping/document to ingest AND the expected Parquet/Lucene output in one file,
+     * ingests real data from it, and asserts against its expected values — instead of hardcoding
+     * expected values inline in the test.
+     * <p>
+     * Two things this deliberately does NOT assert byte-for-byte: {@code RustBridge.readAsJson}
+     * (this suite's only Parquet->JSON reading mechanism — there is no pure-Java Parquet reader in
+     * this repo) cannot decode a {@code LIST<STRUCT>} column's actual row values, only a
+     * placeholder description of its Arrow type — so the nested {@code comments} column is checked
+     * for its expected type-shape substrings, not exact leaf values (Parquet's real per-element
+     * fidelity for nested data is already covered by unit tests in
+     * {@code VSRManagerNestedTests}/{@code ArrowSchemaBuilderNestedTests}). Also verifies, via real
+     * Lucene {@code SortedSetDocValues} term iteration (not just field-name presence), that the
+     * `votes` leaf's value never reaches Lucene at all — the keyword/text-only restriction.
+     */
+    public void testNestedIndexingMatchesGoldenFile() throws Exception {
+        startCluster();
+        Map<String, Object> golden = loadGoldenFixture("nested_multitype_indexing.json");
+        String indexName = "test-nested-golden";
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(dfaSettings())
+            .setMapping(toJson(golden.get("mapping")))
+            .get();
+        assertTrue(response.isAcknowledged());
+        ensureGreen(indexName);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> document = (Map<String, Object>) golden.get("document");
+        assertEquals(RestStatus.CREATED, client().prepareIndex(indexName).setSource(document).get().status());
+
+        client().admin().indices().prepareRefresh(indexName).get();
+        client().admin().indices().prepareFlush(indexName).get();
+        assertDocCount(indexName, 1);
+
+        // --- Parquet: decodable flat field gets an exact value check ---
+        IndexShard shard = getPrimaryShard(indexName);
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetDir, shard);
+        assertEquals(1, parquetRows.size());
+        assertEquals(golden.get("expectedParquetTitle"), parquetRows.get(0).get("title"));
+
+        // --- Parquet: nested column's undecodable placeholder gets a shape check ---
+        String commentsRepr = String.valueOf(parquetRows.get(0).get("comments"));
+        for (Object expectedSubstring : (List<?>) golden.get("expectedParquetCommentsShapeSubstrings")) {
+            assertTrue(
+                "expected substring [" + expectedSubstring + "] in nested column repr: " + commentsRepr,
+                commentsRepr.contains((String) expectedSubstring)
+            );
+        }
+
+        // --- Lucene: field-name presence/absence ---
+        Path luceneDir = shard.shardPath().resolveIndex();
+        Set<String> luceneFields = getLuceneFields(luceneDir);
+        for (Object expected : (List<?>) golden.get("expectedLuceneFieldsPresent")) {
+            assertTrue("expected Lucene field present: " + expected, luceneFields.contains(expected));
+        }
+        for (Object expected : (List<?>) golden.get("expectedLuceneFieldsAbsent")) {
+            assertFalse("expected Lucene field absent: " + expected, luceneFields.contains(expected));
+        }
+
+        // --- Lucene: actual doc-values term presence/absence (not just field names) ---
+        Set<String> valueTerms = getSortedSetDocValueTerms(luceneDir, "comments._value");
+        for (Object expected : (List<?>) golden.get("expectedLuceneValueTermsPresent")) {
+            assertTrue("expected Lucene doc-values term present: " + expected + " in " + valueTerms, valueTerms.contains(expected));
+        }
+        for (Object expected : (List<?>) golden.get("expectedLuceneValueTermsAbsent")) {
+            assertFalse(
+                "expected Lucene doc-values term ABSENT (keyword/text-only restriction): " + expected + " in " + valueTerms,
+                valueTerms.contains(expected)
+            );
+        }
     }
 
     public void testFlatObjectFieldSupported() {
@@ -932,5 +1011,53 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
             }
         }
         return allFields;
+    }
+
+    /** All {@link SortedSetDocValues} term values stored under {@code fieldName}, across every doc. */
+    private Set<String> getSortedSetDocValueTerms(Path luceneDir, String fieldName) throws IOException {
+        Set<String> terms = new HashSet<>();
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                SortedSetDocValues dv = ctx.reader().getSortedSetDocValues(fieldName);
+                if (dv == null) {
+                    continue;
+                }
+                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                    if (dv.advanceExact(docId) == false) {
+                        continue;
+                    }
+                    int count = dv.docValueCount();
+                    for (int i = 0; i < count; i++) {
+                        BytesRef term = dv.lookupOrd(dv.nextOrd());
+                        terms.add(term.utf8ToString());
+                    }
+                }
+            }
+        }
+        return terms;
+    }
+
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "JSON parsing for test verification of golden fixture files")
+    private Map<String, Object> loadGoldenFixture(String resourceName) throws IOException {
+        try (
+            var stream = getClass().getResourceAsStream("/golden/" + resourceName);
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                stream
+            )
+        ) {
+            return parser.map();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "JSON serialization for test verification of golden fixture files")
+    private static String toJson(Object mappingMap) throws IOException {
+        try (var builder = MediaTypeRegistry.JSON.contentBuilder()) {
+            builder.map((Map<String, Object>) mappingMap);
+            return builder.toString();
+        }
     }
 }
