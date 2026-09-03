@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.mockito.stubbing.Answer;
@@ -1074,6 +1075,85 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             listener.afterRefresh(true);
             // the sync itself still ran -- only the accounting publication is skipped
             verify(mockEngine, never()).updateUncommittedSegmentBytes(any(), anyLong());
+        } finally {
+            listener.drainRefreshes();
+        }
+    }
+
+    /**
+     * Verifies that turning {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} off on a shard that was
+     * already publishing stops further publications from the next sync onwards, and that turning it back on resumes
+     * them. Covers the enabled -> disabled -> enabled cycle, which the steady-state tests on their own do not.
+     */
+    public void testFlushOnUncommittedSegmentsPublishFollowsClusterSwitch() throws Exception {
+        setup(true, 3);
+        Engine mockEngine = mock(Engine.class);
+        EngineBackedIndexer delegatingIndexer = mock(EngineBackedIndexer.class, delegatesTo(indexShard.getIndexer()));
+        doReturn(mockEngine).when(delegatingIndexer).getEngine();
+        IndexShard spyShard = spy(indexShard);
+        doReturn(delegatingIndexer).when(spyShard).getIndexer();
+
+        // start from the real default (disabled) and drive every flip through the cluster settings, so that the
+        // RemoteStoreSettings value and the ClusterSettings view never disagree about the starting point
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(Settings.EMPTY, clusterSettings);
+        assertFalse(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            remoteStoreSettings
+        );
+        final AtomicInteger publishes = new AtomicInteger();
+        doAnswer(invocation -> {
+            publishes.incrementAndGet();
+            return null;
+        }).when(mockEngine).updateUncommittedSegmentBytes(any(), anyLong());
+
+        final AtomicInteger docId = new AtomicInteger(10);
+        try {
+            // enabled: a sync publishes
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                    .build()
+            );
+            assertTrue(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+            assertBusy(() -> {
+                indexDocs(docId.addAndGet(10), 1);
+                indexShard.refresh("test");
+                listener.afterRefresh(true);
+                assertTrue("expected a publication while enabled", publishes.get() > 0);
+            });
+
+            // disabled on a live shard: no further publication, however many syncs run
+            final int publishesAtDisable = publishes.get();
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), false)
+                    .build()
+            );
+            assertFalse(remoteStoreSettings.isFlushOnUncommittedSegmentsEnabled());
+            for (int i = 0; i < 3; i++) {
+                indexDocs(docId.addAndGet(10), 1);
+                indexShard.refresh("test");
+                listener.afterRefresh(true);
+            }
+            assertEquals("no publication once the switch is off", publishesAtDisable, publishes.get());
+
+            // re-enabled: publications resume
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                    .build()
+            );
+            assertBusy(() -> {
+                indexDocs(docId.addAndGet(10), 1);
+                indexShard.refresh("test");
+                listener.afterRefresh(true);
+                assertTrue("expected publications to resume", publishes.get() > publishesAtDisable);
+            });
         } finally {
             listener.drainRefreshes();
         }
