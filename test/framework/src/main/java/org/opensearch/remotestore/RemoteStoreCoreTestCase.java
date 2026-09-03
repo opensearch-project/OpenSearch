@@ -147,12 +147,28 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
+     * Turns on {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}, which is disabled by default and has
+     * no per-index counterpart, so the condition cannot be armed through index settings.
+     */
+    private void enableFlushOnUncommittedSegments() {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                )
+        );
+    }
+
+    /**
      * Verifies the end-to-end periodic flush trigger on a remote-store shard: with the uncommitted-segment-bytes
      * threshold lowered to 1b, a refresh-driven segments upload publishes the accounting and the next write
      * operation's periodic flush poll fires the async flush.
      */
     public void testPeriodicFlushOnUncommittedSegmentBytes() throws Exception {
         String dataNode = internalCluster().startNodes(1).get(0);
+        enableFlushOnUncommittedSegments();
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -172,6 +188,108 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
+     * Same trigger as {@link #testPeriodicFlushOnUncommittedSegmentBytes()}, but driven purely from the cluster level:
+     * the index sets no per-index threshold, so lowering
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size} after the index already exists must
+     * take effect on it, and {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} -- which has no
+     * per-index counterpart -- must gate the condition on a live index in both directions.
+     */
+    public void testPeriodicFlushOnUncommittedSegmentBytesFromClusterDefault() throws Exception {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+
+        // the threshold is low enough to trip on anything, but the condition is off fleet-wide (its default), so the
+        // workload below must not produce a periodic flush
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), false)
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "1b")
+                )
+        );
+        for (int i = 0; i < 5; i++) {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+        }
+        indexSingleDoc(INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+
+        // enabling it on the live index -- with no per-index setting anywhere -- arms the condition
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                )
+        );
+        assertBusy(() -> {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * An explicit per-index threshold overrides the cluster default: with the cluster threshold at 1b, an index which
+     * pins its own threshold well above what the workload can reach must not flush, and dropping the per-index value
+     * hands it back to the cluster default.
+     */
+    public void testPerIndexFlushOnUncommittedSegmentsThresholdOverridesClusterDefault() throws Exception {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                        .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "1b")
+                )
+        );
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(remoteStoreIndexSettings(0))
+                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+
+        for (int i = 0; i < 5; i++) {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+        }
+        indexSingleDoc(INDEX_NAME);
+        assertEquals(0, indexShard.flushStats().getPeriodic());
+
+        // dropping the per-index threshold hands the index back to the 1b cluster default
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .putNull(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey())
+                )
+        );
+        assertBusy(() -> {
+            indexSingleDoc(INDEX_NAME);
+            refresh(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            assertThat(indexShard.flushStats().getPeriodic(), greaterThan(0L));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
      * End-to-end reproduction of an update-heavy workload with regular refreshes on a remote-store shard, where
      * every successful segments upload suppresses the translog based flush condition and soft-deleted documents
      * pile up unreclaimed. Asserts the full recovery chain through the uncommitted-segment-bytes condition:
@@ -182,6 +300,7 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         final int docCount = 20;
         final int rounds = 8;
         String dataNode = internalCluster().startNodes(1).get(0);
+        enableFlushOnUncommittedSegments();
         createIndex(
             INDEX_NAME,
             Settings.builder()

@@ -882,34 +882,40 @@ public final class IndexSettings {
     );
 
     /**
-     * Controls whether a remote-store shard periodically flushes based on the total size of segment bytes that are
-     * refreshed and uploaded to the remote store but not yet referenced by the last commit point. On remote-store
-     * shards the translog based flush threshold ({@code index.translog.flush_threshold_size}) is ineffective because
-     * uploaded translog generations are trimmed continuously; this condition restores an equivalent size-based flush
-     * signal driven by uncommitted segment bytes. Low-throughput trickle workloads that never cross the byte
-     * threshold and never go idle can additionally enable {@code index.periodic_flush_interval} (disabled by
-     * default) for a wall-clock flush backstop.
+     * Default for {@link #INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING} and for the
+     * cluster setting it falls back to, {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size}.
+     * Deliberately the same as the default of {@link #INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING}, since this
+     * condition takes over the commit-lag-bounding job that the translog size condition performs on non
+     * remote-store shards.
      */
-    public static final Setting<Boolean> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING = Setting.boolSetting(
-        "index.remote_store.flush_on_uncommitted_segments.enabled",
-        true,
-        Property.Dynamic,
-        Property.IndexScope
-    );
+    public static final ByteSizeValue DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+
+    /**
+     * Minimum accepted value for {@link #DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE} and its cluster
+     * counterpart: a zero or negative threshold would flush on every successful segments sync, and disablement has its
+     * own explicit setting.
+     */
+    public static final ByteSizeValue MINIMUM_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
 
     /**
      * The minimum total size of segment bytes not yet referenced by the last commit point which triggers a flush on a
-     * remote-store shard. Only takes effect when
-     * {@link #INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING} is enabled. Defaults to the current
-     * value of {@code index.translog.flush_threshold_size} of the index.
+     * remote-store shard. On remote-store shards the translog based flush threshold
+     * ({@code index.translog.flush_threshold_size}) is ineffective because uploaded translog generations are trimmed
+     * continuously; this condition restores an equivalent size-based flush signal driven by uncommitted segment bytes.
+     * Low-throughput trickle workloads that never cross the byte threshold and never go idle can additionally enable
+     * {@code index.periodic_flush_interval} (disabled by default) for a wall-clock flush backstop.
+     * <p>
+     * Only takes effect while the condition is enabled cluster-wide by
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}. When this is not set on the index, the
+     * effective threshold is the cluster setting
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size} — see
+     * {@link #getFlushOnUncommittedSegmentsThresholdSize()}.
      */
     public static final Setting<ByteSizeValue> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING = Setting
         .byteSizeSetting(
             "index.remote_store.flush_on_uncommitted_segments.threshold_size",
-            INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
-            // a zero or negative threshold would flush on every successful segments sync; disablement has its own
-            // explicit setting above
-            new ByteSizeValue(1, ByteSizeUnit.BYTES),
+            DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            MINIMUM_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
             new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             Property.Dynamic,
             Property.IndexScope
@@ -978,7 +984,6 @@ public final class IndexSettings {
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private volatile boolean flushOnUncommittedSegmentsEnabled;
     private volatile ByteSizeValue flushOnUncommittedSegmentsThresholdSize;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
@@ -1211,7 +1216,6 @@ public final class IndexSettings {
 
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
-        flushOnUncommittedSegmentsEnabled = scopedSettings.get(INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING);
         flushOnUncommittedSegmentsThresholdSize = scopedSettings.get(
             INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING
         );
@@ -1431,10 +1435,6 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
-        scopedSettings.addSettingsUpdateConsumer(
-            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING,
-            this::setFlushOnUncommittedSegmentsEnabled
-        );
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING,
             this::setFlushOnUncommittedSegmentsThresholdSize
@@ -1832,24 +1832,20 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns whether the periodic flush condition based on uncommitted segment bytes is enabled for this
-     * (remote-store) index.
-     */
-    public boolean isFlushOnUncommittedSegmentsEnabled() {
-        return flushOnUncommittedSegmentsEnabled;
-    }
-
-    /**
-     * Returns the threshold size of segment bytes not yet referenced by the last commit point when to forcefully
-     * flush a remote-store shard. Only takes effect when {@link #isFlushOnUncommittedSegmentsEnabled()}. Defaults to
-     * the current value of {@code index.translog.flush_threshold_size} of this index.
+     * Returns this index's {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}. Only meaningful
+     * when {@link #isFlushOnUncommittedSegmentsThresholdSizeExplicit()}; otherwise the effective threshold is the
+     * cluster default, which is resolved by the publisher of the accounting (see {@code RemoteStoreRefreshListener}).
      */
     public ByteSizeValue getFlushOnUncommittedSegmentsThresholdSize() {
         return flushOnUncommittedSegmentsThresholdSize;
     }
 
-    private void setFlushOnUncommittedSegmentsEnabled(boolean flushOnUncommittedSegmentsEnabled) {
-        this.flushOnUncommittedSegmentsEnabled = flushOnUncommittedSegmentsEnabled;
+    /**
+     * Returns true iff {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} exists or in other
+     * words is explicitly set, in which case it overrides the cluster default.
+     */
+    public boolean isFlushOnUncommittedSegmentsThresholdSizeExplicit() {
+        return INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.exists(settings);
     }
 
     private void setFlushOnUncommittedSegmentsThresholdSize(ByteSizeValue flushOnUncommittedSegmentsThresholdSize) {

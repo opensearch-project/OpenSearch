@@ -26,6 +26,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
@@ -67,6 +69,8 @@ import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -1039,50 +1043,40 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that {@code index.remote_store.flush_on_uncommitted_segments.enabled=false} stops the listener from
-     * publishing the accounting on a successful segments sync, not just the engine from consulting it: enabling
-     * the setting afterwards trips no flush at a 1b threshold until the next sync republishes, which then does.
+     * Verifies that {@code cluster.remote_store.flush_on_uncommitted_segments.enabled=false} stops the listener from
+     * publishing the accounting on a successful segments sync, not just the engine from consulting it. The positive
+     * control -- that an enabled sync does publish -- is
+     * {@link #testNonInternalEngineNoOpUncommittedSegmentBytesPublish()}, which runs the same path with the switch at
+     * its enabled default.
+     * <p>
+     * Asserted on the publication call rather than on {@code shouldPeriodicallyFlush()}: the shard installs its own
+     * internal {@link RemoteStoreRefreshListener} carrying the node's real settings, so a flush-decision assertion
+     * would not isolate the listener under test.
      */
     public void testDisabledFlushOnUncommittedSegmentsSkipsPublish() throws Exception {
-        indexShard = newStartedShard(
-            true,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
-                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), false)
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
-                .build(),
-            new EngineBackedIndexerFactory(new InternalEngineFactory())
-        );
-        indexDocs(1, randomIntBetween(1, 10));
-        indexShard.refresh("test");
+        setup(true, 3);
+        Engine mockEngine = mock(Engine.class);
+        EngineBackedIndexer delegatingIndexer = mock(EngineBackedIndexer.class, delegatesTo(indexShard.getIndexer()));
+        doReturn(mockEngine).when(delegatingIndexer).getEngine();
+        IndexShard spyShard = spy(indexShard);
+        doReturn(delegatingIndexer).when(spyShard).getIndexer();
 
-        clusterService = ClusterServiceUtils.createClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
-        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
-        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
-            indexShard,
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            flushOnUncommittedSegmentsRemoteStoreSettings(false)
         );
-
-        remoteStoreRefreshListener.afterRefresh(true);
-
-        updateFlushOnUncommittedSegmentsEnabled(true);
-        assertFalse("No accounting is published while the setting is disabled", indexShard.shouldPeriodicallyFlush());
-
-        indexDocs(20, 1);
-        indexShard.refresh("test");
-        remoteStoreRefreshListener.afterRefresh(true);
-        assertBusy(() -> assertTrue("Re-enabled sync publishes the accounting", indexShard.shouldPeriodicallyFlush()));
+        try {
+            indexDocs(10, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            // the sync itself still ran -- only the accounting publication is skipped
+            verify(mockEngine, never()).updateUncommittedSegmentBytes(any(), anyLong());
+        } finally {
+            listener.drainRefreshes();
+        }
     }
 
     /**
@@ -1134,30 +1128,96 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             spyShard,
             publisher,
             tracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            flushOnUncommittedSegmentsRemoteStoreSettings(true)
         );
         try {
             indexDocs(10, 1);
             indexShard.refresh("test");
             listener.afterRefresh(true);
-            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any());
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any(), anyLong());
             verify(publisher, atLeastOnce()).publish(any(), any());
         } finally {
             listener.drainRefreshes();
         }
     }
 
-    private void updateFlushOnUncommittedSegmentsEnabled(boolean enabled) {
-        indexShard.indexSettings()
-            .updateIndexMetadata(
-                IndexMetadata.builder(indexShard.indexSettings().getIndexMetadata())
-                    .settings(
-                        Settings.builder()
-                            .put(indexShard.indexSettings().getSettings())
-                            .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), enabled)
-                    )
+    /**
+     * Verifies the threshold precedence the listener resolves and stamps into the publication: the per-index
+     * {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} when the index sets it explicitly,
+     * otherwise the cluster default, picked up live from the cluster settings on each publication.
+     */
+    public void testFlushOnUncommittedSegmentsThresholdPrecedence() throws Exception {
+        setup(true, 3);
+        Engine mockEngine = mock(Engine.class);
+        EngineBackedIndexer delegatingIndexer = mock(EngineBackedIndexer.class, delegatesTo(indexShard.getIndexer()));
+        doReturn(mockEngine).when(delegatingIndexer).getEngine();
+        IndexShard spyShard = spy(indexShard);
+        doReturn(delegatingIndexer).when(spyShard).getIndexer();
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), true)
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "128mb")
+                .build(),
+            clusterSettings
+        );
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            remoteStoreSettings
+        );
+        try {
+            // the index sets no threshold, so the cluster value is stamped in
+            indexDocs(10, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any(), eq(new ByteSizeValue(128, ByteSizeUnit.MB).getBytes()));
+
+            // a cluster update is picked up by the next publication
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.getKey(), "256mb")
                     .build()
             );
+            indexDocs(20, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any(), eq(new ByteSizeValue(256, ByteSizeUnit.MB).getBytes()));
+
+            // an explicit per-index threshold wins over the cluster value
+            indexShard.indexSettings()
+                .updateIndexMetadata(
+                    IndexMetadata.builder(indexShard.indexSettings().getIndexMetadata())
+                        .settings(
+                            Settings.builder()
+                                .put(indexShard.indexSettings().getSettings())
+                                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "64mb")
+                        )
+                        .build()
+                );
+            indexDocs(40, 1);
+            indexShard.refresh("test");
+            listener.afterRefresh(true);
+            verify(mockEngine, atLeastOnce()).updateUncommittedSegmentBytes(any(), eq(new ByteSizeValue(64, ByteSizeUnit.MB).getBytes()));
+        } finally {
+            listener.drainRefreshes();
+        }
+    }
+
+    /**
+     * Remote store settings carrying only an explicit {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}
+     * value, needed because the switch is disabled by default and has no per-index counterpart to set it through.
+     */
+    private static RemoteStoreSettings flushOnUncommittedSegmentsRemoteStoreSettings(boolean enabled) {
+        return new RemoteStoreSettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.getKey(), enabled)
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 
     private RemoteSegmentStoreDirectory setupDirectoryWithThreshold(int threshold) throws IOException {
