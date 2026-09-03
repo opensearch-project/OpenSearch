@@ -27,6 +27,7 @@ import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
 
 import java.io.Closeable;
@@ -149,28 +150,36 @@ public class GetService implements Closeable {
 
         @Override
         public List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long seqNoFloor) throws IOException {
-            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
-            List<Map<String, Object>> all = new ArrayList<>();
-            for (WriterFileSet parquetSet : fileSets) {
-                String parquetDir = parquetSet.directory();
-                String parquetFile = parquetSet.files().iterator().next();
-                MonoFileWriterSet writerSet = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null, List.of(), List.of())) {
-                    long readerPtr = readerHandle.getPointer();
-                    // Internal-search seq-no scan: the native side ignores Substrait and builds a
-                    // DataFrame plan filtering `_seq_no > seqNoFloor`, projecting only the version
-                    // metadata columns, with pushdown enabled.
-                    long streamPtr = executeInternalSearch(
-                        readerPtr,
-                        runtimePtr,
-                        NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
-                        seqNoFloor,
-                        "DataFusion range query failed"
-                    );
-                    all.addAll(readAllRows(streamPtr));
-                }
+            if (fileSets.isEmpty()) {
+                return List.of();
             }
-            return all;
+            String parquetDir = fileSets.get(0).directory();
+            List<MonoFileWriterSet> segments = new ArrayList<>(fileSets.size());
+            for (WriterFileSet parquetSet : fileSets) {
+                if (parquetDir.equals(parquetSet.directory()) == false) {
+                    throw new IllegalArgumentException(
+                        "Segments read together must share a directory, but generation "
+                            + parquetSet.writerGeneration()
+                            + " is in ["
+                            + parquetSet.directory()
+                            + "] not ["
+                            + parquetDir
+                            + "]"
+                    );
+                }
+                segments.add(MonoFileWriterSet.from(parquetSet));
+            }
+            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
+            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, segments, null, List.of(), List.of())) {
+                long streamPtr = executeInternalSearch(
+                    readerHandle.getPointer(),
+                    runtimePtr,
+                    NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
+                    seqNoFloor,
+                    "DataFusion range query failed"
+                );
+                return readAllRows(streamPtr);
+            }
         }
 
         private List<Map<String, Object>> readAllRows(long streamPtr) {
@@ -189,6 +198,7 @@ public class GetService implements Closeable {
                             if (idVec != null && !idVec.isNull(i)) {
                                 row.put(IdFieldMapper.NAME, Uid.decodeId((byte[]) idVec.getObject(i)));
                             }
+                            putStoredSource(root, i, row);
                             results.add(row);
                         }
                     }
@@ -207,8 +217,21 @@ public class GetService implements Closeable {
                 var batch = iter.next();
                 try (VectorSchemaRoot root = batch.getArrowRoot()) {
                     if (root.getRowCount() == 0) return null;
-                    return ArrowValues.toSourceMap(root, 0);
+                    Map<String, Object> row = ArrowValues.toSourceMap(root, 0);
+                    putStoredSource(root, 0, row);
+                    return row;
                 }
+            }
+        }
+
+        /**
+         * Restores stored {@code _source} bytes omitted by {@link ArrowValues#toSourceMap}. Other binary
+         * fields remain omitted because their raw bytes cannot be represented in reconstructed JSON.
+         */
+        private static void putStoredSource(VectorSchemaRoot root, int rowIndex, Map<String, Object> row) {
+            FieldVector sourceVec = root.getVector(SourceFieldMapper.NAME);
+            if (sourceVec != null && sourceVec.isNull(rowIndex) == false) {
+                row.put(SourceFieldMapper.NAME, sourceVec.getObject(rowIndex));
             }
         }
 

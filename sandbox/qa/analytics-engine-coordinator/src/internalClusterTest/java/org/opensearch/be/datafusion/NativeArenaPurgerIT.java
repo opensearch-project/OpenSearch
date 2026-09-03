@@ -19,6 +19,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.nativebridge.spi.NativeArenaPurger;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
@@ -59,7 +60,7 @@ public class NativeArenaPurgerIT extends OpenSearchIntegTestCase {
             ArrowBasePlugin.class,
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class, MockDataFormatPlugin.class
         );
     }
 

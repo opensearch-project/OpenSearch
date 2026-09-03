@@ -32,19 +32,23 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
-import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
+import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockWriter;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -90,6 +94,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.containsString;
@@ -101,7 +106,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -199,6 +207,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath));
     }
 
+    private DataFormatAwareEngine createUpdateEnabledDFAEngine(Store store, Path translogPath) throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(
+            buildDFAEngineConfig(store, translogPath, List.of(), List.of(), IndexModule.TieringState.HOT.name(), null, false)
+        );
+    }
+
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
         return buildDFAEngineConfig(store, translogPath, List.of(), List.of());
     }
@@ -235,16 +251,28 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         String tieringState,
         DocumentLookupProvider documentLookupProvider
     ) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
-                .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState)
-                .build()
-        );
+        return buildDFAEngineConfig(store, translogPath, externalListeners, internalListeners, tieringState, documentLookupProvider, null);
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState,
+        DocumentLookupProvider documentLookupProvider,
+        Boolean appendOnly
+    ) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState);
+        if (appendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly);
+        }
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
 
         TranslogConfig translogConfig = new TranslogConfig(
             shardId,
@@ -1058,12 +1086,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
         // Wire an indexing engine whose writer fails on flush.
         FailingFlushIndexingExecutionEngine failingEngine = new FailingFlushIndexingExecutionEngine(mockDataFormat);
-        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
-            @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
-                return failingEngine;
-            }
-        };
+        MockDataFormatPlugin failingPlugin = MockDataFormatPlugin.of(mockDataFormat).withIndexingEngine(settings -> failingEngine);
 
         EngineConfig config = buildFailingEngineConfig(failingPlugin, listener);
         DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
@@ -1156,8 +1179,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         };
 
         // Use a normal (non-failing) engine so we can inject the failure precisely.
-        MockDataFormatPlugin normalPlugin = new MockDataFormatPlugin(mockDataFormat) {
-        };
+        MockDataFormatPlugin normalPlugin = MockDataFormatPlugin.of(mockDataFormat);
         EngineConfig config = buildFailingEngineConfig(normalPlugin, listener);
         DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
         try {
@@ -2139,6 +2161,43 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    /** With file sizes requested, delete-tracking memory is reported as version-map memory. */
+    public void testSegmentsStatsWithFileSizesIncludesDeleteTrackingMemory() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doReturn(2048L).when(deleteEngine).ramBytesUsed();
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("stats");
+
+            SegmentsStats stats = engine.segmentsStats(true, false);
+
+            assertThat(stats.getCount(), equalTo(1L));
+            assertFalse("file sizes must be present when requested", stats.getFileSizes().isEmpty());
+            assertThat("delete tracking must be added to version-map memory", stats.getVersionMapMemoryInBytes(), equalTo(2048L));
+        }
+    }
+
+    /** On the fast path with no cached file sizes, the shared cached stats are copied before delete memory is added. */
+    public void testSegmentsStatsFastPathWithoutFileSizesCopiesCachedStats() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doReturn(1024L).when(deleteEngine).ramBytesUsed();
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // No refresh, so the cached stats hold no segments and carry no file sizes.
+            SegmentsStats stats = engine.segmentsStats(false, false);
+
+            assertThat(stats.getCount(), equalTo(0L));
+            assertTrue(stats.getFileSizes().isEmpty());
+            assertThat(stats.getVersionMapMemoryInBytes(), equalTo(1024L));
+
+            // The cached instance must not have been mutated by the copy.
+            assertThat(engine.segmentsStats(false, false).getVersionMapMemoryInBytes(), equalTo(1024L));
+        }
+    }
+
     public void testSegmentsWithIOException() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         engine.close();
@@ -2291,6 +2350,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
         return buildEngineConfigForPluginAndListener(translogPath, plugin, listener);
+    }
+
+    /** As {@link #buildFailingEngineConfig(MockDataFormatPlugin, Engine.EventListener)} without callback assertions. */
+    private EngineConfig buildFailingEngineConfig(MockDataFormatPlugin plugin) throws IOException {
+        return buildFailingEngineConfig(plugin, mock(Engine.EventListener.class));
     }
 
     private EngineConfig buildDFAEngineConfigWithCommitterFactory(Store store, Path translogPath, CommitterFactory committerFactory) {
@@ -3715,17 +3779,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 return maxDocs;
             }
         };
-        MockDataFormatPlugin limitedPlugin = new MockDataFormatPlugin(mockDataFormat) {
-            @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
-                return limitedEngine;
-            }
-        };
+        MockDataFormatPlugin limitedPlugin = MockDataFormatPlugin.of(mockDataFormat).withIndexingEngine(settings -> limitedEngine);
 
-        EngineConfig config = buildFailingEngineConfig(limitedPlugin, new Engine.EventListener() {
-            @Override
-            public void onFailedEngine(String reason, Exception failure) {}
-        });
+        EngineConfig config = buildFailingEngineConfig(limitedPlugin);
         try (DataFormatAwareEngine eng = new DataFormatAwareEngine(config)) {
             int numDocs = between(maxDocs + 1, maxDocs * 2);
             for (int i = 0; i < numDocs; i++) {
@@ -4510,5 +4566,506 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 lessThanOrEqualTo(persistedMaxSeqNo)
             );
         }
+    }
+
+    /** Primary delete op for {@code id} with default INTERNAL/MATCH_ANY semantics (mirrors {@link #indexOp}). */
+    private Engine.Delete deleteOp(String id) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Primary delete op carrying compare-and-set ifSeqNo/ifPrimaryTerm (for version-conflict tests). */
+    private Engine.Delete deleteOpWithIfSeqNo(String id, long ifSeqNo, long ifPrimaryTerm) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Replayed (from-translog) delete op with a pre-assigned seqNo. Non-primary origins must carry a
+     * {@code null} versionType and unset ifSeqNo/ifPrimaryTerm (see the {@link Engine.Delete} constructor asserts).
+     */
+    private Engine.Delete deleteOpFromTranslog(String id, long seqNo) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            seqNo,
+            primaryTerm.get(),
+            1L,
+            null,
+            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+    }
+
+    /** Happy-path primary delete of an existing doc: SUCCESS, assigned seqNo, translog location, and a version-map tombstone. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    public void testDeletePrimaryRemovesDocAndRecordsTombstone() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            Engine.DeleteResult result = engine.delete(deleteOp("1"));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("delete of an existing doc must report found", result.isFound());
+            assertThat("primary delete must be assigned a seqNo", result.getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat("a non-translog primary delete must be written to the translog", result.getTranslogLocation(), notNullValue());
+
+            // executeDeletePlan must record a delete tombstone in the live version map.
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+            org.apache.lucene.util.BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1")).bytes();
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                VersionValue vv = versionMap.getUnderLock(uid);
+                assertNotNull("version map must hold an entry after delete", vv);
+                assertTrue("version map entry must be a delete tombstone", vv.isDelete());
+            }
+        }
+    }
+
+    /** Deleting an id that was never indexed still succeeds but reports not-found (currentlyDeleted path). */
+    public void testDeleteNonExistentDocReportsNotFound() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.DeleteResult result = engine.delete(deleteOp("missing"));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertFalse("deleting a never-indexed doc must report not found", result.isFound());
+            assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    public void testDeleteFromTranslogMarksSeqNoAndSkipsTranslog() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            long seqNo = 0L;
+            Engine.DeleteResult result = engine.delete(deleteOpFromTranslog("1", seqNo));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat("replayed delete keeps its assigned seqNo", result.getSeqNo(), equalTo(seqNo));
+            assertNull("from-translog delete must not be re-appended to the translog", result.getTranslogLocation());
+        }
+    }
+
+    /** Delete where ifSeqNo does not match the stored seqNo returns the planner's early conflict result. */
+    public void testDeleteWithMismatchedIfSeqNoReturnsVersionConflict() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null))); // seqNo 0
+            Engine.DeleteResult result = engine.delete(deleteOpWithIfSeqNo("1", 99L, primaryTerm.get()));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+        }
+    }
+
+    /** {@link DataFormatAwareEngine#prepareDelete} builds an Engine.Delete carrying the id, uid, and CAS terms. */
+    public void testPrepareDeleteBuildsDeleteOperation() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Delete delete = engine.prepareDelete(
+                "42",
+                5L,
+                primaryTerm.get(),
+                3L,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                primaryTerm.get()
+            );
+            assertThat(delete.id(), equalTo("42"));
+            assertThat(delete.uid(), equalTo(new Term(IdFieldMapper.NAME, Uid.encodeId("42"))));
+            assertThat(delete.seqNo(), equalTo(5L));
+            assertThat(delete.version(), equalTo(3L));
+            assertThat(delete.versionType(), equalTo(VersionType.EXTERNAL));
+            assertThat(delete.origin(), equalTo(Engine.Operation.Origin.PRIMARY));
+            assertThat(delete.getIfSeqNo(), equalTo(7L));
+            assertThat(delete.getIfPrimaryTerm(), equalTo(primaryTerm.get()));
+        }
+    }
+
+    public void testIndexAddDocFailureReturnsFailureResult() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(df);
+        indexingEngine.setWriterCustomizer(writer -> {
+            writer.setFailureKeepsActive(true);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("simulated addDoc failure"), -1L, -1L, -1L));
+        });
+        EngineConfig config = buildFailingEngineConfig(MockDataFormatPlugin.of(df).withIndexingEngine(settings -> indexingEngine));
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IOException.class));
+            assertThat(result.getFailure().getMessage(), containsString("simulated addDoc failure"));
+            // Writer stayed ACTIVE → engine must remain open for subsequent operations.
+            engine.ensureOpen();
+        }
+    }
+
+    public void testSuccessfulUpdateSupersedesPreviousCopy() throws Exception {
+        DataFormatAwareEngine engine = createUpdateEnabledDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            // Insert: there is no previous copy to supersede.
+            assertThat(engine.index(indexOp(createParsedDoc("1", null))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("an insert must not supersede anything", deleteEngine.deletedIds().isEmpty());
+
+            // Update: supersedes the copy written above.
+            Engine.IndexResult update = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(update.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(deleteEngine.deletedIds(), equalTo(List.of("1")));
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testFailedUpdateDoesNotSupersedePreviousCopy() throws Exception {
+        DataFormatAwareEngine engine = createUpdateEnabledDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            // Insert establishes the copy that the update below would supersede.
+            assertThat(engine.index(indexOp(createParsedDoc("1", null))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue(deleteEngine.deletedIds().isEmpty());
+
+            // Reject the update's addDoc with a modeled per-doc failure that the writer has already reconciled.
+            MockWriter writer = getPooledMockWriter(engine);
+            writer.setFailureKeepsActive(true);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("simulated update rejection"), -1L, -1L, -1L));
+
+            Engine.IndexResult failedUpdate = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(failedUpdate.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertTrue(
+                "a rejected update must not supersede the copy that is still live, superseded=" + deleteEngine.deletedIds(),
+                deleteEngine.deletedIds().isEmpty()
+            );
+        } finally {
+            engine.close();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testPreIndexFlushDrainsDeletesBeforeSegmentCanBeIncorporated() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+            MockIndexingExecutionEngine indexingEngine = getMockExecutionEngine(engine);
+
+            engine.index(indexOp(createParsedDoc("1", null)));
+
+            SuccessFlushWriter queuedWriter = new SuccessFlushWriter(42L, mockDataFormat);
+            flushQueueOf(engine).add(queuedWriter);
+            assertFalse("gen 42 must not be drained before it is flushed", deleteEngine.checkedOutGenerations().contains(42L));
+            int refreshesBefore = indexingEngine.getRefreshCallCount();
+
+            engine.index(indexOp(createParsedDoc("2", null)));
+
+            assertTrue(
+                "the flushed writer's deletes must be drained during preIndex, got " + deleteEngine.checkedOutGenerations(),
+                deleteEngine.checkedOutGenerations().contains(42L)
+            );
+            assertThat("the drain must precede any catalog incorporation", indexingEngine.getRefreshCallCount(), equalTo(refreshesBefore));
+        } finally {
+            engine.close();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject writers into flushQueue")
+    public void testPartialCycleFlushFailureIncorporatesNothing() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+            MockIndexingExecutionEngine indexingEngine = getMockExecutionEngine(engine);
+
+            engine.index(indexOp(createParsedDoc("1", null)));
+
+            // First half of the cycle: a write thread flushes and drains gen 42 through preIndex.
+            flushQueueOf(engine).add(new SuccessFlushWriter(42L, mockDataFormat));
+            engine.index(indexOp(createParsedDoc("2", null)));
+            assertTrue(deleteEngine.checkedOutGenerations().contains(42L));
+            int refreshesBefore = indexingEngine.getRefreshCallCount();
+
+            // Second half: the refresh thread hits a writer whose flush throws.
+            flushQueueOf(engine).add(new FailingFlushWriter(43L, mockDataFormat));
+
+            expectThrows(RefreshFailedEngineException.class, () -> engine.refresh("partial-cycle-flush-failure"));
+
+            assertThat(
+                "a failed cycle must not incorporate the part that succeeded",
+                indexingEngine.getRefreshCallCount(),
+                equalTo(refreshesBefore)
+            );
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to the engine's flushQueue")
+    @SuppressWarnings("unchecked")
+    private java.util.concurrent.ConcurrentLinkedQueue<Writer<?>> flushQueueOf(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+        queueField.setAccessible(true);
+        return (java.util.concurrent.ConcurrentLinkedQueue<Writer<?>>) queueField.get(engine);
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to the engine's deleteExecutionEngine")
+    private MockDeleteExecutionEngine getMockDeleteEngine(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("deleteExecutionEngine");
+        field.setAccessible(true);
+        return (MockDeleteExecutionEngine) field.get(engine);
+    }
+
+    // Pure-delete refresh coverage
+
+    /** Verifies that a delete-only refresh applies deletes and drops the emptied generation. */
+    public void testPureDeleteRefreshAppliesDeletesAndDropsGeneration() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        AtomicInteger droppedRefreshCount = new AtomicInteger();
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(df);
+        // A delete-only writer must flush no files, so the refresh sees hasFiles == false.
+        indexingEngine.setWriterCustomizer(writer -> writer.setEmptyFlushWhenNoDocs(true));
+        // A refresh with no new writer files drops every existing generation.
+        indexingEngine.setRefreshResultTransformer((input, result) -> {
+            if (input.writerFiles().isEmpty() == false || input.existingSegments().isEmpty()) {
+                return result;
+            }
+            droppedRefreshCount.incrementAndGet();
+            Set<Long> dropped = input.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
+            return new RefreshResult(result.refreshedSegments(), dropped);
+        });
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(df);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(df)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("index-refresh");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("gen1 must be committed", ref.get().getSegments().size(), greaterThanOrEqualTo(1));
+            }
+
+            Engine.DeleteResult deleteResult = engine.delete(deleteOp("1"));
+            assertThat(deleteResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            engine.refresh("pure-delete-refresh");
+
+            assertThat(
+                "pure-delete refresh must have taken the dropped-generation path",
+                droppedRefreshCount.get(),
+                greaterThanOrEqualTo(1)
+            );
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("dropped generation must be filtered out of the committed catalog", ref.get().getSegments().size(), equalTo(0));
+            }
+            engine.ensureOpen();
+        }
+    }
+
+    // Delete failure and retirement-drain coverage
+
+    /**
+     * An unmodelled {@link IOException} from the delete engine travels through
+     * {@code maybeFailEngine("delete", e)} and is rethrown. A plain I/O failure is not a corruption,
+     * so the engine stays usable.
+     */
+    public void testDeleteEngineIOExceptionIsRethrownAndLeavesEngineOpen() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            doThrow(new IOException("simulated delete failure")).when(deleteEngine).deleteDocument(any(DeleteInput.class), any());
+
+            IOException failure = expectThrows(IOException.class, () -> engine.delete(deleteOp("1")));
+
+            assertThat(failure.getMessage(), containsString("simulated delete failure"));
+            engine.ensureOpen();
+        }
+    }
+
+    public void testDeleteEngineFailureResultRecordsNoOpAndLeavesEngineOpen() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            doReturn(new DeleteResult.Failure(new IOException("simulated delete rejection"))).when(deleteEngine)
+                .deleteDocument(any(DeleteInput.class), any());
+
+            Engine.DeleteResult result = engine.delete(deleteOp("1"));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IOException.class));
+            assertThat(result.getFailure().getMessage(), containsString("simulated delete rejection"));
+            assertFalse("a failed delete must not report found", result.isFound());
+            assertThat("an issued seqNo must be recorded as a translog no-op", result.getTranslogLocation(), notNullValue());
+            engine.ensureOpen();
+        }
+    }
+
+    public void testReplayedDeleteFromTranslogSkipsEngine() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            assertThat(engine.delete(deleteOpFromTranslog("1", 0L)).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            int deletesAfterFirstReplay = deleteEngine.deletedIds().size();
+
+            Engine.DeleteResult replay = engine.delete(deleteOpFromTranslog("1", 0L));
+
+            assertThat(replay.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("a skipped replay reports found because currentlyDeleted is false", replay.isFound());
+            assertThat(replay.getSeqNo(), equalTo(0L));
+            assertNull("a from-translog delete must not be re-appended to the translog", replay.getTranslogLocation());
+            assertThat(
+                "the skipped replay must not reach the delete engine",
+                deleteEngine.deletedIds().size(),
+                equalTo(deletesAfterFirstReplay)
+            );
+        }
+    }
+
+    /** The routing-carrying {@code prepareDelete} overload builds an Engine.Delete with the routing value. */
+    public void testPrepareDeleteWithRoutingBuildsDeleteOperation() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Delete delete = engine.prepareDelete(
+                "42",
+                "custom-routing",
+                5L,
+                primaryTerm.get(),
+                3L,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                primaryTerm.get()
+            );
+            assertThat(delete.id(), equalTo("42"));
+            assertThat(delete.routing(), equalTo("custom-routing"));
+            assertThat(delete.uid(), equalTo(new Term(IdFieldMapper.NAME, Uid.encodeId("42"))));
+            assertThat(delete.seqNo(), equalTo(5L));
+            assertThat(delete.version(), equalTo(3L));
+            assertThat(delete.versionType(), equalTo(VersionType.EXTERNAL));
+            assertThat(delete.origin(), equalTo(Engine.Operation.Origin.PRIMARY));
+            assertThat(delete.getIfSeqNo(), equalTo(7L));
+            assertThat(delete.getIfPrimaryTerm(), equalTo(primaryTerm.get()));
+        }
+    }
+
+    /**
+     * When a retiring writer's drain reports that buffered deletes were applied, the engine must
+     * remember it so the next refresh reopens readers even without a new segment.
+     */
+    public void testRetiredWriterDrainMarksUnpublishedDeletes() throws Exception {
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(mockDataFormat);
+        indexingEngine.setWriterCustomizer(DataFormatAwareEngineTests::retireOnWrite);
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(mockDataFormat);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            Engine.IndexResult result = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertFalse(
+                "the retiring writer's generation must have been drained, got " + deleteEngine.checkedOutGenerations(),
+                deleteEngine.checkedOutGenerations().isEmpty()
+            );
+            assertTrue("a drain that applied deletes must leave them marked unpublished", unpublishedDeletesOf(engine));
+            engine.ensureOpen();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testPreIndexFlushDrainMarksUnpublishedDeletes() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(mockDataFormat);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            assertFalse("no writer has been drained yet", unpublishedDeletesOf(engine));
+
+            // A writer whose flush succeeds with no files, so only the drain can mark deletes.
+            flushQueueOf(engine).add(new SuccessFlushWriter(42L, mockDataFormat));
+            engine.index(indexOp(createParsedDoc("2", null)));
+
+            assertTrue("the queued writer's generation must have been drained", deleteEngine.checkedOutGenerations().contains(42L));
+            assertTrue("a drain that applied deletes must leave them marked unpublished", unpublishedDeletesOf(engine));
+            engine.ensureOpen();
+        }
+    }
+
+    public void testRetireWriterDeleteDrainFailureFailsEngine() throws Exception {
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(mockDataFormat);
+        indexingEngine.setWriterCustomizer(DataFormatAwareEngineTests::retireOnWrite);
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doThrow(new IOException("simulated drain failure")).when(deleteEngine).onWriterCheckedOut(anyLong());
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // The drain failure fails the engine, which closes the translog; the trailing no-op
+            // append for the failed index op is then rejected.
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("1", null))));
+
+            Exception failure = new FailableDataFormatAwareEngine(engine).getFailedEngine();
+            assertNotNull("a drain failure while retiring must fail the engine", failure);
+            assertThat(failure, instanceOf(IllegalStateException.class));
+            assertThat(failure.getMessage(), containsString("could not apply buffered deletes while retiring writer"));
+            assertThat(failure.getCause().getMessage(), containsString("simulated drain failure"));
+        } finally {
+            engine.close();
+        }
+    }
+
+    /**
+     * Retires the writer from inside {@code addDoc} and rejects the write, so the failure path enters
+     * {@code retireWriterIfNeeded} in the RETIRED_FLUSHABLE state.
+     */
+    private static void retireOnWrite(MockWriter writer) {
+        writer.setWriteResultSupplier(() -> {
+            writer.setState(WriterState.RETIRED_FLUSHABLE);
+            return new WriteResult.Failure(new IOException("simulated addDoc failure"), -1L, -1L, -1L);
+        });
+    }
+
+    /** Reads {@code DataFormatAwareEngine.unpublishedDeletes} so tests can assert the flag without exposing it. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's unpublishedDeletes flag")
+    private static boolean unpublishedDeletesOf(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("unpublishedDeletes");
+        field.setAccessible(true);
+        return ((AtomicBoolean) field.get(engine)).get();
     }
 }

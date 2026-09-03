@@ -8,11 +8,14 @@
 
 package org.opensearch.parquet.fields.plugins;
 
+import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -25,6 +28,7 @@ import org.opensearch.parquet.fields.core.metadata.IdParquetField;
 import org.opensearch.parquet.fields.core.metadata.IgnoredParquetField;
 import org.opensearch.parquet.fields.core.metadata.IndexParquetField;
 import org.opensearch.parquet.fields.core.metadata.RoutingParquetField;
+import org.opensearch.parquet.vsr.ManagedVSR;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +61,14 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
             @Override
             public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
                 return Set.of(STORED_FIELDS, COLUMNAR_STORAGE);
+            }
+
+            /** Writes the {@link BytesRef} slice, not its potentially larger backing array. */
+            @Override
+            protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+                BytesRef ref = (BytesRef) parseValue;
+                VarBinaryVector vector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());
+                vector.setSafe(managedVSR.getRowCount(), ref.bytes, ref.offset, ref.length);
             }
         });
         return fieldMap;

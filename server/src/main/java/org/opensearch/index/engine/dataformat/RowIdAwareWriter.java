@@ -11,6 +11,7 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -59,6 +60,11 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
      */
     public long docCount() {
         return rowIdCounter.get();
+    }
+
+    /** Returns the last assigned insertion row ID, or {@code -1} if empty. */
+    public long lastAssignedRowId() {
+        return rowIdCounter.get() - 1;
     }
 
     /**
@@ -141,7 +147,12 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
         delegate.updateMappingVersion(newVersion);
     }
 
-    /** {@inheritDoc} Closes the underlying writer. */
+    /** Delegates per-format lookup to the wrapped writer. */
+    @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        return delegate.getWriterForFormat(formatName);
+    }
+
     @Override
     public void close() throws IOException {
         delegate.close();

@@ -305,6 +305,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+            if (isPluggableDataFormatFeatureEnabled(context)) {
+                // Preserve the original source because column reconstruction is not lossless.
+                context.documentInput().addField(fieldType(), ref);
+            }
         }
 
         if (recoverySourceEnabled) {

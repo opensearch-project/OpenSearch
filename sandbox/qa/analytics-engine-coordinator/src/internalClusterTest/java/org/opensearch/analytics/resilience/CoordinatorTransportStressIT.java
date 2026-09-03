@@ -28,6 +28,7 @@ import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -154,7 +155,8 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class,
+            MockDataFormatPlugin.class
         );
     }
 

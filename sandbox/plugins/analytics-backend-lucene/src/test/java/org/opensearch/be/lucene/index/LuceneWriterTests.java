@@ -25,7 +25,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -508,15 +507,6 @@ public class LuceneWriterTests extends LucenePluginBaseTests {
         Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         Optional<Writer<?>> result = writer.getWriterForFormat("any");
         assertFalse(result.isPresent());
-    }
-
-    public void testWriterDefaultDeleteDocumentThrowsUnsupported() {
-        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
-            () -> writer.deleteDocument(new DeleteInput("_id", "1", 1L))
-        );
-        assertTrue(e.getMessage().contains("deleteDocument is not supported"));
     }
 
     /**

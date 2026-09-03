@@ -23,7 +23,6 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 
 import java.util.ArrayList;
@@ -109,8 +108,7 @@ public final class ArrowSchemaBuilder {
     }
 
     private static boolean isUnsupportedMetadataField(Mapper mapper) {
-        return mapper instanceof SourceFieldMapper
-            || mapper instanceof FieldNamesFieldMapper
+        return mapper instanceof FieldNamesFieldMapper
             || mapper instanceof IndexFieldMapper
             || mapper instanceof NestedPathFieldMapper
             || Objects.equals(mapper.typeName(), "_feature")

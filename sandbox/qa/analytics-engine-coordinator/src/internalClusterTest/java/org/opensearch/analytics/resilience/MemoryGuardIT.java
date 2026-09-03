@@ -27,6 +27,7 @@ import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.parquet.ParquetOnlyDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -62,7 +63,7 @@ public class MemoryGuardIT extends OpenSearchIntegTestCase {
             ArrowBasePlugin.class,
             TestPPLPlugin.class,
             CompositeDataFormatPlugin.class,
-            MockCommitterEnginePlugin.class
+            MockCommitterEnginePlugin.class, MockDataFormatPlugin.class
         );
     }
 

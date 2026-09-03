@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
@@ -43,6 +45,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     private volatile Supplier<Exception> refreshFailure;
     private volatile Exception tragicException;
     private final AtomicInteger refreshCallCount = new AtomicInteger(0);
+    private volatile Consumer<MockWriter> writerCustomizer;
+    private volatile BiFunction<RefreshInput, RefreshResult, RefreshResult> refreshResultTransformer;
 
     public MockIndexingExecutionEngine(MockDataFormat dataFormat) {
         this.dataFormat = dataFormat;
@@ -51,7 +55,21 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
 
     @Override
     public Writer<MockDocumentInput> createWriter(WriterConfig config) {
-        return new MockWriter(config.writerGeneration(), dataFormat, directory, seqNo);
+        MockWriter writer = new MockWriter(config.writerGeneration(), dataFormat, directory, seqNo);
+        if (writerCustomizer != null) {
+            writerCustomizer.accept(writer);
+        }
+        return writer;
+    }
+
+    /** Configures every writer this engine creates, so tests need not subclass it to inject writer behaviour. */
+    public void setWriterCustomizer(Consumer<MockWriter> customizer) {
+        this.writerCustomizer = customizer;
+    }
+
+    /** Rewrites this engine's refresh result, e.g. to report dropped generations. */
+    public void setRefreshResultTransformer(BiFunction<RefreshInput, RefreshResult, RefreshResult> transformer) {
+        this.refreshResultTransformer = transformer;
     }
 
     @Override
@@ -87,7 +105,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
         }
         List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
         segments.addAll(refreshInput.writerFiles());
-        return new RefreshResult(segments);
+        RefreshResult result = new RefreshResult(segments);
+        return refreshResultTransformer == null ? result : refreshResultTransformer.apply(refreshInput, result);
     }
 
     @Override
