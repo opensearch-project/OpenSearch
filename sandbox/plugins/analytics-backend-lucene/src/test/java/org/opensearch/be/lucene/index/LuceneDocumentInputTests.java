@@ -15,8 +15,10 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -104,6 +106,60 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         Document doc = input.getFinalInput();
         IndexableField field = doc.getField(SeqNoFieldMapper.NAME);
         assertNull("_seq_no field should be present in document", field);
+    }
+
+    public void testNestedKeywordLeafIsFlattened() {
+        MappedFieldType keywordField = mockNestedLeafField("comments.author", KeywordFieldMapper.CONTENT_TYPE);
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.startNestedChild("comments");
+        input.addField(keywordField, "bob");
+        input.endNestedChild();
+
+        Document doc = input.getFinalInput();
+        assertNotNull("keyword nested leaf should be flattened", doc.getField("comments._value"));
+    }
+
+    public void testNestedTextLeafIsFlattened() {
+        MappedFieldType textField = mockNestedLeafField("comments.summary", TextFieldMapper.CONTENT_TYPE);
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.startNestedChild("comments");
+        input.addField(textField, "great post");
+        input.endNestedChild();
+
+        Document doc = input.getFinalInput();
+        assertNotNull("text nested leaf should be flattened", doc.getField("comments._value"));
+    }
+
+    public void testNestedIntegerLeafIsNotFlattened() {
+        MappedFieldType integerField = mockNestedLeafField("comments.votes", "integer");
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.startNestedChild("comments");
+        input.addField(integerField, 5);
+        input.endNestedChild();
+
+        Document doc = input.getFinalInput();
+        assertNull("non-keyword/text nested leaf must not be represented in Lucene", doc.getField("comments._value"));
+        assertNull("non-keyword/text nested leaf must not add an exists marker either", doc.getField("comments"));
+    }
+
+    public void testNestedMultiFieldKeywordLeafIsFlattened() {
+        // A multi-field (e.g. author.raw) resolves to KeywordFieldMapper.KeywordFieldType same as its
+        // parent, so it must pass the same keyword/text check.
+        MappedFieldType rawSubField = mockNestedLeafField("comments.author.raw", KeywordFieldMapper.CONTENT_TYPE);
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.startNestedChild("comments");
+        input.addField(rawSubField, "bob");
+        input.endNestedChild();
+
+        Document doc = input.getFinalInput();
+        assertNotNull("multi-field keyword nested leaf should be flattened", doc.getField("comments._value"));
+    }
+
+    private static MappedFieldType mockNestedLeafField(String fullName, String typeName) {
+        MappedFieldType fieldType = mock(MappedFieldType.class);
+        when(fieldType.typeName()).thenReturn(typeName);
+        when(fieldType.name()).thenReturn(fullName);
+        return fieldType;
     }
 
     private static MappedFieldType mockIdField() {

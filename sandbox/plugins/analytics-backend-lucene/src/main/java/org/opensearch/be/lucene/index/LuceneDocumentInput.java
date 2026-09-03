@@ -19,7 +19,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -53,6 +55,9 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     // never represents nested arrays. Answers exists()/single-term queries; CANNOT answer
     // multi-field correlation within one nested element — that must go through Parquet/DataFusion.
     // The anchor for every leaf is the OUTERMOST open scope (peekLast()), regardless of depth.
+    // Only keyword/text leaves are flattened (see isFlattenableNestedLeafType) — other types are
+    // stringified without correct type semantics in this coarse projection, so they're skipped here
+    // and remain queryable only via Parquet.
     private final Deque<String> nestedPathStack = new ArrayDeque<>();
 
     /**
@@ -94,7 +99,7 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         if (nestedPathStack.isEmpty() == false) {
-            if (value == null) {
+            if (value == null || isFlattenableNestedLeafType(fieldType) == false) {
                 return;
             }
             String rootFieldName = nestedPathStack.peekLast();
@@ -123,6 +128,18 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
         }
         FieldType luceneFieldType = getFieldType(fieldType, capabilities);
         factory.addField(document, fieldType, value, luceneFieldType);
+    }
+
+    /**
+     * Nested leaves are only flattened into the Lucene projection if they're keyword or text —
+     * other types (numeric, boolean, date, ip, binary, ...) are stringified losslessly on the
+     * Parquet side but have no correct doc-values representation as a plain string term here, so
+     * they are intentionally not represented in Lucene at all rather than stored with misleading
+     * (non-numeric-sorting) semantics.
+     */
+    private static boolean isFlattenableNestedLeafType(MappedFieldType fieldType) {
+        String typeName = fieldType.typeName();
+        return KeywordFieldMapper.CONTENT_TYPE.equals(typeName) || TextFieldMapper.CONTENT_TYPE.equals(typeName);
     }
 
     private static FieldType getFieldType(MappedFieldType fieldType, Set<FieldTypeCapabilities.Capability> capabilities) {
