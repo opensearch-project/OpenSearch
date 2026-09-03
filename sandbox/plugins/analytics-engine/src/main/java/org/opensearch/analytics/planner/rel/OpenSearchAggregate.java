@@ -457,6 +457,13 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
             return null;
         }
         if (mode == AggregateMode.PARTIAL) {
+            // PARTIAL rides its input's partitioning, so it cannot DELIVER a gather. Passing a SINGLETON
+            // demand down would build PARTIAL-over-gathered — the very shape computeSelfCost prices at
+            // infinity — so decline here rather than manufacture an alternative only cost can reject. The
+            // gather belongs ABOVE a PARTIAL (the ER that FINAL reads), never below it.
+            if (requiredDistribution.getType() == RelDistribution.Type.SINGLETON) {
+                return null;
+            }
             return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
         }
         if (mode == AggregateMode.FINAL) {
