@@ -17,12 +17,14 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.LongFunction;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * A mock {@link DeleteExecutionEngine} for testing purposes.
@@ -31,9 +33,27 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
 
     private final DataFormat dataFormat;
     private final Map<Long, Deleter> deleters = new ConcurrentHashMap<>();
+    private final List<String> deletedIds = Collections.synchronizedList(new ArrayList<>());
+    private final List<Long> checkedOutGenerations = Collections.synchronizedList(new ArrayList<>());
+    private volatile boolean deletesAppliedOnCheckout = false;
+
+    /** If true, {@link #onWriterCheckedOut} reports that buffered deletes were applied. */
+    public void setDeletesAppliedOnCheckout(boolean applied) {
+        this.deletesAppliedOnCheckout = applied;
+    }
 
     public MockDeleteExecutionEngine(DataFormat dataFormat) {
         this.dataFormat = dataFormat;
+    }
+
+    /** Ids passed to {@link #deleteDocument}, in call order; retained after {@link #close()}. */
+    public List<String> deletedIds() {
+        return deletedIds;
+    }
+
+    /** Generations passed to {@link #onWriterCheckedOut}, in call order, including repeats. */
+    public List<Long> checkedOutGenerations() {
+        return checkedOutGenerations;
     }
 
     @Override
@@ -54,20 +74,23 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
     }
 
     @Override
-    public void recordWrite(String id, long generation) {
+    public void recordWrite(String id, long generation, long rowId) {
 
     }
 
     @Override
     public boolean onWriterCheckedOut(long generation) throws IOException {
-        return false;
+        checkedOutGenerations.add(generation);
+        return deletesAppliedOnCheckout;
     }
 
     @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException {
+    public DeleteResult deleteDocument(DeleteInput deleteInput, Writer<?> writer) throws IOException {
+        deletedIds.add(deleteInput.id());
         Deleter deleter = deleters.get(deleteInput.generation());
         if (deleter != null) {
-            return deleter.deleteDoc(deleteInput);
+            // Mirror the real engine: the live path buffers the id for the parent writer.
+            deleter.recordBufferedDeletes(deleteInput.id());
         }
         return new DeleteResult.Success(1L, 1L, 1L);
     }
@@ -79,6 +102,8 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
 
     private static class MockDeleter implements Deleter {
         private final long generation;
+        private final Queue<String> bufferedDeletes = new ConcurrentLinkedQueue<>();
+        private volatile boolean active = true;
 
         MockDeleter(long generation) {
             this.generation = generation;
@@ -90,23 +115,27 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
         }
 
         @Override
-        public DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException {
-            return new DeleteResult.Success(1L, 1L, 1L);
-        }
-
-        @Override
         public Queue<String> deactivate() {
-            return null;
+            active = false;
+            Queue<String> drained = new ConcurrentLinkedQueue<>(bufferedDeletes);
+            bufferedDeletes.clear();
+            return drained;
         }
 
         @Override
         public boolean recordBufferedDeletes(String id) {
-            return false;
+            bufferedDeletes.add(id);
+            return true;
         }
 
         @Override
         public boolean isActive() {
-            return false;
+            return active;
+        }
+
+        @Override
+        public void recordPositionalDelete(long rowId) {
+            // No-op: the mock has no writer to forward row-id deletes to.
         }
 
         @Override

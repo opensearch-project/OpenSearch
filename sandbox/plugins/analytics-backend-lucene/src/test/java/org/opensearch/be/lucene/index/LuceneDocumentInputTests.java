@@ -19,10 +19,13 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -102,8 +105,33 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         input.addField(seqNoField, 42L);
 
         Document doc = input.getFinalInput();
-        IndexableField field = doc.getField(SeqNoFieldMapper.NAME);
-        assertNull("_seq_no field should be present in document", field);
+        IndexableField[] fields = doc.getFields(SeqNoFieldMapper.NAME);
+        assertEquals("_seq_no should produce a point and a doc values field", 2, fields.length);
+
+        // SeqNoPrimaryTermPhase reads _seq_no via getNumericDocValues, so exactly one of the two
+        // must be NUMERIC doc values (not SORTED_NUMERIC); the other is the range point.
+        assertEquals(
+            "_seq_no: expected one NUMERIC doc values field",
+            1,
+            Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() == DocValuesType.NUMERIC).count()
+        );
+        assertEquals(
+            "_seq_no: expected one point field",
+            1,
+            Arrays.stream(fields).filter(f -> f.fieldType().pointDimensionCount() > 0).count()
+        );
+    }
+
+    public void testPrimaryTermFieldProperties() {
+        MappedFieldType primaryTermField = mockPrimaryTermField();
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addField(primaryTermField, 1L);
+
+        Document doc = input.getFinalInput();
+        IndexableField field = doc.getField(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        assertNotNull("_primary_term field should be present in document", field);
+        // Must be NUMERIC, not SORTED_NUMERIC: SeqNoPrimaryTermPhase uses getNumericDocValues.
+        assertEquals(DocValuesType.NUMERIC, field.fieldType().docValuesType());
     }
 
     private static MappedFieldType mockIdField() {
@@ -114,10 +142,19 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         return idField;
     }
 
+    /** Mirrors {@link org.opensearch.be.lucene.LuceneDataFormat}: Lucene owns _seq_no's doc values and point. */
     private static MappedFieldType mockSeqNoField() {
         MappedFieldType seqNoField = mock(MappedFieldType.class);
         when(seqNoField.typeName()).thenReturn(SeqNoFieldMapper.CONTENT_TYPE);
         when(seqNoField.name()).thenReturn(SeqNoFieldMapper.NAME);
+        when(seqNoField.getCapabilityMap()).thenReturn(Map.of(LucenePlugin.DATA_FORMAT, Set.of(COLUMNAR_STORAGE, POINT_RANGE)));
         return seqNoField;
+    }
+
+    private static MappedFieldType mockPrimaryTermField() {
+        MappedFieldType primaryTermField = mock(MappedFieldType.class);
+        when(primaryTermField.typeName()).thenReturn(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        when(primaryTermField.name()).thenReturn(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        return primaryTermField;
     }
 }

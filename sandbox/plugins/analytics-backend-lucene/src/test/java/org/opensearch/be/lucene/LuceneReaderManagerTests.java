@@ -664,6 +664,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                 new LuceneDataFormat(),
                 committer,
                 mock(MapperService.class),
+                idxSettings,
                 store
             );
             ReaderManagerConfig settings = new ReaderManagerConfig(

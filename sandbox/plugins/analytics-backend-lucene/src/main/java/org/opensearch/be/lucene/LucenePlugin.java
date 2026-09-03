@@ -80,6 +80,7 @@ public class LucenePlugin extends Plugin
         DocumentMetadataResolver {
 
     public static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+
     private final LuceneDocumentResolver documentResolver = new LuceneDocumentResolver();
 
     /** Creates a new LucenePlugin. */
@@ -97,7 +98,7 @@ public class LucenePlugin extends Plugin
      * Creates a {@link LuceneIndexingExecutionEngine} for the given configuration.
      * Requires the committer to be a {@link LuceneCommitter}.
      *
-     * @param indexingEngineConfig the engine configuration containing committer, mapper service, and store
+     * @param indexingEngineConfig the indexing engine configuration
      * @return a new Lucene indexing execution engine
      * @throws IllegalStateException if the committer is not a {@link LuceneCommitter}
      */
@@ -109,6 +110,7 @@ public class LucenePlugin extends Plugin
                 DATA_FORMAT,
                 luceneCommitter,
                 indexingEngineConfig.mapperService(),
+                indexingEngineConfig.indexSettings(),
                 indexingEngineConfig.store()
             );
         }

@@ -27,7 +27,6 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Sorter;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -35,13 +34,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.engine.dataformat.DeleteInput;
-import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
@@ -50,7 +48,6 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.plugin.stats.StatsRecorder;
 
 import java.io.IOException;
@@ -60,8 +57,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -97,6 +97,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     /** Large RAM buffer to avoid intermediate segment flushes within a single writer in production. */
     private static final double RAM_BUFFER_SIZE_MB = 256.0;
 
+    /** Heap cost of one queue node and its boxed row ID. */
+    private static final long BYTES_PER_POSITIONAL_DELETE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    ) + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (long) Long.BYTES);
+
     private final long writerGeneration;
     private final LuceneDataFormat dataFormat;
     private final LuceneShardStatsTracker stats;
@@ -104,6 +109,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Directory directory;
     private final IndexWriter indexWriter;
     private final Set<LuceneWriter> registry;
+    /** Row ids to mark deleted during flush. */
+    private final Queue<Long> positionalDeletes = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger positionalDeleteCount = new AtomicInteger();
     private long mappingVersion;
     private volatile long docCount;
     private volatile boolean flushed;
@@ -269,6 +277,13 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             );
         }
         indexWriter.deleteDocuments(NumericDocValuesField.newSlowExactQuery(DocumentInput.ROW_ID_FIELD, rowCount));
+        positionalDeletes.removeIf(bufferedRowId -> {
+            if (bufferedRowId >= rowCount) {
+                positionalDeleteCount.decrementAndGet();
+                return true;
+            }
+            return false;
+        });
         docCount = rowCount;
         state = WriterState.RETIRED_FLUSHABLE;
     }
@@ -276,6 +291,16 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public WriterState state() {
         return state;
+    }
+
+    /**
+     * Buffers an insertion row id to be marked deleted during this writer's flush.
+     */
+    @Override
+    public void recordPositionalDelete(long insertionRowId) {
+        // Count first so concurrent draining cannot make the count negative.
+        positionalDeleteCount.incrementAndGet();
+        positionalDeletes.add(insertionRowId);
     }
 
     /**
@@ -313,6 +338,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             );
             indexWriter.flush();
 
+            // Maps insertion row ids to final doc ids after primary-format sorting.
+            RowIdMapping mapping = null;
+
             // If sort permutation is provided, configure the reorder merge policy
             if (flushInput.hasRowIdMapping()) {
                 // RowIdMapping shouldn't be available if index has sort configurations.
@@ -326,7 +354,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                             + "]"
                     );
                 }
-                RowIdMapping mapping = flushInput.rowIdMapping();
+                mapping = flushInput.rowIdMapping();
                 if (mapping.size() != docCount) {
                     throw new IllegalStateException(
                         "RowIdMapping size ["
@@ -362,6 +390,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 forceMergeDurationMs
             );
 
+            // Apply positional deletes after reordering and before commit.
+            applyPositionalDeletes(mapping);
+
             long commitStartNanos = System.nanoTime();
             indexWriter.commit();
             long commitDurationMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
@@ -374,6 +405,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
             // Verify the invariant: exactly 1 segment with docCount documents
             SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
+            if (segmentInfos.size() == 0) {
+                // Lucene drops a fully deleted segment. Return no files and leave `flushed` false so
+                // close() removes the temporary directory.
+                logger.debug("flush: generation={} has no surviving rows ({} deleted); contributing no files", writerGeneration, docCount);
+                directory.close();
+                totalFlushDurationMs = TimeValue.nsecToMSec(System.nanoTime() - flushStart);
+                return FileInfos.empty();
+            }
             assert segmentInfos.size() == 1 : "Expected exactly 1 segment after force merge, got " + segmentInfos.size();
 
             SegmentCommitInfo segmentInfo = segmentInfos.info(0);
@@ -450,6 +489,46 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         if (currentCodec instanceof LuceneWriterCodec lwc) {
             lwc.enableRowIdRewrite();
         }
+    }
+
+    /**
+     * Applies buffered insertion-row deletes as liveDocs-only deletes, preserving physical row
+     * alignment with Parquet.
+     *
+     * @param mapping insertion-to-final-doc-id mapping, or {@code null} when unsorted
+     * @throws IOException if opening the NRT reader or applying a delete fails
+     * @throws IllegalStateException if a mapped doc id cannot be resolved
+     */
+    private void applyPositionalDeletes(RowIdMapping mapping) throws IOException {
+        if (positionalDeletes.isEmpty()) {
+            return;
+        }
+        indexWriter.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+        int deleted = 0;
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            assert reader.leaves().size() == 1 : "expected exactly 1 segment after forceMerge, got " + reader.leaves().size();
+            LeafReader leaf = reader.leaves().get(0).reader();
+            Long insertionRowId;
+            while ((insertionRowId = positionalDeletes.poll()) != null) {
+                positionalDeleteCount.decrementAndGet();
+                // Map insertion order to the final doc id; unsorted segments use identity.
+                long position = mapping != null ? mapping.getNewRowId(insertionRowId, RowIdMapping.SINGLE_GEN) : insertionRowId;
+                assert position >= 0 : "positional delete resolved to a negative row id (insertionRowId=" + insertionRowId + ")";
+                if (indexWriter.tryDeleteDocument(leaf, (int) position) == -1) {
+                    throw new IllegalStateException(
+                        "tryDeleteDocument failed for position="
+                            + position
+                            + " (insertionRowId="
+                            + insertionRowId
+                            + ") on writer generation ["
+                            + writerGeneration
+                            + "]; segment must not have merged under NoMergePolicy"
+                    );
+                }
+                deleted++;
+            }
+        }
+        logger.debug("applyPositionalDeletes: generation={}, marked {} row(s) deleted (liveDocs-only)", writerGeneration, deleted);
     }
 
     /**
@@ -686,9 +765,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         @Override
         public void setMergeInfo(SegmentCommitInfo info) {
             super.setMergeInfo(info);
-            if (info != null) {
-                info.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(0));
-            }
         }
     }
 
@@ -717,14 +793,15 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
     /** Returns heap bytes used by this writer's IndexWriter RAM buffer. Returns 0 after flush. */
     public long getHeapBytesUsed() {
+        long bufferedPositionalDeletes = positionalDeleteCount.get() * BYTES_PER_POSITIONAL_DELETE;
         if (indexWriter.isOpen()) {
             try {
-                return indexWriter.ramBytesUsed();
+                return bufferedPositionalDeletes + indexWriter.ramBytesUsed();
             } catch (AlreadyClosedException e) {
-                return 0;
+                return bufferedPositionalDeletes;
             }
         }
-        return 0;
+        return bufferedPositionalDeletes;
     }
 
     /**
@@ -768,19 +845,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     }
 
     /**
-     * Deletes all documents containing the given term from this writer's {@link IndexWriter}.
-     *
-     * @param deleteInput the {@code _id} term identifying the document(s) to delete
-     * @return the result of the delete operation
-     * @throws IOException if a low-level I/O error occurs
+     * Returns the underlying writer for the specified data format name.
      */
-    @Override
-    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Term uid = new Term(deleteInput.fieldName(), Uid.encodeId(deleteInput.id()));
-        indexWriter.deleteDocuments(uid);
-        return new DeleteResult.Success(1L, 1L, 1L);
-    }
-
     @Override
     public Optional<Writer<?>> getWriterForFormat(String formatName) {
         if (LuceneDataFormat.LUCENE_FORMAT_NAME.equals(formatName)) {

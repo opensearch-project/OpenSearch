@@ -161,7 +161,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testRefreshIncorporatesLuceneSegments() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter writer = committer.getIndexWriter();
         assertEquals(0, writer.getDocStats().numDocs);
 
@@ -220,7 +226,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Refresh skips WriterFileSets whose directory does not match the Lucene data format name.
      */
     public void testRefreshSkipsNonLuceneDirectories() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter writer = committer.getIndexWriter();
 
         // Create a segment directory that looks like it has files but is keyed under "parquet"
@@ -239,7 +251,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Refresh with no files skips addIndexes.
      */
     public void testRefreshWithNoLuceneFilesSkipsAddIndexes() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         RefreshInput emptyInput = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(emptyInput);
@@ -251,14 +269,20 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Constructor with null committer throws IllegalArgumentException.
      */
     public void testConstructorWithNullCommitterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null, null));
+        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null, null, null));
     }
 
     /**
      * Refresh with null input returns empty result.
      */
     public void testRefreshWithNullInputReturnsEmpty() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);
@@ -272,7 +296,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testWriterCreationAndFlushThroughEngine() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter sharedWriter = committer.getIndexWriter();
         assertEquals(0, sharedWriter.getDocStats().numDocs);
 
@@ -325,7 +355,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testMultipleWriterRefreshAccumulatesInSharedWriter() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter sharedWriter = committer.getIndexWriter();
 
         MappedFieldType textField = mockTextField("content");
@@ -407,7 +443,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testDeleteFilesIsNoOpForLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         org.apache.lucene.store.Directory directory = store.directory();
 
         directory.createOutput("_0.cfs", org.apache.lucene.store.IOContext.DEFAULT).close();
@@ -425,13 +467,25 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testDeleteFilesIgnoresNonLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
     }
 
     public void testGetHeapBytesUsedSumsActiveWriters() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         assertEquals("No writers yet, heap should be 0", 0L, engine.getHeapBytesUsed());
 
