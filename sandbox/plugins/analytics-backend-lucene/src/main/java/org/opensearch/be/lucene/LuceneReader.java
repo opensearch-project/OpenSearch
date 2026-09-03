@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.LuceneReaderAccess;
 
 import java.util.Map;
 import java.util.Objects;
@@ -25,7 +26,7 @@ import java.util.Objects;
  * same as the current reader's top-reader" assertion — fatal across the FFM boundary.
  */
 @ExperimentalApi
-public final class LuceneReader {
+public final class LuceneReader implements LuceneReaderAccess {
 
     private final DirectoryReader directoryReader;
     private final Map<Long, String> generationToSegmentName;
@@ -38,6 +39,7 @@ public final class LuceneReader {
         this.generationToSegmentName = Map.copyOf(generationToSegmentName);
     }
 
+    @Override
     public DirectoryReader directoryReader() {
         return directoryReader;
     }

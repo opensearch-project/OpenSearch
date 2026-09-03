@@ -34,6 +34,9 @@ package org.opensearch.action.explain;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
@@ -53,6 +56,7 @@ import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.SearchService;
@@ -147,6 +151,18 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
+        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+
+        // Composite (data-format) indexes can't serve the classic Lucene search context — their engine
+        // is not an EngineBackedIndexer. When such a shard exposes a Lucene secondary copy, explain
+        // against that copy: "did this document match, and why", per the Lucene secondary. Classic
+        // shards return null here and fall through to the standard path below.
+        Engine.Searcher dataFormatSearcher = indexShard.acquireDataFormatLuceneSearcher("explain");
+        if (dataFormatSearcher != null) {
+            return explainAgainstLuceneSecondary(request, shardId, indexService, dataFormatSearcher);
+        }
+
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
@@ -186,6 +202,43 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected Writeable.Reader<ExplainResponse> getResponseReader() {
         return ExplainResponse::new;
+    }
+
+    /**
+     * Explains a query against a data-format shard's Lucene secondary copy (e.g. a composite
+     * parquet+lucene index), whose engine cannot serve the classic Lucene search context.
+     *
+     * <p>Resolves the document by its {@code _id} within the Lucene secondary, parses the query
+     * with a {@link QueryShardContext} bound to that reader, and returns the Lucene
+     * {@link Explanation}. This reflects how the Lucene copy matches/scores the document, not the
+     * engine's primary-format execution. {@code _source} / stored-field return is not yet supported
+     * on this path.
+     */
+    private ExplainResponse explainAgainstLuceneSecondary(
+        ExplainRequest request,
+        ShardId shardId,
+        IndexService indexService,
+        Engine.Searcher searcher
+    ) throws IOException {
+        try (searcher) {
+            // Composite indexes are append-only, so an _id resolves to exactly one live document —
+            // a top-1 term lookup on _id is therefore exact.
+            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
+            TopDocs topDocs = searcher.search(new TermQuery(uidTerm), 1);
+            if (topDocs.totalHits.value() == 0) {
+                return new ExplainResponse(shardId.getIndexName(), request.id(), false);
+            }
+            int docId = topDocs.scoreDocs[0].doc;
+            QueryShardContext queryShardContext = indexService.newQueryShardContext(
+                shardId.id(),
+                searcher,
+                () -> request.nowInMillis,
+                null
+            );
+            Query query = queryShardContext.toQuery(request.query()).query();
+            Explanation explanation = searcher.explain(query, docId);
+            return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation);
+        }
     }
 
     @Override
