@@ -34,15 +34,14 @@ apply plugin: 'opensearch.testclusters'
 
 def numNodes = findProperty('numNodes') as Integer ?: 1
 def numZones = findProperty('numZones') as Integer ?: 1
-def requestedPlugins = findProperty('installedPlugins') ? Eval.me(findProperty('installedPlugins').toString()) : []
 
 testClusters {
   runTask {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
-    if (requestedPlugins.isEmpty() == false) {
-      installedPlugins = requestedPlugins
+    if (findProperty("installedPlugins")) {
+      installedPlugins = Eval.me(installedPlugins)
 
       def resolveMavenPlugin = { coords ->
         // Add default groupId if not fully qualified (less than 2 colons)
@@ -58,7 +57,7 @@ testClusters {
         plugin(project.layout.file(project.provider { config.singleFile }))
       }
 
-      for (String p : requestedPlugins) {
+      for (String p : installedPlugins) {
         // check if its a local plugin first
         if (project.findProject(':plugins:' + p) != null) {
           plugin(':plugins:' + p)
@@ -110,10 +109,6 @@ tasks.register("run", RunTask) {
   useCluster testClusters.runTask;
   description = 'Runs opensearch in the foreground'
   group = 'Verification'
-
-  if (requestedPlugins.any { it == 'analytics-backend-datafusion' || it == 'parquet-data-format' }) {
-    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
-  }
 
   impliesSubProjects = true
 }
