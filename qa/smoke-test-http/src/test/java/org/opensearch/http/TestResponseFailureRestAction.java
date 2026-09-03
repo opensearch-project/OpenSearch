@@ -8,6 +8,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -25,24 +26,28 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
- * A handler whose response body cannot be serialized, reproducing the shape of
- * opensearch-project/OpenSearch#22311 without needing an oversized response.
+ * A handler whose downstream response preparation fails after request bytes have been released, reproducing the
+ * boundary from opensearch-project/OpenSearch#22311 without needing a multi-hundred-megabyte response.
  * <p>
- * In the reported failure a search response was serialized into a string large enough to overflow
- * {@code UnicodeUtil#maxUTF8Length}, and the resulting exception was raised from inside the channel's
- * {@code sendResponse} - after {@code RestController.ResourceHandlingHttpChannel} had already closed the channel and
- * before any bytes were written. The failure listener then tried to send an error response over the same channel,
- * which failed a second time, so the client received no status line at all and hung until its proxy timed out.
+ * A response-channel adapter may transform a response before writing it to the wire. If that transformation throws,
+ * {@code RestController.ResourceHandlingHttpChannel} has already released the request-byte reservation but no response
+ * has been accepted. The failure listener must therefore be able to send the error over the same channel.
  * <p>
- * This handler recreates that sequence exactly: the response is completed asynchronously through
- * {@link RestResponseListener} (the same listener the search path uses), and {@link RestResponse#content()} throws when
- * the channel resolves the body. Resolving the body is the last thing {@code DefaultRestChannel#sendResponse} does
- * before writing to the wire, so nothing reaches the client on the first attempt.
+ * This handler recreates that sequence through the real HTTP stack. It completes asynchronously through
+ * {@link RestResponseListener}, and {@link RestResponse#content()} throws the same structured 413 produced by the
+ * oversized UTF-16 guard when {@code DefaultRestChannel} resolves the body. Nothing reaches the client on the first
+ * attempt; the client receives only the follow-up failure response.
  */
 public class TestResponseFailureRestAction extends BaseRestHandler {
 
     static final String ROUTE = "/_test/response_serialization_failure";
-    static final String FAILURE_MESSAGE = "simulated integer overflow while serializing the response body";
+    static final int MAX_UTF16_LENGTH_FOR_UTF8 = Integer.MAX_VALUE / 3;
+    static final int OVERSIZED_UTF16_LENGTH = MAX_UTF16_LENGTH_FOR_UTF8 + 1;
+    static final String FAILURE_MESSAGE = "UTF16 string length ["
+        + OVERSIZED_UTF16_LENGTH
+        + "] exceeds maximum ["
+        + MAX_UTF16_LENGTH_FOR_UTF8
+        + "] that can be UTF-8 encoded without integer overflow";
 
     @Override
     public List<Route> routes() {
@@ -70,7 +75,7 @@ public class TestResponseFailureRestAction extends BaseRestHandler {
     }
 
     /**
-     * A response that fails while its body is being resolved by the channel.
+     * A response that fails while its body is being resolved by the downstream channel.
      */
     private static final class UnserializableRestResponse extends RestResponse {
 
@@ -81,8 +86,8 @@ public class TestResponseFailureRestAction extends BaseRestHandler {
 
         @Override
         public BytesReference content() {
-            // ArithmeticException mirrors what Lucene's UnicodeUtil#maxUTF8Length throws on overflow.
-            throw new ArithmeticException(FAILURE_MESSAGE);
+            final IllegalArgumentException cause = new IllegalArgumentException(FAILURE_MESSAGE);
+            throw new OpenSearchStatusException(cause.getMessage(), RestStatus.REQUEST_ENTITY_TOO_LARGE, cause);
         }
 
         @Override
