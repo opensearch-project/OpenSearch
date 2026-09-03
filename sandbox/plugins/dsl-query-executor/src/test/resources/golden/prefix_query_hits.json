@@ -16,8 +16,9 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[PREFIX_QUERY(MAP('field', $0), MAP('query', 'lap'))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[PREFIX_QUERY(MAP('field', $0), MAP('query', 'lap'))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price"],
   "mockResultRows": [
@@ -28,11 +29,26 @@
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 2,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_source": {
+            "name": "laptop",
+            "price": 999
+          },
+          "_score": null
+        },
+        {
+          "_source": {
+            "name": "laptop_pro",
+            "price": 1499
+          },
+          "_score": null
+        }
+      ]
     }
   }
 }

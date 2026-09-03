@@ -17,8 +17,9 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'LAP*'), MAP('case_insensitive', 'true'))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[WILDCARD_QUERY_DSL(MAP('field', $0), MAP('query', 'LAP*'), MAP('case_insensitive', 'true'))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
   "mockResultFieldNames": ["name", "price"],
   "mockResultRows": [
@@ -29,11 +30,26 @@
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 2,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_source": {
+            "name": "Laptop",
+            "price": 999
+          },
+          "_score": null
+        },
+        {
+          "_source": {
+            "name": "LAPTOP_PRO",
+            "price": 1499
+          },
+          "_score": null
+        }
+      ]
     }
   }
 }

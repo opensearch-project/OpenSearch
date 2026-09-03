@@ -34,8 +34,8 @@ public class PrefixQuerySerializer extends AbstractRelevanceSerializer {
         PrefixQueryBuilder prefixQb = (PrefixQueryBuilder) qb;
         for (Map.Entry<String, String> entry : params.entrySet()) {
             switch (entry.getKey()) {
-                case "case_insensitive" -> prefixQb.caseInsensitive(Boolean.parseBoolean(entry.getValue()));
-                case "rewrite" -> prefixQb.rewrite(entry.getValue());
+                case PARAM_CASE_INSENSITIVE -> prefixQb.caseInsensitive(Boolean.parseBoolean(entry.getValue()));
+                case PARAM_REWRITE -> prefixQb.rewrite(entry.getValue());
                 default -> {
                     /* ignore unrecognized params for forward compatibility */ }
             }
