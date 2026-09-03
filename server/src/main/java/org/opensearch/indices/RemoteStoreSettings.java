@@ -178,6 +178,20 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Dynamic cluster-level default for {@code index.remote_store.fencing.enabled}. Applied to
+     * remote-store-backed indices <b>at creation time only</b>: the per-index setting is final, because the fence is
+     * the primary's write witness and toggling it on a live index would leave a window in which a stale primary is
+     * checked against neither the fence nor the replicas. Flipping this setting therefore affects only indices created
+     * afterwards; an explicit {@code index.remote_store.fencing.enabled} in the create request always wins.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_FENCING_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.fencing.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * Controls the threshold for the number of segments uploaded to remote store map.
      * When the map size exceeds this threshold, stale segment cleanup is triggered even without a flush/commit.
      * {@code -1} disables threshold-based cleanup.

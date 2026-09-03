@@ -974,6 +974,7 @@ public final class IndexSettings {
     private final int numberOfShards;
     private volatile ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
+    private final boolean isRemoteStoreFencingEnabled;
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
@@ -1204,6 +1205,7 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteStoreFencingEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
@@ -1668,6 +1670,13 @@ public final class IndexSettings {
      */
     public boolean isRemoteTranslogStoreEnabled() {
         return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
+    }
+
+    /**
+     * Returns if object-store-backed primary fencing is enabled for this index.
+     */
+    public boolean isRemoteStoreFencingEnabled() {
+        return isRemoteStoreFencingEnabled;
     }
 
     /**
