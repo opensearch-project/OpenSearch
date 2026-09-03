@@ -32,7 +32,6 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -104,6 +103,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -1534,13 +1534,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
-        try (GatedCloseable<IndexCommit> wrappedIndexCommit = shard.acquireLastIndexCommit(true)) {
+        try (GatedCloseable<CatalogSnapshot> wrappedSnapshot = shard.acquireLastCommittedSnapshot(true)) {
             repository.snapshotShard(
                 shard.store(),
                 shard.mapperService(),
                 snapshot.getSnapshotId(),
                 indexId,
-                wrappedIndexCommit.get(),
+                wrappedSnapshot.get(),
                 null,
                 snapshotStatus,
                 Version.CURRENT,
