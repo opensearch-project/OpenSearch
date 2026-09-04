@@ -98,8 +98,7 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
 
             // Rebuild the DataSourceExec with new projections
             // DF55: `TableSchema::new` takes partition cols as `Vec<FieldRef>` (was `Fields`).
-            let new_table_schema =
-                TableSchema::new(file_schema.clone(), partition_cols.to_vec());
+            let new_table_schema = TableSchema::new(file_schema.clone(), partition_cols.to_vec());
             let new_source = Arc::new(ParquetSource::new(new_table_schema));
 
             let new_config = FileScanConfigBuilder::from(file_scan_config.clone())

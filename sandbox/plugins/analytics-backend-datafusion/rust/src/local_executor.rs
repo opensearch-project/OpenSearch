@@ -94,7 +94,12 @@ impl LocalSession {
     /// Returns the configured batch_size for this session.
     pub fn batch_size(&self) -> usize {
         // DF55: `execution.batch_size` is `ConfigNonZeroUsize`; unwrap to `usize`.
-        self.ctx.copied_config().options().execution.batch_size.get()
+        self.ctx
+            .copied_config()
+            .options()
+            .execution
+            .batch_size
+            .get()
     }
 
     /// Returns the current target_partitions for this session.

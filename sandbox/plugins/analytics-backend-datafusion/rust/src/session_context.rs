@@ -310,8 +310,8 @@ pub async unsafe fn create_session_context(
     // `target_partitions` (= `effective_partitions`) is already set on `config`
     // above and `collect_statistics` defaults to `true`, so the sort-aware
     // bin-packer and stats collection behave exactly as before.
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
-        .with_file_extension(".parquet");
+    let mut listing_options =
+        ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
 
     // Advertise the index sort order (`index.sort.field`) to DataFusion via `with_file_sort_order`
     // when present, so the scan reports `output_ordering` — enabling SortPreservingMerge, TopK
@@ -687,7 +687,6 @@ fn substrait_has_fetch_rel(plan_bytes: &[u8]) -> bool {
     })
 }
 
-
 /// Attempt to acquire a memory budget using cached parquet metadata.
 /// Returns None on cache miss or if the budget system is not configured.
 fn try_acquire_budget(
@@ -1051,8 +1050,8 @@ mod tests {
         let ctx = SessionContext::new();
         // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true,
         // so `SessionContext::new()` above still seeds stats as this test expects).
-        let narrow_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
-            .with_file_extension(".parquet");
+        let narrow_opts =
+            ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
         let narrow_cfg = ListingTableConfig::new(table_url.clone())
             .with_listing_options(narrow_opts)
             .with_schema(Arc::clone(&narrow));

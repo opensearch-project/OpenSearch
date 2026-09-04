@@ -1573,8 +1573,8 @@ pub unsafe fn sql_to_substrait(
         crate::udaf::register_all(&ctx);
 
         // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
-        let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-            .with_file_extension(".parquet");
+        let listing_options =
+            ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
         let schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await?;

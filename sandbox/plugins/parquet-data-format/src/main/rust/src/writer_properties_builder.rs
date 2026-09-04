@@ -1465,7 +1465,9 @@ mod tests {
         const ROWS: usize = 8192;
         let batch = utf8_batch(
             "body",
-            (0..ROWS).map(|i| format!("{i:08}-{}", "x".repeat(1016))).collect(),
+            (0..ROWS)
+                .map(|i| format!("{i:08}-{}", "x".repeat(1016)))
+                .collect(),
         );
         let l = probe_production_write_layout(&NativeSettings::new(), &batch);
         eprintln!(
@@ -1474,7 +1476,10 @@ mod tests {
         );
         assert_eq!(l.row_groups, 1, "8192 rows < 1M RG limit → one row group");
         assert_eq!(l.total_rows, ROWS as i64, "row count round-trips");
-        assert!(l.pages_rg0_col0 > 1, "wide column must split into >1 data page");
+        assert!(
+            l.pages_rg0_col0 > 1,
+            "wide column must split into >1 data page"
+        );
         assert!(
             (4..=16).contains(&l.pages_rg0_col0),
             "byte-driven page count {} outside pinned arrow-59 range 4..=16 (W1 / arrow-rs#9972); re-characterize",
@@ -1553,7 +1558,13 @@ mod tests {
             l.row_groups, l.total_rows, l.pages_rg0_col0
         );
         assert_eq!(l.row_groups, 1);
-        assert_eq!(l.total_rows, ROWS as i64, "mixed-type row count round-trips");
-        assert!(l.pages_rg0_col0 >= 1, "col0 must have an OffsetIndex page entry");
+        assert_eq!(
+            l.total_rows, ROWS as i64,
+            "mixed-type row count round-trips"
+        );
+        assert!(
+            l.pages_rg0_col0 >= 1,
+            "col0 must have an OffsetIndex page entry"
+        );
     }
 }

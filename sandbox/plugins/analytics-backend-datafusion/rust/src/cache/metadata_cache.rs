@@ -171,7 +171,9 @@ impl Cache<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
         self.inner.drop_table_entries(table_ref)
     }
 
-    fn list_entries(&self) -> datafusion::common::HashMap<Path, CacheEntryInfo<CachedFileMetadataEntry>> {
+    fn list_entries(
+        &self,
+    ) -> datafusion::common::HashMap<Path, CacheEntryInfo<CachedFileMetadataEntry>> {
         self.inner.list_entries()
     }
 }

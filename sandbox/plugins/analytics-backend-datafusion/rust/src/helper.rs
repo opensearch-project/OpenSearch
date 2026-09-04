@@ -113,8 +113,8 @@ pub async fn register_listing_table(
     sort_orders: &[String],
 ) -> Result<(), DataFusionError> {
     // DF55: `collect_stat` moved off `ListingOptions` to `SessionConfig` (defaults true).
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-        .with_file_extension(".parquet");
+    let mut listing_options =
+        ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
     // Declare the per-file sort order when an `index.sort.field` is described. Callers pass the
     // index sort fields unconditionally (DF54 parity); this helper stays plan-agnostic and just
     // honours what it is given.

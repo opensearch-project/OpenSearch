@@ -19,8 +19,8 @@ use std::sync::Arc;
 use arrow::array::{ArrayRef, BooleanArray, UInt64Array};
 use arrow::datatypes::SchemaRef;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
-use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::arrow::async_reader::MetadataFetch;
+use datafusion::parquet::errors::{ParquetError, Result as ParquetResult};
 use datafusion::parquet::file::metadata::{
     ColumnChunkMetaData, OffsetIndexBuilder, PageIndexPolicy, ParquetColumnIndex, ParquetMetaData,
     ParquetMetaDataReader, ParquetOffsetIndex,
@@ -246,7 +246,12 @@ async fn build_column_index_cells(
             .column_index_length()
             .unwrap_or(0)
             .max(0) as usize;
-        out.push(CiCell { col, rg, data, size });
+        out.push(CiCell {
+            col,
+            rg,
+            data,
+            size,
+        });
     }
     Some(out)
 }

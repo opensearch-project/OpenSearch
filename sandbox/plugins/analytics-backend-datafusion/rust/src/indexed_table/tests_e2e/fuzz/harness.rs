@@ -491,7 +491,7 @@ async fn run_single_collector_query(
             &execution_props,
             &datafusion_expr::physical_planning_context::PhysicalPlanningContext::default(),
         )
-            .unwrap(),
+        .unwrap(),
     );
 
     let pred_cols: Vec<usize> = {
