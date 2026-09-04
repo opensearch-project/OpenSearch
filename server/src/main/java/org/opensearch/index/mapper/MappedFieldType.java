@@ -191,6 +191,22 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns whether this numeric field should be advertised as searchable to the
+     * per-type query factory. On indices backed by a pluggable dataformat (composite
+     * primary + Lucene secondary), the Lucene secondary writes no BKD for numeric
+     * fields, so the point-side of {@link org.apache.lucene.search.IndexOrDocValuesQuery}
+     * reports {@code cost=0} and wins the cost race — returning zero hits. Routing
+     * through the pure doc-values branch (by treating the field as not-searchable)
+     * avoids that trap and executes correctly against the codec-served DV column.
+     *
+     * <p>Non-pluggable-dataformat indices retain their normal {@link #isSearchable()}
+     * behavior so the BKD fast path is preserved.
+     */
+    public boolean isEffectiveSearchable(QueryShardContext context) {
+        return isSearchable() && !context.isPluggableDataFormatEnabled();
+    }
+
+    /**
      * Returns true if the field is stored separately.
      */
     public boolean isStored() {

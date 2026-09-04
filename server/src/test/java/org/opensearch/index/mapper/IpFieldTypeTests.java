@@ -46,6 +46,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -53,6 +54,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
@@ -90,7 +94,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 query,
                 SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
             ),
-            ft.termQuery(ip, null)
+            ft.termQuery(ip, MOCK_QSC)
         );
 
         ip = "192.168.1.7";
@@ -100,7 +104,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 query,
                 SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
             ),
-            ft.termQuery(ip, null)
+            ft.termQuery(ip, MOCK_QSC)
         );
 
         ip = "2001:db8::2:1";
@@ -118,7 +122,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.termQuery(prefix, null)
+            ft.termQuery(prefix, MOCK_QSC)
         );
 
         ip = "192.168.1.7";
@@ -135,11 +139,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.termQuery(prefix, null)
+            ft.termQuery(prefix, MOCK_QSC)
         );
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
@@ -151,14 +155,14 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
-            dvOnly.termQuery(ip, null)
+            dvOnly.termQuery(ip, MOCK_QSC)
         );
 
         ip = "192.168.1.7";
         query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
         assertEquals(
             SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
-            dvOnly.termQuery(ip, null)
+            dvOnly.termQuery(ip, MOCK_QSC)
         );
 
         ip = "2001:db8::2:1";
@@ -172,7 +176,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 true,
                 true
             ),
-            dvOnly.termQuery(prefix, null)
+            dvOnly.termQuery(prefix, MOCK_QSC)
         );
 
         ip = "192.168.1.7";
@@ -185,7 +189,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 true,
                 true
             ),
-            dvOnly.termQuery(prefix, null)
+            dvOnly.termQuery(prefix, MOCK_QSC)
         );
     }
 
@@ -198,15 +202,15 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
-            ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null)
+            ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), MOCK_QSC)
         );
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
-            ft.termsQuery(Arrays.asList("::2", "::5"), null)
+            ft.termsQuery(Arrays.asList("::2", "::5"), MOCK_QSC)
         );
 
         // if the list includes a prefix query we fallback to a bool query
-        Query actual = ft.termsQuery(Arrays.asList("::42", "::2/16"), null);
+        Query actual = ft.termsQuery(Arrays.asList("::42", "::2/16"), MOCK_QSC);
         assertTrue(actual instanceof ConstantScoreQuery);
         assertTrue(((ConstantScoreQuery) actual).getQuery() instanceof BooleanQuery);
         BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) actual).getQuery();
@@ -219,13 +223,13 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
-            dvOnly.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null)
+            dvOnly.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), MOCK_QSC)
         );
         assertEquals(
             SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
-            dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
+            dvOnly.termsQuery(Arrays.asList("::2", "::5"), MOCK_QSC)
         );
-        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", ipToByteRef("::2")), dvOnly.termsQuery(List.of("::2"), null));
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", ipToByteRef("::2")), dvOnly.termsQuery(List.of("::2"), MOCK_QSC));
         assertEquals(
             SortedSetDocValuesField.newSlowRangeQuery(
                 "field",
@@ -234,24 +238,28 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 true,
                 true
             ),
-            dvOnly.termsQuery(List.of("::2/16"), null)
+            dvOnly.termsQuery(List.of("::2/16"), MOCK_QSC)
         );
         // multirange handles both
         DocValuesMultiRangeQuery.SortedSetStabbingBuilder expect = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder("field");
         expect.add(ipToByteRef("::42"));
         expect.add(ipToByteRef("::"), ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
-        assertEquals(expect.build(), dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null));
+        assertEquals(expect.build(), dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), MOCK_QSC));
     }
 
     public void testDvVsPoint() {
         MappedFieldType indexOnly = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
         MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
         MappedFieldType indexDv = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
-        assertNotEquals("obey DocValues", indexOnly.termsQuery(List.of("::2/16"), null), indexDv.termsQuery(List.of("::2/16"), null));
-        assertEquals(dvOnly.termQuery("::2/16", null), dvOnly.termsQuery(List.of("::2/16"), null));
+        assertNotEquals(
+            "obey DocValues",
+            indexOnly.termsQuery(List.of("::2/16"), MOCK_QSC),
+            indexDv.termsQuery(List.of("::2/16"), MOCK_QSC)
+        );
+        assertEquals(dvOnly.termQuery("::2/16", MOCK_QSC), dvOnly.termsQuery(List.of("::2/16"), MOCK_QSC));
         assertEquals(
-            new IndexOrDocValuesQuery(indexOnly.termsQuery(List.of("::2/16"), null), dvOnly.termsQuery(List.of("::2/16"), null)),
-            indexDv.termsQuery(List.of("::2/16"), null)
+            new IndexOrDocValuesQuery(indexOnly.termsQuery(List.of("::2/16"), MOCK_QSC), dvOnly.termsQuery(List.of("::2/16"), MOCK_QSC)),
+            indexDv.termsQuery(List.of("::2/16"), MOCK_QSC)
         );
     }
 
@@ -269,7 +277,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
+            ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.2.0"));
@@ -284,7 +292,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, null)
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.1.255"));
@@ -299,7 +307,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, null)
+            ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddressPoint.MAX_VALUE);
@@ -314,7 +322,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, null)
+            ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddressPoint.MAX_VALUE);
@@ -329,7 +337,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, null)
+            ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddresses.forString("2001:db8::ffff"));
@@ -344,7 +352,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, null)
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddresses.forString("2001:db8::fffe"));
@@ -359,7 +367,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, null)
+            ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::2"), InetAddresses.forString("2001:db8::"));
@@ -375,11 +383,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 )
             ),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, null)
+            ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, MOCK_QSC)
         );
 
         // Upper bound is the min IP and is not inclusive
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, null));
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("::", "::", true, false, null, null, null, MOCK_QSC));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(
@@ -392,7 +400,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 null,
                 null,
                 null,
-                null
+                MOCK_QSC
             )
         );
 
@@ -409,7 +417,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 )
             ),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, null)
+            ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE);
@@ -425,7 +433,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 )
             ),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, null)
+            ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, MOCK_QSC)
         );
 
         query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.1.7"), InetAddresses.forString("2001:db8::"));
@@ -441,13 +449,13 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     true
                 )
             ),
-            ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null)
+            ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, MOCK_QSC)
         );
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null)
+            () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, MOCK_QSC)
         );
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
@@ -465,5 +473,38 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             .build(context)
             .fieldType();
         assertEquals(Collections.singletonList("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    /**
+     * On a pluggable-dataformat index the mapper must skip the point-based query construction
+     * and emit only the doc-values term query. The Lucene secondary writes no BKD on such
+     * indices, so keeping the point side would let the cost-based dispatch inside
+     * {@link IndexOrDocValuesQuery} pick an empty {@code PointValues} and return zero hits.
+     */
+    public void testTermQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        Query query = ft.termQuery("192.168.1.1", mockPluggableDataFormatContext());
+        assertFalse("term path must not wrap points in IndexOrDocValuesQuery on pluggable", query instanceof IndexOrDocValuesQuery);
+    }
+
+    /** Terms queries route to the DV-only branch on pluggable-dataformat indices. */
+    public void testTermsQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        Query query = ft.termsQuery(List.of("192.168.1.1"), mockPluggableDataFormatContext());
+        assertFalse("terms path must not wrap points in IndexOrDocValuesQuery on pluggable", query instanceof IndexOrDocValuesQuery);
+    }
+
+    /** Range queries route to the DV-only branch on pluggable-dataformat indices. */
+    public void testRangeQueryUsesDocValuesWhenPluggableDataFormatEnabled() {
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        Query query = ft.rangeQuery("10.0.0.0", "10.255.255.255", true, true, null, null, null, mockPluggableDataFormatContext());
+        assertFalse("range path must not wrap points in IndexOrDocValuesQuery on pluggable", query instanceof IndexOrDocValuesQuery);
+    }
+
+    /** Pluggable-dataformat context — for tests that exercise the isEffectiveSearchable gate. */
+    private static QueryShardContext mockPluggableDataFormatContext() {
+        QueryShardContext ctx = mock(QueryShardContext.class);
+        when(ctx.isPluggableDataFormatEnabled()).thenReturn(true);
+        return ctx;
     }
 }

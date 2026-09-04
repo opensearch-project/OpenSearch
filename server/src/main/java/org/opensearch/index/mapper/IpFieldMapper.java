@@ -308,10 +308,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     true
                 );
             }
-            if (isSearchable() && hasDocValues()) {
+            boolean effectiveSearchable = isEffectiveSearchable(context);
+            if (effectiveSearchable && hasDocValues()) {
                 return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
-                return isSearchable() ? pointQuery : dvQuery;
+                return effectiveSearchable ? pointQuery : dvQuery;
             }
         }
 
@@ -323,7 +324,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             List<PointRangeQuery> masks = new ArrayList<>();
             parseIps(values, concreteIPs, masks);
 
-            if (!isSearchable()) {
+            if (!isEffectiveSearchable(context)) {
                 return hasDocValues() ? docValuesTermsQuery(concreteIPs, masks) : new MatchNoDocsQuery("never happened");
             }
 
@@ -446,10 +447,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                         true
                     );
                 }
-                if (isSearchable() && hasDocValues()) {
+                boolean effectiveSearchable = isEffectiveSearchable(context);
+                if (effectiveSearchable && hasDocValues()) {
                     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
                 } else {
-                    return isSearchable() ? pointQuery : dvQuery;
+                    return effectiveSearchable ? pointQuery : dvQuery;
                 }
             });
         }
