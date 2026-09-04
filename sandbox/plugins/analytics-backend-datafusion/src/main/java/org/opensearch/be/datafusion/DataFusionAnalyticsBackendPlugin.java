@@ -613,6 +613,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     // emits a value-typed scalar before substrait emission.
                     caps.add(new FilterCapability.Standard(op, Set.of(FieldType.MAP), formats));
                 }
+                // Nested existential filter — DataFusion-only (parquet path), no Lucene. Registered
+                // explicitly for ARRAY/NESTED instead of via the STANDARD loop to keep its field-type
+                // scope narrow.
+                caps.add(
+                    new FilterCapability.Standard(
+                        // TODO(native-array_any_match): remove this capability once we drop the placeholder op.
+                        ScalarFunction.NESTED_ANY_MATCH,
+                        Set.of(FieldType.ARRAY, FieldType.NESTED),
+                        formats
+                    )
+                );
                 return Set.copyOf(caps);
             }
 

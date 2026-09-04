@@ -266,6 +266,10 @@ pub async unsafe fn create_session_context(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        // TODO(native-array_any_match): drop this analyzer rule once DataFusion consumes the Substrait lambda natively.
+        .with_analyzer_rule(Arc::new(
+            crate::nested_any_match_rewrite_analyzer::NestedAnyMatchRewriteRule,
+        ))
         .with_physical_optimizer_rules(if has_partial_aggregate {
             crate::agg_mode::physical_optimizer_rules_without_combine()
         } else {
@@ -480,6 +484,10 @@ pub async unsafe fn create_worker_session_context(
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
+        // TODO(native-array_any_match): drop this analyzer rule once DataFusion consumes the Substrait lambda natively.
+        .with_analyzer_rule(Arc::new(
+            crate::nested_any_match_rewrite_analyzer::NestedAnyMatchRewriteRule,
+        ))
         .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
         .build();
 

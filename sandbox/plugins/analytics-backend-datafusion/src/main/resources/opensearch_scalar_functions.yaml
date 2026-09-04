@@ -1348,3 +1348,18 @@ scalar_functions:
           - name: state
             value: any1
         return: i64
+
+  # TODO(native-array_any_match): remove this signature once we add get_field + array_any_match HOF signatures.
+  - name: "nested_any_match"
+    description: >-
+      Existential filter over a nested LIST<STRUCT> column. Returns true if any
+      element satisfies the predicate encoded as a JSON expression tree.
+      The Rust NestedAnyMatchRewriteRule rewrites this placeholder call to
+      a native array_any_match HOF before execution.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "array"
+          - value: "string"
+            name: "expr_json"
+        return: "boolean?"

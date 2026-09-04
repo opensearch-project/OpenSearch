@@ -48,6 +48,8 @@ public enum ScalarFunction {
     EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
     CIDRMATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    // TODO(native-array_any_match): drop this placeholder op once we emit a real array_any_match lambda.
+    NESTED_ANY_MATCH(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),

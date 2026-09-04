@@ -52,6 +52,8 @@ pub mod schema_coerce;
 pub mod session_context;
 pub mod shard_table_provider;
 
+// TODO(native-array_any_match): remove this module once we emit a real array_any_match lambda.
+pub mod nested_any_match_rewrite_analyzer;
 pub mod native_node_stats;
 pub mod scoped_index_optimizer;
 pub mod scoped_page_index_reader;
