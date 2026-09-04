@@ -48,12 +48,40 @@ import java.util.Arrays;
 public final class BytesArray extends AbstractBytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
+    /**
+     * Mirrors {@code UnicodeUtil#MAX_UTF8_BYTES_PER_CHAR}.
+     */
+    private static final int MAX_UTF8_BYTES_PER_CHAR = 3;
+    private static final int MAX_UTF16_LENGTH_FOR_UTF8 = Integer.MAX_VALUE / MAX_UTF8_BYTES_PER_CHAR;
     private final byte[] bytes;
     private final int offset;
     private final int length;
 
     public BytesArray(String bytes) {
-        this(new BytesRef(bytes));
+        this(toBytesRef(bytes));
+    }
+
+    private static BytesRef toBytesRef(String bytes) {
+        ensureUTF16LengthIsValidForUTF8Encoding(bytes.length());
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * Validates that a UTF-16 string can be UTF-8 encoded into a Lucene {@link BytesRef} without integer overflow in
+     * {@code UnicodeUtil#maxUTF8Length(int)}.
+     *
+     * @param utf16Length UTF-16 length of the string to encode
+     */
+    public static void ensureUTF16LengthIsValidForUTF8Encoding(int utf16Length) {
+        if ((long) utf16Length * MAX_UTF8_BYTES_PER_CHAR > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                "UTF16 string length ["
+                    + utf16Length
+                    + "] exceeds maximum ["
+                    + MAX_UTF16_LENGTH_FOR_UTF8
+                    + "] that can be UTF-8 encoded without integer overflow"
+            );
+        }
     }
 
     public BytesArray(BytesRef bytesRef) {
