@@ -42,7 +42,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
@@ -52,15 +54,21 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         private final BytesRef[] terms;
         long[] ords;
         private int i;
+        private final Map<Integer, long[]> docOrds = new HashMap<>();
 
         FakeSortedSetDocValues(BytesRef[] terms) {
             this.terms = terms;
         }
 
+        void setOrds(int doc, long[] ords) {
+            this.docOrds.put(doc, ords);
+        }
+
         @Override
         public boolean advanceExact(int docID) {
             i = 0;
-            return true;
+            ords = docOrds.getOrDefault(docID, new long[0]);
+            return ords.length > 0;
         }
 
         @Override
@@ -126,7 +134,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             }
             final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
-            values.ords = ords;
+            values.setOrds(doc, ords);
 
             // simulate aggregation
             collector.collect(doc);
@@ -143,6 +151,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
                 }
             }
         }
+        collector.finish();
         assertArrayEquals(expectedCounts, counts);
     }
 
@@ -165,15 +174,22 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         private final BytesRef[] terms;
         int i;
         long[] ords;
+        // Per-doc ords storage for buffered collection support
+        private final Map<Integer, long[]> docOrds = new HashMap<>();
 
         FakeSortedBinaryDocValues(BytesRef[] terms) {
             this.terms = terms;
         }
 
+        void setOrds(int doc, long[] ords) {
+            this.docOrds.put(doc, ords);
+        }
+
         @Override
         public boolean advanceExact(int docID) {
             i = 0;
-            return true;
+            ords = docOrds.getOrDefault(docID, new long[0]);
+            return ords.length > 0;
         }
 
         @Override
@@ -227,7 +243,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             }
             final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
-            values.ords = ords;
+            values.setOrds(doc, ords);
 
             // simulate aggregation
             collector.collect(doc);
@@ -244,6 +260,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
                 }
             }
         }
+        collector.finish();
         assertArrayEquals(expectedCounts, counts);
     }
 
