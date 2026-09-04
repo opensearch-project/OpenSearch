@@ -63,6 +63,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
@@ -100,6 +101,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
@@ -113,6 +115,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -145,6 +148,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final MappingUpdatedAction mappingUpdatedAction;
     private final SegmentReplicationPressureService segmentReplicationPressureService;
     private final RemoteStorePressureService remoteStorePressureService;
+    private final IngestService ingestService;
 
     /**
      * This action is used for performing primary term validation. With remote translog enabled, the translogs would
@@ -170,7 +174,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         SegmentReplicationPressureService segmentReplicationPressureService,
         RemoteStorePressureService remoteStorePressureService,
         SystemIndices systemIndices,
-        Tracer tracer
+        Tracer tracer,
+        IngestService ingestService
     ) {
         super(
             settings,
@@ -194,6 +199,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
         this.remoteStorePressureService = remoteStorePressureService;
+        this.ingestService = ingestService;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
@@ -443,7 +449,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, threadPool, executor(primary), ingestService, () -> clusterService.state().metadata());
     }
 
     @Override
@@ -483,6 +489,34 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ThreadPool threadPool,
         String executorName
     ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            null,
+            () -> Metadata.EMPTY_METADATA
+        );
+    }
+
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName,
+        IngestService ingestService,
+        java.util.function.Supplier<Metadata> metadataSupplier
+    ) {
         new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
             private final ExecutorService executor = threadPool.executor(executorName);
@@ -499,7 +533,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         nowInMillisSupplier,
                         mappingUpdater,
                         waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ActionListener.wrap(v -> executor.execute(this), this::onRejection),
+                        ingestService,
+                        metadataSupplier,
+                        executorName
                     ) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
@@ -603,7 +640,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /**
      * Executes bulk item requests and handles request execution exceptions.
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
-     *                      a mapping update that will finish and invoke the listener on a different thread
+     *                      a mapping update or ingest that will finish and invoke the listener on a different thread
      */
     static boolean executeBulkItemRequest(
         BulkPrimaryExecutionContext context,
@@ -612,6 +649,35 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener
+    ) throws Exception {
+        return executeBulkItemRequest(
+            context,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            itemDoneListener,
+            null,
+            () -> Metadata.EMPTY_METADATA,
+            Names.WRITE
+        );
+    }
+
+    /**
+     * Executes bulk item requests and handles request execution exceptions.
+     * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
+     *                      a mapping update or ingest that will finish and invoke the listener on a different thread
+     */
+    static boolean executeBulkItemRequest(
+        BulkPrimaryExecutionContext context,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<Void> itemDoneListener,
+        IngestService ingestService,
+        java.util.function.Supplier<Metadata> metadataSupplier,
+        String executorName
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
@@ -634,10 +700,34 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case CREATED:
                 case UPDATED:
                     IndexRequest indexRequest = updateResult.action();
-                    IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
-                    MappingMetadata mappingMd = metadata.mapping();
-                    indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                    IndexMetadata indexMetadata = context.getPrimary().indexSettings().getIndexMetadata();
+                    MappingMetadata mappingMd = indexMetadata.mapping();
+                    indexRequest.process(indexMetadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
+                    // For doc_as_upsert, pipelines were deferred at the coordinating node so they run on the full
+                    // document after prepare (create path: upsert doc; update path: merged source). See #10864.
+                    if (updateRequest.docAsUpsert() && ingestService != null) {
+                        // Clear coordinating-node NOOP markers when reusing the doc IndexRequest (create path)
+                        if (indexRequest.isPipelineResolved()
+                            && IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline())
+                            && IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline())) {
+                            indexRequest.isPipelineResolved(false);
+                            indexRequest.setPipeline(null);
+                            indexRequest.setFinalPipeline(null);
+                            indexRequest.setSystemIngestPipeline(null);
+                        }
+                        if (ingestService.resolvePipelines(updateRequest, indexRequest, metadataSupplier.get())) {
+                            return executeIngestThenApply(
+                                context,
+                                updateResult,
+                                mappingUpdater,
+                                waitForMappingUpdate,
+                                itemDoneListener,
+                                ingestService,
+                                executorName
+                            );
+                        }
+                    }
                     break;
                 case DELETED:
                     context.setRequestToExecute(updateResult.action());
@@ -655,6 +745,89 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             updateResult = null;
         }
 
+        return applyRequestToExecute(context, updateResult, mappingUpdater, waitForMappingUpdate, itemDoneListener);
+    }
+
+    /**
+     * Runs deferred ingest pipelines for a doc_as_upsert IndexRequest, then applies the write on the primary.
+     */
+    private static boolean executeIngestThenApply(
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<Void> itemDoneListener,
+        IngestService ingestService,
+        String executorName
+    ) {
+        final IndexRequest indexRequest = context.getRequestToExecute();
+        final java.util.concurrent.atomic.AtomicReference<Exception> itemFailure = new java.util.concurrent.atomic.AtomicReference<>();
+        ingestService.executeBulkRequest(
+            1,
+            Collections.singletonList(indexRequest),
+            (slot, e) -> itemFailure.set(e),
+            (originalThread, exception) -> {
+                final Exception failure = exception != null ? exception : itemFailure.get();
+                if (failure != null) {
+                    final Engine.Result result = exceptionToResult(failure, context.getPrimary(), false, indexRequest.version());
+                    onComplete(result, context, updateResult);
+                    itemDoneListener.onResponse(null);
+                    return;
+                }
+                final Runnable apply = () -> {
+                    try {
+                        boolean completed = applyRequestToExecute(
+                            context,
+                            updateResult,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            itemDoneListener
+                        );
+                        if (completed) {
+                            itemDoneListener.onResponse(null);
+                        }
+                    } catch (Exception e) {
+                        itemDoneListener.onFailure(e);
+                    }
+                };
+                if (originalThread == Thread.currentThread()) {
+                    apply.run();
+                } else {
+                    context.getPrimary().getThreadPool().executor(executorName).execute(apply);
+                }
+            },
+            slot -> {
+                // Document dropped by pipeline — treat as noop for this bulk item
+                context.getPrimary().noopUpdate();
+                context.markOperationAsNoOp(
+                    new UpdateResponse(
+                        context.getPrimary().shardId(),
+                        indexRequest.id(),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        indexRequest.version(),
+                        DocWriteResponse.Result.NOOP
+                    )
+                );
+                context.markAsCompleted(context.getExecutionResult());
+                itemDoneListener.onResponse(null);
+            },
+            executorName
+        );
+        return false;
+    }
+
+    /**
+     * Applies the already-translated request on the primary (index or delete).
+     * @return {@code true} if completed on this thread; {@code false} if waiting on a mapping update
+     */
+    private static boolean applyRequestToExecute(
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<Void> itemDoneListener
+    ) throws Exception {
         assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
         final IndexShard primary = context.getPrimary();
