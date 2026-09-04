@@ -32,6 +32,8 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -84,6 +86,8 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -611,6 +615,28 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             ).add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD).build()
         );
         assertThat(query, equalTo(expectedQuery));
+    }
+
+    public void testWildcardForcedAnalyzerRejectsInducedMatchAll() throws Exception {
+        // #21280: char_filter that strips a wildcard chunk to empty must not widen to match-all.
+        Analyzer dropAll = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new KeywordTokenizer());
+            }
+
+            @Override
+            protected Reader initReaderForNormalization(String fieldName, Reader reader) {
+                return new StringReader("");
+            }
+        };
+
+        QueryStringQueryParser parser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
+        parser.setAnalyzeWildcard(true);
+        parser.setAllowLeadingWildcard(true);
+        parser.setForceAnalyzer(dropAll);
+
+        assertThat(parser.parse("*foo*"), instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testToQueryWildcardQueryWithSynonyms() throws Exception {
