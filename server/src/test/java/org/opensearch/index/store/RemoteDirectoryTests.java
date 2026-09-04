@@ -200,6 +200,61 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         assertThrows(IOException.class, () -> remoteDirectory.deleteFile("segment_1"));
     }
 
+    /**
+     *
+     * Tests that deleteFiles successfully deletes multiple files from the remote store.
+     */
+    public void testDeleteFiles() throws IOException {
+        List<String> filesToDelete = List.of("segment_1", "segment_2", "segment_3");
+
+        remoteDirectory.deleteFiles(filesToDelete);
+
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(filesToDelete);
+    }
+
+    /**
+     *
+     * Tests that deleteFiles handles empty collection gracefully without attempting any deletions.
+     */
+    public void testDeleteFilesEmptyCollection() throws IOException {
+        remoteDirectory.deleteFiles(Collections.emptyList());
+
+        verify(blobContainer, times(0)).deleteBlobsIgnoringIfNotExists(any());
+    }
+
+    /**
+     *
+     * Tests that deleteFiles handles null collection gracefully without attempting any deletions.
+     */
+    public void testDeleteFilesNullCollection() throws IOException {
+        remoteDirectory.deleteFiles(null);
+        verify(blobContainer, times(0)).deleteBlobsIgnoringIfNotExists(any());
+    }
+
+    /**
+     *
+     * Tests that deleteFiles completes successfully even when some files don't exist.
+     * The underlying deleteBlobsIgnoringIfNotExists should handle non-existent files gracefully.
+     */
+    public void testDeleteFilesWithNonExistentFiles() throws IOException {
+        List<String> filesToDelete = List.of("segment_1", "non_existent", "segment_2");
+
+        remoteDirectory.deleteFiles(filesToDelete);
+
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(filesToDelete);
+    }
+
+    /**
+     *
+     * Tests that deleteFiles propagates IOException when the underlying blob container operation fails.
+     */
+    public void testDeleteFilesException() throws IOException {
+        List<String> filesToDelete = List.of("segment_1", "segment_2");
+        doThrow(new IOException("Error writing to blob store")).when(blobContainer).deleteBlobsIgnoringIfNotExists(filesToDelete);
+
+        assertThrows(IOException.class, () -> remoteDirectory.deleteFiles(filesToDelete));
+    }
+
     public void testCreateOutput() {
         IndexOutput indexOutput = remoteDirectory.createOutput("segment_1", IOContext.DEFAULT);
         assertTrue(indexOutput instanceof RemoteIndexOutput);
