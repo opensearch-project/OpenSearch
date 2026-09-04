@@ -128,15 +128,21 @@ public class PlannerImpl {
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
-        // Must run before trimFields — see ObjectStructMaterializer.
-        modifiedRelNode = ObjectStructMaterializer.rewrite(modifiedRelNode).orElse(modifiedRelNode);
+        // Must run before trimFields — see ObjectStructMaterializer. Whether it fired also tells the
+        // null-predicate expander below whether there is any make_struct in the plan to expand.
+        Optional<RelNode> objectStructs = ObjectStructMaterializer.rewrite(modifiedRelNode);
+        modifiedRelNode = objectStructs.orElse(modifiedRelNode);
         modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
-        // After pushdown: FILTER_PROJECT_TRANSPOSE has inlined make_struct into predicates,
-        // which is what lets the null test expand to leaves. See ObjectNullPredicateExpander.
-        modifiedRelNode = ObjectNullPredicateExpander.rewrite(modifiedRelNode).orElse(modifiedRelNode);
+        if (objectStructs.isPresent()) {
+            // Only reachable when an object was materialized — no make_struct means nothing to
+            // expand, and the walk would visit every expression of every node for nothing. Placed
+            // after pushdown because FILTER_PROJECT_TRANSPOSE is what inlines make_struct into the
+            // predicate, putting the leaf references in scope. See ObjectNullPredicateExpander.
+            modifiedRelNode = ObjectNullPredicateExpander.rewrite(modifiedRelNode).orElse(modifiedRelNode);
+        }
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);

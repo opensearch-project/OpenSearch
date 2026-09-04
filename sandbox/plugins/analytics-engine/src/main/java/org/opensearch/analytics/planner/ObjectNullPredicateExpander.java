@@ -76,17 +76,24 @@ public final class ObjectNullPredicateExpander {
     private static final class Expander extends RelShuttleImpl {
 
         private boolean changed = false;
+        private NullTestShuttle shuttle;
 
         @Override
         public RelNode visit(RelNode other) {
-            RelNode visited = super.visit(other);
-            return visited.accept(new NullTestShuttle(visited.getCluster().getRexBuilder(), this));
+            return expand(super.visit(other));
         }
 
         @Override
         protected RelNode visitChild(RelNode parent, int i, RelNode child) {
-            RelNode visited = super.visitChild(parent, i, child);
-            return visited.accept(new NullTestShuttle(visited.getCluster().getRexBuilder(), this));
+            return expand(super.visitChild(parent, i, child));
+        }
+
+        /** One shuttle per plan, not per node — every node in a plan shares a RexBuilder. */
+        private RelNode expand(RelNode node) {
+            if (shuttle == null) {
+                shuttle = new NullTestShuttle(node.getCluster().getRexBuilder(), this);
+            }
+            return node.accept(shuttle);
         }
     }
 
