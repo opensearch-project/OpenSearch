@@ -61,6 +61,9 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         String tableName = node.getLogicalTableName() != null ? node.getLogicalTableName() : context.getTableName();
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        if (node.getTargetPartitions() != null) {
+            snapshot = WireConfigSnapshot.builder(snapshot).targetPartitions(node.getTargetPartitions()).build();
+        }
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);

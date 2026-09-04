@@ -46,6 +46,7 @@ public class RestPPLQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String queryText = null;
         boolean profile = false;
+        Integer targetPartitions = null;
         try (XContentParser parser = request.contentParser()) {
             parser.nextToken();
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -55,6 +56,17 @@ public class RestPPLQueryAction extends BaseRestHandler {
                     queryText = parser.text();
                 } else if ("profile".equals(fieldName)) {
                     profile = parser.booleanValue();
+                } else if ("target_partitions".equals(fieldName)) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                        targetPartitions = parser.intValue();
+                    } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        targetPartitions = null;
+                    } else {
+                        throw new IllegalArgumentException("target_partitions must be a positive integer");
+                    }
+                    if (targetPartitions != null && targetPartitions < 1) {
+                        throw new IllegalArgumentException("target_partitions must be greater than or equal to 1");
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -64,7 +76,7 @@ public class RestPPLQueryAction extends BaseRestHandler {
             throw new IllegalArgumentException("Request body must contain a 'query' field");
         }
         boolean enableProfile = profile || request.path().endsWith("/_explain");
-        PPLRequest pplRequest = new PPLRequest(queryText, enableProfile);
+        PPLRequest pplRequest = new PPLRequest(queryText, enableProfile, targetPartitions);
         return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
     }
 }
