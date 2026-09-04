@@ -331,4 +331,49 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         assertRowsEqual("source=" + index + " | fields meta", row((Object) null));
         assertRowsEqual("source=" + index + " | stats count()", row(1));
     }
+
+    /**
+     * {@code isnull} / {@code isnotnull} on an object column. Both used to be no-ops —
+     * {@code named_struct} builds no validity buffer so the struct is never null, making isnotnull
+     * always true and isnull always false, while the same row rendered as null. Filtering on a leaf
+     * gave the right answer, so it was easy to miss.
+     * {@link org.opensearch.analytics.planner.ObjectNullPredicateExpander} expands the test to the
+     * object's leaves.
+     */
+    public void testNullPredicatesOnObjectField() throws IOException {
+        String index = "objrev_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"id\":{\"type\":\"keyword\"},"
+                + "\"node\":{\"properties\":{\"name\":{\"type\":\"keyword\"},"
+                + "\"env\":{\"type\":\"keyword\"}}}}}}"
+        );
+        client().performRequest(create);
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity(
+            "{\"index\":{}}\n{\"id\":\"1\",\"node\":{\"name\":\"svc-a\",\"env\":\"prod\"}}\n"
+                + "{\"index\":{}}\n{\"id\":\"2\",\"node\":{\"name\":\"svc-a\",\"env\":\"prod\"}}\n"
+                + "{\"index\":{}}\n{\"id\":\"3\",\"node\":{\"name\":\"svc-b\",\"env\":\"dev\"}}\n"
+                + "{\"index\":{}}\n{\"id\":\"4\"}\n"
+        );
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
+
+        // Three docs populate `node`; doc 4 has none. The predicate must agree with what the row
+        // renders as — the contradiction was the tell.
+        assertRowsEqual("source=" + index + " | where isnotnull(node) | stats count()", row(3));
+        assertRowsEqual("source=" + index + " | where isnull(node) | stats count()", row(1));
+        // Leaf form was always right; pinned so the two can't drift apart again.
+        assertRowsEqual("source=" + index + " | where isnotnull(node.name) | stats count()", row(3));
+        // And the rendering that contradicted the old predicate.
+        assertRowsEqual("source=" + index + " | where isnull(node) | fields id, node", row("4", null));
+    }
 }

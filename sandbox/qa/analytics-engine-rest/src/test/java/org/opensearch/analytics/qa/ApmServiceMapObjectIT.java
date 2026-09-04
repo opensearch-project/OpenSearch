@@ -188,8 +188,12 @@ public class ApmServiceMapObjectIT extends AnalyticsRestTestCase {
         assertFalse(rows(SOURCE + " | dedup sourceNode.keyAttributes | head 1").isEmpty());
         // sort keyed on an object
         assertFalse(rows(SOURCE + " | sort sourceNode.keyAttributes | head 1").isEmpty());
-        // null-test on an object
-        assertFalse(rows(SOURCE + " | where isnotnull(sourceNode.keyAttributes) | fields nodeConnectionHash | head 1").isEmpty());
+        // Null-test on an object. Asserted by count, not non-emptiness: isnotnull on a struct used
+        // to be a no-op (named_struct builds no validity buffer, so the value is never null), which
+        // a non-empty check cannot see — it passed while matching every row. Every fixture row
+        // populates sourceNode.keyAttributes, so the predicate must keep all 3 and its negation none.
+        assertEquals(3, rows(SOURCE + " | where isnotnull(sourceNode.keyAttributes) | fields nodeConnectionHash").size());
+        assertEquals(0, rows(SOURCE + " | where isnull(sourceNode.keyAttributes) | fields nodeConnectionHash").size());
     }
 
     /** Control rows from the matrix: scalar-leaf filter and leaf-only aggregation still work. */

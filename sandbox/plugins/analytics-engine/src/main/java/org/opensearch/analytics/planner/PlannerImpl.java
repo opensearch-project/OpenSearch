@@ -134,6 +134,9 @@ public class PlannerImpl {
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
+        // After pushdown: FILTER_PROJECT_TRANSPOSE has inlined make_struct into predicates,
+        // which is what lets the null test expand to leaves. See ObjectNullPredicateExpander.
+        modifiedRelNode = ObjectNullPredicateExpander.rewrite(modifiedRelNode).orElse(modifiedRelNode);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = reorderJoins(modifiedRelNode, context, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
