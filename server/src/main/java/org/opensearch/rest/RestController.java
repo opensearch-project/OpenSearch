@@ -609,7 +609,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final int contentLength;
         /** Guards the in-flight-requests breaker release, which must happen exactly once. */
         private final AtomicBoolean released = new AtomicBoolean();
-        /** Guards the response itself. Set only after the delegate has accepted a response. */
+        /** Guards the response handoff. Claimed atomically and reset if the delegate rejects the response. */
         private final AtomicBoolean responseSent = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
@@ -660,14 +660,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            if (responseSent.get()) {
+            if (responseSent.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("A response was already sent on this channel");
             }
-            releaseRequestBytes();
-            delegate.sendResponse(response);
-            // Only record the response as sent once the delegate has accepted it. If the delegate throws, nothing was
-            // written to the client, so the failure response must still be allowed through this channel.
-            responseSent.set(true);
+            boolean accepted = false;
+            try {
+                releaseRequestBytes();
+                delegate.sendResponse(response);
+                accepted = true;
+            } finally {
+                if (accepted == false) {
+                    // Nothing reached the client, so the failure response must still be allowed through this channel.
+                    responseSent.set(false);
+                }
+            }
         }
 
         private void releaseRequestBytes() {
@@ -683,7 +689,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final int contentLength;
         /** Guards the in-flight-requests breaker release, which must happen exactly once. */
         private final AtomicBoolean released = new AtomicBoolean();
-        /** Guards the response itself. Set once the send has been handed to the delegate's subscription. */
+        /** Guards the response handoff. Claimed atomically and reset if subscription setup rejects the response. */
         private final AtomicBoolean responseSent = new AtomicBoolean();
         private final AtomicBoolean subscribed = new AtomicBoolean();
 
@@ -735,21 +741,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            if (responseSent.get()) {
+            if (responseSent.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("A response was already sent on this channel");
             }
-            releaseRequestBytes();
+            boolean handedOff = false;
+            try {
+                releaseRequestBytes();
 
-            // Check if subscribe() is already called, the headers and status are going to be sent
-            // over so we need to populate those **before** that, if possible.
-            if (subscribed.get() == false) {
-                prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+                // Check if subscribe() is already called, the headers and status are going to be sent
+                // over so we need to populate those **before** that, if possible.
+                if (subscribed.get() == false) {
+                    prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+                }
+
+                Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
+                // The delegate is invoked from the subscription above rather than inline, so a later failure is not
+                // observable here. Handing the response to the subscription is the strongest signal available.
+                handedOff = true;
+            } finally {
+                if (handedOff == false) {
+                    responseSent.set(false);
+                }
             }
-
-            Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
-            // The delegate is invoked from the subscription above rather than inline, so a later failure is not
-            // observable here. Handing the response to the subscription is the strongest signal available.
-            responseSent.set(true);
         }
 
         @Override
