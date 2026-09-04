@@ -11,10 +11,12 @@ package org.opensearch.common.lucene.index;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.opensearch.common.CheckedBiFunction;
+import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * {@link FilterDirectoryReader} that supports deriving source from lucene fields instead of directly reading from _source
@@ -23,22 +25,34 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class DerivedSourceDirectoryReader extends FilterDirectoryReader {
-    private final CheckedBiFunction<LeafReader, Integer, BytesReference, IOException> sourceProvider;
-    private final FilterDirectoryReader.SubReaderWrapper wrapper;
+    private final LeafSourceProviderFactory sourceProviderFactory;
+
+    /**
+     * Factory for creating a per-leaf source provider for a specific leaf context.
+     */
+    @FunctionalInterface
+    public interface LeafSourceProviderFactory {
+        /**
+         * Returns a function that can build source bytes for docs in this leaf.
+         *
+         * @param context the lucene leaf context
+         * @return function that accepts a document id and returns source bytes
+         */
+        CheckedFunction<Integer, BytesReference, IOException> apply(LeafReaderContext context);
+    }
 
     private DerivedSourceDirectoryReader(
         DirectoryReader in,
         FilterDirectoryReader.SubReaderWrapper wrapper,
-        CheckedBiFunction<LeafReader, Integer, BytesReference, IOException> sourceProvider
+        LeafSourceProviderFactory sourceProviderFactory
     ) throws IOException {
         super(in, wrapper);
-        this.wrapper = wrapper;
-        this.sourceProvider = sourceProvider;
+        this.sourceProviderFactory = sourceProviderFactory;
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader directoryReader) throws IOException {
-        return new DerivedSourceDirectoryReader(in, wrapper, sourceProvider);
+        return wrap(directoryReader, sourceProviderFactory);
     }
 
     @Override
@@ -46,15 +60,31 @@ public class DerivedSourceDirectoryReader extends FilterDirectoryReader {
         return in.getReaderCacheHelper();
     }
 
-    public static DerivedSourceDirectoryReader wrap(
-        DirectoryReader in,
-        CheckedBiFunction<LeafReader, Integer, BytesReference, IOException> sourceProvider
-    ) throws IOException {
+    public static DerivedSourceDirectoryReader wrap(DirectoryReader in, LeafSourceProviderFactory sourceProviderFactory)
+        throws IOException {
+        final List<LeafReaderContext> leafReaderContexts = in.leaves();
         return new DerivedSourceDirectoryReader(in, new SubReaderWrapper() {
             @Override
-            public LeafReader wrap(LeafReader reader) {
-                return new DerivedSourceLeafReader(reader, docID -> sourceProvider.apply(reader, docID));
+            protected LeafReader[] wrap(List<? extends LeafReader> readers) {
+                if (readers.size() != leafReaderContexts.size()) {
+                    throw new IllegalStateException("Leaf reader context count does not match wrapped reader count");
+                }
+                LeafReader[] wrappedReaders = new LeafReader[readers.size()];
+                for (int i = 0; i < readers.size(); i++) {
+                    LeafReader reader = readers.get(i);
+                    LeafReaderContext context = leafReaderContexts.get(i);
+                    if (context.reader() != reader) {
+                        throw new IllegalStateException("Leaf reader context does not match wrapped reader");
+                    }
+                    wrappedReaders[i] = new DerivedSourceLeafReader(reader, sourceProviderFactory.apply(context));
+                }
+                return wrappedReaders;
             }
-        }, sourceProvider);
+
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                throw new UnsupportedOperationException("Leaf readers must be wrapped in order");
+            }
+        }, sourceProviderFactory);
     }
 }
