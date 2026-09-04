@@ -208,6 +208,21 @@ public final class ConfigurationUtils {
         }
     }
 
+    /**
+     * Returns and removes the specified optional property from the specified configuration map.
+     * <p>
+     * If the property value isn't of type boolean a {@link OpenSearchParseException} is thrown.
+     */
+    public static Boolean readOptionalBooleanProperty(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        return readBoolean(processorType, processorTag, propertyName, value);
+    }
+
     private static Boolean readBoolean(String processorType, String processorTag, String propertyName, Object value) {
         if (value == null) {
             return null;
@@ -240,6 +255,28 @@ public final class ConfigurationUtils {
         if (value == null) {
             return defaultValue;
         }
+        return readInt(processorType, processorTag, propertyName, value);
+    }
+
+    /**
+     * Returns and removes the specified optional property from the specified configuration map.
+     * <p>
+     * If the property value isn't of type int a {@link OpenSearchParseException} is thrown.
+     */
+    public static Integer readOptionalIntProperty(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readInt(processorType, processorTag, propertyName, value);
+    }
+
+    private static Integer readInt(String processorType, String processorTag, String propertyName, Object value) {
         try {
             return Integer.parseInt(value.toString());
         } catch (Exception e) {
