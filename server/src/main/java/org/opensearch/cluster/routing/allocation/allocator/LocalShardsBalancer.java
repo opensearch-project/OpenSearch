@@ -1060,6 +1060,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * simulation model as well as on the cluster.
      */
     private boolean tryRelocateShard(BalancedShardsAllocator.ModelNode minNode, BalancedShardsAllocator.ModelNode maxNode, String idx) {
+        if (hasUnrealizedInbound(maxNode, idx)) {
+            logger.trace(
+                "Skip relocating shards of [{}] from [{}] because its balance model includes unrealized inbound shards",
+                idx,
+                maxNode.getNodeId()
+            );
+            return false;
+        }
+
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
             logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1119,6 +1128,12 @@ public class LocalShardsBalancer extends ShardsBalancer {
         }
         logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
         return false;
+    }
+
+    private boolean hasUnrealizedInbound(BalancedShardsAllocator.ModelNode node, String index) {
+        final RoutingNode routingNode = node.getRoutingNode();
+        return node.numShards() > routingNode.numberOfOwningShards()
+            || node.numShards(index) > routingNode.numberOfOwningShardsForIndex(metadata.index(index).getIndex());
     }
 
 }
