@@ -22,6 +22,7 @@ versions << [
   'testcontainers': '1.19.7',
   'ducttape': '1.0.8',
   'snappy': '1.1.10.7',
+  'awseventstream': '1.0.1',
 ]
 
 dependencies {
@@ -59,6 +60,8 @@ dependencies {
   api "software.amazon.awssdk:kinesis:${versions.aws}"
   api "software.amazon.awssdk:aws-cbor-protocol:${versions.aws}"
   api "software.amazon.awssdk:third-party-jackson-dataformat-cbor:${versions.aws}"
+  // required at runtime to decode the HTTP/2 event stream of SubscribeToShard (enhanced fan-out)
+  api "software.amazon.eventstream:eventstream:${versions.awseventstream}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -70,6 +73,7 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
@@ -186,10 +190,6 @@ thirdPartyAudit {
 
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
-
-    'software.amazon.eventstream.HeaderValue',
-    'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder',
 
      'io.netty.pkitesting.CertificateBuilder',
     'io.netty.pkitesting.CertificateBuilder$Algorithm',
