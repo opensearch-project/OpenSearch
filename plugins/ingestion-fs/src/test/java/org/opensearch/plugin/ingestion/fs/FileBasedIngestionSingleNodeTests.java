@@ -8,15 +8,21 @@
 
 package org.opensearch.plugin.ingestion.fs;
 
+import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Template;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
@@ -34,6 +40,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -150,6 +157,70 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
 
         // cleanup the test index
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    public void testRolloverIsRejectedForPullBasedIngestion() throws Exception {
+        String mappings = """
+            {
+              "properties": {
+                "name": { "type": "text" },
+                "age": { "type": "integer" },
+                "@timestamp": { "type": "date" }
+              }
+            }
+            """;
+        Settings ingestionSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("ingestion_source.type", "FILE")
+            .put("ingestion_source.pointer.init.reset", "earliest")
+            .put("ingestion_source.param.stream", stream)
+            .put("ingestion_source.param.base_directory", ingestionDir.toString())
+            .put("index.replication.type", "SEGMENT")
+            .build();
+
+        // a data stream would run one poller per backing index and ingest every message once per generation
+        ComposableIndexTemplate dataStreamTemplate = new ComposableIndexTemplate(
+            List.of("ds_test*"),
+            new Template(ingestionSettings, new CompressedXContent(mappings), null),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate()
+        );
+        PutComposableIndexTemplateAction.Request putTemplate = new PutComposableIndexTemplateAction.Request("ds_test_template");
+        putTemplate.indexTemplate(dataStreamTemplate);
+        assertTrue(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplate).get().isAcknowledged());
+
+        IllegalArgumentException dataStreamFailure = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().createDataStream(new CreateDataStreamAction.Request("ds_test")).actionGet()
+        );
+        assertEquals(
+            "cannot create backing index [.ds-ds_test-000001] of data stream [ds_test] with [index.ingestion_source.type] set, "
+                + "pull-based ingestion does not support index rollover",
+            dataStreamFailure.getMessage()
+        );
+
+        // rolling over a write alias would leave the old index polling while the alias points elsewhere
+        String aliasedIndex = "test_index-000001";
+        createIndexWithMappingSource(aliasedIndex, ingestionSettings, mappings);
+        ensureGreen(aliasedIndex);
+        assertTrue(client().admin().indices().prepareAliases().addAlias(aliasedIndex, "test_alias").get().isAcknowledged());
+
+        IllegalArgumentException aliasFailure = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().rolloverIndex(new RolloverRequest("test_alias", null)).actionGet()
+        );
+        assertEquals(
+            "rollover target [test_alias] has write index ["
+                + aliasedIndex
+                + "] with [index.ingestion_source.type] set, pull-based ingestion does not support index rollover",
+            aliasFailure.getMessage()
+        );
+
+        client().admin().indices().delete(new DeleteIndexRequest(aliasedIndex)).actionGet();
     }
 
     public void testFileIngestionOnMissingFiles() throws Exception {
