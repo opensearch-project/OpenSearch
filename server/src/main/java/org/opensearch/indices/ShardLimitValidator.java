@@ -343,9 +343,14 @@ public class ShardLimitValidator {
                 state.getMetadata().getTotalOpenIndexShards(),
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
-                state.getNodes().getDataNodes().size(),
+                getLocalOnlyDataNodeCount(state),
                 shardPool
             );
+    }
+
+    private static int getLocalOnlyDataNodeCount(ClusterState state) {
+        final Map<String, ?> warmNodes = state.getNodes().getWarmNodes();
+        return (int) state.getNodes().getDataNodes().keySet().stream().filter(nodeId -> warmNodes.containsKey(nodeId) == false).count();
     }
 
     // package-private for testing
