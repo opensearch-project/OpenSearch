@@ -11,6 +11,7 @@ package org.opensearch.telemetry.tracing.channels;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.rest.StreamingRestChannel;
+import org.opensearch.telemetry.tracing.AttributeNames;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -62,6 +63,11 @@ class TraceableStreamingRestChannel extends TraceableRestChannel<StreamingRestCh
     public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
         // Prepare response within span scope to ensure proper trace context
         try (SpanScope ignored = tracer.withSpanInScope(span)) {
+            int statusCode = status.getStatus();
+            span.addAttribute(AttributeNames.HTTP_STATUS_CODE, (long) statusCode);
+            if (statusCode >= 500) {
+                span.setError("HTTP " + statusCode);
+            }
             delegate.prepareResponse(status, headers);
         }
     }
