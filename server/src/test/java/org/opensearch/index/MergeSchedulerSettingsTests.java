@@ -166,6 +166,14 @@ public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 10) should be <= maxMergeCount (= 4)"));
 
         IndexSettings settings = new IndexSettings(createMetadata(-1, -1, 2), Settings.EMPTY);
+        logger.info("MAX_MERGE_COUNT: " + settings.getMergeSchedulerConfig().getMaxMergeCount());
+        logger.info("MAX_THREAD_COUNT: " + settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertTrue(NODE_PROCESSORS_SETTING.exists(settings.getSettings()));
+        assertEquals(
+            "NODE_PROCESSORS_SETTING expected to be 2, found " + NODE_PROCESSORS_SETTING.get(settings.getSettings()),
+            2,
+            (int) NODE_PROCESSORS_SETTING.get(settings.getSettings())
+        );
         assertEquals(1, settings.getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals(6, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
