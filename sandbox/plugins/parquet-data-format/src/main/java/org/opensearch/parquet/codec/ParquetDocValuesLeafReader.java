@@ -42,8 +42,8 @@ import java.util.Map;
  * <p>A Parquet-only field has no {@link FieldInfo} in the Lucene segment, so Lucene's
  * {@code PerFieldDocValuesFormat} cannot route to it. This reader closes that gap by synthesizing a
  * {@code FieldInfo} (with the DV type from {@link FieldTypeMapping}) for every mapped, codec-supported
- * field that is absent from the delegate (or present without doc values), and overriding the numeric DV
- * accessors to serve those fields from a per-segment producer. All other fields pass through unchanged.
+ * field that is absent from the delegate, and overriding the numeric DV accessors to serve those fields
+ * from a per-segment producer. All other fields pass through unchanged.
  *
  * <p>It extends {@link SequentialStoredFieldsLeafReader} (not plain {@code FilterLeafReader}) so the
  * fetch phase can still retrieve stored fields: the derived-source layer above unwraps to this reader,
@@ -62,6 +62,10 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
     private ParquetDocValuesProducer producer;
     private boolean producerInitialized;
 
+    /** Memoized result of the assertions-only row-id identity check; see {@link #assertRowIdsAreIdentity}. */
+    private boolean rowIdsChecked;
+    private boolean rowIdsAreIdentity;
+
     private ParquetDocValuesLeafReader(
         LeafReader in,
         MapperService mapperService,
@@ -78,7 +82,7 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
 
     /**
      * Wraps {@code in} if a Parquet file resolves for its segment and the mapping declares at least one
-     * codec-supported field missing doc values in the Lucene segment. Otherwise returns {@code in}.
+     * codec-supported field the Lucene segment does not know about. Otherwise returns {@code in}.
      */
     public static LeafReader wrapIfApplicable(LeafReader in, MapperService mapperService) throws IOException {
         SegmentReader segmentReader;
@@ -109,8 +113,12 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
             maxNumber = Math.max(maxNumber, fi.number);
         }
 
-        // For each mapped field the codec supports whose doc values are NOT already present in the
-        // Lucene segment, synthesize a FieldInfo carrying the mapped DV type.
+        // Synthesize a FieldInfo carrying the mapped DV type for each codec-supported field the Lucene
+        // segment does not know about at all. A field Lucene does know about is left entirely to the
+        // underlying reader: its FieldInfo is the only record of its postings, points and doc values, so
+        // replacing it here would hide those from every consumer of getFieldInfos(). In the composite
+        // model a Parquet-resident numeric is absent from Lucene, because LuceneDocumentInput skips
+        // fields for which the mapping declares no Lucene capability.
         for (MappedFieldType mft : mapperService.fieldTypes()) {
             String name = mft.name();
             if (mapperService.isMetadataField(name)) {
@@ -119,23 +127,12 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
             if (FieldTypeMapping.isSupported(mft.typeName()) == false) {
                 continue;
             }
-            FieldInfo realFi = existing.fieldInfo(name);
-            if (realFi != null && realFi.getDocValuesType() != DocValuesType.NONE) {
-                // Lucene already serves doc values for this field - leave it to the underlying Lucene reader.
+            if (existing.fieldInfo(name) != null) {
                 continue;
             }
             DocValuesType dvType = FieldTypeMapping.forType(mft.typeName()).singleValued();
             FieldInfo synthetic = newDocValuesFieldInfo(name, ++maxNumber, dvType);
             parquetFields.put(name, synthetic);
-            if (realFi != null) {
-                // The field exists in Lucene without doc values; replace its FieldInfo with the synthetic
-                // DV-bearing one. This assumes such a field carries no other index structures to preserve.
-                // In the composite model codec-served numeric fields are Parquet-resident and absent from
-                // Lucene (realFi == null), so this branch is a defensive fallback; if a numeric field were
-                // ever indexed in Lucene with doc_values disabled, replacing its FieldInfo here would drop
-                // its postings/points from the reader view.
-                combined.removeIf(fi -> fi.name.equals(name));
-            }
             combined.add(synthetic);
         }
 
@@ -186,8 +183,20 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
     /**
      * Confirms the write path's guarantee that docId == Parquet row for this segment. Enabled only
      * with assertions on; a mismatch would mean the identity read is unsafe.
+     *
+     * <p>Scans the whole segment, so the result is memoized: the property is per-segment, and every
+     * doc-values request on this leaf would otherwise repeat the scan.
      */
-    private boolean assertRowIdsAreIdentity() throws IOException {
+    private synchronized boolean assertRowIdsAreIdentity() throws IOException {
+        if (rowIdsChecked) {
+            return rowIdsAreIdentity;
+        }
+        rowIdsChecked = true;
+        rowIdsAreIdentity = computeRowIdsAreIdentity();
+        return rowIdsAreIdentity;
+    }
+
+    private boolean computeRowIdsAreIdentity() throws IOException {
         SortedNumericDocValues rowId = in.getSortedNumericDocValues(DocumentInput.ROW_ID_FIELD);
         if (rowId == null) {
             return true; // no row-id field => identity by definition
@@ -239,7 +248,7 @@ public final class ParquetDocValuesLeafReader extends SequentialStoredFieldsLeaf
      * Releases the producer owned by this wrapper without closing the underlying Lucene leaf. The
      * request-scoped directory reader calls this explicitly before closing its non-closing delegate.
      */
-    void closeParquetResources() throws IOException {
+    synchronized void closeParquetResources() throws IOException {
         if (producer != null) {
             producer.close();
         }

@@ -30,7 +30,6 @@ public final class ParquetNumericDocValues extends NumericDocValues {
 
     private int doc = -1;
     private long currentValue;
-    private boolean currentPresent;
 
     public ParquetNumericDocValues(NumericValueReader reader, int maxDoc) {
         this.reader = reader;
@@ -41,7 +40,6 @@ public final class ParquetNumericDocValues extends NumericDocValues {
     public boolean advanceExact(int target) throws IOException {
         if (target >= maxDoc) {
             doc = NO_MORE_DOCS;
-            currentPresent = false;
             return false;
         }
         doc = target;
@@ -50,9 +48,9 @@ public final class ParquetNumericDocValues extends NumericDocValues {
             reader.loadBatchContaining(target);
             batch = reader.decodedBatch();
         }
-        currentPresent = batch.isPresent(target);
-        currentValue = currentPresent ? batch.valueAt(target) : 0L;
-        return currentPresent;
+        boolean present = batch.isPresent(target);
+        currentValue = present ? batch.valueAt(target) : 0L;
+        return present;
     }
 
     @Override

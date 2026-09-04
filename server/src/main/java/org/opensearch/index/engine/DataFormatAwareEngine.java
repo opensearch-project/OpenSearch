@@ -156,6 +156,13 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 @ExperimentalApi
 public class DataFormatAwareEngine implements Indexer {
 
+    /**
+     * SegmentInfo attribute key carrying the absolute Parquet file path backing a leaf's doc values.
+     * Mirrors {@code ParquetSegmentLayout.PARQUET_FILE_ATTRIBUTE} in the parquet-data-format plugin;
+     * duplicated as a literal here because the server module must not depend on a plugin.
+     */
+    private static final String PARQUET_DOCVALUES_FILE_ATTRIBUTE = "parquet.docvalues.file";
+
     private final Logger logger;
     private final EngineConfig engineConfig;
     private final ShardId shardId;
@@ -2118,15 +2125,13 @@ public class DataFormatAwareEngine implements Indexer {
         }
         try {
             DataFormat luceneFormat = engineConfig.getDataFormatRegistry().format("lucene");
-            //the map value type is Object but the Object itself is plugin's LuceneReader
             Object luceneReaderObj = readerRef.get().reader(luceneFormat);
             if (luceneReaderObj == null) {
-                IOUtils.closeWhileHandlingException(readerRef);
                 throw new IllegalStateException("No Lucene reader available for composite index " + shardId);
             }
             final DirectoryReader rawDirectoryReader = extractDirectoryReader(luceneReaderObj);
             stampParquetDocValuesFiles(rawDirectoryReader, readerRef.get().catalogSnapshot());
-            //IndexShard.wrapSearcher later asserts the reader is an OpenSearchDirectoryReader
+            // IndexShard.wrapSearcher later asserts the reader is an OpenSearchDirectoryReader.
             final DirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(rawDirectoryReader, shardId);
             return new Engine.SearcherSupplier(wrapper) {
                 @Override
@@ -2146,11 +2151,11 @@ public class DataFormatAwareEngine implements Indexer {
                     IOUtils.closeWhileHandlingException(readerRef);
                 }
             };
+        } catch (IllegalStateException e) {
+            IOUtils.closeWhileHandlingException(readerRef);
+            throw e;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(readerRef);
-            if (e instanceof IllegalStateException) {
-                throw (IllegalStateException) e;
-            }
             throw new EngineException(shardId, "failed to build searcher supplier from composite reader", e);
         }
     }
@@ -2161,7 +2166,6 @@ public class DataFormatAwareEngine implements Indexer {
      * through that interface rather than depending on the plugin's concrete type.
      */
     private static DirectoryReader extractDirectoryReader(Object luceneReaderObj) {
-        // LuceneReader implements SearchableDirectoryReaderProvider
         if (luceneReaderObj instanceof SearchableDirectoryReaderProvider searchable) {
             return searchable.directoryReader();
         }
@@ -2171,13 +2175,6 @@ public class DataFormatAwareEngine implements Indexer {
                 + " does not implement SearchableDirectoryReaderProvider; cannot build searcher"
         );
     }
-
-    /**
-     * SegmentInfo attribute key carrying the absolute Parquet file path backing a leaf's doc values.
-     * Mirrors {@code ParquetSegmentLayout.PARQUET_FILE_ATTRIBUTE} in the parquet-data-format plugin
-     * (kept as a string literal here to avoid a server-to-plugin dependency).
-     */
-    private static final String PARQUET_DOCVALUES_FILE_ATTRIBUTE = "parquet.docvalues.file";
 
     /**
      * Binds each Lucene leaf of {@code directoryReader} to its backing Parquet file and stamps the
@@ -2193,8 +2190,6 @@ public class DataFormatAwareEngine implements Indexer {
             return;
         }
         Map<Set<String>, String> luceneFilesToParquetPath = new HashMap<>();
-
-        // build a lookup from the catalog
         for (Segment segment : catalogSnapshot.getSegments()) {
             WriterFileSet luceneWfs = segment.dfGroupedSearchableFiles().get("lucene");
             WriterFileSet parquetWfs = segment.dfGroupedSearchableFiles().get("parquet");
@@ -2210,11 +2205,13 @@ public class DataFormatAwareEngine implements Indexer {
             return;
         }
 
-        // Match each live Lucene leaf to its Parquet file by file-set and stamp the resolved path. A leaf
-        // whose file-set matches no catalog entry is left unstamped and serves no Parquet doc values -
-        // correctness-safe (never binds the wrong file), though a genuinely Parquet-backed leaf that failed
-        // to match would silently under-count. The match is exact for this point-in-time reader (the same
-        // snapshot the catalog came from), so a backed leaf should always match here.
+        // Match each live Lucene leaf to its Parquet file by file-set and stamp the resolved path. Both
+        // sides are SegmentCommitInfo.files() captured from the same snapshot, so a Parquet-backed leaf
+        // matches exactly. A leaf that matches nothing is left unstamped and serves no Parquet doc values:
+        // never the wrong file, but the symptom is missing values rather than an error, so the equality is
+        // load-bearing. It holds today only because this engine rejects deletes; once deletes land, a
+        // per-segment identifier should replace file-set equality, because a new .liv file would grow the
+        // leaf's set and break the match.
         for (LeafReaderContext lrc : directoryReader.leaves()) {
             try {
                 SegmentReader sr = Lucene.segmentReader(lrc.reader());
@@ -2223,8 +2220,11 @@ public class DataFormatAwareEngine implements Indexer {
                 if (parquetPath != null) {
                     sr.getSegmentInfo().info.putAttribute(PARQUET_DOCVALUES_FILE_ATTRIBUTE, parquetPath);
                 }
-            } catch (IOException | RuntimeException ignored) {
-                // Best-effort binding: a leaf that cannot be resolved is left unstamped.
+            } catch (IOException | RuntimeException e) {
+                // Best-effort binding: a leaf that cannot be resolved is left unstamped and serves no
+                // Parquet doc values. Logged because the visible symptom would otherwise be missing
+                // values rather than a failure.
+                logger.warn(new ParameterizedMessage("could not bind leaf [{}] to its Parquet file", lrc.ord), e);
             }
         }
     }

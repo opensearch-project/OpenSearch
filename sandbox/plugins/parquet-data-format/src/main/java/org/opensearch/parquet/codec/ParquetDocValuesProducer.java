@@ -21,6 +21,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
@@ -50,12 +51,26 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
 
     private static final Logger logger = LogManager.getLogger(ParquetDocValuesProducer.class);
 
-    static final long MIN_SUPPORTED_FORMAT_VERSION = 1_000_000L;
+    /** Oldest stamped format version this codec can decode, long-encoded as {@code major*1_000_000 + minor*1_000 + patch}. */
+    static final long MIN_SUPPORTED_FORMAT_VERSION = 1_000_000L; // 1.0.0
 
-    static final long MAX_SUPPORTED_FORMAT_VERSION = 1_000_000L;
+    /**
+     * Newest stamped format version this codec can decode. Deliberately a literal rather than a
+     * reference to {@code ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION}: tracking the writer
+     * automatically would let a writer bump silently admit a file this decode logic has never seen.
+     * {@code ParquetDocValuesProducerTests} asserts the two are equal, so a writer bump fails the build
+     * until someone confirms the new version is readable and bumps this too.
+     */
+    static final long MAX_SUPPORTED_FORMAT_VERSION = 1_000_000L; // 1.0.0
 
     private final Path parquetFile;
     private final MapperService mapperService;
+    /**
+     * Index settings the decode-window sizes are resolved from, captured once so every cursor this
+     * producer opens agrees. {@link Settings#EMPTY} when there is no mapper service, which only
+     * happens in low-level tests.
+     */
+    private final Settings indexSettings;
     private final int maxDoc;
     private final long parquetRowCount;
 
@@ -70,6 +85,7 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
      */
     public ParquetDocValuesProducer(SegmentReadState state, MapperService mapperService) throws IOException {
         this.mapperService = mapperService;
+        this.indexSettings = mapperService == null ? Settings.EMPTY : mapperService.getIndexSettings().getSettings();
         this.maxDoc = state.segmentInfo.maxDoc();
 
         Path resolved = ParquetSegmentLayout.resolve(state);
@@ -255,7 +271,7 @@ public final class ParquetDocValuesProducer extends DocValuesProducer {
 
     /** Opens a dedicated forward-only cursor for one iterator, registered for close with this producer. */
     private ParquetColumnReader dedicatedReaderFor(FieldInfo field) throws IOException {
-        ParquetColumnReader reader = ParquetColumnReader.open(parquetFile, field.getName());
+        ParquetColumnReader reader = ParquetColumnReader.open(parquetFile, field.getName(), indexSettings);
         dedicatedReaders.add(reader);
         return reader;
     }

@@ -12,7 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Marker interface for format-specific reader objects that can provide a Lucene
+ * Implemented by format-specific reader objects that can provide a Lucene
  * {@link DirectoryReader} for search operations. Implementations live in format plugins
  * (e.g. the Lucene backend plugin's {@code LuceneReader}), while this interface lives in
  * the server module so that {@code DataFormatAwareEngine} can obtain a {@link DirectoryReader}

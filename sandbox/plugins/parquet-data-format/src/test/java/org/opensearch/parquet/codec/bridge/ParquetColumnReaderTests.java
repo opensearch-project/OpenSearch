@@ -8,13 +8,9 @@
 
 package org.opensearch.parquet.codec.bridge;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
@@ -28,8 +24,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
-import org.opensearch.parquet.bridge.RustBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,41 +34,12 @@ import java.util.List;
  * with {@link NativeParquetWriter}, then walks it through the FFM zero-copy borrow path
  * (Java -> native Rust cursor -> Arrow decode -> borrowed buffers read back in Java).
  *
- * <p>Opening a cursor needs the DataFusion runtime manager and the global file-metadata cache the
- * analytics-backend-datafusion plugin owns, so each test starts a runtime rather than the reader
- * falling back to a private pool and cache of its own. Thread-leak detection is off because the
- * Tokio runtime manager is a per-JVM singleton whose threads outlive any one test class.
+ * <p>The DataFusion runtime and Arrow allocator a cursor needs come from
+ * {@link DataFusionBackedTestCase}.
  */
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class ParquetColumnReaderTests extends OpenSearchTestCase {
+public class ParquetColumnReaderTests extends DataFusionBackedTestCase {
 
     private static final String COLUMN = "value";
-
-    private BufferAllocator allocator;
-    private long globalRuntimePtr;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        RustBridge.initLogger();
-        // Idempotent: the manager is a OnceLock, so another test class may already have started it.
-        // Deliberately never shut down - doing so kills the shared executor for the rest of the JVM.
-        DataFusionRuntimeFixture.initRuntimeManager(2);
-        globalRuntimePtr = DataFusionRuntimeFixture.createGlobalRuntime(createTempDir("datafusion-spill"));
-        assertNotEquals("global runtime must start before a cursor can be opened", 0L, globalRuntimePtr);
-        allocator = new RootAllocator();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        if (allocator != null) {
-            allocator.close();
-        }
-        if (globalRuntimePtr != 0L) {
-            DataFusionRuntimeFixture.closeGlobalRuntime(globalRuntimePtr);
-        }
-        super.tearDown();
-    }
 
     private static long expected(long row) {
         return row * 7 + 1;

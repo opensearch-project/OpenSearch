@@ -16,6 +16,8 @@ import org.opensearch.search.aggregations.metrics.Min;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 
+import java.util.Arrays;
+
 /**
  * End-to-end coverage that a standard OpenSearch numeric aggregation over a Parquet-backed composite
  * index reads its values through the Lucene searcher path: the composite engine builds a searcher from
@@ -45,7 +47,7 @@ public class CompositeParquetNumericAggregationIT extends AbstractCompositeEngin
             .addAggregation(AggregationBuilders.avg("mean").field("value"))
             .get();
 
-        assertEquals("no shard failures: " + java.util.Arrays.toString(response.getShardFailures()), 0, response.getFailedShards());
+        assertEquals("no shard failures: " + Arrays.toString(response.getShardFailures()), 0, response.getFailedShards());
 
         Sum total = response.getAggregations().get("total");
         ValueCount count = response.getAggregations().get("cnt");

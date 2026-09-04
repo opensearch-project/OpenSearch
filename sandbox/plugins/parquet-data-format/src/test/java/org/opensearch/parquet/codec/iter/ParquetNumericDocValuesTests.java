@@ -8,13 +8,10 @@
 
 package org.opensearch.parquet.codec.iter;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.codec.LongColumnFixture;
+import org.opensearch.parquet.codec.bridge.DataFusionBackedTestCase;
 import org.opensearch.parquet.codec.bridge.ParquetColumnReader;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 
@@ -23,26 +20,11 @@ import java.nio.file.Path;
  * covering the ascending hot path, null handling, forward jumps, {@code nextDoc}, and the backward
  * {@code advanceExact} that reopens the forward-only cursor.
  */
-public class ParquetNumericDocValuesTests extends OpenSearchTestCase {
+public class ParquetNumericDocValuesTests extends DataFusionBackedTestCase {
 
     private static final String COLUMN = "value";
     private static final int ROWS = 300;
     private static final int NULL_EVERY = 5;
-
-    private BufferAllocator allocator;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        RustBridge.initLogger();
-        allocator = new RootAllocator();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        allocator.close();
-        super.tearDown();
-    }
 
     public void testFullAscendingScanAllPresent() throws Exception {
         Path file = createTempDir().resolve("scan.parquet");
