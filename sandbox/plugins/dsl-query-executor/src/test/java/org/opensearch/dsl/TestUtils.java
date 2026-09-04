@@ -113,6 +113,5 @@ public class TestUtils {
         return new Infra(cluster, table);
     }
 
-    private record Infra(RelOptCluster cluster, RelOptTable table) {
-    }
+    private record Infra(RelOptCluster cluster, RelOptTable table) {}
 }
