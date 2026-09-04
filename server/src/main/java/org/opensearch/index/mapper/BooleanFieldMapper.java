@@ -136,9 +136,16 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
+        /**
+         * The shared {@code multi_value} arity parameter (see {@link Parameter#multiValueParam()}).
+         * Columnar formats need a field's arity declared up front because the column type is fixed per
+         * file; Lucene is inherently multi-valued and ignores it.
+         */
+        private final Parameter<Boolean> multiValue = Parameter.multiValueParam();
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored);
+            return Arrays.asList(meta, boost, docValues, indexed, nullValue, stored, multiValue);
         }
 
         @Override
@@ -152,6 +159,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                 meta.getValue()
             );
             ft.setBoost(boost.getValue());
+            ft.setMultiValued(multiValue.getValue());
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }

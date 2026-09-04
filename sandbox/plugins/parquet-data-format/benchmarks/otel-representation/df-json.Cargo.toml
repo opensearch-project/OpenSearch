@@ -1,0 +1,9 @@
+[package]
+name = "df-json"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+datafusion = "54.1"
+datafusion-functions-json = "0.54"
+tokio = { version = "1", features = ["full"] }

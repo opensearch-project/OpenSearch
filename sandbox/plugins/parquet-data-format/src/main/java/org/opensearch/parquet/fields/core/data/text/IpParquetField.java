@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data.text;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -31,9 +32,18 @@ public class IpParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        VarBinaryVector vector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
         BytesRef bytesRef = new BytesRef(InetAddressPoint.encode((InetAddress) parseValue));
-        vector.setSafe(managedVSR.getRowCount(), bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        ((VarBinaryVector) vector).setSafe(index, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    }
+
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
     }
 
     @Override

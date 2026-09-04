@@ -233,6 +233,17 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         if (!nestedObjectMapper.nested().isNested()) {
             throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
         }
+        // Nested sorting picks a value from the matching child documents. A correlated group has none,
+        // so the sort would silently fall back to the missing value for every hit.
+        if (nestedObjectMapper.correlated()) {
+            throw new QueryShardException(
+                context,
+                "[nested] sorting is not supported under path ["
+                    + nestedPath
+                    + "] because it is declared [correlated: true]: the group is stored as parallel columns "
+                    + "rather than nested documents, so there are no per-element documents to sort on"
+            );
+        }
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
 
         // get our child query, potentially applying a users filter

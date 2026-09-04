@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data.date;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -29,7 +30,17 @@ public class DateParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((TimeStampMilliVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (long) parseValue);
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((TimeStampMilliVector) vector).setSafe(index, (long) parseValue);
+    }
+
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
     }
 
     @Override

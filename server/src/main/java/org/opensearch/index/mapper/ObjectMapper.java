@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
@@ -82,6 +83,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
         public static final Explicit<Boolean> DISABLE_OBJECTS = new Explicit<>(false, false);
+
+        public static final Explicit<Boolean> CORRELATED = new Explicit<>(false, false);
     }
 
     /**
@@ -205,6 +208,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Explicit<Boolean> disableObjects = Defaults.DISABLE_OBJECTS;
 
+        protected Explicit<Boolean> correlated = Defaults.CORRELATED;
+
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
@@ -232,6 +237,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        public T correlated(boolean correlated) {
+            this.correlated = new Explicit<>(correlated, true);
+            return builder;
+        }
+
         public T add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this.builder;
@@ -252,9 +262,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             context.path().remove();
 
+            String fullPath = context.path().pathAsText(name);
             ObjectMapper objectMapper = createMapper(
                 name,
-                context.path().pathAsText(name),
+                fullPath,
                 enabled,
                 nested,
                 dynamic,
@@ -262,6 +273,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mappers,
                 context.indexSettings()
             );
+            objectMapper.correlated = correlated;
+
+            if (Boolean.TRUE.equals(correlated.value())) {
+                validateCorrelated(context, mappers);
+                for (Mapper childMapper : mappers.values()) {
+                    stampCorrelationGroup(childMapper, fullPath);
+                }
+            }
 
             // Validate flat field compatibility during build
             if (Boolean.TRUE.equals(disableObjects.value())) {
@@ -280,6 +299,65 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
 
             return objectMapper;
+        }
+
+        /**
+         * Enforces the two preconditions for {@code correlated: true}.
+         *
+         * <p>It requires {@code type: nested}, because {@code correlated} does not declare the
+         * grouping — {@code nested} already does that — it only selects how the group is stored.
+         * Allowing it on a plain object would introduce a second, redundant way to say "these
+         * fields belong together".
+         *
+         * <p>It requires a pluggable data format, because {@code correlated} suppresses the hidden
+         * nested documents that back element-scoped {@code nested} queries. On a plain Lucene index
+         * that would silently downgrade query semantics for no benefit: only columnar formats, which
+         * store each field as an independent column, need the correlation declared at all.
+         */
+        private void validateCorrelated(BuilderContext context, Map<String, Mapper> mappers) {
+            if (nested.isNested() == false) {
+                throw new MapperParsingException(
+                    "Mapping parameter [correlated] requires [type: nested] on object ["
+                        + name
+                        + "]. It selects how a nested group is stored, so there is nothing for it to "
+                        + "apply to on a plain object."
+                );
+            }
+            boolean pluggableDataFormatEnabled = context.indexSettings() != null
+                && context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+            if (pluggableDataFormatEnabled == false) {
+                throw new MapperParsingException(
+                    "Object ["
+                        + name
+                        + "] does not support [correlated: true] unless the index uses a pluggable data format ["
+                        + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                        + ": true]. Without one, nested documents already correlate the fields and "
+                        + "[correlated: true] would only remove element-scoped query support."
+                );
+            }
+            for (Mapper childMapper : mappers.values()) {
+                if (childMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Object ["
+                            + name
+                            + "] is declared [correlated: true] and cannot contain the sub-object ["
+                            + childMapper.name()
+                            + "]. A correlated group pairs its fields by array position, which is only "
+                            + "defined for leaf fields; a sub-object would nest a second level of arrays "
+                            + "whose correlation is ambiguous."
+                    );
+                }
+            }
+        }
+
+        /**
+         * Records the group on the child's field type so the write path can find it from the field
+         * type alone, without walking the mapper tree.
+         */
+        private static void stampCorrelationGroup(Mapper childMapper, String group) {
+            if (childMapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType() != null) {
+                fieldMapper.fieldType().setCorrelationGroup(group);
+            }
         }
 
         @Deprecated
@@ -383,6 +461,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         e
                     );
                 }
+                return true;
+            } else if (fieldName.equals("correlated")) {
+                builder.correlated(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".correlated"));
                 return true;
             } else if (fieldName.equals("derived")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -698,6 +779,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private Explicit<Boolean> disableObjects;
 
+    /**
+     * Whether this nested group is stored as parallel columns correlated by array position rather
+     * than as hidden nested documents. Assigned by {@link Builder#build} after construction.
+     */
+    private Explicit<Boolean> correlated = Defaults.CORRELATED;
+
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(
@@ -783,6 +870,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     protected void putMapper(Mapper mapper) {
+        // Dynamically added fields land here rather than through Builder#build, so they need the same
+        // stamp — otherwise a sub-field first seen in a document would be silently exempt from the
+        // group's length check, which is exactly the mispairing the declaration exists to prevent.
+        if (correlated()) {
+            Builder.stampCorrelationGroup(mapper, fullPath);
+        }
         mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 
@@ -809,6 +902,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public Explicit<Boolean> disableObjectsExplicit() {
         return disableObjects;
+    }
+
+    /**
+     * Whether this nested group is stored as parallel, position-correlated columns instead of hidden
+     * nested documents. See the {@code correlated} mapping parameter.
+     */
+    public boolean correlated() {
+        return correlated.value();
+    }
+
+    public Explicit<Boolean> correlatedExplicit() {
+        return correlated;
     }
 
     /**
@@ -878,6 +983,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeWith.disableObjectsExplicit().explicit()) {
                 this.disableObjects = mergeWith.disableObjectsExplicit();
             }
+            if (mergeWith.correlatedExplicit().explicit()) {
+                this.correlated = mergeWith.correlatedExplicit();
+            }
         } else {
             if (isEnabled() != mergeWith.isEnabled()) {
                 throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
@@ -885,6 +993,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // Validate disable_objects immutability (except for MAPPING_RECOVERY)
             if (reason != MergeReason.MAPPING_RECOVERY) {
                 validateDisableObjectsImmutability(mergeWith, reason);
+                validateCorrelatedImmutability(mergeWith);
             }
         }
 
@@ -939,6 +1048,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         + "] for object mapping ["
                         + name()
                         + "]. The disable_objects setting is immutable after index creation."
+                );
+            }
+        }
+    }
+
+    /**
+     * Rejects a change to {@code correlated} after creation. It selects the on-disk layout — parallel
+     * columns versus nested documents — so flipping it would leave already-written data in a shape the
+     * new value does not describe.
+     */
+    private void validateCorrelatedImmutability(ObjectMapper mergeWith) {
+        if (this.correlatedExplicit().explicit() && mergeWith.correlatedExplicit().explicit()) {
+            if (this.correlated() != mergeWith.correlated()) {
+                throw new MapperException(
+                    "Cannot update parameter [correlated] from ["
+                        + this.correlated()
+                        + "] to ["
+                        + mergeWith.correlated()
+                        + "] for object mapping ["
+                        + name()
+                        + "]. It determines the storage layout and is immutable after index creation."
                 );
             }
         }
@@ -1016,6 +1146,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (disableObjectsExplicit().explicit()) {
             builder.field("disable_objects", disableObjects.value());
+        }
+        if (correlatedExplicit().explicit()) {
+            builder.field("correlated", correlated.value());
         }
 
         if (custom != null) {

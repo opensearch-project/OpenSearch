@@ -180,14 +180,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return this;
         }
 
+        /**
+         * The shared {@code multi_value} arity parameter (see {@link Parameter#multiValueParam()}).
+         * Columnar formats need a field's arity declared up front because the column type is fixed per
+         * file; Lucene is inherently multi-valued and ignores it.
+         */
+        private final Parameter<Boolean> multiValue = Parameter.multiValueParam();
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta, multiValue);
         }
 
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
+            ft.setMultiValued(multiValue.getValue());
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 

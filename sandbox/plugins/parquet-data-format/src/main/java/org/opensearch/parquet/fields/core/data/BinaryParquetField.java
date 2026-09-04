@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.fields.core.data;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -28,7 +29,17 @@ public class BinaryParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((VarBinaryVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (byte[]) parseValue);
+        addToVector(managedVSR.getVector(mappedFieldType.name()), managedVSR.getRowCount(), parseValue);
+    }
+
+    @Override
+    protected void addToVector(FieldVector vector, int index, Object parseValue) {
+        ((VarBinaryVector) vector).setSafe(index, (byte[]) parseValue);
+    }
+
+    @Override
+    public boolean supportsMultiValue() {
+        return true;
     }
 
     @Override

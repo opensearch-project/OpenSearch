@@ -270,6 +270,26 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
+    public boolean isMultiValued() {
+        return delegate.isMultiValued();
+    }
+
+    @Override
+    public void setMultiValued(boolean multiValued) {
+        delegate.setMultiValued(multiValued);
+    }
+
+    @Override
+    public String correlationGroup() {
+        return delegate.correlationGroup();
+    }
+
+    @Override
+    public void setCorrelationGroup(String correlationGroup) {
+        delegate.setCorrelationGroup(correlationGroup);
+    }
+
+    @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         return delegate.docValueFormat(format, timeZone);
     }

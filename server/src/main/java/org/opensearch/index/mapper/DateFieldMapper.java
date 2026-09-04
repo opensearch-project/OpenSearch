@@ -358,9 +358,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
+        /**
+         * The shared {@code multi_value} arity parameter (see {@link Parameter#multiValueParam()}).
+         * Columnar formats need a field's arity declared up front because the column type is fixed per
+         * file; Lucene is inherently multi-valued and ignores it.
+         */
+        private final Parameter<Boolean> multiValue = Parameter.multiValueParam();
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(
+                index,
+                docValues,
+                store,
+                skiplist,
+                format,
+                printFormat,
+                locale,
+                nullValue,
+                ignoreMalformed,
+                boost,
+                meta,
+                multiValue
+            );
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -395,6 +415,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 meta.getValue()
             );
             ft.setBoost(boost.getValue());
+            ft.setMultiValued(multiValue.getValue());
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
