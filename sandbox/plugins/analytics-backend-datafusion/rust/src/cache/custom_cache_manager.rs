@@ -15,7 +15,8 @@ use crate::cache::{metadata_cache, page_index};
 use crate::indexed_table::parquet_bridge;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use datafusion::execution::cache::cache_manager::{
-    CacheManagerConfig, FileMetadataCache, FileStatisticsCache, DEFAULT_FILE_STATISTICS_MEMORY_LIMIT,
+    CacheManagerConfig, FileMetadataCache, FileStatisticsCache,
+    DEFAULT_FILE_STATISTICS_MEMORY_LIMIT,
 };
 use datafusion::execution::cache::default_cache::DefaultCache;
 use datafusion::execution::cache::{Cache, SchemaFingerprint};
@@ -207,9 +208,8 @@ impl CustomCacheManager {
 
         // Add statistics cache if available - use CustomStatisticsCache directly
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_file_statistics_cache(Some(
-                stats_cache.clone() as Arc<FileStatisticsCache>
-            ));
+            config = config
+                .with_file_statistics_cache(Some(stats_cache.clone() as Arc<FileStatisticsCache>));
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultCache::new(DEFAULT_FILE_STATISTICS_MEMORY_LIMIT));

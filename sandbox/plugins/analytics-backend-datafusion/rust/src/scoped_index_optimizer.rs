@@ -409,8 +409,8 @@ mod tests {
         let table_url =
             ListingTableUrl::parse(format!("file://{}", dir.to_str().unwrap())).unwrap();
         ctx.register_object_store(table_url.as_ref(), Arc::clone(&store));
-        let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-            .with_file_extension(".parquet");
+        let listing_options =
+            ListingOptions::new(Arc::new(ParquetFormat::new())).with_file_extension(".parquet");
         let resolved = listing_options
             .infer_schema(&ctx.state(), &table_url)
             .await
