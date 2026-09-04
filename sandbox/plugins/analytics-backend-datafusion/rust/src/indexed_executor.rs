@@ -138,6 +138,7 @@ pub async fn execute_indexed_query(
             crate::query_tracker::QueryType::Shard,
         ),
         table_name: table_name.clone(),
+        deleted_doc_filtering_required: false,
         indexed_config: None, // derive classification from tree
         query_config: Arc::unwrap_or_clone(query_config),
         io_handle: tokio::runtime::Handle::current(),
@@ -396,6 +397,62 @@ fn single_collector_id(tree: &BoolNode) -> Option<i32> {
             None
         }
         _ => None,
+    }
+}
+
+/// Reserved annotation id resolved by the Java `FilterDelegationHandle` to a
+/// `MatchAllDocsQuery` whose per-RG collector emits the segment's liveDocs.
+/// Coordinator-assigned annotation ids are non-negative (`PlannerContext.nextAnnotationId`
+/// counter), so negative ids can never collide. Must match
+/// `FilterDelegationHandle.LIVE_DOCS_MATCH_ALL_ANNOTATION_ID` on the Java side.
+pub const LIVE_DOCS_MATCH_ALL_ANNOTATION_ID: i32 = -2;
+
+/// AND a synthetic match-all Collector leaf into the decoded filter tree so deleted docs are
+/// excluded through the ordinary provider/collector machinery (no dedicated liveDocs FFI).
+///
+/// Called only when the shard has deletions (`deleted_doc_filtering_required`). Shapes:
+/// - No filter at all (`count(*)`): the tree becomes a bare match-all Collector — the
+///   SingleCollector arm resolves it as the correctness collector, so per-RG candidates are
+///   exactly the segment's live docs.
+/// - Pure-DF predicates / DelegationPossible-only AND trees: the match-all Collector is
+///   prepended at the root AND. The tree still classifies `SingleCollector` (all-AND, one
+///   Collector) and the predicates remain the residual.
+/// - Tree-class shapes (OR/NOT over collectors and predicates): the match-all Collector is
+///   AND'ed at the root. This is required for correctness — leaf-level liveDocs filtering is
+///   NOT sufficient under NOT (a `NOT(leaf)` readmits deleted docs), but a top-level AND with
+///   the live set masks them regardless of the inner shape.
+/// - SingleCollector trees that already carry a correctness Collector: left untouched. Their
+///   collector bitmap is already live-docs-filtered (Java `collectDocs` applies the segment's
+///   liveDocs while iterating the scorer), candidates are the intersection with that bitmap,
+///   and injecting a second Collector would demote the query from SingleCollector to Tree.
+fn inject_live_docs_collector(extraction: Option<ExtractionResult>) -> Option<ExtractionResult> {
+    let live_docs_leaf = BoolNode::Collector {
+        annotation_id: LIVE_DOCS_MATCH_ALL_ANNOTATION_ID,
+    };
+    match extraction {
+        None => Some(ExtractionResult {
+            tree: Arc::new(live_docs_leaf),
+        }),
+        Some(e) => {
+            if classify_filter(&e.tree) == FilterClass::SingleCollector
+                && e.tree.collector_leaf_count() >= 1
+            {
+                // Existing correctness Collector in SingleCollector shape — its bitmap is
+                // already live-filtered on the Java side; keep the shape.
+                return Some(e);
+            }
+            let tree = Arc::try_unwrap(e.tree).unwrap_or_else(|arc| (*arc).clone());
+            let tree = match tree {
+                BoolNode::And(mut children) => {
+                    children.insert(0, live_docs_leaf);
+                    BoolNode::And(children)
+                }
+                other => BoolNode::And(vec![live_docs_leaf, other]),
+            };
+            Some(ExtractionResult {
+                tree: Arc::new(tree),
+            })
+        }
     }
 }
 
@@ -803,6 +860,145 @@ mod tests {
         assert_eq!(segs[0].global_base, 7);
         assert_eq!(segs[0].max_doc, 42);
     }
+
+    // ── inject_live_docs_collector (deleted-doc filtering) ────────────
+
+    fn extraction_of(tree: BoolNode) -> Option<ExtractionResult> {
+        Some(ExtractionResult {
+            tree: Arc::new(tree),
+        })
+    }
+
+    fn is_live_docs_leaf(node: &BoolNode) -> bool {
+        matches!(
+            node,
+            BoolNode::Collector { annotation_id } if *annotation_id == LIVE_DOCS_MATCH_ALL_ANNOTATION_ID
+        )
+    }
+
+    #[test]
+    fn inject_no_filter_becomes_bare_live_docs_collector() {
+        // `count(*)` on a shard with deletions: candidates must be exactly the live docs.
+        let out = inject_live_docs_collector(None).unwrap();
+        assert!(is_live_docs_leaf(&out.tree));
+        assert_eq!(single_collector_id(&out.tree), Some(LIVE_DOCS_MATCH_ALL_ANNOTATION_ID));
+    }
+
+    #[test]
+    fn inject_pure_predicate_tree_prepends_collector_and_stays_single_collector() {
+        // Pure-DF predicate AND tree: match-all becomes the correctness collector,
+        // predicates stay as the residual. Classification must remain SingleCollector.
+        let out = inject_live_docs_collector(extraction_of(BoolNode::And(vec![pred(), pred()])))
+            .unwrap();
+        match out.tree.as_ref() {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 3);
+                assert!(is_live_docs_leaf(&children[0]));
+                assert!(children[1..].iter().all(is_predicate));
+            }
+            other => panic!("expected And, got {:?}", other),
+        }
+        assert_eq!(classify_filter(&out.tree), FilterClass::SingleCollector);
+        assert_eq!(single_collector_id(&out.tree), Some(LIVE_DOCS_MATCH_ALL_ANNOTATION_ID));
+        // Residual (what DF evaluates) keeps both predicates.
+        let residual = extract_single_collector_residual(&out.tree).unwrap();
+        match residual {
+            BoolNode::And(children) => assert_eq!(children.len(), 2),
+            other => panic!("expected And residual, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn inject_or_predicate_tree_wraps_in_and() {
+        // Pure-DF OR tree (no collectors): AND(live_docs, OR(P, P)) — still SingleCollector
+        // (the OR subtree has no collectors, so it rides as the residual).
+        let out = inject_live_docs_collector(extraction_of(BoolNode::Or(vec![pred(), pred()])))
+            .unwrap();
+        match out.tree.as_ref() {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(is_live_docs_leaf(&children[0]));
+                assert!(matches!(children[1], BoolNode::Or(_)));
+            }
+            other => panic!("expected And, got {:?}", other),
+        }
+        assert_eq!(classify_filter(&out.tree), FilterClass::SingleCollector);
+    }
+
+    #[test]
+    fn inject_skips_existing_single_collector_shape() {
+        // AND(Collector, P) — the existing correctness collector's bitmap is already
+        // live-docs-filtered on the Java side; injecting a second collector would demote
+        // SingleCollector → Tree. Tree must be unchanged.
+        let out = inject_live_docs_collector(extraction_of(BoolNode::And(vec![
+            collector(7),
+            pred(),
+        ])))
+        .unwrap();
+        match out.tree.as_ref() {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(matches!(children[0], BoolNode::Collector { annotation_id: 7 }));
+            }
+            other => panic!("expected unchanged And, got {:?}", other),
+        }
+        assert_eq!(single_collector_id(&out.tree), Some(7));
+    }
+
+    #[test]
+    fn inject_skips_bare_collector() {
+        let out = inject_live_docs_collector(extraction_of(collector(3))).unwrap();
+        assert!(matches!(
+            out.tree.as_ref(),
+            BoolNode::Collector { annotation_id: 3 }
+        ));
+    }
+
+    #[test]
+    fn inject_tree_class_or_of_collectors_gets_top_level_and() {
+        // OR(C₁, C₂) classifies Tree — leaf-level liveDocs is insufficient under OR/NOT
+        // composition, so the live-docs collector must be AND'ed at the root.
+        let out = inject_live_docs_collector(extraction_of(BoolNode::Or(vec![
+            collector(1),
+            collector(2),
+        ])))
+        .unwrap();
+        match out.tree.as_ref() {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(is_live_docs_leaf(&children[0]));
+                assert!(matches!(children[1], BoolNode::Or(_)));
+            }
+            other => panic!("expected And, got {:?}", other),
+        }
+        assert_eq!(classify_filter(&out.tree), FilterClass::Tree);
+    }
+
+    #[test]
+    fn inject_tree_class_not_over_collector_gets_top_level_and() {
+        // NOT(C) readmits deleted docs at the leaf level — the root AND with the live set
+        // is what masks them.
+        let out = inject_live_docs_collector(extraction_of(BoolNode::Not(Box::new(
+            collector(4),
+        ))))
+        .unwrap();
+        match out.tree.as_ref() {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(is_live_docs_leaf(&children[0]));
+                assert!(matches!(children[1], BoolNode::Not(_)));
+            }
+            other => panic!("expected And, got {:?}", other),
+        }
+        assert_eq!(classify_filter(&out.tree), FilterClass::Tree);
+    }
+
+    #[test]
+    fn injected_live_docs_id_is_negative_and_reserved() {
+        // Coordinator annotation ids are non-negative (PlannerContext counter); the reserved
+        // id must never collide.
+        assert!(LIVE_DOCS_MATCH_ALL_ANNOTATION_ID < 0);
+    }
 }
 
 /// Instruction-based indexed execution path. Consumes a pre-configured SessionContextHandle
@@ -892,6 +1088,11 @@ async unsafe fn execute_indexed_with_context_inner(
         .indexed_config
         .as_ref()
         .is_some_and(|c| c.requests_row_ids);
+    // Deleted-doc filtering flag (per-shard hasDeletions signal from the Java ShardScan
+    // handlers): when set, a synthetic match-all Collector leaf (reserved annotation id) is
+    // AND'ed into the decoded filter tree below, so the segment's live docs flow through the
+    // ordinary provider/collector machinery and deleted rows are excluded from candidates.
+    let deleted_doc_filtering_required = handle.deleted_doc_filtering_required;
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
@@ -996,6 +1197,21 @@ async unsafe fn execute_indexed_with_context_inner(
             expr_to_bool_tree(expr, &schema, &state)
                 .map_err(|e| DataFusionError::Execution(format!("expr_to_bool_tree: {}", e)))?,
         ),
+    };
+
+    // Deleted-doc filtering: AND a synthetic match-all Collector leaf into the decoded tree so
+    // the segment's live docs flow through the ordinary provider/collector machinery (Java
+    // resolves the reserved annotation id to a MatchAllDocsQuery whose collector emits the
+    // segment's liveDocs). The substrait plan bytes from the coordinator are never modified —
+    // the injection happens on the tree decoded from them, per-shard, only when the shard
+    // actually has deletions. Trees that already carry a correctness Collector in
+    // SingleCollector shape are left untouched: their collector bitmap is already
+    // live-docs-filtered on the Java side (collectDocs applies liveDocs), and injecting a
+    // second Collector would demote the query from SingleCollector to Tree.
+    let extraction = if deleted_doc_filtering_required {
+        inject_live_docs_collector(extraction)
+    } else {
+        extraction
     };
 
     // Resolve classification: from Java config if available, otherwise derive from tree

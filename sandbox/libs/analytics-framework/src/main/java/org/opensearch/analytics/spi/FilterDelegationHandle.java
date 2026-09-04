@@ -92,4 +92,17 @@ public interface FilterDelegationHandle extends Closeable {
     default boolean isCancelled() {
         return false;
     }
+
+    /**
+     * Reserved annotation id for the deleted-doc filtering path: the accepting backend resolves it
+     * to a match-all query whose per-RG collector emits the segment's live docs (set bit == live).
+     * The driving backend ANDs this synthetic Collector leaf into its decoded filter tree when the
+     * shard has deletions, so deleted rows are excluded through the ordinary
+     * createProvider/createCollector/collectDocs machinery — no dedicated liveDocs FFI.
+     *
+     * <p>Coordinator-assigned annotation ids are non-negative ({@code PlannerContext.nextAnnotationId}
+     * counter), so a negative reserved id can never collide. Must match
+     * {@code LIVE_DOCS_MATCH_ALL_ANNOTATION_ID} in the native indexed executor.
+     */
+    int LIVE_DOCS_MATCH_ALL_ANNOTATION_ID = -2;
 }
