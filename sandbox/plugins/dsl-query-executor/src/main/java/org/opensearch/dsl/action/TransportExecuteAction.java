@@ -24,7 +24,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.Index;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.DslQueryPlanExecutor;
@@ -47,15 +46,16 @@ import java.util.concurrent.TimeUnit;
  * <p>Receives {@link QueryPlanExecutor} and {@link EngineContextProvider} from the analytics engine
  * via Guice injection (enabled by {@code extendedPlugins = ['analytics-engine']}).
  */
-public class TransportDslExecuteAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+public class TransportExecuteAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportDslExecuteAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportExecuteAction.class);
 
     private final EngineContextProvider contextProvider;
     private final DslQueryPlanExecutor planExecutor;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexResolutionStrategy indexResolutionStrategy = new SingleIndexResolutionStrategy();
     private final ThreadPool threadPool;
 
     /**
@@ -69,7 +69,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
      * @param indexNameExpressionResolver resolves aliases and wildcards to concrete indices
      */
     @Inject
-    public TransportDslExecuteAction(
+    public TransportExecuteAction(
         TransportService transportService,
         ActionFilters actionFilters,
         EngineContextProvider contextProvider,
@@ -79,7 +79,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         IndexNameExpressionResolver indexNameExpressionResolver,
         ThreadPool threadPool
     ) {
-        super(DslExecuteAction.NAME, transportService, actionFilters, SearchRequest::new);
+        super(ExecuteAction.NAME, transportService, actionFilters, SearchRequest::new);
         this.contextProvider = contextProvider;
         this.planExecutor = new DslQueryPlanExecutor(executor);
         this.clusterService = clusterService;
@@ -97,7 +97,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             final ClusterState state = clusterService.state();
             final IndexMetadata indexMetadata;
             try {
-                indexMetadata = resolveToSingleIndex(state, request);
+                indexMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request).get(0);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -207,23 +207,5 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             return;
         }
         listener.onResponse(response);
-    }
-
-    // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
-    // EngineContextProvider or Schema table lookup) for consistency, and return RelOptTable directly
-    // so this plugin doesn't need its own resolution logic.
-    /**
-     * Resolves the request's indices (which may be aliases or wildcards) to a single concrete
-     * index, returning its metadata from the same cluster state snapshot. Throws if the
-     * resolution yields zero or more than one concrete index.
-     */
-    private IndexMetadata resolveToSingleIndex(ClusterState state, SearchRequest request) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        if (concreteIndices.length != 1) {
-            throw new IllegalArgumentException(
-                "DSL execution currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
-            );
-        }
-        return state.metadata().getIndexSafe(concreteIndices[0]);
     }
 }

@@ -15,16 +15,16 @@ import org.opensearch.action.search.SearchResponse;
  * Internal action for executing DSL queries through the analytics engine.
  * Accepts a {@link org.opensearch.action.search.SearchRequest} and returns a {@link SearchResponse}.
  */
-public class DslExecuteAction extends ActionType<SearchResponse> {
+public class ExecuteAction extends ActionType<SearchResponse> {
 
     // TODO: Customers migrating to new indices will need a new Security permission for this action.
     // Evaluate whether this can reuse an existing search permission or needs security plugin integration.
     /** Action name registered with the transport layer. */
     public static final String NAME = "indices:data/read/dsl/execute";
     /** Singleton instance. */
-    public static final DslExecuteAction INSTANCE = new DslExecuteAction();
+    public static final ExecuteAction INSTANCE = new ExecuteAction();
 
-    private DslExecuteAction() {
+    private ExecuteAction() {
         super(NAME, SearchResponse::new);
     }
 }

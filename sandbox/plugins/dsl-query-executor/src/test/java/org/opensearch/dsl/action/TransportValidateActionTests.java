@@ -15,8 +15,8 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.Version;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
@@ -29,9 +29,10 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.query.MatchQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,75 +47,102 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportDslExecuteActionTests extends OpenSearchTestCase {
+public class TransportValidateActionTests extends OpenSearchTestCase {
 
-    public void testDoExecuteReturnsSearchResponse() {
-        TransportDslExecuteAction action = createAction(new Index("test-index", "uuid"));
+    public void testValidQuery() {
+        TestListener listener = validate(new TermQueryBuilder("name", "laptop"), false);
 
-        TestListener listener = executeWith(action, "test-index");
-
-        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
-        assertNotNull(listener.response.get());
-        assertEquals(200, listener.response.get().status().getStatus());
+        assertNull(listener.failure.get());
+        assertTrue(listener.response.get().isValid());
+        // Like vanilla: no explanations unless explain is requested.
+        assertTrue(listener.response.get().getQueryExplanation().isEmpty());
     }
 
-    public void testDoExecuteFailsWhenIndexNotInSchema() {
-        TransportDslExecuteAction action = createAction(new Index("nonexistent-index", "uuid"));
+    public void testValidQueryWithExplainReturnsPlan() {
+        TestListener listener = validate(new TermQueryBuilder("name", "laptop"), true);
 
-        TestListener listener = executeWith(action, "nonexistent-index");
-
-        assertNull(listener.response.get());
-        assertNotNull(listener.failure.get());
-        assertTrue(listener.failure.get() instanceof IllegalArgumentException);
-        assertTrue(listener.failure.get().getMessage().contains("nonexistent-index"));
+        assertTrue(listener.response.get().isValid());
+        assertEquals(1, listener.response.get().getQueryExplanation().size());
+        String explanation = listener.response.get().getQueryExplanation().get(0).getExplanation();
+        assertNotNull(explanation);
+        assertTrue("expected a RelNode plan, got: " + explanation, explanation.contains("LogicalTableScan"));
     }
 
-    public void testDoExecuteRejectsMultipleConcreteIndices() {
-        TransportDslExecuteAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
+    public void testUnknownFieldIsInvalid() {
+        TestListener listener = validate(new TermQueryBuilder("no_such_field", "x"), true);
 
-        TestListener listener = executeWith(action, "multi-alias");
+        assertNull(listener.failure.get());
+        ValidateQueryResponse response = listener.response.get();
+        assertFalse(response.isValid());
+        assertEquals(1, response.getQueryExplanation().size());
+        assertFalse(response.getQueryExplanation().get(0).isValid());
+        assertTrue(response.getQueryExplanation().get(0).getError().contains("no_such_field"));
+    }
+
+    public void testUnknownFieldWithoutExplainOmitsDetail() {
+        TestListener listener = validate(new TermQueryBuilder("no_such_field", "x"), false);
+
+        assertFalse(listener.response.get().isValid());
+        assertTrue(listener.response.get().getQueryExplanation().isEmpty());
+    }
+
+    /**
+     * Query types without a registered translator become UnresolvedQueryCall for the engine
+     * to resolve or reject at execution time — conversion-level validation reports them valid.
+     */
+    public void testUnregisteredQueryTypeIsValid() {
+        TestListener listener = validate(new MatchQueryBuilder("name", "laptop"), false);
+
+        assertNull(listener.failure.get());
+        assertTrue(listener.response.get().isValid());
+    }
+
+    public void testNullQueryIsValid() {
+        TestListener listener = validate(null, false);
+
+        assertNull(listener.failure.get());
+        assertTrue(listener.response.get().isValid());
+    }
+
+    public void testMultipleConcreteIndicesFails() {
+        TransportValidateAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
+
+        TestListener listener = new TestListener();
+        action.doExecute(mock(Task.class), new ValidateQueryRequest("multi-alias"), listener);
 
         assertNull(listener.response.get());
-        assertNotNull(listener.failure.get());
         assertTrue(listener.failure.get() instanceof IllegalArgumentException);
         assertTrue(listener.failure.get().getMessage().contains("exactly one concrete index"));
     }
 
-    public void testDoExecuteFailsWhenIndexNotInClusterState() {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(mock(ClusterState.class));
+    public void testIndexNotInSchemaFails() {
+        TransportValidateAction action = createAction(new Index("nonexistent-index", "uuid"));
 
-        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenThrow(new IndexNotFoundException("bogus-index"));
-
-        TransportDslExecuteAction action = new TransportDslExecuteAction(
-            mock(TransportService.class),
-            new ActionFilters(Collections.emptySet()),
-            buildEngineContext(),
-            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
-            clusterService,
-            mock(IndicesService.class),
-            resolver,
-            mockThreadPool()
-        );
-
-        TestListener listener = executeWith(action, "bogus-index");
+        TestListener listener = new TestListener();
+        action.doExecute(mock(Task.class), new ValidateQueryRequest("nonexistent-index"), listener);
 
         assertNull(listener.response.get());
-        assertNotNull(listener.failure.get());
-        assertTrue(listener.failure.get() instanceof IndexNotFoundException);
+        assertTrue(listener.failure.get() instanceof IllegalArgumentException);
+        assertTrue(listener.failure.get().getMessage().contains("nonexistent-index"));
     }
 
-    private TestListener executeWith(TransportDslExecuteAction action, String index) {
-        SearchRequest request = new SearchRequest(index);
-        request.source(new SearchSourceBuilder());
+    // ---- Helpers ----
+
+    private TestListener validate(QueryBuilder query, boolean explain) {
+        TransportValidateAction action = createAction(new Index("test-index", "uuid"));
+
+        ValidateQueryRequest request = new ValidateQueryRequest("test-index");
+        if (query != null) {
+            request.query(query);
+        }
+        request.explain(explain);
 
         TestListener listener = new TestListener();
         action.doExecute(mock(Task.class), request, listener);
         return listener;
     }
 
-    private TransportDslExecuteAction createAction(Index... resolvedIndices) {
+    private TransportValidateAction createAction(Index... resolvedIndices) {
         Metadata.Builder metadata = Metadata.builder();
         for (Index index : resolvedIndices) {
             metadata.put(
@@ -135,13 +163,12 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(state);
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenReturn(resolvedIndices);
+        when(resolver.concreteIndices(any(), any(ValidateQueryRequest.class))).thenReturn(resolvedIndices);
 
-        return new TransportDslExecuteAction(
+        return new TransportValidateAction(
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             buildEngineContext(),
-            (plan, ctx, l) -> l.onResponse(Collections.emptyList()),
             clusterService,
             mock(IndicesService.class),
             resolver,
@@ -186,12 +213,12 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         return threadPool;
     }
 
-    private static class TestListener implements ActionListener<SearchResponse> {
-        final AtomicReference<SearchResponse> response = new AtomicReference<>();
+    private static class TestListener implements ActionListener<ValidateQueryResponse> {
+        final AtomicReference<ValidateQueryResponse> response = new AtomicReference<>();
         final AtomicReference<Exception> failure = new AtomicReference<>();
 
         @Override
-        public void onResponse(SearchResponse r) {
+        public void onResponse(ValidateQueryResponse r) {
             response.set(r);
         }
 
