@@ -48,6 +48,7 @@ import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.indices.analysis.PreBuiltAnalyzers;
+import org.opensearch.plugins.AnalysisPlugin;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,9 +56,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -69,10 +72,12 @@ import static java.util.Collections.unmodifiableMap;
  * An internal registry for tokenizer, token filter, char filter and analyzer.
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
  *
+ * This registry supports dynamic plugin loading and hot-reloading of analysis components.
+ * 
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class AnalysisRegistry implements Closeable {
+public class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
@@ -104,11 +109,12 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers
     ) {
         this.environment = environment;
-        this.charFilters = unmodifiableMap(charFilters);
-        this.tokenFilters = unmodifiableMap(tokenFilters);
-        this.tokenizers = unmodifiableMap(tokenizers);
-        this.analyzers = unmodifiableMap(analyzers);
-        this.normalizers = unmodifiableMap(normalizers);
+        // Use ConcurrentHashMap for thread-safe dynamic modifications
+        this.charFilters = new ConcurrentHashMap<>(charFilters);
+        this.tokenFilters = new ConcurrentHashMap<>(tokenFilters);
+        this.tokenizers = new ConcurrentHashMap<>(tokenizers);
+        this.analyzers = new ConcurrentHashMap<>(analyzers);
+        this.normalizers = new ConcurrentHashMap<>(normalizers);
         prebuiltAnalysis = new PrebuiltAnalysis(
             preConfiguredCharFilters,
             preConfiguredTokenFilters,
@@ -233,6 +239,257 @@ public final class AnalysisRegistry implements Closeable {
         } finally {
             IOUtils.close(cachedAnalyzer.values());
         }
+    }
+
+    // ========== Dynamic Plugin Management Methods ==========
+    
+    /**
+     * Dynamically adds a tokenizer provider to the registry
+     * @param name the tokenizer name
+     * @param provider the tokenizer provider
+     */
+    public void addTokenizer(String name, AnalysisProvider<TokenizerFactory> provider) {
+        tokenizers.put(name, provider);
+        invalidateCache();
+    }
+    
+    /**
+     * Dynamically adds a token filter provider to the registry
+     * @param name the token filter name
+     * @param provider the token filter provider
+     */
+    public void addTokenFilter(String name, AnalysisProvider<TokenFilterFactory> provider) {
+        tokenFilters.put(name, provider);
+        invalidateCache();
+    }
+    
+    /**
+     * Dynamically adds a char filter provider to the registry
+     * @param name the char filter name
+     * @param provider the char filter provider
+     */
+    public void addCharFilter(String name, AnalysisProvider<CharFilterFactory> provider) {
+        charFilters.put(name, provider);
+        invalidateCache();
+    }
+    
+    /**
+     * Dynamically adds an analyzer provider to the registry
+     * @param name the analyzer name
+     * @param provider the analyzer provider
+     */
+    public void addAnalyzer(String name, AnalysisProvider<AnalyzerProvider<?>> provider) {
+        analyzers.put(name, provider);
+        invalidateCache();
+    }
+    
+    /**
+     * Dynamically adds a normalizer provider to the registry
+     * @param name the normalizer name
+     * @param provider the normalizer provider
+     */
+    public void addNormalizer(String name, AnalysisProvider<AnalyzerProvider<?>> provider) {
+        normalizers.put(name, provider);
+        invalidateCache();
+    }
+    
+    /**
+     * Removes a tokenizer from the registry
+     * @param name the tokenizer name to remove
+     * @return true if the tokenizer was removed, false if it didn't exist
+     */
+    public boolean removeTokenizer(String name) {
+        boolean removed = tokenizers.remove(name) != null;
+        if (removed) {
+            invalidateCache();
+        }
+        return removed;
+    }
+    
+    /**
+     * Removes a token filter from the registry
+     * @param name the token filter name to remove
+     * @return true if the token filter was removed, false if it didn't exist
+     */
+    public boolean removeTokenFilter(String name) {
+        boolean removed = tokenFilters.remove(name) != null;
+        if (removed) {
+            invalidateCache();
+        }
+        return removed;
+    }
+    
+    /**
+     * Removes a char filter from the registry
+     * @param name the char filter name to remove
+     * @return true if the char filter was removed, false if it didn't exist
+     */
+    public boolean removeCharFilter(String name) {
+        boolean removed = charFilters.remove(name) != null;
+        if (removed) {
+            invalidateCache();
+        }
+        return removed;
+    }
+    
+    /**
+     * Removes an analyzer from the registry
+     * @param name the analyzer name to remove
+     * @return true if the analyzer was removed, false if it didn't exist
+     */
+    public boolean removeAnalyzer(String name) {
+        boolean removed = analyzers.remove(name) != null;
+        if (removed) {
+            invalidateCache();
+        }
+        return removed;
+    }
+    
+    /**
+     * Removes a normalizer from the registry
+     * @param name the normalizer name to remove
+     * @return true if the normalizer was removed, false if it didn't exist
+     */
+    public boolean removeNormalizer(String name) {
+        boolean removed = normalizers.remove(name) != null;
+        if (removed) {
+            invalidateCache();
+        }
+        return removed;
+    }
+    
+    /**
+     * Adds all analysis components from a plugin to the registry
+     * @param plugin the analysis plugin to register
+     */
+    public void addAnalysisPlugin(AnalysisPlugin plugin) {
+        // Add tokenizers
+        plugin.getTokenizers().forEach(this::addTokenizer);
+        
+        // Add token filters
+        plugin.getTokenFilters(null).forEach(this::addTokenFilter);
+        
+        // Add char filters
+        plugin.getCharFilters().forEach(this::addCharFilter);
+        
+        // Add analyzers
+        plugin.getAnalyzers().forEach(this::addAnalyzer);
+    }
+    
+    /**
+     * Removes all analysis components from a plugin from the registry
+     * @param plugin the analysis plugin to unregister
+     */
+    public void removeAnalysisPlugin(AnalysisPlugin plugin) {
+        // Remove tokenizers
+        plugin.getTokenizers().keySet().forEach(this::removeTokenizer);
+        
+        // Remove token filters
+        plugin.getTokenFilters(null).keySet().forEach(this::removeTokenFilter);
+        
+        // Remove char filters
+        plugin.getCharFilters().keySet().forEach(this::removeCharFilter);
+        
+        // Remove analyzers
+        plugin.getAnalyzers().keySet().forEach(this::removeAnalyzer);
+    }
+    
+    /**
+     * Gets a copy of all registered tokenizer names
+     * @return set of tokenizer names
+     */
+    public Set<String> getTokenizerNames() {
+        return new HashSet<>(tokenizers.keySet());
+    }
+    
+    /**
+     * Gets a copy of all registered token filter names
+     * @return set of token filter names
+     */
+    public Set<String> getTokenFilterNames() {
+        return new HashSet<>(tokenFilters.keySet());
+    }
+    
+    /**
+     * Gets a copy of all registered char filter names
+     * @return set of char filter names
+     */
+    public Set<String> getCharFilterNames() {
+        return new HashSet<>(charFilters.keySet());
+    }
+    
+    /**
+     * Gets a copy of all registered analyzer names
+     * @return set of analyzer names
+     */
+    public Set<String> getAnalyzerNames() {
+        return new HashSet<>(analyzers.keySet());
+    }
+    
+    /**
+     * Gets a copy of all registered normalizer names
+     * @return set of normalizer names
+     */
+    public Set<String> getNormalizerNames() {
+        return new HashSet<>(normalizers.keySet());
+    }
+    
+    /**
+     * Checks if a tokenizer is registered
+     * @param name the tokenizer name
+     * @return true if registered
+     */
+    public boolean hasTokenizer(String name) {
+        return tokenizers.containsKey(name) || prebuiltAnalysis.getTokenizerFactory(name) != null;
+    }
+    
+    /**
+     * Checks if a token filter is registered
+     * @param name the token filter name
+     * @return true if registered
+     */
+    public boolean hasTokenFilter(String name) {
+        return tokenFilters.containsKey(name) || prebuiltAnalysis.getTokenFilterFactory(name) != null;
+    }
+    
+    /**
+     * Checks if a char filter is registered
+     * @param name the char filter name
+     * @return true if registered
+     */
+    public boolean hasCharFilter(String name) {
+        return charFilters.containsKey(name) || prebuiltAnalysis.getCharFilterFactory(name) != null;
+    }
+    
+    /**
+     * Checks if an analyzer is registered
+     * @param name the analyzer name
+     * @return true if registered
+     */
+    public boolean hasAnalyzer(String name) {
+        return analyzers.containsKey(name) || prebuiltAnalysis.getAnalyzerProvider(name) != null;
+    }
+    
+    /**
+     * Checks if a normalizer is registered
+     * @param name the normalizer name
+     * @return true if registered
+     */
+    public boolean hasNormalizer(String name) {
+        return normalizers.containsKey(name);
+    }
+    
+    /**
+     * Invalidates the cached analyzers when registry is modified
+     */
+    private void invalidateCache() {
+        try {
+            IOUtils.close(cachedAnalyzer.values());
+        } catch (IOException e) {
+            // Log warning but don't fail the operation
+            // logger.warn("Failed to close cached analyzers during cache invalidation", e);
+        }
+        cachedAnalyzer.clear();
     }
 
     /**

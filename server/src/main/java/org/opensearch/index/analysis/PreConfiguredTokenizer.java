@@ -34,6 +34,7 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
     /**
      * Create a pre-configured tokenizer that may not vary at all.
