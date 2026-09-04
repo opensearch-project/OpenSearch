@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.Version;
+import org.opensearch.action.search.SearchTransportService.CoordinatorTimeoutStrategy;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
@@ -178,6 +179,48 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(0).getCancelAfterTimeInterval());
+    }
+
+    public void testCoordinatorTimeoutStrategyAtParentAndChildRequest() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", "
+            + "\"coordinator_timeout_strategy\" : \"fail\"}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n {\"search_type\" : \"dfs_query_then_fetch\"}\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Collections.singletonMap(SearchRequest.COORDINATOR_TIMEOUT_STRATEGY, "fail")).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(2));
+        assertEquals(CoordinatorTimeoutStrategy.FAIL, request.requests().get(0).coordinatorTimeoutStrategy());
+        assertEquals(CoordinatorTimeoutStrategy.FAIL, request.requests().get(1).coordinatorTimeoutStrategy());
+    }
+
+    public void testOnlyParentMSearchRequestWithCoordinatorTimeoutStrategyParameter() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Collections.singletonMap(SearchRequest.COORDINATOR_TIMEOUT_STRATEGY, "fail")).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertEquals(CoordinatorTimeoutStrategy.FAIL, request.requests().get(0).coordinatorTimeoutStrategy());
+    }
+
+    public void testWriteSearchRequestParamsWithCoordinatorTimeoutStrategy() throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.setCoordinatorTimeoutStrategy(CoordinatorTimeoutStrategy.FAIL.getType());
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            MultiSearchRequest.writeSearchRequestParams(request, builder);
+            Map<String, Object> map = XContentHelper.convertToMap(
+                MediaTypeRegistry.JSON.xContent(),
+                BytesReference.bytes(builder).streamInput(),
+                false
+            );
+            assertEquals("fail", map.get(SearchRequest.COORDINATOR_TIMEOUT_STRATEGY));
+        }
     }
 
     public void testDefaultIndicesOptions() throws IOException {

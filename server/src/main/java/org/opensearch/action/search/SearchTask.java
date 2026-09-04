@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.search.SearchTransportService.CoordinatorTimeoutStrategy;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
@@ -53,6 +54,8 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private final TimeValue timeout;
+    private final CoordinatorTimeoutStrategy coordinatorTimeoutStrategy;
 
     public SearchTask(
         long id,
@@ -62,9 +65,10 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
         TaskId parentTaskId,
         Map<String, String> headers
     ) {
-        this(id, type, action, descriptionSupplier, parentTaskId, headers, NO_TIMEOUT);
+        this(id, type, action, descriptionSupplier, parentTaskId, headers, NO_TIMEOUT, null, null);
     }
 
+    @Deprecated
     public SearchTask(
         long id,
         String type,
@@ -76,6 +80,25 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     ) {
         super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
         this.descriptionSupplier = descriptionSupplier;
+        this.timeout = null;
+        this.coordinatorTimeoutStrategy = null;
+    }
+
+    public SearchTask(
+        long id,
+        String type,
+        String action,
+        Supplier<String> descriptionSupplier,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval,
+        TimeValue timeValue,
+        CoordinatorTimeoutStrategy coordinatorTimeoutStrategy
+    ) {
+        super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
+        this.descriptionSupplier = descriptionSupplier;
+        this.timeout = timeValue;
+        this.coordinatorTimeoutStrategy = coordinatorTimeoutStrategy;
     }
 
     @Override
@@ -105,5 +128,16 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
+    }
+
+    public boolean coordinatorTimeoutEnabled() {
+        if (timeout != null && timeout.duration() > 0) {
+            return this.coordinatorTimeoutStrategy == CoordinatorTimeoutStrategy.FAIL;
+        }
+        return false;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
     }
 }
