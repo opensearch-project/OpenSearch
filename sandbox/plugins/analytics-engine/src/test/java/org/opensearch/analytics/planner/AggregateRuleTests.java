@@ -378,7 +378,10 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
     /**
      * Ungrouped single-arg exact {@code COUNT(DISTINCT x)} is decomposed to {@code COUNT(*)} over an inner
-     * {@code GROUP BY x} — the distinct aggregate must be gone (contrast the multi-arg control, which keeps it).
+     * {@code GROUP BY x} — the distinct aggregate must be gone (contrast the multi-arg control, which keeps
+     * it). NULLs are dropped via a derived {@code x IS NOT NULL} indicator above the dedup (a native,
+     * never-delegated filter), so no raw {@code IS NOT NULL} filter is injected on the group key / scan
+     * column.
      */
     public void testUngroupedSingleDistinctDecomposed() {
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
@@ -398,6 +401,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             "ungrouped single-arg COUNT(DISTINCT) must be decomposed (no distinct aggregate left); plan:\n" + plan,
             plan.contains("COUNT(DISTINCT")
         );
+        assertTrue("decomposition must produce an inner GROUP BY on the distinct arg; plan:\n" + plan, plan.contains("group=[{0}]"));
     }
 
     /** PPL's explicit {@code distinct_count_approx} marker IS rewritten to the APPROX_COUNT_DISTINCT stdop (HLL). */
