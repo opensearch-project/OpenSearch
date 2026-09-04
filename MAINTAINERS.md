@@ -29,7 +29,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Navneet Verma     | [navneet1v](https://github.com/navneet1v)               | Amazon      |
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
-| Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
+| Peter Nied        | [peternied](https://github.com/peternied)               | Airbnb      |
 | Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Apple       |
