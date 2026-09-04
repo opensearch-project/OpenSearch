@@ -425,4 +425,60 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             }
         }
     }
+
+    /** A list inside a struct keeps list handling — the struct branch recurses through toJavaValue. */
+    public void testStructContainingListRecursesIntoElements() {
+        try (StructVector sv = StructVector.empty("obj", allocator)) {
+            ListVector lv = sv.addOrGetList("tags");
+            sv.allocateNew();
+            UnionListWriter w = lv.getWriter();
+            w.setPosition(0);
+            w.startList();
+            w.varChar().writeVarChar("x");
+            w.varChar().writeVarChar("y");
+            w.endList();
+            w.setValueCount(1);
+            sv.setIndexDefined(0);
+            sv.setValueCount(1);
+            lv.setValueCount(1);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> out = (Map<String, Object>) ArrowValues.toJavaValue(sv, 0);
+            assertEquals(List.of("x", "y"), out.get("tags"));
+        }
+    }
+
+    /**
+     * A temporal two levels deep is formatted like a top-level one. The one-level case alone would
+     * not catch a recursion that only threads the Field down a single step.
+     */
+    public void testTemporalTwoLevelsDeepIsFormatted() {
+        try (StructVector outer = StructVector.empty("outer", allocator)) {
+            StructVector inner = outer.addOrGetStruct("inner");
+            TimeStampMilliVector ts = inner.addOrGet(
+                "at",
+                FieldType.nullable(new ArrowType.Timestamp(TimeUnit.MILLISECOND, null)),
+                TimeStampMilliVector.class
+            );
+            outer.allocateNew();
+            ts.setSafe(0, 1_700_000_000_000L);
+            inner.setIndexDefined(0);
+            outer.setIndexDefined(0);
+            outer.setValueCount(1);
+            inner.setValueCount(1);
+            ts.setValueCount(1);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> out = (Map<String, Object>) ArrowValues.toJavaValue(outer, 0);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nested = (Map<String, Object>) out.get("inner");
+
+            try (TimeStampMilliVector standalone = new TimeStampMilliVector("at", allocator)) {
+                standalone.allocateNew(1);
+                standalone.setSafe(0, 1_700_000_000_000L);
+                standalone.setValueCount(1);
+                assertEquals(ArrowValues.toJavaValue(standalone, 0), nested.get("at"));
+            }
+        }
+    }
 }
