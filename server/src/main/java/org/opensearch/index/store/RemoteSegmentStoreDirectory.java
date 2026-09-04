@@ -402,6 +402,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return uploadedFilename;
         }
 
+        public int getWrittenByMajor() {
+            return writtenByMajor;
+        }
+
         public void setWrittenByMajor(int writtenByMajor) {
             if (writtenByMajor <= Version.LATEST.major && writtenByMajor >= Version.MIN_SUPPORTED_MAJOR) {
                 this.writtenByMajor = writtenByMajor;
@@ -752,12 +756,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
+     * <p>
+     * Skips the upload when this directory already holds the file under the same checksum, so that a restore into a
+     * remote path that already has the commit's blobs does not store a second copy of every segment. Only applies
+     * when {@code dest} equals {@code src}, since the cache is keyed by {@code src} and so says nothing about
+     * whether a differently named {@code dest} exists.
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+        String checksum = getChecksumOfLocalFile(from, src);
+        if (src.equals(dest) && containsFile(src, checksum)) {
+            return;
+        }
         String remoteFilename = getNewRemoteSegmentFilename(dest);
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
+        postUpload(from, src, remoteFilename, checksum);
     }
 
     /**
@@ -907,6 +920,86 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                             RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
                             segmentInfoSnapshotByteArray,
                             replicationCheckpoint
+                        )
+                    );
+                }
+                storeDirectory.sync(Collections.singleton(metadataFilename));
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            } finally {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
+            }
+        }
+    }
+
+    /**
+     * Writes a metadata file for a commit that was copied into this directory by a restore rather than produced by a
+     * refresh.
+     * <p>
+     * Uploads are recorded only in the in-memory {@code segmentsUploadedToRemoteStore}, which {@link #init()} replaces
+     * wholesale when it reconciles against remote state. A restored shard has no metadata file to reconcile against,
+     * so without this call the registrations made while copying are discarded when the engine opens, the first refresh
+     * uploads the identical file set again under fresh UUIDs, and the copy the restore made is left named by no
+     * metadata file - beyond the reach of {@link #deleteStaleSegments(int)}, which only deletes blobs it reads out of a
+     * metadata file being retired.
+     * <p>
+     * The metadata written here describes the same commit as {@code sourceMetadata} - the same files, the same
+     * {@code SegmentInfos} bytes and the same generation - but names the blobs this directory now holds, under the
+     * restored shard's own id and primary term so that metadata written later by the refresh listener supersedes it.
+     *
+     * @param sourceMetadata metadata of the commit that was copied into this directory
+     * @param shardId        id of the restored shard
+     * @param primaryTerm    primary term of the restored shard
+     * @param storeDirectory local directory used to stage the metadata file before upload
+     * @param nodeId         node id of the restored shard
+     * @throws IOException   if a file named by {@code sourceMetadata} was not uploaded to this directory, or if the
+     *                       metadata file could not be written
+     */
+    public void uploadMetadataForRestoredCommit(
+        RemoteSegmentMetadata sourceMetadata,
+        ShardId shardId,
+        long primaryTerm,
+        Directory storeDirectory,
+        String nodeId
+    ) throws IOException {
+        ReplicationCheckpoint source = sourceMetadata.getReplicationCheckpoint();
+        ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            shardId,
+            primaryTerm,
+            source.getSegmentsGen(),
+            source.getSegmentInfosVersion(),
+            source.getLength(),
+            source.getCodec(),
+            source.getMetadataMap()
+        );
+        synchronized (this) {
+            // The translog generation only groups metadata files by writer within the filename. The restored shard's
+            // translog is bootstrapped after its segments are copied, so there is no generation to record yet.
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+                primaryTerm,
+                checkpoint.getSegmentsGen(),
+                0L,
+                metadataUploadCounter.incrementAndGet(),
+                RemoteSegmentMetadata.CURRENT_VERSION,
+                nodeId
+            );
+            try {
+                try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, String> uploadedSegments = new HashMap<>();
+                    for (Map.Entry<String, UploadedSegmentMetadata> entry : sourceMetadata.getMetadata().entrySet()) {
+                        UploadedSegmentMetadata uploaded = segmentsUploadedToRemoteStore.get(entry.getKey());
+                        if (uploaded == null) {
+                            throw new NoSuchFileException(entry.getKey());
+                        }
+                        // The restore copies bytes verbatim, so the writing Lucene version carries over unchanged.
+                        uploaded.setWrittenByMajor(entry.getValue().getWrittenByMajor());
+                        uploadedSegments.put(entry.getKey(), uploaded.toString());
+                    }
+                    metadataStreamWrapper.writeStream(
+                        indexOutput,
+                        new RemoteSegmentMetadata(
+                            RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                            sourceMetadata.getSegmentInfosBytes(),
+                            checkpoint
                         )
                     );
                 }
