@@ -32,9 +32,6 @@
 
 package org.opensearch.common.cli;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.util.KeyValuePair;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
@@ -46,12 +43,17 @@ import org.opensearch.node.InternalSettingsPreparer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import picocli.CommandLine.Option;
+
 /**
- * A cli command which requires an {@link org.opensearch.env.Environment} to use current paths and settings.
+ * A CLI command which requires an {@link org.opensearch.env.Environment}
+ * to use current paths and settings.
  *
  * @opensearch.internal
  */
@@ -59,11 +61,12 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     public static final int MAX_PASSPHRASE_LENGTH = 128;
 
-    private final OptionSpec<KeyValuePair> settingOption;
+    @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting (may be specified multiple times)")
+    private List<String> settingPairs = new ArrayList<>();
 
     /**
-     * Construct the command with the specified command description. This command will have logging configured without reading OpenSearch
-     * configuration files.
+     * Construct the command with the specified command description.
+     * Logging will be configured without reading OpenSearch config.
      *
      * @param description the command description
      */
@@ -72,42 +75,28 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /**
-     * Construct the command with the specified command description and runnable to execute before main is invoked. Commands constructed
-     * with this constructor must take ownership of configuring logging.
+     * Construct the command with the specified command description and before-main runnable.
+     * Commands constructed with this constructor must take ownership of configuring logging.
      *
      * @param description the command description
      * @param beforeMain the before-main runnable
      */
     public EnvironmentAwareCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
-        this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        final Map<String, String> settings = new HashMap<>();
-        for (final KeyValuePair kvp : settingOption.values(options)) {
-            if (kvp.value.isEmpty()) {
-                throw new UserException(ExitCodes.USAGE, "setting [" + kvp.key + "] must not be empty");
-            }
-            if (settings.containsKey(kvp.key)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "setting [%s] already set, saw [%s] and [%s]",
-                    kvp.key,
-                    settings.get(kvp.key),
-                    kvp.value
-                );
-                throw new UserException(ExitCodes.USAGE, message);
-            }
-            settings.put(kvp.key, kvp.value);
-        }
+    protected final void execute(Terminal terminal) throws Exception {
+        // Parse -E key=value pairs into a map with validation & duplicate detection.
+        final Map<String, String> settings = parseSettings(settingPairs);
 
+        // Fill in settings from system properties if not provided explicitly.
         putSystemPropertyIfSettingIsMissing(settings, "path.data", "opensearch.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "opensearch.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "opensearch.path.logs");
 
-        execute(terminal, options, createEnv(settings));
+        // Create Environment and delegate to subclass.
+        execute(terminal, createEnv(settings));
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
@@ -136,8 +125,12 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
-        final String value = System.getProperty(key);
+    private static void putSystemPropertyIfSettingIsMissing(
+        final Map<String, String> settings,
+        final String setting,
+        final String syspropKey
+    ) {
+        final String value = System.getProperty(syspropKey);
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message = String.format(
@@ -154,7 +147,33 @@ public abstract class EnvironmentAwareCommand extends Command {
         }
     }
 
-    /** Execute the command with the initialized {@link Environment}. */
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    /** Parse -E key=value pairs into a map with validation. */
+    private static Map<String, String> parseSettings(List<String> pairs) throws UserException {
+        final Map<String, String> settings = new HashMap<>();
+        for (String raw : pairs) {
+            if (raw == null || raw.isEmpty() || raw.indexOf('=') < 1) {
+                throw new UserException(ExitCodes.USAGE, "invalid -E setting [" + raw + "], expected key=value");
+            }
+            final int idx = raw.indexOf('=');
+            final String key = raw.substring(0, idx);
+            final String value = raw.substring(idx + 1);
+            if (value.isEmpty()) {
+                throw new UserException(ExitCodes.USAGE, "setting [" + key + "] must not be empty");
+            }
+            if (settings.putIfAbsent(key, value) != null) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "setting [%s] already set, saw [%s] and [%s]",
+                    key,
+                    settings.get(key),
+                    value
+                );
+                throw new UserException(ExitCodes.USAGE, message);
+            }
+        }
+        return settings;
+    }
 
+    /** Execute the command with the initialized {@link Environment}. */
+    protected abstract void execute(Terminal terminal, Environment env) throws Exception;
 }

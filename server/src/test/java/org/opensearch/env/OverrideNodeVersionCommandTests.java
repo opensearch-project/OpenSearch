@@ -31,8 +31,6 @@
 
 package org.opensearch.env;
 
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.MockTerminal;
@@ -59,7 +57,6 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
     private Environment environment;
     private Path[] nodePaths;
     private String nodeId;
-    private final OptionSet noOptions = new OptionParser().parse();
 
     @Before
     public void createNodePaths() throws IOException {
@@ -114,7 +111,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         final OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[] { emptyPath }, 0, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[] { emptyPath }, 0, environment)
         );
         assertThat(openSearchException.getMessage(), equalTo(OverrideNodeVersionCommand.NO_METADATA_MESSAGE));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
@@ -126,7 +123,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         final OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, environment)
         );
         assertThat(
             openSearchException.getMessage(),
@@ -146,7 +143,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         mockTerminal.addTextInput("n\n");
         final OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, environment)
         );
         assertThat(openSearchException.getMessage(), equalTo("aborted by user"));
         assertThat(
@@ -172,7 +169,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
         final OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, environment)
         );
         assertThat(openSearchException.getMessage(), equalTo("aborted by user"));
         assertThat(
@@ -195,7 +192,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment);
+        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, environment);
         assertThat(
             mockTerminal.getOutput(),
             allOf(
@@ -218,7 +215,7 @@ public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, noOptions, environment);
+        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, 0, environment);
         assertThat(
             mockTerminal.getOutput(),
             allOf(
