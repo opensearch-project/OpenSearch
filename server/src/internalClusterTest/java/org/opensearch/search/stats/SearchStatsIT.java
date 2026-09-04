@@ -39,6 +39,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.SearchPhaseName;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -46,6 +47,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.plugins.Plugin;
@@ -248,6 +250,26 @@ public class SearchStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             }
         }
         return nodes;
+    }
+
+    public void testTookCurrentNotLeakedWhenRequestFailsBeforeFirstPhase() throws Exception {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
+            .get();
+
+        String coordinator = internalCluster().getNodeNames()[0];
+        SearchRequestStats searchRequestStats = internalCluster().getInstance(SearchRequestStats.class, coordinator);
+        long tookCurrentBefore = searchRequestStats.getTookCurrent();
+
+        // Resolving a missing index fails before the first phase starts, so the request never reaches
+        // AbstractSearchAsyncAction, which is what normally emits the terminal notification. Without the
+        // pre-phase pairing the onRequestStart emitted on arrival is never matched and took.current
+        // stays incremented for the lifetime of the node.
+        expectThrows(IndexNotFoundException.class, () -> client(coordinator).prepareSearch("does_not_exist").get());
+
+        assertEquals(tookCurrentBefore, searchRequestStats.getTookCurrent());
     }
 
     public void testOpenContexts() {
