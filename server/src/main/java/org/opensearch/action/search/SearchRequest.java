@@ -129,6 +129,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
+    @Nullable
+    private Boolean shardInfo;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -234,6 +237,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        this.shardInfo = searchRequest.shardInfo;
     }
 
     /**
@@ -281,6 +285,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            shardInfo = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -314,6 +321,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalBoolean(shardInfo);
         }
     }
 
@@ -762,6 +772,31 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return pipeline;
     }
 
+    /**
+     * Sets whether per-shard information about the shard copies the search executed on should be
+     * included in the response. When {@code true}, the response {@code _shards} block contains a
+     * {@code shard_info} sub-object with successful, skipped, and failed entries describing the
+     * shards that actually participated (after the can-match pre-filter) and the node each shard
+     * was executed on. In a cross-cluster search that minimizes round-trips, which is the default,
+     * a remote cluster on a version older than 3.8 does not understand this flag and contributes no
+     * entries; when round-trips are not minimized this node resolves the remote shards itself and
+     * reports them whatever the remote's version. See {@link SearchShardInfo} for the full contract.
+     *
+     * <p>Defaults to {@code null} (treated as {@code false}).
+     */
+    public SearchRequest shardInfo(Boolean shardInfo) {
+        this.shardInfo = shardInfo;
+        return this;
+    }
+
+    /**
+     * Returns the user-supplied {@code shard_info} value, or {@code null} if unset.
+     */
+    @Nullable
+    public Boolean shardInfo() {
+        return this.shardInfo;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
@@ -816,7 +851,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook);
+            && Objects.equals(phaseTook, that.phaseTook)
+            && Objects.equals(shardInfo, that.shardInfo);
     }
 
     @Override
@@ -838,7 +874,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook
+            phaseTook,
+            shardInfo
         );
     }
 
@@ -883,6 +920,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + pipeline
             + ", phaseTook="
             + phaseTook
+            + ", shardInfo="
+            + shardInfo
             + "}";
     }
 }
