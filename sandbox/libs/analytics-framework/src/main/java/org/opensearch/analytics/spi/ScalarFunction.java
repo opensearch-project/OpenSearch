@@ -390,6 +390,8 @@ public enum ScalarFunction {
      * name-mapping adapter (see {@code MakeArrayAdapter} in the DataFusion backend).
      */
     ARRAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    // TODO(native-array_transform): drop this placeholder op once we emit a real array_transform lambda.
+    NESTED_PROJECT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_LENGTH(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),

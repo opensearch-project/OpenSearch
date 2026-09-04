@@ -652,6 +652,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                         caps.add(new ProjectCapability.Scalar(op, Set.of(ft), formats, true));
                     }
                 }
+                // Nested sub-path projection (`fields events.name`) — DataFusion-only (parquet path).
+                // Returns ARRAY<leaf>, so it's keyed on ARRAY/NESTED (project scalars are looked up
+                // by return type). The Rust NestedProjectRewriteRule lowers it to array_transform.
+                caps.add(
+                    // TODO(native-array_transform): remove this capability once we drop the placeholder op.
+                    new ProjectCapability.Scalar(ScalarFunction.NESTED_PROJECT, Set.of(FieldType.ARRAY, FieldType.NESTED), formats, true)
+                );
                 return Set.copyOf(caps);
             }
 

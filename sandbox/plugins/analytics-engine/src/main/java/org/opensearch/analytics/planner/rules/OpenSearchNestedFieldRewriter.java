@@ -14,7 +14,9 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
@@ -102,6 +104,29 @@ public final class OpenSearchNestedFieldRewriter {
         SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
+    /**
+     * Synthetic scalar function: {@code nested_project(arrayCol, '<path json>') → ARRAY<leaf>}.
+     *
+     * <p>Emitted by the project rewrite for a nested sub-path access (`fields events.name`). The
+     * second argument is a JSON path — {@code {"field":"name"}} for a struct leaf / whole map, or
+     * {@code {"field":"attributes","key":"<k>"}} for a map value. The Rust {@code NestedProjectRewriteRule}
+     * rewrites this to a native {@code array_transform} HOF before execution.
+     *
+     * <p>Return type is set explicitly per call to {@code ARRAY<leafType>} (grain-preserving: one
+     * per-row array of the sub-path across elements). {@link ReturnTypes#ARG0} here is a harmless
+     * default — every {@code makeCall} passes the explicit array type.
+     */
+    // TODO(native-array_transform): once DataFusion round-trips a Substrait HOF+lambda, emit
+    // array_transform(col, e -> get_field(e,'field')) as a RexLambda here instead of this op + JSON.
+    public static final SqlFunction NESTED_PROJECT_OP = new SqlFunction(
+        "NESTED_PROJECT",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
     private OpenSearchNestedFieldRewriter() {}
 
     /** Rewrites every {@code ITEM}-on-array filter condition in the tree to use {@link #NESTED_ANY_MATCH_OP}. */
@@ -118,6 +143,12 @@ public final class OpenSearchNestedFieldRewriter {
         public RelNode visit(LogicalFilter filter) {
             LogicalFilter visited = (LogicalFilter) super.visitChildren(filter);
             return rewriteFilter(visited);
+        }
+
+        @Override
+        public RelNode visit(LogicalProject project) {
+            LogicalProject visited = (LogicalProject) super.visitChildren(project);
+            return rewriteProject(visited);
         }
     }
 
@@ -154,6 +185,141 @@ public final class OpenSearchNestedFieldRewriter {
             "nested predicate on '" + field + "'",
             "in this form; supported on a nested leaf: comparisons, AND/OR/NOT, isnull/isnotnull"
         );
+    }
+
+    // ── Projection: fields events.name / events.attributes / events.attributes.<key> ──
+    // A nested sub-path is ITEM-over-array; rewrite it to NESTED_PROJECT($col, <path>), which the
+    // Rust rule lowers to array_transform(col, e -> get_field(e, path)) → ARRAY<leaf> (grain
+    // preserved: one per-row array of the sub-path across the row's elements).
+
+    private static RelNode rewriteProject(LogicalProject project) {
+        RelNode input = project.getInput();
+        RelDataType inputRowType = input.getRowType();
+        if (firstArrayColReferenced(project.getProjects(), inputRowType) < 0) {
+            return project;
+        }
+        RexBuilder rexBuilder = project.getCluster().getRexBuilder();
+        List<RexNode> newProjects = new ArrayList<>(project.getProjects().size());
+        boolean changed = false;
+        for (RexNode expr : project.getProjects()) {
+            RexNode rewritten = rewriteProjectExpr(expr, inputRowType, rexBuilder);
+            if (rewritten != expr) {
+                changed = true;
+            }
+            newProjects.add(rewritten);
+        }
+        if (!changed) {
+            return project;
+        }
+        LOGGER.debug("OpenSearchNestedFieldRewriter: project rewritten to nested_project (row count preserved)");
+        return LogicalProject.create(input, project.getHints(), newProjects, project.getRowType().getFieldNames());
+    }
+
+    private static RexNode rewriteProjectExpr(RexNode expr, RelDataType inputRowType, RexBuilder rexBuilder) {
+        ProjectPath path = extractProjectPath(expr, inputRowType);
+        if (path != null) {
+            return buildNestedProjectCall(path, expr.getType(), inputRowType, rexBuilder);
+        }
+        // References a nested array via ITEM but not as a clean sub-path (e.g. UPPER(events.name),
+        // events.count + 1) — unsupported in projection; reject with a 400, not a runtime error.
+        if (firstArrayColReferenced(List.of(expr), inputRowType) >= 0) {
+            throw new UnsupportedFunctionException(
+                "nested projection",
+                "in this form; project a nested leaf, map, or map key directly (e.g. `fields events.name`)"
+            );
+        }
+        return expr;
+    }
+
+    /** A nested sub-path in a projection: array column index + struct field, plus an optional map key. */
+    private record ProjectPath(int arrayCol, String field, String mapKey) {
+    }
+
+    /** Extracts a clean {@code ITEM}(-on-{@code ITEM})-over-array sub-path, or {@code null}. */
+    private static ProjectPath extractProjectPath(RexNode expr, RelDataType inputRowType) {
+        // Only unwrap a same-family CAST (e.g. char/varchar, or a numeric widening). A cross-family
+        // cast like cast(events.name as int) changes the value, so return null and let the caller
+        // reject it with a 400 rather than drop the cast. Same rule as the filter path.
+        while (expr instanceof RexCall cast && cast.getKind() == SqlKind.CAST && cast.getOperands().size() == 1) {
+            RexNode castOperand = cast.getOperands().get(0);
+            var castFamily = cast.getType().getFamily();
+            if (castFamily == null || !castFamily.equals(castOperand.getType().getFamily())) {
+                return null;
+            }
+            expr = castOperand;
+        }
+        if (!(expr instanceof RexCall outer) || !"ITEM".equals(outer.getOperator().getName()) || outer.getOperands().size() != 2) {
+            return null;
+        }
+        if (!(outer.getOperands().get(1) instanceof RexLiteral k1) || k1.getTypeName() != SqlTypeName.CHAR) {
+            return null;
+        }
+        String outerKey = k1.getValueAs(String.class);
+        RexNode arg0 = outer.getOperands().get(0);
+        // Single ITEM: ITEM($arrayCol, 'field') — a struct leaf or whole map. The field must exist in
+        // the element struct; if not, return null so we reject with a 400 instead of a get_field 500.
+        if (arg0 instanceof RexInputRef ref && isArrayCol(ref.getIndex(), inputRowType)) {
+            if (!elementHasField(ref.getIndex(), outerKey, inputRowType)) {
+                return null;
+            }
+            return new ProjectPath(ref.getIndex(), outerKey, null);
+        }
+        // Double ITEM: ITEM(ITEM($arrayCol,'mapField'), 'mapKey') — a map value. Only valid when
+        // 'mapField' is actually a MAP in the element struct; otherwise (e.g. an inner ARRAY =
+        // array-within-array, `events.spans.name`) it is NOT a map key — return null so the caller
+        // rejects it with a 400 instead of emitting a map_extract that 500s at execution.
+        if (arg0 instanceof RexCall inner
+            && "ITEM".equals(inner.getOperator().getName())
+            && inner.getOperands().size() == 2
+            && inner.getOperands().get(0) instanceof RexInputRef ref2
+            && isArrayCol(ref2.getIndex(), inputRowType)
+            && inner.getOperands().get(1) instanceof RexLiteral k2
+            && k2.getTypeName() == SqlTypeName.CHAR
+            && isMapField(ref2.getIndex(), k2.getValueAs(String.class), inputRowType)) {
+            return new ProjectPath(ref2.getIndex(), k2.getValueAs(String.class), outerKey);
+        }
+        return null;
+    }
+
+    private static boolean isArrayCol(int index, RelDataType inputRowType) {
+        return index < inputRowType.getFieldCount()
+            && inputRowType.getFieldList().get(index).getType().getSqlTypeName() == SqlTypeName.ARRAY;
+    }
+
+    /** True if the array element struct has a field named {@code field}. */
+    private static boolean elementHasField(int arrayCol, String field, RelDataType inputRowType) {
+        RelDataType elementType = inputRowType.getFieldList().get(arrayCol).getType().getComponentType();
+        return elementType != null && elementType.isStruct() && elementType.getField(field, true, false) != null;
+    }
+
+    /** True if {@code field} of the array element's struct is a MAP (so {@code field[key]} is a map value). */
+    private static boolean isMapField(int arrayCol, String field, RelDataType inputRowType) {
+        RelDataType elementType = inputRowType.getFieldList().get(arrayCol).getType().getComponentType();
+        if (elementType == null || !elementType.isStruct()) {
+            return false;
+        }
+        RelDataTypeField f = elementType.getField(field, true, false);
+        return f != null && f.getType().getSqlTypeName() == SqlTypeName.MAP;
+    }
+
+    private static RexNode buildNestedProjectCall(ProjectPath path, RelDataType leafType, RelDataType inputRowType, RexBuilder rexBuilder) {
+        Map<String, Object> pathMap = new LinkedHashMap<>();
+        pathMap.put("field", path.field());
+        if (path.mapKey() != null) {
+            pathMap.put("key", path.mapKey());
+        }
+        String json;
+        try {
+            json = JSON.writeValueAsString(pathMap);
+        } catch (Exception e) {
+            throw new UnsupportedFunctionException("nested projection", "path could not be serialized");
+        }
+        RexNode arrayRef = rexBuilder.makeInputRef(inputRowType.getFieldList().get(path.arrayCol()).getType(), path.arrayCol());
+        RexNode pathLit = rexBuilder.makeLiteral(json);
+        // Grain-preserving: one ARRAY<leaf> per row (nullable — a null row yields a null array).
+        RelDataType arrayType = rexBuilder.getTypeFactory().createArrayType(leafType, -1);
+        RelDataType returnType = rexBuilder.getTypeFactory().createTypeWithNullability(arrayType, true);
+        return rexBuilder.makeCall(returnType, NESTED_PROJECT_OP, List.of(arrayRef, pathLit));
     }
 
     private static RexNode tryRewriteToNestedAnyMatch(

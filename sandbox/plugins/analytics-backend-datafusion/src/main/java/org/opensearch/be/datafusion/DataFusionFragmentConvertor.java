@@ -219,7 +219,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket"),
         FunctionMappings.s(ConvAdapter.LOCAL_CONV_OP, "conv"),
         // TODO(native-array_any_match): drop this mapping once we emit array_any_match as a Substrait HOF+lambda.
-        FunctionMappings.s(OpenSearchNestedFieldRewriter.NESTED_ANY_MATCH_OP, "nested_any_match")
+        FunctionMappings.s(OpenSearchNestedFieldRewriter.NESTED_ANY_MATCH_OP, "nested_any_match"),
+        // TODO(native-array_transform): drop this mapping once we emit array_transform as a Substrait HOF+lambda.
+        FunctionMappings.s(OpenSearchNestedFieldRewriter.NESTED_PROJECT_OP, "nested_project")
     );
 
     // TODO: extract these LOCAL_*_OP aggregate stubs (+ LocalAggOp and ADDITIONAL_AGGREGATE_SIGS)

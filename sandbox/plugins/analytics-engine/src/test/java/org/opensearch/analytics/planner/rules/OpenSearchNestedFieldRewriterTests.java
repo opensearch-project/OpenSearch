@@ -13,6 +13,7 @@ import com.google.common.collect.Range;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
@@ -307,7 +308,163 @@ public class OpenSearchNestedFieldRewriterTests extends BasePlannerRulesTests {
         assertEquals(SqlKind.OTHER_FUNCTION, OpenSearchNestedFieldRewriter.NESTED_ANY_MATCH_OP.getKind());
     }
 
+    // ---- projection: fields events.name / numeric leaf / parent + leaf ----
+
+    public void testLeafProjectionRewrittenToNestedProject() {
+        RelNode scan = nestedScan();
+        RexCall np = asNestedProject(rewrittenProject(scan, List.of(eventsName())).get(0));
+        assertEquals(SqlTypeName.ARRAY, np.getType().getSqlTypeName());
+        assertEquals(EVENTS, arrayColOf(np));
+        assertEquals("{\"field\":\"name\"}", jsonOf(np));
+    }
+
+    public void testNumericLeafProjectionIsArrayOfInteger() {
+        RelNode scan = nestedScan();
+        RexCall np = asNestedProject(rewrittenProject(scan, List.of(eventsCount())).get(0));
+        assertEquals(SqlTypeName.ARRAY, np.getType().getSqlTypeName());
+        assertEquals(SqlTypeName.INTEGER, np.getType().getComponentType().getSqlTypeName());
+    }
+
+    public void testParentAndLeafProjection() {
+        RelNode scan = nestedScan();
+        List<RexNode> out = rewrittenProject(scan, List.of(traceIdRef(), eventsName()));
+        assertEquals(SqlKind.INPUT_REF, out.get(0).getKind()); // parent scalar untouched
+        assertSame(OpenSearchNestedFieldRewriter.NESTED_PROJECT_OP, ((RexCall) out.get(1)).getOperator());
+    }
+
+    public void testUnsupportedProjectionRejected() {
+        // UPPER(events.name) — nested leaf wrapped in a function; unsupported in projection → 400.
+        RelNode scan = nestedScan();
+        RexNode wrapped = rexBuilder.makeCall(SqlStdOperatorTable.UPPER, eventsName());
+        LogicalProject p = LogicalProject.create(scan, List.of(), List.of(wrapped), (List<String>) null);
+        expectThrows(UnsupportedFunctionException.class, () -> OpenSearchNestedFieldRewriter.rewrite(p));
+    }
+
+    public void testNonNestedProjectionUnchanged() {
+        RelNode scan = nestedScan();
+        LogicalProject p = LogicalProject.create(scan, List.of(), List.of(traceIdRef()), (List<String>) null);
+        assertSame(p, OpenSearchNestedFieldRewriter.rewrite(p));
+    }
+
+    public void testMapKeyProjectionRewritten() {
+        // events.attributes.<key> where `attributes` is a MAP → a map-value path.
+        RelDataType mapType = typeFactory.createMapType(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            typeFactory.createSqlType(SqlTypeName.VARCHAR)
+        );
+        RelDataType elem = typeFactory.createStructType(
+            List.of(mapType, typeFactory.createSqlType(SqlTypeName.VARCHAR)),
+            List.of("attributes", "name")
+        );
+        RelDataType eventsArr = typeFactory.createArrayType(elem, -1);
+        RelNode scan = arrayScan(eventsArr);
+
+        RexNode arrayRef = rexBuilder.makeInputRef(eventsArr, 0);
+        RexNode innerItem = rexBuilder.makeCall(mapType, SqlStdOperatorTable.ITEM, List.of(arrayRef, rexBuilder.makeLiteral("attributes")));
+        RexNode mapVal = rexBuilder.makeCall(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            SqlStdOperatorTable.ITEM,
+            List.of(innerItem, rexBuilder.makeLiteral("http.method"))
+        );
+
+        String json = jsonOf(asNestedProject(rewrittenProject(scan, List.of(mapVal)).get(0)));
+        assertTrue(json, json.contains("\"field\":\"attributes\""));
+        assertTrue(json, json.contains("\"key\":\"http.method\""));
+    }
+
+    public void testMultiLevelProjectionRejected() {
+        // events.spans.name — inner `spans` is an ARRAY, not a MAP → not a map key → 400, not a 500.
+        RelDataType innerElem = typeFactory.createStructType(List.of(typeFactory.createSqlType(SqlTypeName.VARCHAR)), List.of("name"));
+        RelDataType spansArr = typeFactory.createArrayType(innerElem, -1);
+        RelDataType elem = typeFactory.createStructType(List.of(spansArr), List.of("spans"));
+        RelDataType eventsArr = typeFactory.createArrayType(elem, -1);
+        RelNode scan = arrayScan(eventsArr);
+
+        RexNode arrayRef = rexBuilder.makeInputRef(eventsArr, 0);
+        RexNode innerItem = rexBuilder.makeCall(spansArr, SqlStdOperatorTable.ITEM, List.of(arrayRef, rexBuilder.makeLiteral("spans")));
+        RexNode leaf = rexBuilder.makeCall(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            SqlStdOperatorTable.ITEM,
+            List.of(innerItem, rexBuilder.makeLiteral("name"))
+        );
+        LogicalProject p = LogicalProject.create(scan, List.of(), List.of(leaf), (List<String>) null);
+        expectThrows(UnsupportedFunctionException.class, () -> OpenSearchNestedFieldRewriter.rewrite(p));
+    }
+
+    public void testWholeMapProjectionRewritten() {
+        // events.attributes where `attributes` is a MAP → single-ITEM whole-map projection:
+        // {"field":"attributes"} with no key, returning ARRAY<MAP> (not a scalar leaf).
+        RelDataType mapType = typeFactory.createMapType(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            typeFactory.createSqlType(SqlTypeName.VARCHAR)
+        );
+        RelDataType elem = typeFactory.createStructType(
+            List.of(mapType, typeFactory.createSqlType(SqlTypeName.VARCHAR)),
+            List.of("attributes", "name")
+        );
+        RelDataType eventsArr = typeFactory.createArrayType(elem, -1);
+        RelNode scan = arrayScan(eventsArr);
+
+        RexNode arrayRef = rexBuilder.makeInputRef(eventsArr, 0);
+        RexNode wholeMap = rexBuilder.makeCall(mapType, SqlStdOperatorTable.ITEM, List.of(arrayRef, rexBuilder.makeLiteral("attributes")));
+
+        RexCall np = asNestedProject(rewrittenProject(scan, List.of(wholeMap)).get(0));
+        assertEquals("{\"field\":\"attributes\"}", jsonOf(np));
+        assertEquals(SqlTypeName.ARRAY, np.getType().getSqlTypeName());
+        assertEquals(SqlTypeName.MAP, np.getType().getComponentType().getSqlTypeName());
+    }
+
+    public void testCastWrappedLeafProjectionRewritten() {
+        // Calcite may wrap the ITEM in a CAST; extractProjectPath unwraps it (parity with the filter path).
+        RelNode scan = nestedScan();
+        RexNode cast = rexBuilder.makeAbstractCast(typeFactory.createSqlType(SqlTypeName.VARCHAR), eventsName());
+        RexCall np = asNestedProject(rewrittenProject(scan, List.of(cast)).get(0));
+        assertEquals("{\"field\":\"name\"}", jsonOf(np));
+    }
+
+    public void testCrossFamilyCastOnNestedLeafProjectionRejected() {
+        // cast(events.name as int) — a cross-family cast changes the value, so the projection is
+        // rejected with a 400 instead of becoming ARRAY<INTEGER> over a string leaf.
+        RelNode scan = nestedScan();
+        RexNode cast = rexBuilder.makeAbstractCast(typeFactory.createSqlType(SqlTypeName.INTEGER), eventsName());
+        LogicalProject p = LogicalProject.create(scan, List.of(), List.of(cast), (List<String>) null);
+        expectThrows(UnsupportedFunctionException.class, () -> OpenSearchNestedFieldRewriter.rewrite(p));
+    }
+
+    public void testNonExistentNestedLeafProjectionRejected() {
+        // fields events.bogus — 'bogus' isn't a field of the event struct, so the projection is
+        // rejected with a 400 rather than a get_field that 500s.
+        RelNode scan = nestedScan();
+        RexNode bogus = item(EVENTS, eventsArrayType(), "bogus", SqlTypeName.VARCHAR);
+        LogicalProject p = LogicalProject.create(scan, List.of(), List.of(bogus), (List<String>) null);
+        expectThrows(UnsupportedFunctionException.class, () -> OpenSearchNestedFieldRewriter.rewrite(p));
+    }
+
     // ---- helpers ----
+
+    /** A scan whose only column ($0) is the given array type. */
+    private RelNode arrayScan(RelDataType eventsArr) {
+        RelDataType rowType = typeFactory.builder().add("events", eventsArr).build();
+        RelOptTable table = mock(RelOptTable.class);
+        when(table.getQualifiedName()).thenReturn(List.of("nested_index"));
+        when(table.getRowType()).thenReturn(rowType);
+        return stubScan(table);
+    }
+
+    /** Runs the rewriter over a project and returns its (rewritten) expressions. */
+    private List<RexNode> rewrittenProject(RelNode scan, List<RexNode> exprs) {
+        LogicalProject p = LogicalProject.create(scan, List.of(), exprs, (List<String>) null);
+        RelNode result = OpenSearchNestedFieldRewriter.rewrite(p);
+        assertTrue("rewrite must yield a LogicalProject", result instanceof LogicalProject);
+        return ((LogicalProject) result).getProjects();
+    }
+
+    private RexCall asNestedProject(RexNode node) {
+        assertTrue("expected a RexCall, got " + node, node instanceof RexCall);
+        RexCall call = (RexCall) node;
+        assertSame(OpenSearchNestedFieldRewriter.NESTED_PROJECT_OP, call.getOperator());
+        return call;
+    }
 
     /** Runs the rewriter over a filter and returns its (rewritten) condition. */
     private RexNode rewrittenCondition(RelNode scan, RexNode condition) {
