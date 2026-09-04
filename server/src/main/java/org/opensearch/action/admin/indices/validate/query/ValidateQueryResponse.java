@@ -87,13 +87,31 @@ public class ValidateQueryResponse extends BroadcastResponse {
 
     private final List<QueryExplanation> queryExplanations;
 
-    ValidateQueryResponse(StreamInput in) throws IOException {
+    /**
+     * Deserialization constructor. Public so plugins that intercept
+     * {@code ValidateQueryAction} can register response readers.
+     *
+     * @param in the stream input
+     * @throws IOException on deserialization failure
+     */
+    public ValidateQueryResponse(StreamInput in) throws IOException {
         super(in);
         valid = in.readBoolean();
         queryExplanations = in.readList(QueryExplanation::new);
     }
 
-    ValidateQueryResponse(
+    /**
+     * Creates a validate query response. Public so plugins that intercept
+     * {@code ValidateQueryAction} can construct responses.
+     *
+     * @param valid whether the query is valid
+     * @param queryExplanations per-target explanations, or null for none
+     * @param totalShards total shards the validation ran on
+     * @param successfulShards successful shards
+     * @param failedShards failed shards
+     * @param shardFailures shard failure details
+     */
+    public ValidateQueryResponse(
         boolean valid,
         List<QueryExplanation> queryExplanations,
         int totalShards,
