@@ -72,6 +72,7 @@ public class SearchResponseSections implements ToXContentFragment {
     protected final Suggest suggest;
     protected final SearchProfileShardResults profileResults;
     protected final boolean timedOut;
+    protected final int timedOutShards;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
@@ -91,6 +92,7 @@ public class SearchResponseSections implements ToXContentFragment {
             aggregations,
             suggest,
             timedOut,
+            0,
             terminatedEarly,
             profileResults,
             numReducePhases,
@@ -110,11 +112,38 @@ public class SearchResponseSections implements ToXContentFragment {
         List<SearchExtBuilder> searchExtBuilders,
         List<ProcessorExecutionDetail> processorResult
     ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            0,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            searchExtBuilders,
+            processorResult
+        );
+    }
+
+    public SearchResponseSections(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        int timedOutShards,
+        Boolean terminatedEarly,
+        SearchProfileShardResults profileResults,
+        int numReducePhases,
+        List<SearchExtBuilder> searchExtBuilders,
+        List<ProcessorExecutionDetail> processorResult
+    ) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
+        this.timedOutShards = timedOutShards;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
         this.processorResult.addAll(processorResult);
@@ -136,6 +165,7 @@ public class SearchResponseSections implements ToXContentFragment {
             aggregations,
             suggest,
             timedOut,
+            0,
             terminatedEarly,
             profileResults,
             numReducePhases,
@@ -146,6 +176,10 @@ public class SearchResponseSections implements ToXContentFragment {
 
     public final boolean timedOut() {
         return this.timedOut;
+    }
+
+    public final int timedOutShards() {
+        return this.timedOutShards;
     }
 
     public final Boolean terminatedEarly() {
