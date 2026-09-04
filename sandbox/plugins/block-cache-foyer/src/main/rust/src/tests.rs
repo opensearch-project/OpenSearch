@@ -15,7 +15,7 @@ use tempfile::TempDir;
 use crate::foyer::ffm::{foyer_create_cache, foyer_destroy_cache};
 use crate::foyer::foyer_cache::FoyerCache;
 use crate::range_cache::range_cache_key;
-use crate::traits::BlockCache;
+use crate::traits::{BlockCache, PutOutcome};
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -57,6 +57,28 @@ fn test_cache() -> (FoyerCache, TempDir) {
         false,
     );
     (cache, dir)
+}
+
+/// Push enough small entries through `cache` to evict everything already in its DRAM
+/// tier, so a subsequent `get()` has to consult the disk.
+///
+/// Needed because `memory(1)` does **not** mean "no DRAM caching": Foyer's default
+/// weighter is `|_, _| 1`, so the capacity counts *entries*, and the in-memory cache is
+/// sharded 8 ways by key hash. A handful of puts therefore leaves earlier entries
+/// resident in other shards, and `get()` answers from RAM — masking anything the disk
+/// tier did or did not store. 64 spread-out keys reliably clears all shards.
+///
+/// Pair this with `wait_for_flush()` when asserting on what actually reached the disk.
+fn drain_dram_tier(cache: &FoyerCache, filler_path: &str) {
+    for i in 0..64u64 {
+        put_range(
+            cache,
+            filler_path,
+            i * 1_000,
+            i * 1_000 + 1_000,
+            &[0xBB; 1_000],
+        );
+    }
 }
 
 fn put_range(cache: &FoyerCache, path: &str, start: u64, end: u64, data: &[u8]) {
@@ -3996,19 +4018,27 @@ fn tiered_cache_full_datafusion_query_simulation() {
     );
 
     // ── Query: data read → miss first time ───────────────────────────
-    let data_key = range_cache_key(path, 0, 2_000_000);
+    //
+    // 800 KB, not 2 MB: with TEST_CACHE_BLOCK_SIZE at 1 MiB, Foyer can never store a
+    // 2 MB entry, so this step used to pass only by reading the entry back out of
+    // Foyer's in-flight `Keeper` before the flusher discarded it. The point of this
+    // test is tier routing, so use a size the tier can actually hold and drain the
+    // flusher before reading, making the assertions about durable caching.
+    const DATA_LEN: usize = 800_000;
+    let data_key = range_cache_key(path, 0, DATA_LEN as u64);
     assert!(
         block_on(tiered.get(&data_key)).is_none(),
         "data miss on first access"
     );
 
     // ── S3 fetch → populate_cache → put() → data cache ──────────────
-    tiered.put(&data_key, Bytes::from(vec![0xAA; 2_000_000]));
+    tiered.put(&data_key, Bytes::from(vec![0xAA; DATA_LEN]));
+    block_on(tiered.wait_for_flush());
 
     // ── Query 2: same data → hit from data cache ─────────────────────
     assert_eq!(
         block_on(tiered.get(&data_key)).map(|b| b.len()),
-        Some(2_000_000)
+        Some(DATA_LEN)
     );
 
     // ── Verify isolation ─────────────────────────────────────────────
@@ -4104,6 +4134,140 @@ fn tiered_cache_key_alignment_warmup_matches_query() {
     // Superset → miss (different key)
     assert!(
         block_on(tiered.get(&range_cache_key("seg0/_0.parquet", 7_500_000, 9_000_000))).is_none()
+    );
+}
+
+/// Establishes the behaviour `TieredBlockCache`'s entry-size clamp exists to work
+/// around: Foyer accepts an entry too large for its block size and then **silently
+/// discards** it — no error, no log, nothing returned.
+///
+/// `FoyerCache` applies no size bound of its own, so it reaches Foyer directly.
+/// `TEST_CACHE_BLOCK_SIZE` is 1 MiB, so Foyer's real per-entry ceiling is
+/// `1 MiB - blob_index_size`, and a 2 MB entry can never be stored.
+///
+/// Two things are needed to observe the loss, and both are easy to get wrong — see
+/// [`drain_dram_tier`] for why a single extra put is not enough.
+///
+/// The measured cliff sits exactly at `block_size - blob_index_size`: with a 1 MiB block
+/// an entry of 1_040_000 bytes round-trips and one of 1_100_000 bytes is gone.
+#[test]
+fn foyer_silently_discards_entry_larger_than_block_size() {
+    let (cache, _dir) = test_cache();
+    // Comfortably past the 1 MiB block's real ceiling of `1 MiB - 4 KiB`.
+    let oversized = range_cache_key("seg0/_0.parquet", 0, 1_500_000);
+
+    // Accepted without complaint — Foyer's insert path reports no problem.
+    assert_eq!(
+        cache.put(&oversized, Bytes::from(vec![0xAA; 1_500_000])),
+        PutOutcome::Accepted,
+        "FoyerCache applies no size bound, so the oversized entry is accepted here"
+    );
+
+    // ...and the bookkeeping already counts it, before anything reached the disk.
+    assert!(
+        cache.stats.used_bytes.load(Ordering::Relaxed) >= 1_500_000,
+        "used_bytes counts the entry optimistically at put() time"
+    );
+
+    drain_dram_tier(&cache, "evict-oversized.parquet");
+    block_on(cache.wait_for_flush());
+
+    assert!(
+        block_on(cache.get(&oversized)).is_none(),
+        "an entry larger than block_size is silently dropped by Foyer's flusher; if this \
+         now returns Some, Foyer gained rotate-and-retry or a larger ceiling and \
+         TieredBlockCache's FOYER_BLOCK_OVERHEAD_BYTES clamp can be revisited"
+    );
+
+    // Positive control: same sequence, a size the block can hold, and it survives.
+    // Without this the assertion above would also pass if draining simply lost everything.
+    let ok = range_cache_key("seg1/_0.parquet", 0, 500_000);
+    cache.put(&ok, Bytes::from(vec![0xCC; 500_000]));
+    drain_dram_tier(&cache, "evict-ok.parquet");
+    block_on(cache.wait_for_flush());
+    assert_eq!(
+        block_on(cache.get(&ok)).map(|b| b.len()),
+        Some(500_000),
+        "an entry within block_size must survive eviction plus flush"
+    );
+}
+
+/// The clamp's other half: an entry that fits under the derived ceiling really does
+/// survive a full flush. This pins the margin as *sufficient* — if
+/// `FOYER_BLOCK_OVERHEAD_BYTES` were too small, an entry just under our limit would
+/// still be dropped by Foyer and this test would fail.
+#[test]
+fn entry_just_below_derived_ceiling_survives_flush() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+    // One byte under the tier's advertised limit — the worst case our clamp must cover.
+    let limit = tiered.max_data_entry_size();
+    let len = (limit - 1) as usize;
+    let key = range_cache_key("seg0/_0.parquet", 0, len as u64);
+
+    assert_eq!(
+        tiered.put(&key, Bytes::from(vec![0x5A; len])),
+        PutOutcome::Accepted,
+        "an entry under the limit must be accepted"
+    );
+    block_on(tiered.wait_for_flush());
+
+    assert_eq!(
+        block_on(tiered.get(&key)).map(|b| b.len()),
+        Some(len),
+        "an accepted entry must still be there after the flusher drains — if this fails, \
+         FOYER_BLOCK_OVERHEAD_BYTES is too small and Foyer is dropping entries we admitted"
+    );
+}
+
+/// The entry-size limits are clamped to what each tier's Foyer block size can store,
+/// and the clamp cannot be raised away by a live settings update.
+#[test]
+fn entry_size_limits_are_clamped_to_foyer_block_ceiling() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+
+    // TEST_CACHE_BLOCK_SIZE is 1 MiB, well below both compiled-in defaults (8 MB / 32 MB),
+    // so both limits must have been clamped down at construction.
+    let ceiling = (TEST_CACHE_BLOCK_SIZE as u64) - 16 * 1024;
+    assert_eq!(tiered.max_data_entry_size(), ceiling);
+
+    // A live update asking for more than Foyer can store is clamped, not honoured —
+    // otherwise we would be back to admitting entries Foyer silently drops.
+    tiered.update_max_data_entry_size(64 * 1024 * 1024);
+    assert_eq!(
+        tiered.max_data_entry_size(),
+        ceiling,
+        "an update above the block-size ceiling must be clamped"
+    );
+
+    // A request below the ceiling is honoured exactly.
+    tiered.update_max_data_entry_size(4096);
+    assert_eq!(tiered.max_data_entry_size(), 4096);
+}
+
+/// An oversized entry is refused with the limit that refused it, so callers can log
+/// something actionable instead of silently losing the bytes.
+#[test]
+fn oversized_put_reports_rejection_with_limit() {
+    let (tiered, _data_dir, _meta_dir) = tiered_test_cache();
+    tiered.update_max_metadata_entry_size(2048);
+
+    let key = range_cache_key("seg0/_0.parquet", 0, 4096);
+    assert_eq!(
+        tiered.put_metadata(&key, Bytes::from(vec![0xAB; 4096])),
+        PutOutcome::Rejected {
+            len: 4096,
+            limit: 2048
+        },
+        "rejection must carry both the entry size and the limit"
+    );
+
+    tiered.update_max_data_entry_size(2048);
+    assert_eq!(
+        tiered.put(&key, Bytes::from(vec![0xAB; 4096])),
+        PutOutcome::Rejected {
+            len: 4096,
+            limit: 2048
+        }
     );
 }
 
