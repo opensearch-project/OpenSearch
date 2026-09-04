@@ -76,8 +76,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "MobilePhone", data_type: Int16, nullable: true }, Field { name: "MobilePhoneModel", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, MobilePhone@1 as MobilePhone, MobilePhoneModel@2 as MobilePhoneModel]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, MobilePhone@1 ASC, MobilePhoneModel@2 ASC], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, MobilePhone@1 ASC, MobilePhoneModel@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@2 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([MobilePhone@0, MobilePhoneModel@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
@@ -87,8 +87,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "MobilePhone", data_type: Int16, nullable: true }, Field { name: "MobilePhoneModel", data_type: Utf8View, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, MobilePhone@1 as MobilePhone, MobilePhoneModel@2 as MobilePhoneModel]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, MobilePhone@1 ASC, MobilePhoneModel@2 ASC], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, MobilePhone@1 ASC, MobilePhoneModel@2 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@2 as approx_distinct(<scrubbed>.UserID), MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@2 DESC NULLS LAST, MobilePhone@0 ASC, MobilePhoneModel@1 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([MobilePhone@0, MobilePhoneModel@1], 4), input_partitions=4
                     AggregateExec: mode=Partial, gby=[MobilePhone@0 as MobilePhone, MobilePhoneModel@1 as MobilePhoneModel], aggr=[approx_distinct(<scrubbed>.UserID)]

@@ -445,6 +445,24 @@ impl ExecutionPlan for IndexedExec {
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
         vec![]
     }
+    /// Expose the residual `predicate` and the accepted runtime `dynamic_filter`
+    /// (if any) as physical-expression roots so DF55 dynamic-filter producers can
+    /// detect that this leaf still holds the pushed filter (statistics pruning).
+    fn apply_expressions(
+        &self,
+        f: &mut dyn FnMut(
+            &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+        ) -> Result<datafusion::common::tree_node::TreeNodeRecursion>,
+    ) -> Result<datafusion::common::tree_node::TreeNodeRecursion> {
+        let mut roots: Vec<&Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+        if let Some(predicate) = &self.predicate {
+            roots.push(predicate);
+        }
+        if let Some(dynamic_filter) = &self.dynamic_filter {
+            roots.push(dynamic_filter);
+        }
+        datafusion::physical_plan::apply_expression_roots(roots, f)
+    }
     fn with_new_children(
         self: Arc<Self>,
         _children: Vec<Arc<dyn ExecutionPlan>>,

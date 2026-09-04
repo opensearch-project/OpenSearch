@@ -7,17 +7,16 @@
  */
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Duration;
 
 use crate::parquet_page_cache::is_scoped_page_index_enabled;
+use datafusion::common::TableReference;
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
-use datafusion::execution::cache::cache_manager::{
-    CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
-};
-use datafusion::execution::cache::CacheAccessor;
-use datafusion::execution::cache::DefaultFilesMetadataCache;
+use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
+use datafusion::execution::cache::default_cache::DefaultCache;
+use datafusion::execution::cache::{Cache, CacheEntryInfo};
 use datafusion::parquet::file::metadata::ParquetMetaData;
-use native_bridge_common::log_error;
 use object_store::path::Path;
 
 // Cache type constants
@@ -25,10 +24,6 @@ pub const CACHE_TYPE_METADATA: &str = "METADATA";
 pub const CACHE_TYPE_STATS: &str = "STATISTICS";
 pub const CACHE_TYPE_COLUMN_INDEX: &str = "COLUMN_INDEX";
 pub const CACHE_TYPE_OFFSET_INDEX: &str = "OFFSET_INDEX";
-
-fn log_cache_error(operation: &str, error: &str) {
-    log_error!("[CACHE ERROR] {} operation failed: {}", operation, error);
-}
 
 /// Return a cache entry whose `ParquetMetaData` carries footer-only metadata (no
 /// `ColumnIndex` / `OffsetIndex`). If the entry already lacks a page index — or
@@ -64,17 +59,23 @@ fn strip_page_index(entry: CachedFileMetadataEntry) -> CachedFileMetadataEntry {
     )
 }
 
-// Wrapper to make Mutex<DefaultFilesMetadataCache> implement FileMetadataCache
+// Wrapper around DataFusion's `DefaultCache` that adds hit/miss counters and
+// enforces the footer-only invariant (`strip_page_index`) on every `put`.
+//
+// DF55 collapsed the DF54 `CacheAccessor` + `FileMetadataCache` traits into a
+// single `Cache<Path, CachedFileMetadataEntry>` trait. `DefaultCache` is already
+// internally synchronized (its methods take `&self`), so the previous outer
+// `Mutex` wrapper is redundant and has been dropped.
 pub struct MutexFileMetadataCache {
-    pub inner: Mutex<DefaultFilesMetadataCache>,
+    pub inner: DefaultCache<Path, CachedFileMetadataEntry>,
     hit_count: AtomicUsize,
     miss_count: AtomicUsize,
 }
 
 impl MutexFileMetadataCache {
-    pub fn new(cache: DefaultFilesMetadataCache) -> Self {
+    pub fn new(cache: DefaultCache<Path, CachedFileMetadataEntry>) -> Self {
         Self {
-            inner: Mutex::new(cache),
+            inner: cache,
             hit_count: AtomicUsize::new(0),
             miss_count: AtomicUsize::new(0),
         }
@@ -94,43 +95,23 @@ impl MutexFileMetadataCache {
     }
 
     pub fn clear_cache(&self) {
-        if let Ok(cache) = self.inner.lock() {
-            cache.clear();
-        }
-    }
-
-    pub fn update_cache_limit(&self, new_limit: usize) {
-        if let Ok(cache) = self.inner.lock() {
-            cache.update_cache_limit(new_limit);
-        }
+        self.inner.clear();
     }
 
     pub fn get_cache_limit(&self) -> usize {
-        if let Ok(cache) = self.inner.lock() {
-            cache.cache_limit()
-        } else {
-            0
-        }
+        self.inner.cache_limit()
     }
 }
 
-impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
+impl Cache<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
     fn get(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
-        match self.inner.lock() {
-            Ok(cache) => {
-                let result = cache.get(k);
-                if result.is_some() {
-                    self.hit_count.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    self.miss_count.fetch_add(1, Ordering::Relaxed);
-                }
-                result
-            }
-            Err(e) => {
-                log_cache_error("get", &e.to_string());
-                None
-            }
+        let result = self.inner.get(k);
+        if result.is_some() {
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
+        } else {
+            self.miss_count.fetch_add(1, Ordering::Relaxed);
         }
+        result
     }
 
     fn put(&self, k: &Path, v: CachedFileMetadataEntry) -> Option<CachedFileMetadataEntry> {
@@ -147,89 +128,53 @@ impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
         } else {
             v
         };
-        match self.inner.lock() {
-            Ok(cache) => cache.put(k, v),
-            Err(e) => {
-                log_cache_error("put", &e.to_string());
-                None
-            }
-        }
+        self.inner.put(k, v)
     }
 
     fn remove(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
-        match self.inner.lock() {
-            Ok(cache) => cache.remove(k),
-            Err(e) => {
-                log_cache_error("remove", &e.to_string());
-                None
-            }
-        }
+        self.inner.remove(k)
     }
 
     fn contains_key(&self, k: &Path) -> bool {
-        match self.inner.lock() {
-            Ok(cache) => cache.contains_key(k),
-            Err(e) => {
-                log_cache_error("contains_key", &e.to_string());
-                false
-            }
-        }
+        self.inner.contains_key(k)
     }
 
     fn len(&self) -> usize {
-        match self.inner.lock() {
-            Ok(cache) => cache.len(),
-            Err(e) => {
-                log_cache_error("len", &e.to_string());
-                0
-            }
-        }
+        self.inner.len()
     }
 
     fn clear(&self) {
-        match self.inner.lock() {
-            Ok(cache) => cache.clear(),
-            Err(e) => log_cache_error("clear", &e.to_string()),
-        }
+        self.inner.clear();
     }
 
     fn name(&self) -> String {
-        match self.inner.lock() {
-            Ok(cache) => cache.name(),
-            Err(e) => {
-                log_cache_error("name", &e.to_string());
-                "cache_error".to_string()
-            }
-        }
+        self.inner.name()
     }
-}
 
-impl FileMetadataCache for MutexFileMetadataCache {
     fn cache_limit(&self) -> usize {
-        match self.inner.lock() {
-            Ok(cache) => cache.cache_limit(),
-            Err(e) => {
-                log_cache_error("cache_limit", &e.to_string());
-                0
-            }
-        }
+        self.inner.cache_limit()
     }
 
     fn update_cache_limit(&self, limit: usize) {
-        match self.inner.lock() {
-            Ok(cache) => cache.update_cache_limit(limit),
-            Err(e) => log_cache_error("update_cache_limit", &e.to_string()),
-        }
+        self.inner.update_cache_limit(limit);
     }
 
-    fn list_entries(&self) -> std::collections::HashMap<Path, FileMetadataCacheEntry> {
-        match self.inner.lock() {
-            Ok(cache) => cache.list_entries(),
-            Err(e) => {
-                log_cache_error("list_entries", &e.to_string());
-                std::collections::HashMap::new()
-            }
-        }
+    fn cache_ttl(&self) -> Option<Duration> {
+        self.inner.cache_ttl()
+    }
+
+    fn update_cache_ttl(&self, ttl: Option<Duration>) {
+        self.inner.update_cache_ttl(ttl);
+    }
+
+    fn drop_table_entries(&self, table_ref: &TableReference) -> datafusion::common::Result<()> {
+        self.inner.drop_table_entries(table_ref)
+    }
+
+    fn list_entries(
+        &self,
+    ) -> datafusion::common::HashMap<Path, CacheEntryInfo<CachedFileMetadataEntry>> {
+        self.inner.list_entries()
     }
 }
 
@@ -302,7 +247,7 @@ mod strip_page_index_tests {
             "precondition: entry has page index"
         );
 
-        let cache = MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(64 * 1024 * 1024));
+        let cache = MutexFileMetadataCache::new(DefaultCache::new(64 * 1024 * 1024));
         let key = Path::from("data.parquet");
         cache.put(&key, entry);
 

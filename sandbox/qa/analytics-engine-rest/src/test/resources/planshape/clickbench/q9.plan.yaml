@@ -70,8 +70,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@1 DESC NULLS LAST, RegionID@0 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=1
                     AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
@@ -80,8 +80,8 @@ plans:
       RelabelExec: schema=Schema { fields: [Field { name: "u", data_type: Int64, nullable: true }, Field { name: "RegionID", data_type: Int32, nullable: true }], metadata: {} }
         ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@0 as u, RegionID@1 as RegionID]
           SortPreservingMergeExec: [approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], fetch=10
-            SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@0 DESC NULLS LAST, RegionID@1 ASC], preserve_partitioning=[true]
-              ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+            ProjectionExec: expr=[approx_distinct(<scrubbed>.UserID)@1 as approx_distinct(<scrubbed>.UserID), RegionID@0 as RegionID]
+              SortExec: TopK(fetch=10), expr=[approx_distinct(<scrubbed>.UserID)@1 DESC NULLS LAST, RegionID@0 ASC], preserve_partitioning=[true]
                 AggregateExec: mode=FinalPartitioned, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]
                   RepartitionExec: partitioning=Hash([RegionID@0], 4), input_partitions=2
                     AggregateExec: mode=Partial, gby=[RegionID@0 as RegionID], aggr=[approx_distinct(<scrubbed>.UserID)]

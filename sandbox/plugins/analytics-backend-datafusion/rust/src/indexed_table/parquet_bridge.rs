@@ -66,7 +66,7 @@ use prost::bytes::Bytes;
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let meta = store
         .head(location)
@@ -84,7 +84,7 @@ pub async fn load_parquet_metadata_with_meta(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
     meta: object_store::ObjectMeta,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let size = meta.size;
 

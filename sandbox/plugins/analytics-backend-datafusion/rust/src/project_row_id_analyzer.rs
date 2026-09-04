@@ -84,6 +84,8 @@ impl AnalyzerRule for ProjectRowIdAnalyzer {
                     projected_schema: Arc::new(new_projected_schema),
                     filters: scan.filters.clone(),
                     fetch: scan.fetch,
+                    // DF55 added this field; preserve any planner-attached statistics requests.
+                    statistics_requests: scan.statistics_requests.clone(),
                 });
                 Ok(Transformed::yes(new_scan))
             }

@@ -8,8 +8,11 @@
 
 use std::sync::Arc;
 
-use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
-use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
+use datafusion::execution::cache::cache_manager::{
+    CacheManagerConfig, CachedFileList, DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT,
+};
+use datafusion::execution::cache::default_cache::DefaultCache;
+use datafusion::execution::cache::{Cache, TableScopedPath};
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{col, lit};
 use datafusion::{
@@ -76,7 +79,7 @@ pub async fn execute_query(
 
     // Register the standard DataFusion ListingTable. This function only runs the vanilla
     // (non-row-id) path — QTF row-id plans always route to the indexed executor.
-    // Declares the per-file sort order when the index has `index.sort.field`.
+    // Declares the per-file sort order (unconditional) when the index has `index.sort.field`.
     register_listing_table(&ctx, &table_name, table_path, sort_fields, sort_orders).await?;
 
     // Planning: build the query DataFrame (Substrait decode for normal search, native filter for an
@@ -388,7 +391,7 @@ pub async fn execute_with_context(
 /// per-query memory pool, then `.build()`.
 pub fn query_runtime_env_builder(
     runtime: &DataFusionRuntime,
-    list_file_cache: Arc<DefaultListFilesCache>,
+    list_file_cache: Arc<DefaultCache<TableScopedPath, CachedFileList>>,
 ) -> RuntimeEnvBuilder {
     RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_object_store_registry(Arc::new(
@@ -416,7 +419,7 @@ pub fn build_query_runtime_env(
     table_path: &ListingTableUrl,
     object_metas: &[ObjectMeta],
 ) -> Result<Arc<datafusion::execution::runtime_env::RuntimeEnv>, DataFusionError> {
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
+    let list_file_cache = Arc::new(DefaultCache::new(DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT));
     let table_scoped_path = datafusion::execution::cache::TableScopedPath {
         table: None,
         path: table_path.prefix().clone(),

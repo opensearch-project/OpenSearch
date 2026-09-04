@@ -1183,33 +1183,33 @@ mod tests {
             .bloom_filter_properties(&parquet::schema::types::ColumnPath::from("name"))
             .unwrap();
         assert!(
-            (name_bf.fpp - 0.01).abs() < 1e-9,
+            (name_bf.fpp() - 0.01).abs() < 1e-9,
             "name fpp should be 0.01, got {}",
-            name_bf.fpp
+            name_bf.fpp()
         );
-        assert_eq!(name_bf.ndv, 200_000, "name ndv should be 200000");
+        assert_eq!(name_bf.ndv(), 200_000, "name ndv should be 200000");
 
         // "title": field-level enabled but no fpp/ndv -> falls to type utf8 fpp=0.05, ndv=50000
         let title_bf = props
             .bloom_filter_properties(&parquet::schema::types::ColumnPath::from("title"))
             .unwrap();
         assert!(
-            (title_bf.fpp - 0.05).abs() < 1e-9,
+            (title_bf.fpp() - 0.05).abs() < 1e-9,
             "title fpp should be 0.05, got {}",
-            title_bf.fpp
+            title_bf.fpp()
         );
-        assert_eq!(title_bf.ndv, 50_000, "title ndv should be 50000");
+        assert_eq!(title_bf.ndv(), 50_000, "title ndv should be 50000");
 
         // "age": int32 type-level enabled but no fpp/ndv -> falls to global fpp=0.1, ndv=100000
         let age_bf = props
             .bloom_filter_properties(&parquet::schema::types::ColumnPath::from("age"))
             .unwrap();
         assert!(
-            (age_bf.fpp - 0.1).abs() < 1e-9,
+            (age_bf.fpp() - 0.1).abs() < 1e-9,
             "age fpp should be 0.1, got {}",
-            age_bf.fpp
+            age_bf.fpp()
         );
-        assert_eq!(age_bf.ndv, 100_000, "age ndv should be 100000");
+        assert_eq!(age_bf.ndv(), 100_000, "age ndv should be 100000");
     }
 
     #[test]
@@ -1370,5 +1370,201 @@ mod tests {
             .any(|k| k.key == WRITER_GENERATION_KEY && k.value.as_deref() == Some("42"));
         assert!(has_format, "format_version stamp missing");
         assert!(has_gen, "writer_generation stamp missing");
+    }
+
+    // ---- W1 (DF55 / arrow-59): production write data-page-layout coverage ----
+    //
+    // arrow-59 (#9972) byte-bounds oversized data pages for wide variable-width
+    // values; production sets `data_page_size_limit = 1 MiB` + `page_row_limit =
+    // 20_000` + row-group limits (`native_settings.rs`). Prior to these tests NO
+    // coverage asserted the WRITTEN page/row-group layout, so an arrow page-sizing
+    // change could silently reshape output files. A single generic probe writes a
+    // batch through the REAL `WriterPropertiesBuilder` and reads the OffsetIndex
+    // back; each scenario test below pins a different layout regime (byte-driven /
+    // row-driven / row-group split) so a future shift is caught (W1 / arrow-rs#9972).
+
+    #[cfg(test)]
+    struct ProbedLayout {
+        row_groups: usize,
+        total_rows: i64,
+        pages_rg0_col0: usize,
+        max_compressed_page_size: i32,
+    }
+
+    /// Write `batch` through the production `WriterPropertiesBuilder` for `config`
+    /// and probe the resulting parquet page/row-group layout via the OffsetIndex.
+    #[cfg(test)]
+    fn probe_production_write_layout(
+        config: &NativeSettings,
+        batch: &arrow::record_batch::RecordBatch,
+    ) -> ProbedLayout {
+        use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions};
+        use parquet::arrow::ArrowWriter;
+
+        let schema = batch.schema();
+        let props = WriterPropertiesBuilder::build(config, &schema).unwrap();
+        let mut buf: Vec<u8> = Vec::new();
+        {
+            let mut w = ArrowWriter::try_new(&mut buf, schema.clone(), Some(props)).unwrap();
+            w.write(batch).unwrap();
+            w.close().unwrap();
+        }
+
+        // Round-trip through a temp file (File: ChunkReader), page index enabled.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("w1.parquet");
+        std::fs::write(&path, &buf).unwrap();
+        let file = std::fs::File::open(&path).unwrap();
+        let md = ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true))
+            .unwrap();
+        let meta = md.metadata();
+
+        let total_rows: i64 = (0..meta.num_row_groups())
+            .map(|i| meta.row_group(i).num_rows())
+            .sum();
+        let oi = meta
+            .offset_index()
+            .expect("OffsetIndex present (production statistics default = Page)");
+        let pages_rg0_col0 = oi[0][0].page_locations().len();
+        let mut max_compressed_page_size = 0i32;
+        for rg in 0..meta.num_row_groups() {
+            for col in 0..oi[rg].len() {
+                for p in oi[rg][col].page_locations() {
+                    max_compressed_page_size = max_compressed_page_size.max(p.compressed_page_size);
+                }
+            }
+        }
+        ProbedLayout {
+            row_groups: meta.num_row_groups(),
+            total_rows,
+            pages_rg0_col0,
+            max_compressed_page_size,
+        }
+    }
+
+    #[cfg(test)]
+    fn utf8_batch(name: &str, values: Vec<String>) -> arrow::record_batch::RecordBatch {
+        use arrow::array::StringArray;
+        use std::sync::Arc;
+        let schema = Arc::new(ArrowSchema::new(vec![Field::new(
+            name,
+            ArrowDataType::Utf8,
+            false,
+        )]));
+        arrow::record_batch::RecordBatch::try_new(
+            schema,
+            vec![Arc::new(StringArray::from_iter_values(values))],
+        )
+        .unwrap()
+    }
+
+    /// Byte-driven page splits: ~8 MiB of wide ~1 KiB values, under the 20_000
+    /// page-row limit so the 1 MiB BYTE limit governs (exercises arrow-59 #9972).
+    #[test]
+    fn w1_byte_limit_splits_wide_pages() {
+        const ROWS: usize = 8192;
+        let batch = utf8_batch(
+            "body",
+            (0..ROWS)
+                .map(|i| format!("{i:08}-{}", "x".repeat(1016)))
+                .collect(),
+        );
+        let l = probe_production_write_layout(&NativeSettings::new(), &batch);
+        eprintln!(
+            "[W1 byte] rgs={} rows={} pages={} max_page={}B",
+            l.row_groups, l.total_rows, l.pages_rg0_col0, l.max_compressed_page_size
+        );
+        assert_eq!(l.row_groups, 1, "8192 rows < 1M RG limit → one row group");
+        assert_eq!(l.total_rows, ROWS as i64, "row count round-trips");
+        assert!(
+            l.pages_rg0_col0 > 1,
+            "wide column must split into >1 data page"
+        );
+        assert!(
+            (4..=16).contains(&l.pages_rg0_col0),
+            "byte-driven page count {} outside pinned arrow-59 range 4..=16 (W1 / arrow-rs#9972); re-characterize",
+            l.pages_rg0_col0
+        );
+        assert!(
+            l.max_compressed_page_size < 2 * 1024 * 1024,
+            "a data page ({}B) wildly exceeds the 1 MiB limit — byte-bounding regressed (W1 / arrow-rs#9972)",
+            l.max_compressed_page_size
+        );
+    }
+
+    /// Row-driven page splits: 45_000 tiny values — too small to hit the 1 MiB byte
+    /// limit, so the 20_000 `page_row_limit` governs → ceil(45000/20000)=3 pages.
+    #[test]
+    fn w1_row_limit_splits_narrow_pages() {
+        const ROWS: usize = 45_000;
+        let batch = utf8_batch("k", (0..ROWS).map(|i| format!("{i:06}")).collect());
+        let l = probe_production_write_layout(&NativeSettings::new(), &batch);
+        eprintln!(
+            "[W1 row] rgs={} rows={} pages={} max_page={}B",
+            l.row_groups, l.total_rows, l.pages_rg0_col0, l.max_compressed_page_size
+        );
+        assert_eq!(l.row_groups, 1, "45k rows < 1M RG limit → one row group");
+        assert_eq!(l.total_rows, ROWS as i64);
+        assert_eq!(
+            l.pages_rg0_col0, 3,
+            "20_000 page-row limit → ceil(45000/20000)=3 data pages, got {}",
+            l.pages_rg0_col0
+        );
+    }
+
+    /// Row-group split: a small `row_group_max_rows` forces multiple row groups.
+    #[test]
+    fn w1_row_group_max_rows_splits_row_groups() {
+        const ROWS: usize = 25_000;
+        let config = NativeSettings {
+            row_group_max_rows: Some(10_000),
+            ..Default::default()
+        };
+        let batch = utf8_batch("k", (0..ROWS).map(|i| format!("{i:06}")).collect());
+        let l = probe_production_write_layout(&config, &batch);
+        eprintln!("[W1 rg] rgs={} rows={}", l.row_groups, l.total_rows);
+        assert_eq!(l.total_rows, ROWS as i64);
+        assert_eq!(
+            l.row_groups, 3,
+            "row_group_max_rows=10_000 over 25_000 rows → 3 row groups, got {}",
+            l.row_groups
+        );
+    }
+
+    /// Field-type matrix cell: a mixed Utf8 + Int64 batch writes cleanly through the
+    /// production props and every column gets an OffsetIndex (no per-type surprise).
+    #[test]
+    fn w1_mixed_field_types_layout_sane() {
+        use arrow::array::{Int64Array, StringArray};
+        use std::sync::Arc;
+        const ROWS: usize = 5_000;
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("s", ArrowDataType::Utf8, false),
+            Field::new("n", ArrowDataType::Int64, false),
+        ]));
+        let batch = arrow::record_batch::RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from_iter_values(
+                    (0..ROWS).map(|i| format!("v{i}")),
+                )),
+                Arc::new(Int64Array::from_iter_values(0..ROWS as i64)),
+            ],
+        )
+        .unwrap();
+        let l = probe_production_write_layout(&NativeSettings::new(), &batch);
+        eprintln!(
+            "[W1 mixed] rgs={} rows={} pages_c0={}",
+            l.row_groups, l.total_rows, l.pages_rg0_col0
+        );
+        assert_eq!(l.row_groups, 1);
+        assert_eq!(
+            l.total_rows, ROWS as i64,
+            "mixed-type row count round-trips"
+        );
+        assert!(
+            l.pages_rg0_col0 >= 1,
+            "col0 must have an OffsetIndex page entry"
+        );
     }
 }
