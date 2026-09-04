@@ -25,6 +25,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -43,6 +44,9 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -60,6 +64,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -339,6 +344,102 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertNotNull(failure.get());
         assertFalse("a stream that never produced a batch must not reach the consumer", consumerRan.get());
         verify(stream, atLeastOnce()).cancel(anyString(), any());
+    }
+
+    /**
+     * A fragment is always dispatched as a child request, which puts the child-node tracking wrapper on
+     * the handler chain. Every wrapper has to forward {@code onStreamCreated}, and it has to arrive
+     * before the consumer callback — a wrapper that drops it silently leaves the stream uncancellable.
+     */
+    public void testOnStreamCreatedReachesTheHandlerOfAChildRequestFirst() throws Exception {
+        FlightStream stream = mock(FlightStream.class);
+        when(stream.next()).thenReturn(false);
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenReturn(stream);
+
+        channel = createChannel(mockFlightClient, stubHeaderContext(), new FlightTransportConfig());
+
+        List<String> callbacks = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch consumerDone = new CountDownLatch(1);
+
+        sendStreamRequest(new StreamTransportResponseHandler<>() {
+            @Override
+            public void onStreamCreated(StreamTransportResponse<TestResponse> streamResponse) {
+                callbacks.add("onStreamCreated");
+            }
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                callbacks.add("handleStreamResponse");
+                try {
+                    streamResponse.close();
+                } catch (IOException e) {
+                    throw new AssertionError("close failed", e);
+                }
+                consumerDone.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                throw new AssertionError("unexpected handler exception", exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        }, new TaskId("parent-node", 7L));
+
+        assertTrue("consumer must run", consumerDone.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertEquals(List.of("onStreamCreated", "handleStreamResponse"), callbacks);
+    }
+
+    /**
+     * A handler that throws while being handed the stream must fail the request, not leave it half
+     * started: nothing else would ever notify that handler, and the stream would be opened with no
+     * consumer.
+     */
+    public void testThrowFromOnStreamCreatedFailsRequestWithoutOpeningStream() throws Exception {
+        channel = createChannel(mockFlightClient, stubHeaderContext(), new FlightTransportConfig());
+
+        AtomicReference<TransportException> failure = new AtomicReference<>();
+        CountDownLatch handlerNotified = new CountDownLatch(1);
+
+        sendStreamRequest(new StreamTransportResponseHandler<>() {
+            @Override
+            public void onStreamCreated(StreamTransportResponse<TestResponse> streamResponse) {
+                throw new IllegalStateException("handler rejected the stream");
+            }
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                throw new AssertionError("consumer must not be invoked");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                failure.set(exp);
+                handlerNotified.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        });
+
+        assertTrue("the handler must be notified of its own failure", handlerNotified.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertNotNull(failure.get());
+        verify(mockFlightClient, never()).getStream(any(Ticket.class), any());
     }
 
     // ── channel close vs. active streams ───────────────────────────────────────
@@ -674,6 +775,15 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
      * service so the channel resolves it from its response handlers as it would in production.
      */
     private void sendStreamRequest(TransportResponseHandler<TestResponse> handler) {
+        sendStreamRequest(handler, TaskId.EMPTY_TASK_ID);
+    }
+
+    /**
+     * @param parentTaskId when set, the request goes out as a child request, which adds the child-node
+     *                     tracking wrapper to the handler chain — the shape every real fragment dispatch
+     *                     takes.
+     */
+    private void sendStreamRequest(TransportResponseHandler<TestResponse> handler, TaskId parentTaskId) {
         Transport.Connection connection = new Transport.Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -699,10 +809,12 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             public void close() {}
         };
 
+        TestRequest request = new TestRequest();
+        request.setParentTask(parentTaskId);
         streamTransportService.sendRequest(
             connection,
             "internal:test/channel-close",
-            new TestRequest(),
+            request,
             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
             handler
         );
