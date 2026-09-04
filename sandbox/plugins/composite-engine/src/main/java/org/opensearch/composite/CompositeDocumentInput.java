@@ -85,6 +85,35 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         this.rowId = rowId;
     }
 
+    @Override
+    public void startNestedChild(String nestedPath) {
+        // Broadcast the nested-child open to every format so each builds its nested representation
+        // from the SAME parse-order signal stream (e.g. Parquet begins a LIST<STRUCT> element).
+        primaryDocumentInput.startNestedChild(nestedPath);
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.startNestedChild(nestedPath);
+        }
+    }
+
+    @Override
+    public void endNestedChild() {
+        primaryDocumentInput.endNestedChild();
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.endNestedChild();
+        }
+    }
+
+    @Override
+    public void addMapEntry(MappedFieldType mapField, String key, Object value) {
+        // Broadcast each map key/value to every format so each builds its map representation from the
+        // SAME parse-order signal stream (Parquet fills a MAP<Utf8,Utf8> column; formats with no map
+        // notion no-op via the DocumentInput default).
+        primaryDocumentInput.addMapEntry(mapField, key, value);
+        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
+            input.addMapEntry(mapField, key, value);
+        }
+    }
+
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;

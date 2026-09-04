@@ -18,8 +18,13 @@ import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.mapper.FlatObjectFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Set;
 
 /**
@@ -44,6 +49,16 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private long rowId = -1L;
+
+    // Every leaf under a nested scope collapses into a coarse, doc-values-only flat_object-style
+    // projection (see FlatObjectFieldMapper.addDocValueOnlyLeaf) instead of real structure — Lucene
+    // never represents nested arrays. Answers exists()/single-term queries; CANNOT answer
+    // multi-field correlation within one nested element — that must go through Parquet/DataFusion.
+    // The anchor for every leaf is the OUTERMOST open scope (peekLast()), regardless of depth.
+    // Only keyword/text leaves are flattened (see isFlattenableNestedLeafType) — other types are
+    // stringified without correct type semantics in this coarse projection, so they're skipped here
+    // and remain queryable only via Parquet.
+    private final Deque<String> nestedPathStack = new ArrayDeque<>();
 
     /**
      * Creates a new LuceneDocumentInput with the default field factory registry.
@@ -73,20 +88,27 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     }
 
     /**
-     * Adds a field to the underlying Lucene document by looking up the appropriate
-     * {@link LuceneFieldFactory} from the registry based on the field's type name.
-     * <p>
-     * The field is accepted only if OWNING_FORMAT owns at least one capability
-     * for this field according to {@link MappedFieldType#getCapabilityMap()}. Fields with
-     * an empty capability map (no format declared support) and fields owned by other
-     * formats are silently skipped, mirroring the per-format self-filtering used by
-     * {@code ParquetDocumentInput}.
+     * Adds a field via the registered {@link LuceneFieldFactory} for its type. Silently skipped if no
+     * format declared support (empty capability map) — mirrors {@code ParquetDocumentInput}'s
+     * self-filtering. Inside a nested scope, routes to the coarse projection on {@link
+     * #nestedPathStack} instead of a normal per-type field.
      *
      * @param fieldType the OpenSearch mapped field type
      * @param value     the field value
      */
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
+        if (nestedPathStack.isEmpty() == false) {
+            if (value == null || isFlattenableNestedLeafType(fieldType) == false) {
+                return;
+            }
+            String rootFieldName = nestedPathStack.peekLast();
+            String leafRelativePath = fieldType.name().substring(rootFieldName.length() + 1);
+            String stringValue = String.valueOf(value);
+            FlatObjectFieldMapper.addDocValueOnlyLeaf(document, rootFieldName, leafRelativePath, stringValue);
+            FlatObjectFieldMapper.addDocValueOnlyPathMarker(document, rootFieldName, leafRelativePath);
+            return;
+        }
         Set<FieldTypeCapabilities.Capability> capabilities = fieldType.getCapabilityMap().getOrDefault(LucenePlugin.DATA_FORMAT, Set.of());
         if (capabilities.isEmpty()) {
             // nothing to support on this format for this field.
@@ -106,6 +128,18 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
         }
         FieldType luceneFieldType = getFieldType(fieldType, capabilities);
         factory.addField(document, fieldType, value, luceneFieldType);
+    }
+
+    /**
+     * Nested leaves are only flattened into the Lucene projection if they're keyword or text —
+     * other types (numeric, boolean, date, ip, binary, ...) are stringified losslessly on the
+     * Parquet side but have no correct doc-values representation as a plain string term here, so
+     * they are intentionally not represented in Lucene at all rather than stored with misleading
+     * (non-numeric-sorting) semantics.
+     */
+    private static boolean isFlattenableNestedLeafType(MappedFieldType fieldType) {
+        String typeName = fieldType.typeName();
+        return KeywordFieldMapper.CONTENT_TYPE.equals(typeName) || TextFieldMapper.CONTENT_TYPE.equals(typeName);
     }
 
     private static FieldType getFieldType(MappedFieldType fieldType, Set<FieldTypeCapabilities.Capability> capabilities) {
@@ -146,6 +180,55 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     /** Returns the row ID assigned via {@link #setRowId}, or {@code -1} if none. */
     public long getRowId() {
         return rowId;
+    }
+
+    /**
+     * Enters a nested scope, anchoring subsequent {@link #addField}/{@link #addMapEntry} calls to
+     * the OUTERMOST open path (see {@link #nestedPathStack}) until the matching {@link
+     * #endNestedChild()}.
+     */
+    @Override
+    public void startNestedChild(String nestedPath) {
+        nestedPathStack.push(nestedPath);
+    }
+
+    /** Leaves the innermost open nested scope. */
+    @Override
+    public void endNestedChild() {
+        if (nestedPathStack.isEmpty()) {
+            throw new IllegalStateException("endNestedChild called with no open nested child");
+        }
+        nestedPathStack.pop();
+    }
+
+    /**
+     * Emits one {@code (key, value)} entry of a {@code flat_object}. Lucene has no MAP notion, so it
+     * reuses flat_object's own doc-values-only encoding — anchored to the field's own name at the
+     * document root, or to the outermost open nested path if inside one (see {@link
+     * #nestedPathStack}).
+     *
+     * @param mapField the flat_object field the entry belongs to
+     * @param key      the entry key — the leaf's dotted path relative to {@code mapField}
+     * @param value    the entry value, or {@code null}
+     */
+    @Override
+    public void addMapEntry(MappedFieldType mapField, String key, Object value) {
+        if (value == null) {
+            return;
+        }
+        String rootFieldName;
+        String leafRelativePath;
+        if (nestedPathStack.isEmpty() == false) {
+            rootFieldName = nestedPathStack.peekLast();
+            String mapFieldRelativeToAnchor = mapField.name().substring(rootFieldName.length() + 1);
+            leafRelativePath = mapFieldRelativeToAnchor + "." + key;
+        } else {
+            rootFieldName = mapField.name();
+            leafRelativePath = key;
+        }
+        String stringValue = String.valueOf(value);
+        FlatObjectFieldMapper.addDocValueOnlyLeaf(document, rootFieldName, leafRelativePath, stringValue);
+        FlatObjectFieldMapper.addDocValueOnlyPathMarker(document, rootFieldName, leafRelativePath);
     }
 
     @Override
