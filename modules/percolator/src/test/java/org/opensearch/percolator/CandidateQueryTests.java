@@ -78,6 +78,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -122,8 +123,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -728,6 +731,71 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(5, topDocs.scoreDocs[0].doc);
+    }
+
+    public void testRangeQueriesVerifiedForSingleValuedDocument() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        addQuery(IntPoint.newRangeQuery("int_field", 0, 5), docs);                          // doc 0: complete_single_valued
+        addQuery(new TermQuery(new Term("string_field", "value")), docs);                   // doc 1: complete
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(IntPoint.newRangeQuery("int_field", 0, 5), Occur.MUST);
+        builder.add(new TermQuery(new Term("string_field", "value")), Occur.MUST_NOT);
+        addQuery(builder.build(), docs);                                                    // doc 2: partial
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        // Single-valued document: the range-only query is covered by the verified matches query,
+        // so its candidate match skips the MemoryIndex verification.
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery(
+            "_name",
+            queryStore,
+            Collections.singletonList(new BytesArray("{}")),
+            percolateSearcher,
+            false,
+            Version.CURRENT
+        );
+        TopDocs topDocs = shardSearcher.search(query, 10);
+        assertEquals(2L, topDocs.totalHits.value()); // the range query and the range + must_not query
+
+        Set<Integer> verifiedDocIds = searchDocIds(shardSearcher, query.getVerifiedMatchesQuery());
+        // the single-valued-verified range query and the fully verified term query; never the partial one
+        assertEquals(Set.of(0, 1), verifiedDocIds);
+
+        // Multi-valued document on the ranged field: the packed [-1, 10] interval intersects the
+        // stored [0, 5] range although no actual value falls inside it. The verified matches
+        // query must exclude the range query so that the false candidate match is rejected by
+        // the MemoryIndex verification.
+        memoryIndex = MemoryIndex.fromDocument(
+            Arrays.asList(new IntPoint("int_field", -1), new IntPoint("int_field", 10)),
+            new WhitespaceAnalyzer()
+        );
+        percolateSearcher = memoryIndex.createSearcher();
+        query = (PercolateQuery) fieldType.percolateQuery(
+            "_name",
+            queryStore,
+            Collections.singletonList(new BytesArray("{}")),
+            percolateSearcher,
+            false,
+            Version.CURRENT
+        );
+        topDocs = shardSearcher.search(query, 10);
+        assertEquals(0L, topDocs.totalHits.value());
+
+        verifiedDocIds = searchDocIds(shardSearcher, query.getVerifiedMatchesQuery());
+        assertEquals(Set.of(1), verifiedDocIds); // only the term query remains verified
+    }
+
+    private static Set<Integer> searchDocIds(IndexSearcher searcher, Query query) throws IOException {
+        Set<Integer> docIds = new HashSet<>();
+        for (ScoreDoc scoreDoc : searcher.search(query, 10).scoreDocs) {
+            docIds.add(scoreDoc.doc);
+        }
+        return docIds;
     }
 
     public void testDuelRangeQueries() throws Exception {
