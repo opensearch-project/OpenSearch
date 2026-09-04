@@ -60,6 +60,19 @@ public class PluginPropertiesExtensionTests extends GradleUnitTestCase {
         assertEquals("unspecified", pluginPropertiesExtension.getVersion());
     }
 
+    public void testOpenSearchCompatibilityUsesExactVersionByDefault() {
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject("Test", "1.0"));
+
+        assertEquals("opensearch.version=3.7.0", pluginPropertiesExtension.getOpenSearchCompatibility("3.7.0"));
+    }
+
+    public void testOpenSearchCompatibilityUsesDependenciesWhenVersionRangeIsSet() {
+        PluginPropertiesExtension pluginPropertiesExtension = new PluginPropertiesExtension(this.createProject("Test", "1.0"));
+        pluginPropertiesExtension.setVersionRange("~3.7.0");
+
+        assertEquals("dependencies={ opensearch: \"~3.7.0\" }", pluginPropertiesExtension.getOpenSearchCompatibility("3.7.0"));
+    }
+
     private Project createProject(String projectName, String version) {
         Project project = ProjectBuilder.builder().withName(projectName).build();
         project.setVersion(version);
