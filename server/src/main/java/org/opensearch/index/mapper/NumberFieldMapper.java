@@ -1970,6 +1970,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public boolean hasSkipList() {
+            return skiplist;
+        }
+
+        @Override
         public String typeName() {
             return type.name;
         }
