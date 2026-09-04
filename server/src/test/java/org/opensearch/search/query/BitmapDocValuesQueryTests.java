@@ -114,4 +114,48 @@ public class BitmapDocValuesQueryTests extends OpenSearchTestCase {
         Set<Integer> expected = Set.of(2, 3);
         assertEquals(expected, actual);
     }
+
+    public void testScoreWithNegatives() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 1, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 3, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", -2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", -3, Field.Store.NO));
+        w.addDocument(d);
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        bitmap.add(-2);
+        bitmap.add(4);
+        bitmap.add(-3);
+        bitmap.add(2);
+        BitmapDocValuesQuery query = new BitmapDocValuesQuery("product_id", bitmap);
+
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        List<Integer> actual = getMatchingValues(weight, searcher.getIndexReader());
+        List<Integer> expected = List.of(1, 2, 4, -2, -3);
+        assertEquals(expected, actual);
+    }
 }
