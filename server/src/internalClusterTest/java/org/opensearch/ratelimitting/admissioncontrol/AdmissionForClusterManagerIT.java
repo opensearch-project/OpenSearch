@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -67,6 +68,8 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
     private static final Settings DISABLE_ADMISSION_CONTROL = Settings.builder()
         .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+        // CPU admission control is enforced by default and no longer inherits the master mode, so disable it explicitly.
+        .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         .build();
 
@@ -181,8 +184,13 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     }
 
     public void testAdmissionControlMonitorOnBreach() throws InterruptedException {
+        // CPU admission control is enforced by default and no longer inherits the master mode; put it in monitor
+        // mode explicitly so this "no rejection" scenario holds.
         admissionControlDisabledOnBreach(
-            Settings.builder().put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode()).build()
+            Settings.builder()
+                .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+                .build()
         );
     }
 

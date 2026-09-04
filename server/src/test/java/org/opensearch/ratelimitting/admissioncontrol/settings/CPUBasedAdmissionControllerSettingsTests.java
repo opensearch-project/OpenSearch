@@ -63,7 +63,8 @@ public class CPUBasedAdmissionControllerSettingsTests extends OpenSearchTestCase
             Settings.EMPTY
         );
         long percent = 95;
-        assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+        // CPU-based transport admission control is enforced by default.
+        assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertEquals(cpuBasedAdmissionControllerSettings.getIndexingCPULimit().longValue(), percent);
         assertEquals(cpuBasedAdmissionControllerSettings.getSearchCPULimit().longValue(), percent);
     }
