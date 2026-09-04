@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -252,6 +253,53 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         );
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
         assertTrue(e.getMessage(), e.getMessage().contains("PrimaryOperationPolicy is already overridden"));
+    }
+
+    public void testMultiplePrimaryOperationPoliciesIllegalStateExceptionOnEngineConfig() {
+        IndexSettings indexSettings = newIndexSettings();
+        AtomicReference<PrimaryOperationPolicy> latePluginPolicy = new AtomicReference<>();
+        List<EnginePlugin> plugins = Arrays.asList(
+            new PrimaryOperationPolicyEnginePlugin(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE),
+            new EnginePlugin() {
+                @Override
+                public Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings settings) {
+                    return Optional.ofNullable(latePluginPolicy.get());
+                }
+            }
+        );
+        // only one plugin overrides the policy at construction, so the conflict cannot be detected up front
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+        assertSame(
+            FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE,
+            newEngineConfig(factory, indexSettings).getPrimaryOperationPolicy()
+        );
+
+        // the second plugin starts overriding it too, so the next engine build must reject the conflict
+        latePluginPolicy.set(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newEngineConfig(factory, indexSettings));
+        assertTrue(e.getMessage(), e.getMessage().contains("PrimaryOperationPolicy is already overridden"));
+    }
+
+    public void testPrimaryOperationPolicyReconsultedOnEachEngineConfig() {
+        IndexSettings indexSettings = newIndexSettings();
+        AtomicReference<PrimaryOperationPolicy> pluginPolicy = new AtomicReference<>(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE);
+        EnginePlugin plugin = new EnginePlugin() {
+            @Override
+            public Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings settings) {
+                return Optional.ofNullable(pluginPolicy.get());
+            }
+        };
+        EngineConfigFactory factory = new EngineConfigFactory(Collections.singletonList(plugin), indexSettings);
+
+        assertSame(
+            FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE,
+            newEngineConfig(factory, indexSettings).getPrimaryOperationPolicy()
+        );
+
+        // the plugin changes its answer between engine builds (e.g. a replication role flip); the next
+        // config must reflect it without a new factory
+        pluginPolicy.set(null);
+        assertSame(DefaultPrimaryOperationPolicy.INSTANCE, newEngineConfig(factory, indexSettings).getPrimaryOperationPolicy());
     }
 
     private static IndexSettings newIndexSettings() {
