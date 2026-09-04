@@ -805,6 +805,7 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             isSearchable,
             false,
             true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
             null,
