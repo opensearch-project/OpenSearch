@@ -385,6 +385,57 @@ For example, after adding `api "org.slf4j:slf4j-api:${versions.slf4j}"` to [plug
 
 Ensure that `./gradlew :plugins:discovery-ec2:check` passes before submitting changes.
 
+### Dependency Verification
+
+Every artifact the build downloads, including the dependencies of the build itself (`buildSrc` / `build-tools`) and
+the Gradle plugins applied by the build scripts, is checksum verified against
+[gradle/verification-metadata.xml](gradle/verification-metadata.xml). Gradle performs this check before an artifact is
+placed on any classpath, so a tampered dependency fails the build before its code can run. This protects the build
+against a compromised upstream artifact, which is a gap that the per-project `licenses/*.jar.sha1` files do not cover
+because they are only checked by the `dependencyLicenses` task, and only for shipped dependencies.
+
+Adding, removing or upgrading a dependency changes the set of artifacts that gets resolved, so the metadata has to be
+regenerated. For a single dependency change, the quick way is to fetch the new artifact and then rewrite the metadata
+from the local cache:
+
+```
+./gradlew <task that resolves the changed dependency> -Dorg.gradle.dependency.verification=off
+./gradlew --write-verification-metadata sha256 <same task> --offline
+```
+
+The first command populates the Gradle cache, since verification would otherwise reject the not-yet-recorded artifact.
+The second records its checksum. Regeneration only ever adds entries, so a narrow task is enough: nothing that was
+already recorded gets dropped. Passing `--offline` matters a great deal, because without it Gradle re-checks every
+recorded component against the remote repositories, which takes minutes rather than seconds. If an artifact is not in
+the cache yet, the offline run fails naming it rather than silently omitting it.
+
+To regenerate the file from scratch, drop it and resolve everything, which needs network access and takes several
+minutes:
+
+```
+./gradlew --write-verification-metadata sha256 resolveAllDependencies precommit --continue
+```
+
+Both task names matter. `resolveAllDependencies` resolves every resolvable configuration, while `precommit` additionally
+triggers the tools that resolve their own dependencies into detached configurations when they run, such as Spotless
+pulling in `google-java-format`. Generating against only one of them produces metadata that is missing entries, and the
+build then fails with `Dependency verification failed` naming the artifacts that were not recorded. Some
+`resolveAllDependencies` tasks in `qa` and `distribution` fail unless the backwards compatibility distributions have
+been built locally; `--continue` lets the rest of the run proceed, and those distributions are covered by a `<trust>`
+rule rather than a checksum anyway.
+
+Because regeneration only adds entries, the file also never loses the record of a dependency that has been removed.
+Deleting the file and regenerating it in full is the only way to prune those.
+
+Review the resulting diff before committing it. Regeneration records whatever is downloaded at that moment, so entries
+should be added because a dependency genuinely changed, not because a checksum drifted underneath an unchanged
+dependency. A changed checksum for a dependency whose version did not change is exactly the situation this check exists
+to surface.
+
+OpenSearch's own distributions, which `DistributionDownloadPlugin` downloads for backwards compatibility and packaging
+tests, are covered by a `<trust>` rule rather than by a checksum. Snapshot distributions are rebuilt continuously, so
+there is no stable checksum to record. Third-party dependencies must never be added to that list.
+
 ### Editor / IDE Support
 
 IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
