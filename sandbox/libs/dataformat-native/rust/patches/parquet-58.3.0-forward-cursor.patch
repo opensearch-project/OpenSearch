@@ -1,0 +1,187 @@
+diff --git a/parquet/src/arrow/arrow_reader/mod.rs b/parquet/src/arrow/arrow_reader/mod.rs
+index 70d3ce7cf..9ab8ad6c0 100644
+--- a/parquet/src/arrow/arrow_reader/mod.rs
++++ b/parquet/src/arrow/arrow_reader/mod.rs
+@@ -1515,6 +1515,49 @@ impl RecordBatchReader for ParquetRecordBatchReader {
+ }
+ 
+ impl ParquetRecordBatchReader {
++    /// Skip up to `num_rows` rows from the current reader position.
++    ///
++    /// This advances the existing column readers without materializing a
++    /// [`RecordBatch`]. When an offset index is available, complete pages in
++    /// the skipped range are discarded by the underlying page readers without
++    /// fetching or decoding their data.
++    ///
++    /// This method is only supported for readers without a [`RowSelection`].
++    /// A selection has its own logical cursor, which cannot be kept in sync
++    /// with an independent physical skip.
++    pub fn skip_rows(&mut self, num_rows: usize) -> Result<usize> {
++        if !matches!(
++            self.read_plan.row_selection_cursor_mut(),
++            RowSelectionCursor::All
++        ) {
++            return Err(general_err!(
++                "cannot skip rows on a reader with a row selection"
++            ));
++        }
++        self.array_reader.skip_records(num_rows)
++    }
++
++    /// Decode up to `num_rows` rows from the current reader position.
++    ///
++    /// This changes the batch size for this call without rebuilding the reader.
++    /// It is only supported for readers without a [`RowSelection`], matching
++    /// [`Self::skip_rows`].
++    pub fn read_next_batch(&mut self, num_rows: usize) -> Result<Option<RecordBatch>> {
++        if num_rows == 0 {
++            return Err(general_err!("cannot read a sized batch with zero rows"));
++        }
++        if !matches!(
++            self.read_plan.row_selection_cursor_mut(),
++            RowSelectionCursor::All
++        ) {
++            return Err(general_err!(
++                "cannot read a sized batch on a reader with a row selection"
++            ));
++        }
++        self.read_plan.set_batch_size(num_rows);
++        self.next_inner()
++    }
++
+     /// Create a new [`ParquetRecordBatchReader`] from the provided chunk reader
+     ///
+     /// See [`ParquetRecordBatchReaderBuilder`] for more options
+@@ -1626,6 +1669,116 @@ pub(crate) mod tests {
+     use half::f16;
+     use num_traits::PrimInt;
+ 
++    fn skip_rows_test_file() -> Bytes {
++        let batch = RecordBatch::try_from_iter([(
++            "value",
++            Arc::new(Int64Array::from_iter_values(0..32)) as ArrayRef,
++        )])
++        .unwrap();
++        let mut data = Vec::new();
++        let mut writer = ArrowWriter::try_new(&mut data, batch.schema(), None).unwrap();
++        writer.write(&batch).unwrap();
++        writer.close().unwrap();
++        Bytes::from(data)
++    }
++
++    fn skip_rows_repeated_test_file() -> Bytes {
++        let values = ListArray::from_iter_primitive::<types::Int64Type, _, _>([
++            Some(vec![Some(10), Some(11)]),
++            None,
++            Some(vec![]),
++            Some(vec![Some(30), Some(31), Some(32)]),
++        ]);
++        let batch = RecordBatch::try_from_iter([("value", Arc::new(values) as ArrayRef)]).unwrap();
++        let mut data = Vec::new();
++        let mut writer = ArrowWriter::try_new(&mut data, batch.schema(), None).unwrap();
++        writer.write(&batch).unwrap();
++        writer.close().unwrap();
++        Bytes::from(data)
++    }
++
++    #[test]
++    fn test_skip_rows_without_selection() {
++        let mut reader = ParquetRecordBatchReaderBuilder::try_new(skip_rows_test_file())
++            .unwrap()
++            .with_batch_size(4)
++            .build()
++            .unwrap();
++
++        assert_eq!(reader.skip_rows(7).unwrap(), 7);
++        let batch = reader.next().unwrap().unwrap();
++        let values = batch.column(0).as_primitive::<types::Int64Type>();
++        assert_eq!(values.values(), &[7, 8, 9, 10]);
++    }
++
++    #[test]
++    fn test_skip_rows_rejects_static_selection() {
++        let selection = RowSelection::from(vec![RowSelector::skip(4), RowSelector::select(28)]);
++        let mut reader = ParquetRecordBatchReaderBuilder::try_new(skip_rows_test_file())
++            .unwrap()
++            .with_row_selection(selection)
++            .build()
++            .unwrap();
++
++        let error = reader.skip_rows(1).unwrap_err().to_string();
++        assert!(error.contains("row selection"), "{error}");
++    }
++
++    #[test]
++    fn test_skip_rows_counts_repeated_records() {
++        let mut reader =
++            ParquetRecordBatchReaderBuilder::try_new(skip_rows_repeated_test_file())
++                .unwrap()
++                .with_batch_size(2)
++                .build()
++                .unwrap();
++
++        assert_eq!(reader.skip_rows(2).unwrap(), 2);
++        let batch = reader.read_next_batch(2).unwrap().unwrap();
++        let values = batch.column(0).as_list::<i32>();
++        assert_eq!(values.value_offsets(), &[0, 0, 3]);
++        assert_eq!(
++            values
++                .values()
++                .as_primitive::<types::Int64Type>()
++                .values(),
++            &[30, 31, 32]
++        );
++    }
++
++    #[test]
++    fn test_read_next_batch_changes_size_without_rebuild() {
++        let mut reader = ParquetRecordBatchReaderBuilder::try_new(skip_rows_test_file())
++            .unwrap()
++            .with_batch_size(16)
++            .build()
++            .unwrap();
++
++        let first = reader.read_next_batch(3).unwrap().unwrap();
++        assert_eq!(
++            first.column(0).as_primitive::<types::Int64Type>().values(),
++            &[0, 1, 2]
++        );
++
++        assert_eq!(reader.skip_rows(4).unwrap(), 4);
++        let second = reader.read_next_batch(5).unwrap().unwrap();
++        assert_eq!(
++            second.column(0).as_primitive::<types::Int64Type>().values(),
++            &[7, 8, 9, 10, 11]
++        );
++    }
++
++    #[test]
++    fn test_read_next_batch_rejects_zero_rows() {
++        let mut reader = ParquetRecordBatchReaderBuilder::try_new(skip_rows_test_file())
++            .unwrap()
++            .build()
++            .unwrap();
++
++        let error = reader.read_next_batch(0).unwrap_err().to_string();
++        assert!(error.contains("zero rows"), "{error}");
++    }
++
+     #[test]
+     fn test_arrow_reader_all_columns() {
+         let file = get_test_file("parquet/generated_simple_numerics/blogs.parquet");
+diff --git a/parquet/src/arrow/arrow_reader/read_plan.rs b/parquet/src/arrow/arrow_reader/read_plan.rs
+index 674ae2b8d..3cbaa413e 100644
+--- a/parquet/src/arrow/arrow_reader/read_plan.rs
++++ b/parquet/src/arrow/arrow_reader/read_plan.rs
+@@ -470,6 +470,11 @@ impl ReadPlan {
+     pub fn batch_size(&self) -> usize {
+         self.batch_size
+     }
++
++    /// Set the number of rows to read in the next output batch.
++    pub(crate) fn set_batch_size(&mut self, batch_size: usize) {
++        self.batch_size = batch_size;
++    }
+ }
+ 
+ #[cfg(test)]

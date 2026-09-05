@@ -46,6 +46,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            sandbox/libs/dataformat-native/rust/build/downloads
           key: ${{ runner.os }}-cargo-${{ hashFiles('sandbox/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-

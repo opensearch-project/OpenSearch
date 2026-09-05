@@ -7,7 +7,9 @@
  */
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
+
+use parking_lot::RwLock;
 
 use crate::parquet_page_cache::is_scoped_page_index_enabled;
 use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
@@ -230,6 +232,68 @@ impl FileMetadataCache for MutexFileMetadataCache {
                 std::collections::HashMap::new()
             }
         }
+    }
+}
+
+/// The global runtime's `FileMetadataCache`, for callers that have no `RuntimeEnv` to read it from.
+/// `Weak`, so a registration never keeps a closed runtime's cache alive.
+static GLOBAL_METADATA_CACHE: RwLock<Option<Weak<dyn FileMetadataCache>>> = RwLock::new(None);
+
+/// Called once per `create_global_runtime`; a later runtime replaces the registration.
+pub fn register_global_metadata_cache(cache: Arc<dyn FileMetadataCache>) {
+    *GLOBAL_METADATA_CACHE.write() = Some(Arc::downgrade(&cache));
+}
+
+/// The registered cache, or `None` before a global runtime exists or after the last one was closed.
+pub fn global_metadata_cache() -> Option<Arc<dyn FileMetadataCache>> {
+    GLOBAL_METADATA_CACHE
+        .read()
+        .as_ref()
+        .and_then(Weak::upgrade)
+}
+
+#[cfg(test)]
+mod global_cache_registry_tests {
+    use super::*;
+    use once_cell::sync::Lazy;
+
+    /// The registry is process-wide, so these tests serialize against each other.
+    static REGISTRY_GUARD: Mutex<()> = Mutex::new(());
+
+    /// Held in statics: the registry keeps only a `Weak`, so a cache dropped at test end would leave
+    /// a dead registration for the next test in this binary.
+    static FIRST: Lazy<Arc<dyn FileMetadataCache>> = Lazy::new(|| {
+        Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+            1024 * 1024,
+        ))) as Arc<dyn FileMetadataCache>
+    });
+    static SECOND: Lazy<Arc<dyn FileMetadataCache>> = Lazy::new(|| {
+        Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+            1024 * 1024,
+        ))) as Arc<dyn FileMetadataCache>
+    });
+
+    #[test]
+    fn a_registered_cache_reads_back_as_the_same_object() {
+        let _guard = REGISTRY_GUARD.lock().unwrap();
+        register_global_metadata_cache(Arc::clone(&FIRST));
+
+        let read_back = global_metadata_cache().expect("a registered cache must be readable");
+        assert!(
+            Arc::ptr_eq(&FIRST, &read_back),
+            "readers must share one cache, otherwise each caller warms its own copy of every footer"
+        );
+    }
+
+    #[test]
+    fn a_later_registration_replaces_the_earlier_one() {
+        let _guard = REGISTRY_GUARD.lock().unwrap();
+        register_global_metadata_cache(Arc::clone(&FIRST));
+        register_global_metadata_cache(Arc::clone(&SECOND));
+
+        let read_back = global_metadata_cache().expect("the later cache must be readable");
+        assert!(Arc::ptr_eq(&SECOND, &read_back));
+        assert!(!Arc::ptr_eq(&FIRST, &read_back));
     }
 }
 
