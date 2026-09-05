@@ -286,6 +286,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER,
                 BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.PREFER_PRIMARY_SHARD_REBALANCE,
+                BalancedShardsAllocator.PREFER_FILTER_AWARE_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.SHARD_MOVEMENT_STRATEGY_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,

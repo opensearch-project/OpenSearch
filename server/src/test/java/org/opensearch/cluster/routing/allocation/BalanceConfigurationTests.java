@@ -1112,4 +1112,182 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             }
         }
     }
+
+    /**
+     * Cluster: 8 nodes; node4..node7 excluded via cluster.routing.allocation.exclude._id
+     * Index  : 12 primaries x (1 + 1 replica) = 24 shards, all on the 4 eligible nodes
+     *          every eligible node holds exactly 6 shards.
+     *   Shard layout (each column = one node, each row = one shard on that node):
+     *
+     *   eligible (allowed)         | excluded (filter NO)
+     *   node0  node1  node2  node3 | node4  node5  node6  node7
+     *   -----  -----  -----  ----- | -----  -----  -----  -----
+     *     P      P      P      P   |  .      .      .      .
+     *     P      P      P      P   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *     P      r      r      r   |  .      .      .      .
+     *   6P/0r  2P/4r  2P/4r  2P/4r |          (P = primary, r = replica)
+     *
+     *   Primary layout on eligible nodes: 6 / 2 / 2 / 2   (ideal = 3 / 3 / 3 / 3)
+     */
+    public void testPrimaryRebalanceIgnoresAllocationFilter() {
+        final int numberOfNodes = 8;
+        final int excludedNodeCount = 4;
+        final int numberOfShards = 12;
+        final int numberOfReplicas = 1;
+        final String indexName = "test";
+
+        // Enable prefer-primary balance & rebalance, exclude the second half of nodes.
+        Settings.Builder settingsBuilder = getSettingsBuilderForPrimaryReBalance();
+        StringBuilder excludeList = new StringBuilder();
+        for (int i = numberOfNodes - excludedNodeCount; i < numberOfNodes; i++) {
+            if (excludeList.length() > 0) {
+                excludeList.append(",");
+            }
+            excludeList.append("node").append(i);
+        }
+        settingsBuilder.put("cluster.routing.allocation.exclude._id", excludeList.toString());
+        settingsBuilder.put("cluster.routing.allocation.balance.filter_aware", true);
+
+        AllocationService strategy = createAllocationService(settingsBuilder.build(), new TestGatewayAllocator());
+
+        // Build 8 discovery nodes.
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<String> nodesList = new ArrayList<>(numberOfNodes);
+        for (int i = 0; i < numberOfNodes; i++) {
+            DiscoveryNode node = newNode("node" + i);
+            discoBuilder.add(node);
+            nodesList.add(node.getId());
+        }
+        discoBuilder.localNodeId(nodesList.get(0));
+        discoBuilder.clusterManagerNodeId(nodesList.get(0));
+
+        IndexMetadata indexMetadata = getIndexMetadata(indexName, numberOfShards, numberOfReplicas);
+
+        int[] primaryOwners = new int[] { 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3 };
+        int[] replicaOwners = new int[] { 1, 2, 3, 1, 2, 3, 2, 3, 1, 3, 1, 2 };
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        IndexMetadata.Builder indexMetaDataBuilder = IndexMetadata.builder(indexMetadata);
+
+        for (int shardId = 0; shardId < numberOfShards; shardId++) {
+            ShardId sid = new ShardId(indexMetadata.getIndex(), shardId);
+            IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(sid);
+            shardBuilder.addShard(
+                TestShardRouting.newShardRouting(sid, nodesList.get(primaryOwners[shardId]), true, ShardRoutingState.STARTED)
+            );
+            shardBuilder.addShard(
+                TestShardRouting.newShardRouting(sid, nodesList.get(replicaOwners[shardId]), false, ShardRoutingState.STARTED)
+            );
+            IndexShardRoutingTable shardTable = shardBuilder.build();
+            indexRoutingTable.addIndexShard(shardTable);
+            indexMetaDataBuilder.putInSyncAllocationIds(shardId, shardTable.getAllAllocationIds());
+        }
+
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.persistentSettings(settingsBuilder.build());
+        metadata.put(indexMetaDataBuilder.build(), false);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+
+        ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"));
+        stateBuilder.nodes(discoBuilder);
+        stateBuilder.metadata(metadata.generateClusterUuidIfNeeded().build());
+        stateBuilder.routingTable(routingTable.build());
+        ClusterState clusterState = stateBuilder.build();
+
+        // Sanity check: initial primary distribution is 6/2/2/2 on eligible nodes and 0 on excluded.
+        int[] initialPrimaries = countPrimariesPerNode(clusterState, nodesList, indexName);
+        int[] initialTotals = countTotalShardsPerNode(clusterState, nodesList, indexName);
+        logger.info("[before reroute]\n{}", ShardAllocations.printShardDistribution(clusterState));
+        assertEquals("initial primaries on node0", 6, initialPrimaries[0]);
+        assertEquals("initial primaries on node1", 2, initialPrimaries[1]);
+        assertEquals("initial primaries on node2", 2, initialPrimaries[2]);
+        assertEquals("initial primaries on node3", 2, initialPrimaries[3]);
+        for (int i = numberOfNodes - excludedNodeCount; i < numberOfNodes; i++) {
+            assertEquals("initial primary count on excluded " + nodesList.get(i), 0, initialPrimaries[i]);
+        }
+        // Total shard count on every eligible node is identical so the generic shard-balance term is
+        // neutral -- any relocation observed later must come from the primary-only rebalance logic.
+        assertEquals("eligible node0 total shards", 6, initialTotals[0]);
+        assertEquals("eligible node1 total shards", 6, initialTotals[1]);
+        assertEquals("eligible node2 total shards", 6, initialTotals[2]);
+        assertEquals("eligible node3 total shards", 6, initialTotals[3]);
+
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
+        for (int i = 0; i < 20; i++) {
+            ClusterState next = strategy.reroute(clusterState, "reroute-loop-" + i);
+            next = applyStartedShardsUntilNoChange(next, strategy);
+            if (next.equals(clusterState)) {
+                break;
+            }
+            clusterState = next;
+        }
+
+        logger.info("[after reroute]\n{}", ShardAllocations.printShardDistribution(clusterState));
+
+        int[] finalPrimaries = countPrimariesPerNode(clusterState, nodesList, indexName);
+
+        // Excluded nodes must still be empty.
+        for (int i = numberOfNodes - excludedNodeCount; i < numberOfNodes; i++) {
+            assertEquals("excluded node " + nodesList.get(i) + " must remain empty", 0, finalPrimaries[i]);
+        }
+
+        int totalEligiblePrimaries = 0;
+        int maxEligible = Integer.MIN_VALUE;
+        int minEligible = Integer.MAX_VALUE;
+        for (int i = 0; i < numberOfNodes - excludedNodeCount; i++) {
+            totalEligiblePrimaries += finalPrimaries[i];
+            maxEligible = Math.max(maxEligible, finalPrimaries[i]);
+            minEligible = Math.min(minEligible, finalPrimaries[i]);
+        }
+        assertEquals("all primaries should stay on eligible nodes", numberOfShards, totalEligiblePrimaries);
+        assertEquals(
+            "Primaries fully balanced across eligible nodes -- final distribution: "
+                + "node0="
+                + finalPrimaries[0]
+                + ", node1="
+                + finalPrimaries[1]
+                + ", node2="
+                + finalPrimaries[2]
+                + ", node3="
+                + finalPrimaries[3],
+            0,
+            maxEligible - minEligible
+        );
+    }
+
+    private static int[] countPrimariesPerNode(ClusterState state, List<String> nodesList, String indexName) {
+        int[] counts = new int[nodesList.size()];
+        RoutingNodes routingNodes = state.getRoutingNodes();
+        for (int i = 0; i < nodesList.size(); i++) {
+            RoutingNode node = routingNodes.node(nodesList.get(i));
+            if (node == null) {
+                continue;
+            }
+            counts[i] = (int) node.shardsWithState(indexName, STARTED).stream().filter(ShardRouting::primary).count();
+        }
+        return counts;
+    }
+
+    /**
+     * Helper: returns total shard counts (primary + replica, only STARTED) for the given index on each node.
+     */
+    private static int[] countTotalShardsPerNode(ClusterState state, List<String> nodesList, String indexName) {
+        int[] counts = new int[nodesList.size()];
+        RoutingNodes routingNodes = state.getRoutingNodes();
+        for (int i = 0; i < nodesList.size(); i++) {
+            RoutingNode node = routingNodes.node(nodesList.get(i));
+            if (node == null) {
+                continue;
+            }
+            counts[i] = node.shardsWithState(indexName, STARTED).size();
+        }
+        return counts;
+    }
+
 }
