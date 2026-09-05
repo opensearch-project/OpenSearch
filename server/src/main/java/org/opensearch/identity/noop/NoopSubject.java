@@ -10,20 +10,18 @@ package org.opensearch.identity.noop;
 
 import org.opensearch.identity.NamedPrincipal;
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.UserSubject;
-import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
 import java.util.Objects;
 
 /**
- * Implementation of subject that is always authenticated
+ * No-op implementation of a subject with an unauthenticated principal.
  * <p>
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
  * @opensearch.internal
  */
-public class NoopSubject implements UserSubject {
+public class NoopSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
@@ -48,11 +46,4 @@ public class NoopSubject implements UserSubject {
         return "NoopSubject(principal=" + getPrincipal() + ")";
     }
 
-    /**
-     * Logs the user in
-     */
-    @Override
-    public void authenticate(AuthToken AuthToken) {
-        // Do nothing as noop subject is always logged in
-    }
 }
