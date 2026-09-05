@@ -91,6 +91,27 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
         throw new UnsupportedOperationException("Streaming responses not supported by this handler");
     }
 
+    /**
+     * Invoked with the stream as soon as the transport creates it — before the stream is opened and its
+     * first batch is prefetched, and therefore before {@link #handleStreamResponse} can run.
+     * <p>
+     * This is the only point at which a handler can arrange to cancel a stream that never produces a
+     * first batch. The prefetch blocks with no deadline, and {@code handleStreamResponse} is only
+     * invoked once it returns, so a producer that stalls before sending anything leaves the transport
+     * parked in a window that a handler registering from {@code handleStreamResponse} never covers.
+     * Cancel such a stream with {@link StreamTransportResponse#cancelStreamOnly(String)}, which is safe
+     * from another thread; the stream is <b>not</b> this callback's to read, drain, or close.
+     * <p>
+     * Runs on the sending thread, so implementations must not block. Wrappers must forward it, like
+     * {@link #skipsDeserialization()}. There is no matching {@code onStreamClosed}: a handler that
+     * registers something here releases it from whichever terminal callback it receives
+     * ({@link #handleStreamResponse}, {@link #handleResponse}, or {@link #handleException}).
+     *
+     * @param response the stream that is about to be opened
+     */
+    @ExperimentalApi
+    default void onStreamCreated(StreamTransportResponse<T> response) {}
+
     void handleException(TransportException exp);
 
     String executor();
