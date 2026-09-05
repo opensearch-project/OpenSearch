@@ -66,6 +66,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -113,6 +114,8 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -125,6 +128,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -135,7 +139,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends OpenSearchTestCase {
@@ -1251,7 +1259,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 new SearchRequestOperationsCompositeListenerFactory(),
                 mock(Tracer.class),
                 mock(TaskResourceTrackingService.class),
-                mock(IndicesService.class)
+                mock(IndicesService.class),
+                mock(WorkloadGroupService.class)
             );
 
             // Actual test cases start here:
@@ -1291,5 +1300,83 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mockTransportService.close();
             }
         }
+    }
+
+    public void testCoordinatorSearchTaskRejectedBeforeRequestStart() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        doThrow(new OpenSearchRejectedExecutionException("WorkloadGroup is already contended.")).when(workloadGroupService)
+            .rejectIfNeeded(anyString());
+
+        // onRequestStart must not run on rejection, else the in-flight gauge leaks.
+        AtomicBoolean requestStarted = new AtomicBoolean(false);
+        SearchRequestOperationsListener requestStartTracker = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestStart(SearchRequestContext searchRequestContext) {
+                requestStarted.set(true);
+            }
+        };
+
+        TransportSearchAction action = new TransportSearchAction(
+            mock(NodeClient.class),
+            threadPool,
+            mock(CircuitBreakerService.class),
+            mock(TransportService.class),
+            mock(SearchService.class),
+            mock(SearchTransportService.class),
+            new SearchPhaseController(new NamedWriteableRegistry(Collections.emptyList()), (searchSourceBuilder) -> null),
+            clusterService,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            mock(SearchPipelineService.class),
+            mock(MetricsRegistry.class),
+            new SearchRequestOperationsCompositeListenerFactory(requestStartTracker),
+            NoopTracer.INSTANCE,
+            mock(TaskResourceTrackingService.class),
+            mock(IndicesService.class),
+            workloadGroupService
+        );
+
+        SearchTask task = new SearchTask(0, "transport", SearchAction.NAME, () -> "test", null, Collections.emptyMap());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "test-workload-group");
+            action.executeRequest(
+                task,
+                new SearchRequest(),
+                (TransportSearchAction.SearchAsyncActionProvider) (
+                    searchTask,
+                    searchRequest,
+                    executor,
+                    shardIterators,
+                    timeProvider,
+                    connectionLookup,
+                    clusterState,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    indexRoutings,
+                    listener,
+                    preFilter,
+                    tp,
+                    clusters,
+                    searchRequestContext) -> {
+                    return null;
+                },
+                ActionListener.wrap(r -> fail("expected rejection"), failure::set)
+            );
+        }
+
+        assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
+        assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
+        // A rejected task must not be tagged, otherwise onTaskCompleted would count it as a phantom completion.
+        assertFalse("rejected task must not have its workload group id set", task.isWorkloadGroupSet());
+        // Admission reads the header directly (before setWorkloadGroupId); pin that value since the stub matches anyString().
+        verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
     }
 }
