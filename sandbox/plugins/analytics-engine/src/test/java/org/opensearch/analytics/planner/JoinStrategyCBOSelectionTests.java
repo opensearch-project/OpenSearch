@@ -242,6 +242,69 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         assertContainsShuffleExchange("large LEFT OUTER equi-join must hash-shuffle, not gather to coordinator", result);
     }
 
+    /** A RIGHT OUTER large×large equi-join shuffles, exactly like the LEFT case above — the mirror
+     *  of {@link #testLeftOuterJoinLargeLargeShuffles}. Pinned alongside the FULL case below because
+     *  the two differ, and the reason is easy to mistake for a join-type gate that does not exist. */
+    public void testRightOuterJoinLargeLargeShuffles() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.RIGHT, /* equi */ true), context);
+
+        assertContainsShuffleExchange("large RIGHT OUTER equi-join must hash-shuffle", result);
+    }
+
+    /**
+     * A FULL OUTER large×large equi-join gathers COORDINATOR-CENTRIC, unlike LEFT and RIGHT. This is a
+     * COST outcome, not a capability gap — worth pinning because it looks like a bug and is not:
+     * neither split rule carries a join-type gate, {@code computeSelfCost} accepts a FULL join at
+     * HASH+WORKER, and {@code advertisesLeftKeyHash()} is false for RIGHT too (so it is not the
+     * discriminator either).
+     *
+     * <p>The discriminator is the join's estimated OUTPUT size, which the final gather is charged for.
+     * {@code OpenSearchRelMetadataQuery} estimates FULL as {@code max(left + right, inner)} = 20M for
+     * two 10M sides, against RIGHT's {@code max(right, inner)} = 10M. With N=3:
+     *
+     * <pre>
+     *   coord-centric : 2 x ER(10M)      + join 20M/1        = 40.0M   (both join types)
+     *   hash-shuffle  : 2 x shuffle(10M) + join 20M/3 + ER   = 46.7M for FULL (ER=20M)
+     *                                                        = 36.7M for RIGHT (ER=10M)
+     * </pre>
+     *
+     * <p>That is an honest accounting of DATA MOVEMENT: distributing a FULL OUTER ships both inputs to
+     * the workers AND ships the whole (larger) result back, while coord-centric ships the inputs once
+     * and produces the result where it is already needed. Distribution's payoff for this shape is join
+     * CPU and per-node MEMORY — and the cost model has no per-stage memory term, which is the same gap
+     * that forces {@code analytics.mpp.distribute.min_rows} to stay a VETO rather than become a cost term.
+     *
+     * <p><b>This is precisely why {@code OpenSearchLargeJoinDistributionRewriter} exists.</b> It is a POSITIVE
+     * force-distribute policy above {@code analytics.mpp.distribute.min_rows}, overriding this cost preference —
+     * and this test asserts the END of the pipeline, so it sees the promoted (shuffled) shape. Measured on the
+     * analytics-bench sf=10 cluster with only that policy removed: 14/22 instead of 18/22, every regression
+     * failing with {@code ReduceSizeExceededException} — the coordinator-reduce buffer blown by exactly the
+     * gather this cost comparison prefers.
+     *
+     * <p>Promoting FULL is safe even though its null-extended rows carry NULL keys on both sides: the rewriter
+     * re-gathers with {@code buildReducer} immediately, so the join's partitioning is never exposed to a parent.
+     * When exchange cost gains a memory term, CBO will make this choice itself and the rewriter can go.
+     */
+    public void testFullOuterJoinLargeLargeDistributesViaPromotion() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode result = runPlanner(makeJoin(context, "big_left", "big_right", JoinRelType.FULL, /* equi */ true), context);
+
+        assertContainsShuffleExchange(
+            "large FULL OUTER must end up distributed: CBO's cost prefers the gather, and "
+                + "OpenSearchLargeJoinDistributionRewriter promotes it above the size floor",
+            result
+        );
+    }
+
     // ── Aggregate ABOVE a join (TPC-H q2/q11 shape) ───────────────────────
 
     /**
@@ -310,6 +373,114 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
                 + org.apache.calcite.plan.RelOptUtil.toString(result),
             broadcast || shuffle
         );
+    }
+
+    /**
+     * An aggregate over a DISTRIBUTED join must split PARTIAL(worker) / FINAL(coord) in CBO ALONE — no
+     * post-CBO pass. This is the shape that decides whether {@code DistributionEnforcementPass} is needed:
+     * without the PARTIAL, the coordinator gathers the RAW join output, and at sf=10 TPC-H q3/q5/q7/q11/q21
+     * all die with {@code ReduceSizeExceededException} (measured: 14/22 vs 18/22 with the pass).
+     *
+     * <p>Uses a TWO-way large×large join, which gets its {@code HASH+WORKER} alternative from
+     * {@code OpenSearchHashJoinSplitRule} with no input-gate relaxation, so this isolates the AGGREGATE
+     * question from the multi-way cascade question.
+     *
+     * <p><b>CBO does NOT do this today, and this test pins that fact plus the reason.</b> Three separate
+     * things stand in the way; the first two are fixed, the third is a design decision:
+     * <ol>
+     *   <li>FIXED — {@code OpenSearchAggregateSplitRule} decided the split by INSPECTING
+     *       {@code isPartitioned(child)}, which cannot see through a
+     *       {@link org.apache.calcite.plan.volcano.RelSubset} to the join's WORKER+HASH alternative, so the
+     *       split was never offered over a join. It is now offered whenever a Join is below.</li>
+     *   <li>FIXED — {@code OpenSearchAggregate.computeSelfCost} treated Volcano's UNRESOLVED {@code ANY}
+     *       placeholder as SINGLETON and priced every not-yet-resolved PARTIAL at INFINITY.</li>
+     *   <li><b>OPEN</b> — the rule builds {@code partial} with {@code partialTraits = child.getTraitSet()},
+     *       and the aggregate's child subset is {@code SINGLETON(COORDINATOR)}. So the PARTIAL is
+     *       constructed OVER A GATHERED CHILD, which {@code computeSelfCost} rightly prices at infinity.
+     *       Making it viable requires the rule to DEMAND a partitioned child via {@code convert(child, …)},
+     *       which forces a CONCRETE partitioning choice — {@code HASH(groupKeys, N)}, i.e. the
+     *       {@code analytics.mpp.aggregate.group_key_shuffle} design (default-off), which adds a reshuffle.
+     *       {@code deriveTraits} DOES produce {@code PARTIAL@HASH[0](WORKER:p=3)} (verified by
+     *       instrumentation), so the variant exists in the memo; wiring the FINAL's gather onto it is the
+     *       remaining work.</li>
+     * </ol>
+     *
+     * <p>Consequence, measured on analytics-bench sf=10: with the post-CBO pass supplying this split, 18/22;
+     * without it, 14/22, and q3/q5/q7/q11/q21 all fail with {@code ReduceSizeExceededException} because the
+     * coordinator gathers raw join output. So this is the single capability keeping
+     * {@code DistributionEnforcementPass} alive.
+     */
+    public void testAggregateOverDistributedJoin_splitsPartialFinal() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode join = makeJoin(context, "big_left", "big_right", JoinRelType.INNER, /* equi */ true);
+        RelNode result = runPlanner(makeAggregate(join, sumCall(join)), context);
+
+        String plan = org.apache.calcite.plan.RelOptUtil.toString(result);
+        List<org.opensearch.analytics.planner.rel.AggregateMode> modes = RelNodeUtils.findNodes(
+            result,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        ).stream().map(org.opensearch.analytics.planner.rel.OpenSearchAggregate::getMode).toList();
+
+        // The join DOES distribute on its own — that half of top-down works.
+        assertContainsShuffleExchange("the join must hash-shuffle from traits alone", result);
+        // But the aggregate above it stays SINGLE over the gather. When this flips to PARTIAL+FINAL,
+        // DistributionEnforcementPass loses its last reason to exist — update this test and re-run the
+        // sf=10 A/B on analytics-bench (expect the unwired arm to go 14/22 -> 18/22).
+        assertTrue(
+            "agg over a distributed join must be split PARTIAL/FINAL (got modes " + modes + "):\n" + plan,
+            modes.contains(org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL)
+                && modes.contains(org.opensearch.analytics.planner.rel.AggregateMode.FINAL)
+        );
+    }
+
+    /**
+     * TPC-H q19 shape: the join condition is an OR of three AND-branches that each REPEAT the same equi
+     * conjunct ({@code p_partkey = l_partkey}) beside a different residual filter. Such a join must still
+     * distribute.
+     *
+     * <p>{@code JoinInfo.analyzeCondition} only finds equi keys among TOP-LEVEL AND conjuncts, so as written
+     * this yields {@code leftKeys=[]} and reads as PURE THETA — every MPP split rule declines and the join is
+     * forced coordinator-centric, gathering both inputs. At sf=10 that gathers {@code lineitem ⋈ part} and dies
+     * with {@code ReduceSizeExceededException} (~1.36 GB vs a ~1.36 GB budget).
+     * {@code OpenSearchJoinConditionFactorRule} factors the shared conjunct out pre-marking, producing
+     * {@code AND(=(..), OR(..))} — the equi-key-plus-residual shape already supported (TPC-H q14).
+     */
+    public void testOrOfAndsSharingEquiKeyStillDistributes() {
+        PlannerContext context = buildMppContext(
+            Map.of("big_left", 3, "big_right", 3),
+            Map.of("big_left", LARGE, "big_right", LARGE),
+            /* mppEnabled */ true
+        );
+        RelNode left = stubScan(mockTable("big_left", "status", "size"));
+        RelNode right = stubScan(mockTable("big_right", "status", "size"));
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        int leftCols = left.getRowType().getFieldCount();
+        RexNode equi = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        RexNode[] branches = new RexNode[3];
+        for (int i = 0; i < 3; i++) {
+            RexNode residual = rexBuilder.makeCall(
+                SqlStdOperatorTable.GREATER_THAN,
+                rexBuilder.makeInputRef(intType, 1),
+                rexBuilder.makeLiteral(10 * (i + 1), intType, true)
+            );
+            branches[i] = rexBuilder.makeCall(SqlStdOperatorTable.AND, equi, residual);
+        }
+        RexNode orOfAnds = rexBuilder.makeCall(SqlStdOperatorTable.OR, branches[0], branches[1], branches[2]);
+        RelNode logical = LogicalJoin.create(left, right, List.of(), orOfAnds, Set.of(), JoinRelType.INNER);
+
+        RelNode result = runPlanner(logical, context);
+        String plan = org.apache.calcite.plan.RelOptUtil.toString(result);
+        boolean distributed = containsNodeOfType(result, OpenSearchShuffleExchange.class)
+            || containsNodeOfType(result, OpenSearchBroadcastExchange.class);
+        assertTrue("an OR-of-ANDs join sharing an equi key must still distribute:\n" + plan, distributed);
     }
 
     // ── helpers ────────────────────────────────────────────────────────────

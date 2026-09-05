@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -26,6 +27,8 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.util.Pair;
+import org.apache.calcite.util.mapping.Mappings;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -189,6 +192,111 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode, Dis
         );
         org.apache.calcite.rel.RelDistribution remapped = childDist.apply(mapping);
         return remapped instanceof OpenSearchDistribution osDist ? osDist : null;
+    }
+
+    /**
+     * Top-down counterpart of {@link #requiredInputDistribution}: a row-transparent project RIDES the
+     * requested distribution, so it demands the same distribution of its child and delivers it upward.
+     * The demand is expressed in INPUT column space — a hash key on output column {@code k} refers to
+     * whichever input column the projection reads there — so it is remapped through the inverse of the
+     * mapping {@link #deriveOutputDistribution} applies.
+     *
+     * <p>Declines (returns {@code null}) for a window/pinned project: those impose their own SINGLETON
+     * requirement and must not pretend to satisfy an arbitrary partitioning. Also declines when the
+     * requested key cannot be traced back through the projection, rather than silently dropping the key
+     * and claiming a partitioning the child does not have.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        if (containsOver() || pinAboveExchange) {
+            // A window / pinned project cannot ride an arbitrary partitioning — its frame semantics are
+            // global (and a pinned literal must stay coordinator-side), which is why computeSelfCost
+            // charges infinite cost over a partitioned input. It must therefore DEMAND a gathered input
+            // rather than decline: declining leaves no legal alternative at all now that
+            // ExpandConversionRule and OpenSearchDistributionDeriveRule (the two bottom-up mechanisms
+            // that used to insert this gather) are gone, and planning fails outright.
+            if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+                return null;
+            }
+            OpenSearchDistributionTraitDef windowTraitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+            OpenSearchDistribution singleton = windowTraitDef.coordSingleton();
+            return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
+        }
+        if (requiredDistribution.getKeys().isEmpty()) {
+            // Locality-only demand (SINGLETON / RANDOM / ANY): no key to remap, ride it as-is.
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        // A keyed demand is only expressible on the child if EVERY key traces back to an input column.
+        // Only HASH carries keys here, and its child demand needs a concrete partition count to be
+        // enforceable (buildShuffleExchange throws on a null count), so decline without one.
+        if (requiredDistribution.getType() != RelDistribution.Type.HASH_DISTRIBUTED || requiredDistribution.getPartitionCount() == null) {
+            return null;
+        }
+        Mappings.TargetMapping outputToInput;
+        try {
+            outputToInput = Project.getPartialMapping(getInput().getRowType().getFieldCount(), getProjects()).inverse();
+        } catch (RuntimeException e) {
+            // A non-invertible projection (duplicated/computed columns) cannot carry a key demand down.
+            return null;
+        }
+        List<Integer> inputKeys = new ArrayList<>(requiredDistribution.getKeys().size());
+        for (Integer key : requiredDistribution.getKeys()) {
+            int source = outputToInput.getTargetOpt(key);
+            if (source < 0) {
+                return null;
+            }
+            inputKeys.add(source);
+        }
+        OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+        OpenSearchDistribution childDemand = traitDef.hash(inputKeys, requiredDistribution.getPartitionCount());
+        return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(childDemand)));
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #deriveOutputDistribution}: reuse that algebra so the two
+     * propagation directions cannot drift apart.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0 || containsOver() || pinAboveExchange) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        OpenSearchDistribution out;
+        try {
+            out = deriveOutputDistribution(List.of(childDistribution), (OpenSearchDistributionTraitDef) childDistribution.getTraitDef());
+        } catch (RuntimeException e) {
+            // RelDistribution.apply walks the projection's inverse mapping, and Calcite's
+            // InverseMapping.getTargetOpt throws UnsupportedOperationException for mappings that are
+            // not invertible (duplicated or computed columns). Bottom-up never reached this because the
+            // enforcement pass calls deriveOutputDistribution on an already-decided concrete tree;
+            // top-down probes speculative child traits, so it does. No alternative is the safe answer.
+            return null;
+        }
+        if (out == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(out), List.of(childTraits));
+    }
+
+    /**
+     * A window / pinned project must NOT have traits derived into it. Its {@link #computeSelfCost} charges
+     * infinite cost unless its input is SINGLETON, so Calcite's default {@code LEFT_FIRST} derive mode —
+     * which happily builds a {@code Project(SINGLETON)} directly over a {@code RANDOM(SHARD)} input,
+     * without inserting the gather that would make it legal — produces a dead memo entry and the whole
+     * plan fails with "not enough rules ... cost is still infinite". Prohibiting derivation leaves the
+     * SINGLETON demand to {@link #requiredInputDistribution} / the enforcement path, which does gather.
+     */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return (containsOver() || pinAboveExchange) ? DeriveMode.PROHIBITED : DeriveMode.LEFT_FIRST;
     }
 
     @Override

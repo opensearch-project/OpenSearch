@@ -36,6 +36,9 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
     private static final List<String> EXPECTED_PHASES = List.of(
         "subquery-remove",
         "literal-agg-extract",
+        // Factors a shared equi conjunct out of an OR'd join condition so analyzeCondition can see it
+        // (TPC-H q19 shape) — must run before marking so every split rule sees the normalised predicate.
+        "factor-join-conditions",
         "reduce-expressions",
         "pushdown-rules",
         "aggregate-decompose",
@@ -101,8 +104,10 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchAggregateRule", 1L),
                 Map.entry("OpenSearchAggregateSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
-                Map.entry("OpenSearchDistributionDeriveRule", 3L),
-                Map.entry("ExpandConversionRule", 5L),
+                // OpenSearchDistributionDeriveRule is GONE (deleted with the move to top-down traits —
+                // its job is now OpenSearch*.deriveTraits). It previously added SINGLETON spine variants,
+                // which is why ExpandConversionRule dropped 5 → 2: fewer trait conversions to expand.
+                Map.entry("ExpandConversionRule", 2L),
                 // trim-first pushdown cascade: Filter pushed past Project, then merged.
                 Map.entry("FilterProjectTransposeRule", 1L),
                 Map.entry("ProjectMergeRule", 1L),
@@ -119,7 +124,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
             5,
             "SELECT l.CounterID, COUNT(*) AS cnt FROM hits l JOIN hits r ON l.CounterID = r.CounterID GROUP BY l.CounterID",
             // Trim-first narrows both join arms (and the top output) to [CounterID]: extra narrowing
-            // Projects → ProjectRule 1→2, ExpandConversionRule 2→3, and DistributionDerive now fires.
+            // Projects → ProjectRule 1→2.
             // Verified against the captured optimized plan (join key correctly reindexed =($0,$1)).
             Map.ofEntries(
                 Map.entry("ExtractLiteralAggRule", 0L),
@@ -133,10 +138,9 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 Map.entry("OpenSearchAggregateSplitRule", 1L),
                 Map.entry("OpenSearchJoinSplitRule", 1L),
                 Map.entry("OpenSearchAggLiteralArgProjectSplitRule", 0L),
-                Map.entry("OpenSearchDistributionDeriveRule", 1L),
-                // 3, not 2: OpenSearchDistributionDeriveRule adds a SINGLETON spine variant, so Volcano
-                // runs one more trait conversion.
-                Map.entry("ExpandConversionRule", 3L),
+                // OpenSearchDistributionDeriveRule is GONE (see the sibling test): with no SINGLETON spine
+                // variant to convert, ExpandConversionRule drops 3 → 1.
+                Map.entry("ExpandConversionRule", 1L),
                 // Calcite built-in: attempted on the decomposed aggregate but produces nothing
                 // here (no constant group keys), so productions == 0.
                 Map.entry("AggregateProjectPullUpConstantsRule", 0L)

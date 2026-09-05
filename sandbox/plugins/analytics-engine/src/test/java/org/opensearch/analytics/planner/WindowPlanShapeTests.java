@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalAggregate;
@@ -28,6 +29,7 @@ import org.apache.calcite.rex.RexWindowBounds;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.HashSet;
@@ -705,6 +707,199 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Window BELOW a Join (2-shard): the windowed Project is a join INPUT, not the join's parent.
+     * This is the shape PPL {@code appendcol} emits — {@code ROW_NUMBER()} on each arm, then a FULL
+     * join on the row numbers.
+     *
+     * <p>The windowed Project charges infinite cost over partitioned input, so the ONLY legal plan
+     * gathers below it: {@code Join(Project(over, ER(scan)), ER(scan))}. The demand for that gather
+     * reaches the Project as a SINGLETON requirement from the Join arm, which
+     * {@code OpenSearchProject.passThroughTraits} must turn into a SINGLETON demand on its own input.
+     *
+     * <p>Regression: an earlier build produced NO {@code Project} member in the arm's
+     * SINGLETON subset — only an ER stacked ABOVE the already-infinite RANDOM Project — so every
+     * candidate was infinite and planning died with {@code CannotPlanException: There are not enough
+     * rules to produce a node with desired properties … the cost is still infinite}. The window-above-Join
+     * cases ({@link #testWindowAfterJoin_2shard}) never caught it because there the SINGLETON demand
+     * comes from the root, not from a join arm.
+     */
+    public void testWindowBelowJoin_2shard() {
+        RelOptTable leftTable = mockTable("left_idx", "status", "size");
+        RelNode leftScan = stubScan(leftTable);
+        RelNode windowedLeft = projectWithSumOverEmpty(leftScan);
+
+        RelOptTable rightTable = mockTable("right_idx", "status", "size");
+        RelNode rightScan = stubScan(rightTable);
+
+        // windowedLeft has 3 fields (status, size, s) so the right arm's status sits at $3.
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 3)
+        );
+        RelNode plan = LogicalJoin.create(windowedLeft, rightScan, List.of(), cond, Set.<CorrelationId>of(), JoinRelType.INNER);
+
+        assertPlanShape("""
+            LogicalJoin(condition=[=($0, $3)], joinType=[inner])
+              LogicalProject(status=[$0], size=[$1], s=[SUM($1) OVER ()])
+                StubTableScan(table=[[left_idx]])
+              StubTableScan(table=[[right_idx]])
+            """, plan);
+
+        RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
+        assertPlanShape(
+            """
+                OpenSearchJoin(condition=[=($0, $3)], joinType=[inner], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                    OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Both arms windowed, joined FULL OUTER on the window outputs — the exact skeleton PPL
+     * {@code appendcol} lowers to.
+     */
+    public void testWindowOnBothArmsFullJoin_2shard() {
+        RelNode windowedLeft = projectWithSumOverEmpty(stubScan(mockTable("left_idx", "status", "size")));
+        RelNode windowedRight = projectWithSumOverEmpty(stubScan(mockTable("right_idx", "status", "size")));
+
+        // Join on the WINDOW outputs: left $2 (s) = right $5 (s).
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BIGINT), 2),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BIGINT), 5)
+        );
+        RelNode plan = LogicalJoin.create(windowedLeft, windowedRight, List.of(), cond, Set.<CorrelationId>of(), JoinRelType.FULL);
+
+        RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
+        assertPlanShape(
+            """
+                OpenSearchJoin(condition=[=($2, $5)], joinType=[full], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * The full PPL {@code appendcol} skeleton: both arms windowed, FULL-joined on the window outputs,
+     * then a global Sort and a {@code count()} Aggregate on top.
+     *
+     * <p>The arms are individually plannable ({@link #testWindowOnBothArmsFullJoin_2shard}); what this adds
+     * is the Sort+Aggregate ABOVE the join, which changes the order Volcano optimizes the groups in.
+     */
+    public void testAppendcolSkeleton_windowBothArmsFullJoinThenSortAggregate_2shard() {
+        RelNode windowedLeft = projectWithSumOverEmpty(stubScan(mockTable("left_idx", "status", "size")));
+        RelNode windowedRight = projectWithSumOverEmpty(stubScan(mockTable("right_idx", "status", "size")));
+
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BIGINT), 2),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BIGINT), 5)
+        );
+        RelNode join = LogicalJoin.create(windowedLeft, windowedRight, List.of(), cond, Set.<CorrelationId>of(), JoinRelType.FULL);
+
+        RelNode sort = LogicalSort.create(join, RelCollations.of(new RelFieldCollation(2), new RelFieldCollation(5)), null, null);
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            sort,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        RelNode plan = LogicalAggregate.create(sort, List.of(), ImmutableBitSet.of(), null, List.of(countCall));
+
+        RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
+        // RelFieldTrimmer drops status/size from both arms — only the window column feeds the join and the
+        // count — so each arm projects a single column and the join keys land at $0/$1.
+        assertPlanShape(
+            """
+                OpenSearchAggregate(group=[{}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                  OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[ASC], dir1=[ASC], viableBackends=[[mock-parquet]])
+                    OpenSearchJoin(condition=[=($0, $1)], joinType=[full], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                          OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(s=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                        OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                          OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /**
+     * Window over an AGGREGATE, as a join ARM (2-shard). Closer to PPL {@code appendcol} than
+     * {@link #testWindowBelowJoin_2shard}: the arm's singleton input is produced by the aggregate's
+     * PARTIAL/FINAL split rather than by a plain ER, so the SINGLETON member of the arm's set appears
+     * only after the split rule fires.
+     */
+    public void testWindowOverAggregateBelowJoin_2shard() {
+        RelNode leftScan = stubScan(mockTable("left_idx", "status", "size"));
+        AggregateCall leftSum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            leftScan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total_size"
+        );
+        LogicalAggregate leftAgg = LogicalAggregate.create(leftScan, List.of(), ImmutableBitSet.of(0), null, List.of(leftSum));
+        RexBuilder rb = leftAgg.getCluster().getRexBuilder();
+        RexNode over = makeOver(
+            rb,
+            leftAgg,
+            SqlStdOperatorTable.SUM,
+            List.of(rb.makeInputRef(leftAgg, 1)),
+            SqlTypeName.BIGINT,
+            RexWindowBounds.UNBOUNDED_PRECEDING,
+            RexWindowBounds.UNBOUNDED_FOLLOWING
+        );
+        RelNode windowedLeft = LogicalProject.create(
+            leftAgg,
+            List.of(),
+            List.of(rb.makeInputRef(leftAgg, 0), rb.makeInputRef(leftAgg, 1), over),
+            List.of("status", "total_size", "grand_total")
+        );
+
+        RelNode rightScan = stubScan(mockTable("right_idx", "status", "size"));
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 3)
+        );
+        RelNode plan = LogicalJoin.create(windowedLeft, rightScan, List.of(), cond, Set.<CorrelationId>of(), JoinRelType.INNER);
+
+        RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
+        assertPlanShape(
+            """
+                OpenSearchJoin(condition=[=($0, $3)], joinType=[inner], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], total_size=[$1], grand_total=[SUM($1) OVER ()], viableBackends=[[mock-parquet]])
+                    OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                        OpenSearchAggregate(group=[{0}], total_size=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                    OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

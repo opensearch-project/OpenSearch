@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.DeriveMode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -23,7 +24,9 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -307,7 +310,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
      *
      * <p>TODO(trait-propagation): PARTIAL/FINAL split PLACEMENT is already a trait algebra — see
      * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
-     * on this class, consulted by the post-CBO {@code DistributionEnforcementPass}. A future top-down
+     * on this class, consulted by CBO's trait machinery. A future top-down
      * migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode} {@code deriveTraits}/
      * {@code passThroughTraits}) would fold the cost-RANKING part of this override into the trait
      * machinery. NOTE: the SINGLE-mode infinite-cost gate below is a CORRECTNESS backstop, not cost
@@ -320,8 +323,15 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
         for (int index = 0; index < getInput().getTraitSet().size(); index++) {
             RelTrait trait = getInput().getTraitSet().getTrait(index);
             if (!(trait instanceof OpenSearchDistribution distribution)) continue;
-            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON
-                || distribution.getType() == RelDistribution.Type.ANY;
+            // ANY is Volcano's UNRESOLVED placeholder, not a real distribution — skip it and let the
+            // memo expand, exactly as the FINAL branch below already does. Treating ANY as SINGLETON
+            // priced every PARTIAL whose input trait was not yet resolved at INFINITY, which is why the
+            // agg-over-distributed-join split (TPC-H q3/q5/q7/q11/q21) could never win the cost race and
+            // only the post-CBO pass could produce it: the split IS registered and `deriveTraits` does
+            // derive PARTIAL@HASH(WORKER), but the alternative was unaffordable before it could compete.
+            // The real placement invariants still hold — they are enforced on the RESOLVED trait below.
+            if (distribution.getType() == RelDistribution.Type.ANY) continue;
+            boolean inputIsSingleton = distribution.getType() == RelDistribution.Type.SINGLETON;
 
             // Prices a SINGLE over partitioned input out (infinite cost) so it's never chosen.
             if (mode == AggregateMode.SINGLE && !inputIsSingleton) {
@@ -420,6 +430,92 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode,
         OpenSearchDistributionTraitDef traitDef
     ) {
         return null;
+    }
+
+    // ---- PhysicalNode (top-down trait propagation) ----
+
+    /**
+     * Distribution demand per aggregate mode. The three modes behave differently on purpose, mirroring
+     * the invariants {@link #computeSelfCost} charges infinite cost to violate:
+     * <ul>
+     *   <li>{@code PARTIAL} RIDES its input — it runs wherever the data already is, per shard/partition.
+     *       Demanding a gather here would defeat the whole split and leave {@code FINAL} reading raw rows
+     *       where it expects partial state.</li>
+     *   <li>{@code FINAL} DEMANDS {@code COORDINATOR+SINGLETON}: it must see every partial to merge them.
+     *       (A worker-tier hash-aggregate FINAL would demand HASH instead; we do not emit that shape.)</li>
+     *   <li>{@code SINGLE} declines. A SINGLE aggregate over partitioned input is exactly what the cost
+     *       gate rejects as a CORRECTNESS violation — it would under-count. Whether to split it
+     *       PARTIAL/FINAL is a decision the post-CBO enforcement pass owns (it also gates on the size
+     *       floor and the {@code shuffle.aggregate.enabled} toggle), so top-down must not pre-empt it by
+     *       claiming an alternative here.</li>
+     * </ul>
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        OpenSearchDistribution requiredDistribution = OpenSearchRelNode.distributionOf(required);
+        if (requiredDistribution == null) {
+            return null;
+        }
+        if (mode == AggregateMode.PARTIAL) {
+            return Pair.of(getTraitSet().replace(requiredDistribution), List.of(getInput().getTraitSet().replace(requiredDistribution)));
+        }
+        if (mode == AggregateMode.FINAL) {
+            if (requiredDistribution.getType() != RelDistribution.Type.SINGLETON) {
+                return null;
+            }
+            OpenSearchDistributionTraitDef traitDef = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+            OpenSearchDistribution singleton = traitDef.coordSingleton();
+            return Pair.of(getTraitSet().replace(singleton), List.of(getInput().getTraitSet().replace(singleton)));
+        }
+        // SINGLE: claim the SINGLETON alternative ONLY for an aggregate that cannot be split at all
+        // (STATE_EXPANDING / DISTINCT / cross-family non-prefix group set). For those, gather-then-run-
+        // SINGLE is the only correct shape, so this can never out-compete a two-phase alternative —
+        // there is none to compete with. Claiming it unconditionally instead lets a SINGLE-over-gather
+        // plan beat a legitimate PARTIAL/FINAL split whenever the row estimate collapses to the 1.0
+        // floor (measured: the two multi-predicate AggregateSplitCostTests, where 4-7 equi conjuncts at
+        // Calcite's 0.15 selectivity drive the estimate to 1 row and a two-phase aggregate is pure
+        // overhead). Splittable aggregates keep deferring to OpenSearchAggregateSplitRule.
+        //
+        // Correctness is not at stake either way: computeSelfCost prices SINGLE-over-partitioned at
+        // infinity, so an unsplit aggregate can never read partitioned input and under-count.
+        if (mode == AggregateMode.SINGLE
+            && requiredDistribution.getType() == RelDistribution.Type.SINGLETON
+            && OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
+            OpenSearchDistributionTraitDef td = (OpenSearchDistributionTraitDef) requiredDistribution.getTraitDef();
+            OpenSearchDistribution sg = td.coordSingleton();
+            return Pair.of(getTraitSet().replace(sg), List.of(getInput().getTraitSet().replace(sg)));
+        }
+        return null;
+    }
+
+    /**
+     * Only {@code PARTIAL} derives from its child, and only to report that it rides. {@code FINAL} always
+     * outputs SINGLETON regardless of its child, and {@code SINGLE} stays undecided (see
+     * {@link #passThroughTraits}) — consistent with {@link #deriveOutputDistribution} returning null
+     * rather than advertising a co-partitionable output.
+     */
+    @Override
+    public Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        if (childId != 0 || mode != AggregateMode.PARTIAL) {
+            return null;
+        }
+        OpenSearchDistribution childDistribution = OpenSearchRelNode.distributionOf(childTraits);
+        if (childDistribution == null) {
+            return null;
+        }
+        return Pair.of(getTraitSet().replace(childDistribution), List.of(childTraits));
+    }
+
+    /**
+     * A SINGLE aggregate must not have traits derived into it. {@link #computeSelfCost} charges infinite
+     * cost for SINGLE-over-partitioned because it would UNDER-COUNT (each partition aggregating in
+     * isolation with no FINAL merge) — a correctness backstop, not a cost preference. Calcite's default
+     * {@code LEFT_FIRST} derivation would manufacture exactly that variant. FINAL is likewise prohibited:
+     * it always gathers, so there is nothing to derive. Only PARTIAL rides its child.
+     */
+    @Override
+    public DeriveMode getDeriveMode() {
+        return mode == AggregateMode.PARTIAL ? DeriveMode.LEFT_FIRST : DeriveMode.PROHIBITED;
     }
 
     @Override

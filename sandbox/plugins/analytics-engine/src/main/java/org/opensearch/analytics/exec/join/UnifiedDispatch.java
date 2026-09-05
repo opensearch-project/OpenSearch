@@ -49,7 +49,7 @@ import java.util.function.Function;
 
 /**
  * Single dispatch entry point for the GENERAL post-CBO scheduler (Option B — see
- * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that {@link DistributionEnforcementPass}
+ * {@code MPP-GENERAL-SCHEDULING-DESIGN.md}). Drives the DAG that CBO's trait enforcement
  * produced, with ONE general principle that needs no per-query-shape recognition:
  *
  * <p><b>Broadcast is an INSTRUCTION, not a stage type.</b> A stage that consumes a broadcast carries a
@@ -90,20 +90,20 @@ public final class UnifiedDispatch {
     private final ClusterService clusterService;
     private final CapabilityRegistry capabilityRegistry;
     private final boolean preferMetadataDriver;
-    private final long sortMergeJoinMinRows;
+    private final long sortMergeJoinMinBytes;
 
     public UnifiedDispatch(
         QueryScheduler scheduler,
         ClusterService clusterService,
         CapabilityRegistry capabilityRegistry,
         boolean preferMetadataDriver,
-        long sortMergeJoinMinRows
+        long sortMergeJoinMinBytes
     ) {
         this.scheduler = scheduler;
         this.clusterService = clusterService;
         this.capabilityRegistry = capabilityRegistry;
         this.preferMetadataDriver = preferMetadataDriver;
-        this.sortMergeJoinMinRows = sortMergeJoinMinRows;
+        this.sortMergeJoinMinBytes = sortMergeJoinMinBytes;
     }
 
     /**
@@ -160,7 +160,7 @@ public final class UnifiedDispatch {
                 (levelIndex, partitionCount) -> resolveTargetWorkerNodeIds(partitionCount)
             );
             QueryDAG finalDag = postRewrite.apply(rewritten.dag());
-            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinRows);
+            ShuffleEnrichment.enrichLevels(rewritten.levels(), ctx, clusterService, capabilityRegistry, sortMergeJoinMinBytes);
             QueryExecution exec = scheduler.execute(ctx.withDag(finalDag), terminal);
             if (queryExecutionSink != null) {
                 queryExecutionSink.accept(exec);
@@ -361,22 +361,29 @@ public final class UnifiedDispatch {
     private static void injectBroadcastsInPlace(Stage stage, Map<Integer, byte[]> capturedByBuildId) {
         if (stage.getFragment() != null) {
             List<OpenSearchBroadcastScan> scans = RelNodeUtils.findNodes(stage.getFragment(), OpenSearchBroadcastScan.class);
-            List<Map.Entry<Integer, byte[]>> toInject = new ArrayList<>();
+            // Keyed by build id, so SEVERAL scans on the SAME build inject once. That happens under CSE
+            // (SharedSubplanCse), where every consumer of a shared sub-plan points at one build id and must
+            // resolve the one registered table — duplicating the instruction would re-register the same
+            // namedInputId and ship the payload twice.
+            Map<Integer, byte[]> toInject = new LinkedHashMap<>();
             for (OpenSearchBroadcastScan scan : scans) {
                 byte[] ipc = capturedByBuildId.get(scan.getBuildStageId());
                 if (ipc != null) {
-                    toInject.add(Map.entry(scan.getBuildStageId(), ipc));
+                    toInject.putIfAbsent(scan.getBuildStageId(), ipc);
                 }
             }
             if (!toInject.isEmpty()) {
                 List<StagePlan> enriched = new ArrayList<>(stage.getPlanAlternatives().size());
                 for (StagePlan sp : stage.getPlanAlternatives()) {
                     List<InstructionNode> merged = new ArrayList<>(sp.instructions());
-                    for (Map.Entry<Integer, byte[]> e : toInject) {
+                    for (Map.Entry<Integer, byte[]> e : toInject.entrySet()) {
                         // buildSideIndex 0: informational only — the NamedScan resolves by name on the data node.
                         merged.add(new BroadcastInjectionInstructionNode("broadcast-" + e.getKey(), 0, e.getValue()));
                     }
-                    enriched.add(sp.withInstructions(merged));
+                    // The injection REGISTERS the build's payload as a table, so it must precede any
+                    // aggregate preparation already on the chain — that step plans the fragment and would
+                    // otherwise fail to resolve the broadcast table.
+                    enriched.add(sp.withInstructions(InstructionOrdering.aggregatePreparationLast(merged)));
                 }
                 stage.setPlanAlternatives(enriched);
             }

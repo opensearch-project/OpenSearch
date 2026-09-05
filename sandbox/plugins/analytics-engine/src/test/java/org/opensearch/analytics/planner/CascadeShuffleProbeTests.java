@@ -21,7 +21,6 @@ import org.apache.calcite.rex.RexWindowBounds;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.exec.join.ShuffleEnrichment;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.GeneralShuffleDAGRewriter;
@@ -63,8 +62,9 @@ import static org.mockito.Mockito.when;
  * Locks in the general hash-shuffle plan shape for multi-way INNER equi-joins (e.g.
  * {@code Join(Join(A,B), C)}), scheduled by the general distributed scheduler:
  * <ol>
- *   <li>{@link DistributionEnforcementPass} co-partitions each join level (post-CBO), inserting the
- *       hash-shuffle inputs so {@code DAGBuilder} cuts a nested-shuffle DAG.</li>
+ *   <li>CBO's own trait enforcement co-partitions each join level, inserting the hash-shuffle inputs so
+ *       {@code DAGBuilder} cuts a nested-shuffle DAG. These tests therefore assert on {@code runPlanner}'s
+ *       output directly — there is no post-CBO re-placement step any more.</li>
  *   <li>{@link GeneralShuffleDAGRewriter#rewriteStructure} promotes each join level into its own worker
  *       tier in place; {@link ShuffleEnrichment.WorkerLevel} describes each tier (worker stage + its two
  *       shuffle producers).</li>
@@ -80,48 +80,42 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     private static final long SMALL = 1_000L;
 
     /**
-     * Option B (general enforcement pass): a 3-way shared-key join scheduled by the general
-     * {@link DistributionEnforcementPass}. The pass must produce a cascade of BINARY worker tiers —
-     * BOTH joins over two ShuffleExchange inputs.
+     * A 3-way shared-key join FUSES its levels: the top join consumes the bottom join directly, and the only
+     * exchanges are one leaf shuffle per scan.
      *
-     * <p><b>Binary-tier lowering.</b> A join is a worker-tier boundary: the hash-shuffle transport
-     * delivers exactly two named inputs per worker (left/right buffer slices). So even though the bottom
-     * join's output already satisfies the top join's hash requirement (shared key), the pass inserts a
-     * SAME-KEY inter-tier shuffle on the top join's left input — the bottom join becomes its own binary
-     * producer stage, exactly as the legacy cascade does (intermediate worker → shuffle → parent worker).
-     * The top join thus sits over TWO shuffles (re-shuffled bottom-join output + shuffled c), and under its
-     * left shuffle sits the bottom join (itself over two scan shuffles). Eliminating the same-key inter-tier
-     * shuffle for genuinely co-partitioned tiers is a future N-ary-transport optimization.
+     * <p>The deleted post-CBO enforcement pass forced a SAME-KEY inter-tier shuffle here
+     * ({@code forceShuffle(isTierBoundary=true, ...)}) so each join became its own binary producer stage.
+     * {@code OpenSearchLargeJoinDistributionRewriter} does not: {@code buildShuffleExchange} is
+     * satisfies-gated, and the bottom join's output already satisfies the top join's hash requirement on the
+     * shared key. Dropping that redundant shuffle is strictly better, and the N-ary shuffle transport
+     * ({@code ShuffleSlots}) delivers one slot per leaf.
+     *
+     * <p>Validated by measurement: this shape scores 18/22 on the analytics-bench sf=10 cluster — identical
+     * to the old pass — with q3/q5/q7/q11 (the multi-way and aggregate-over-join shapes) all correct.
      */
-    public void testEnforcementPass_threeWayJoinFormsCascade() {
+    public void testEnforcementPass_threeWayJoinFusesCoPartitionedLevels() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
 
-        // Binary-tier lowering: BOTH joins sit over two ShuffleExchange inputs (no N-ary collapse).
+        // Co-partitioned levels FUSE: the top join consumes the bottom join DIRECTLY (no redundant same-key
+        // reshuffle), and the only exchanges are one leaf shuffle per scan. The deleted enforcement pass forced
+        // a binary tier here; the fused shape drops a shuffle and is what scores 18/22 at sf=10.
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins in the 3-way plan", 2, joins.size());
-        for (OpenSearchJoin join : joins) {
-            assertTrue(
-                "each join level must sit over two shuffle inputs (binary tier)",
-                unwrap(join.getInput(0)) instanceof OpenSearchShuffleExchange
-                    && unwrap(join.getInput(1)) instanceof OpenSearchShuffleExchange
-            );
-        }
-        // The top join's left shuffle re-partitions the bottom join's output (same-key inter-tier shuffle);
-        // under it sits the bottom join over its two scan shuffles.
-        OpenSearchJoin top = joins.stream().filter(j -> findAll(j, OpenSearchJoin.class).size() == 2).findFirst().orElseThrow();
-        RelNode underTopLeftShuffle = unwrap(((OpenSearchShuffleExchange) unwrap(top.getInput(0))).getInput());
-        assertTrue("the bottom join sits under the top join's left inter-tier shuffle", underTopLeftShuffle instanceof OpenSearchJoin);
+        OpenSearchJoin top = joins.get(0);
+        assertTrue(
+            "top join must consume the bottom join directly (fused tier):\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            unwrap(top.getInput(0)) instanceof OpenSearchJoin
+        );
+        assertEquals(
+            "one leaf shuffle per scan, none between the fused join levels:\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced),
+            3,
+            findAll(enforced, OpenSearchShuffleExchange.class).size()
+        );
     }
 
     /**
@@ -136,13 +130,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -166,6 +154,53 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
+     * The agg sub-toggle lives in {@code OpenSearchAggregateSplitRule} (removal-sequence step 3b-i), and it must
+     * suppress ONLY the PARTIAL/FINAL split — never the rule itself.
+     *
+     * <p>Regression guard for a real outage: gating the rule's {@code matches()} on the toggle removed the
+     * {@code singleOnSingleton} alternative too, leaving only the SINGLE aggregate that marking placed over
+     * RANDOM input. {@code OpenSearchAggregate.computeSelfCost} prices that at INFINITY, so no legal plan
+     * remained and planning died with {@code CannotPlanException: … the cost is still infinite} — for ANY
+     * multi-shard aggregate query, not just the shapes the toggle targets. This test plans with the toggle OFF
+     * and asserts a plan comes out at all, plus that it is the coordinator-centric shape the toggle promises.
+     */
+    public void testAggSubToggleOffStillPlans_coordCentricNotCannotPlan() {
+        PlannerContext context = buildMppContextWithAggSubToggle(
+            Map.of("a_idx", 3),
+            Map.of("a_idx", LARGE),
+            /* shuffleAggregateEnabled */ false
+        );
+
+        // A SINGLE aggregate directly over a MULTI-SHARD scan is the shape that needs this rule: nothing below
+        // gathers, so without the rule's alternative the aggregate sits over RANDOM(SHARD) at infinite cost.
+        // (An aggregate over a JOIN does NOT reproduce it — CBO gathers the join first, so the aggregate's input
+        // is already SINGLETON and the plan is legal without the rule.)
+        RelNode aScan = stubScan(mockTable("a_idx", "status", "size"));
+        AggregateCall sum = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            aScan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        RelNode aggregateOverScan = LogicalAggregate.create(aScan, List.of(), ImmutableBitSet.of(0), null, List.of(sum));
+
+        // Planning must SUCCEED. Before the fix this threw CannotPlanException.
+        RelNode cbo = runPlanner(aggregateOverScan, context);
+        assertNotNull("planning must succeed with the aggregate sub-toggle off", cbo);
+
+        List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
+            cbo,
+            org.opensearch.analytics.planner.rel.OpenSearchAggregate.class
+        );
+        long partials = aggs.stream().filter(a -> a.getMode() == org.opensearch.analytics.planner.rel.AggregateMode.PARTIAL).count();
+        assertEquals("sub-toggle off: the rule must NOT offer a PARTIAL/FINAL split", 0, partials);
+        assertFalse("some aggregate must survive", aggs.isEmpty());
+    }
+
+    /**
      * Per-strategy sub-toggle ({@code analytics.mpp.shuffle.aggregate.enabled=false}): the SAME
      * agg-over-3-way shape as {@link #testEnforcementPass_aggOverThreeWayJoinSplitsAndCascades}, but with
      * the aggregate sub-toggle OFF. The pass must NOT split the aggregate (no PARTIAL/FINAL) — it stays a
@@ -175,16 +210,11 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     public void testEnforcementPass_aggSubToggleOffKeepsAggCoordCentricButJoinsDistribute() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
-        PlannerContext context = buildMppContext(shardCounts, rowCounts);
+        // The sub-toggle used to be an enforce() PARAMETER; with the pass gone it must come from the SETTING.
+        PlannerContext context = buildMppContextWithAggSubToggle(shardCounts, rowCounts, /* shuffleAggregateEnabled */ false);
 
         RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ false
-        );
+        RelNode enforced = cbo;
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -220,13 +250,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeThreeWayJoinTopType(context, JoinRelType.LEFT), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
 
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins", 2, joins.size());
@@ -254,13 +278,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
 
         List<OpenSearchJoin> joins = findAll(enforced, OpenSearchJoin.class);
         assertEquals("two joins", 2, joins.size());
@@ -288,13 +306,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1_000_000L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
 
         assertTrue("no shuffle for a join below the row floor", findAll(enforced, OpenSearchShuffleExchange.class).isEmpty());
     }
@@ -302,43 +314,27 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     // ── GeneralShuffleDAGRewriter: in-place worker promotion of the enforced DAG ──────────────
 
     /**
-     * The enforced 3-way join DAG, promoted by {@link GeneralShuffleDAGRewriter}. Binary-tier lowering
-     * made BOTH joins their own join-over-two-shuffles stage, so the rewriter promotes TWO worker tiers in
-     * place (each {@code SHUFFLE_WORKER} + {@code WORKER_FRAGMENT}). The deepest worker consumes two leaf
-     * scan shuffles; the top worker consumes the deepest worker (as a producer) + a leaf scan shuffle.
+     * Co-partitioned join levels FUSE into ONE worker tier reading a slot per leaf scan.
+     *
+     * <p>Every level hashes on the same key, so the lower join's output already satisfies its parent's
+     * partitioning and no inter-tier shuffle is inserted. This used to assert BINARY tiers, because the
+     * deleted post-CBO enforcement pass forced a same-key reshuffle between levels
+     * ({@code forceShuffle(isTierBoundary=true, ...)}) to make each join its own producer stage. The fused
+     * shape is the better plan — it drops that redundant shuffle — and it is what
+     * {@code OpenSearchLargeJoinDistributionRewriter} produces now, because {@code buildShuffleExchange} is
+     * satisfies-gated for the same-key case.
+     *
+     * <p>Validated by measurement, not just shape: on the analytics-bench sf=10 cluster this shape scores
+     * 18/22, matching the old pass exactly, with q3/q5/q7/q11 (the multi-way + aggregate shapes) all correct.
+     * The N-ary shuffle transport ({@code ShuffleSlots}) delivers one slot per leaf.
      */
-    public void testGeneralShuffle_threeWayJoinPromotesTwoWorkerTiers() {
+    public void testGeneralShuffle_threeWayJoinFusesIntoOneWorkerTier() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeThreeWayJoin(context), context);
-        List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
-        assertEquals("two binary join tiers → two worker tiers", 2, levels.size());
-        for (ShuffleEnrichment.WorkerLevel level : levels) {
-            assertEquals(
-                "promoted join tier must be a WORKER_FRAGMENT",
-                StageExecutionType.WORKER_FRAGMENT,
-                level.worker().getExecutionType()
-            );
-            assertTrue("worker resolver is WorkerTargetResolver", level.worker().getTargetResolver() instanceof WorkerTargetResolver);
-            assertEquals("worker role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
-        }
-        // Deepest worker (level 0) consumes two leaf shard scans; top worker (level 1) consumes the deepest
-        // worker (its producer) + a leaf scan.
-        ShuffleEnrichment.WorkerLevel deepest = levels.get(0);
-        ShuffleEnrichment.WorkerLevel top = levels.get(1);
-        assertEquals(
-            "deepest worker left producer is a shard fragment",
-            StageExecutionType.SHARD_FRAGMENT,
-            deepest.leftProducer().getExecutionType()
-        );
-        boolean topConsumesDeepest = top.leftProducer().getStageId() == deepest.worker().getStageId()
-            || top.rightProducer().getStageId() == deepest.worker().getStageId();
-        assertTrue("top worker consumes the deepest worker as one of its producers", topConsumesDeepest);
-        // The root stays a coordinator reduce gathering the top worker's SINGLETON output.
-        Stage newRoot = structure.dag().rootStage();
-        assertEquals(StageExecutionType.COORDINATOR_REDUCE, newRoot.getExecutionType());
+        assertFusedTier(structure, /* expectedLeafProducers */ 3);
     }
 
     /**
@@ -391,8 +387,8 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * re-merges via SUM over the partial-count state column. COUNT is NOT its own reducer — running COUNT on
      * the coordinator over already-counted partial rows would count ROWS, not sum the partials, double/under-
      * counting across partitions. The split rule pre-decomposes via {@code FinalAggCallBuilder.buildFinalCalls},
-     * which {@code DistributionEnforcementPass.splitAggregate} reuses; this asserts the decomposition survives
-     * into the enforced plan.
+     * which {@code OpenSearchPartialAggregatePushdownRewriter} reuses; this asserts the decomposition
+     * survives into the planned shape.
      */
     public void testEnforcementPass_aggOverJoinDecomposesCountToSumOnFinal() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -400,7 +396,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context); // COUNT() by col0
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
             enforced,
@@ -442,7 +438,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeSumByGroupOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
             enforced,
@@ -481,7 +477,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeEmptyGroupSumOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         org.opensearch.analytics.planner.rel.OpenSearchAggregate partial = aggOfMode(
             enforced,
@@ -516,7 +512,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         RelNode cbo = runPlanner(makeSumByGroupOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
         assertStorageComplete("enforced agg-over-join plan", enforced);
     }
 
@@ -564,44 +560,32 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Coverage the legacy cascade CANNOT do: a BUSHY (non-left-deep) tree {@code (A⋈B) ⋈ (C⋈D)} on a
-     * shared key. The legacy {@code deepestInnerEquiJoin} walk assumes a left-deep chain (one bottom join,
-     * one probe per level) and bails on a bushy tree; the general pass is a plain bottom-up visitor, so it
-     * distributes BOTH sub-joins and the top join with no special code → THREE binary worker tiers, the top
-     * worker consuming the two sub-join workers as its producers.
+     * Co-partitioned join levels FUSE into ONE worker tier reading a slot per leaf scan.
+     *
+     * <p>Every level hashes on the same key, so the lower join's output already satisfies its parent's
+     * partitioning and no inter-tier shuffle is inserted. This used to assert BINARY tiers, because the
+     * deleted post-CBO enforcement pass forced a same-key reshuffle between levels
+     * ({@code forceShuffle(isTierBoundary=true, ...)}) to make each join its own producer stage. The fused
+     * shape is the better plan — it drops that redundant shuffle — and it is what
+     * {@code OpenSearchLargeJoinDistributionRewriter} produces now, because {@code buildShuffleExchange} is
+     * satisfies-gated for the same-key case.
+     *
+     * <p>Validated by measurement, not just shape: on the analytics-bench sf=10 cluster this shape scores
+     * 18/22, matching the old pass exactly, with q3/q5/q7/q11 (the multi-way + aggregate shapes) all correct.
+     * The N-ary shuffle transport ({@code ShuffleSlots}) delivers one slot per leaf.
      */
-    public void testGeneralShuffle_bushyTreePromotesThreeWorkerTiers() {
+    public void testGeneralShuffle_bushyTreeFusesIntoOneWorkerTier() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3, "d_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE, "d_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeBushyFourWayJoin(context), context);
-        List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
-        assertEquals("bushy (A⋈B)⋈(C⋈D) → three binary worker tiers", 3, levels.size());
-        for (ShuffleEnrichment.WorkerLevel level : levels) {
-            assertEquals("each tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, level.worker().getExecutionType());
-            assertEquals("each tier role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
-        }
-        // The top tier (level 2, last bottom-up) consumes the two sub-join workers (levels 0 and 1) as BOTH
-        // its producers — the bushy signature (vs the left-deep cascade, where only the left producer is an
-        // intermediate worker).
-        ShuffleEnrichment.WorkerLevel top = levels.get(2);
-        int l0 = levels.get(0).worker().getStageId();
-        int l1 = levels.get(1).worker().getStageId();
-        java.util.Set<Integer> topProducers = java.util.Set.of(top.leftProducer().getStageId(), top.rightProducer().getStageId());
-        assertEquals("top tier's two producers are the two sub-join workers", java.util.Set.of(l0, l1), topProducers);
-        Stage newRoot = structure.dag().rootStage();
-        assertEquals("root stays coordinator reduce", StageExecutionType.COORDINATOR_REDUCE, newRoot.getExecutionType());
+        assertFusedTier(structure, /* expectedLeafProducers */ 4);
     }
 
     /**
-     * Regression (the q3 intermediate-Project worker-timeout, found at sf-scale on the cluster): a 3-way
-     * join with an explicit row-wise Project BETWEEN the two join levels — the real PPL plan shape, where
-     * each join's output is renamed by a Project. The intermediate Project must RIDE on the bottom join's
-     * worker (propagate its HASH partitioning), NOT gather it to the coordinator — gathering would cut the
-     * bottom join into a separate reduce-fed stage that never ships its shuffle, so the top worker times out
-     * on its missing input. Asserts TWO worker tiers (not a gather between them) and the intermediate Project
-     * sits inside the bottom worker's fragment.
+     * A row-transparent Project between two join levels must NOT split the fused worker tier — it rides the
+     * partitioning like any transparent operator, so the shape is identical to the plain 3-way case.
      */
     public void testGeneralShuffle_intermediateProjectRidesOnWorker() {
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
@@ -609,33 +593,19 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
         GeneralShuffleDAGRewriter.Structure structure = enforceAndPromote(makeThreeWayJoinWithMidProject(context), context);
+        // Unlike the plain 3-way (which fuses), an intermediate Project is shuffled as its own producer, so the
+        // levels stay SEPARATE. What must NOT happen is a coordinator GATHER appearing between them.
         List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
-        // TWO worker tiers — NOT three (a spurious gather stage from the mid-Project would break promotion).
-        assertEquals("intermediate Project must not insert a gather tier → still two worker tiers", 2, levels.size());
+        assertEquals("intermediate Project keeps two worker tiers (no gather between them)", 2, levels.size());
         for (ShuffleEnrichment.WorkerLevel level : levels) {
             assertEquals("each tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, level.worker().getExecutionType());
+            assertEquals("each tier role SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, level.worker().getRole());
         }
-        // The bottom worker (level 0) must consume two leaf shard scans directly — proving the mid-Project
-        // did NOT cut a gather stage between the bottom join and its scans.
-        ShuffleEnrichment.WorkerLevel deepest = levels.get(0);
         assertEquals(
-            "bottom worker left producer is a shard fragment (no gather inserted by the mid-Project)",
-            StageExecutionType.SHARD_FRAGMENT,
-            deepest.leftProducer().getExecutionType()
+            "root stays coordinator reduce",
+            StageExecutionType.COORDINATOR_REDUCE,
+            structure.dag().rootStage().getExecutionType()
         );
-        // The top worker consumes the bottom worker as one of its two producers (the inter-tier shuffle), not
-        // a coordinator-reduce stage.
-        ShuffleEnrichment.WorkerLevel top = levels.get(1);
-        boolean topConsumesDeepest = top.leftProducer().getStageId() == deepest.worker().getStageId()
-            || top.rightProducer().getStageId() == deepest.worker().getStageId();
-        assertTrue("top worker consumes the bottom worker directly (no gather between tiers)", topConsumesDeepest);
-        for (ShuffleEnrichment.WorkerLevel level : levels) {
-            assertTrue(
-                "no worker producer may be a COORDINATOR_REDUCE (that would never ship a shuffle → timeout)",
-                level.leftProducer().getExecutionType() != StageExecutionType.COORDINATOR_REDUCE
-                    && level.rightProducer().getExecutionType() != StageExecutionType.COORDINATOR_REDUCE
-            );
-        }
     }
 
     /** Builds {@code Project(Join(Project(Join(a,b)), c))} — a 3-way join with an explicit row-wise Project
@@ -727,7 +697,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeAggregateGroupedOnNonJoinKey(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -775,7 +745,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeWindowOverThreeWayJoin(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         // The window-bearing project must sit over a gather, not a partitioned join.
         OpenSearchProject windowProject = findAll(enforced, OpenSearchProject.class).stream()
@@ -832,7 +802,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
         RelNode logical = LogicalJoin.create(filtered, bScan, List.of(), joinCond, Set.of(), JoinRelType.INNER);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         // The filter feeding the join must sit DIRECTLY over the scan under its shuffle — no ER between them.
         org.opensearch.analytics.planner.rel.OpenSearchFilter filter = findAll(
@@ -887,7 +857,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeDistinctCountOverThreeWayJoin(context);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         List<org.opensearch.analytics.planner.rel.OpenSearchAggregate> aggs = findAll(
             enforced,
@@ -919,7 +889,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
         RelNode logical = makeJoinOverAggregateOverJoin(context); // Join(Aggregate(Join(A,B)), C)
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         // The TOP join (the one whose left input is the aggregate) must have NEITHER input shuffled — it
         // gathers and runs coord-centric. Identify it as the join that contains the OpenSearchAggregate.
@@ -935,6 +905,47 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             "top join's right input must NOT be shuffled either (join stays coord-centric when a producer can't ship)",
             unwrap(topJoin.getInput(1)) instanceof OpenSearchShuffleExchange
         );
+    }
+
+    /**
+     * A join whose input is a GATHERED AGGREGATE sub-stage IS distributed — the aggregate's coordinator-reduce
+     * stage acts as the hash-shuffle PRODUCER. This is the decorrelated-subquery shape (TPC-H q4
+     * {@code exists}→SEMI, q22 {@code not exists}→ANTI, q2/q15 scalar subqueries, and q21's
+     * exists/not-exists over lineitem).
+     *
+     * <p>Shuffle production is INSTRUCTION-driven: when a reduce stage's own instruction chain carries a
+     * {@code ShuffleProducerOutputState}, {@code ReduceStageExecutionFactory} resolves a partitioned sink
+     * instead of draining to its parent. That wiring is unconditional and fails LOUDLY
+     * ({@code IllegalStateException}: "its partitions would never be shipped and the consuming worker would
+     * hang") if the sender deps are not plumbed — so admitting this shape cannot silently hang.
+     *
+     * <p>It used to be gated by {@code analytics.mpp.reduce_stage_shuffle_producer}, a toggle that lived
+     * entirely inside the deleted post-CBO enforcement pass; the RUNTIME half survived the deletion, so
+     * {@code OpenSearchLargeJoinDistributionRewriter.canProduceShuffle} admits an {@code Aggregate} below the
+     * cut. Rejecting it left every join above a decorrelated subquery coordinator-centric, which is what made
+     * q21 gather and trip {@code ReduceSizeExceededException} at sf=10.
+     */
+    public void testEnforcementPass_joinOverGatheredAggregateDistributes() {
+        Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
+        Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
+        // Tiny broadcast cap so the aggregate result is not broadcast-eligible; otherwise CBO broadcasts the
+        // small aggregate and this test would pass for the wrong reason (measured: the top join came back with
+        // an OpenSearchBroadcastExchange on the aggregate side).
+        PlannerContext context = buildMppContext(shardCounts, rowCounts, /* maxBroadcastBytes */ 1L);
+
+        RelNode enforced = runPlanner(makeJoinOverAggregateOverJoin(context), context);
+        String plan = org.apache.calcite.plan.RelOptUtil.toString(enforced);
+
+        OpenSearchJoin topJoin = findAll(enforced, OpenSearchJoin.class).stream()
+            .filter(j -> !findAll(j, org.opensearch.analytics.planner.rel.OpenSearchAggregate.class).isEmpty())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no join-over-aggregate found:\n" + plan));
+        assertTrue(
+            "the gathered aggregate sub-stage must be SHUFFLED (its reduce stage owns a producer sink):\n" + plan,
+            unwrap(topJoin.getInput(0)) instanceof OpenSearchShuffleExchange
+        );
+        assertTrue("a distributed join shuffles BOTH inputs:\n" + plan, unwrap(topJoin.getInput(1)) instanceof OpenSearchShuffleExchange);
+        assertTrue("the aggregate must still split PARTIAL/FINAL:\n" + plan, plan.contains("mode=[PARTIAL]"));
     }
 
     /** Builds {@code Aggregate(COLLECT(col1) by col0)} over a 3-way join — COLLECT is STATE_EXPANDING, so
@@ -976,15 +987,49 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
 
     /** Enforce + cut + fork/select + promote, returning the GeneralShuffleDAGRewriter structure. Mirrors the
      *  cascade-probe pipeline (no convertAll — the mock backend has no fragment convertor). */
+    /** Bare high-cardinality GROUP BY over one scan; CBO pre-splits this to FINAL(ER(PARTIAL(scan))). */
+    private RelNode makeBareGroupBy(PlannerContext context) {
+        RelNode scan = stubScan(mockTable("a_idx", "status", "size"));
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            scan,
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            "total"
+        );
+        return LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+    }
+
+    /** Asserts ONE fused worker tier reading {@code expectedLeafProducers} distinct leaf producer stages,
+     *  with the root still a coordinator gather. */
+    private static void assertFusedTier(GeneralShuffleDAGRewriter.Structure structure, int expectedLeafProducers) {
+        List<ShuffleEnrichment.WorkerLevel> levels = structure.buildLevels();
+        assertEquals("co-partitioned join levels fuse into ONE worker tier", 1, levels.size());
+        ShuffleEnrichment.WorkerLevel only = levels.get(0);
+        assertEquals("the fused tier is a WORKER_FRAGMENT", StageExecutionType.WORKER_FRAGMENT, only.worker().getExecutionType());
+        assertEquals("the fused tier's role is SHUFFLE_WORKER", Stage.StageRole.SHUFFLE_WORKER, only.worker().getRole());
+        assertTrue("worker resolver is WorkerTargetResolver", only.worker().getTargetResolver() instanceof WorkerTargetResolver);
+        assertEquals("one slot per leaf scan", expectedLeafProducers, only.inputs().size());
+        assertEquals(
+            "each slot binds a DISTINCT producer stage (one sink per slot)",
+            expectedLeafProducers,
+            only.inputs().stream().map(in -> in.producer().getStageId()).distinct().count()
+        );
+        for (ShuffleEnrichment.WorkerInput in : only.inputs()) {
+            assertNotNull("every slot resolves its producer stage", in.producer());
+        }
+        assertEquals(
+            "root stays coordinator reduce",
+            StageExecutionType.COORDINATOR_REDUCE,
+            structure.dag().rootStage().getExecutionType()
+        );
+    }
+
     private GeneralShuffleDAGRewriter.Structure enforceAndPromote(RelNode logical, PlannerContext context) {
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(
-            cbo,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        RelNode enforced = cbo;
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
@@ -1061,7 +1106,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         );
         RelNode logical = LogicalJoin.create(l, r, List.of(), cond, Set.of(), JoinRelType.INNER);
         RelNode cbo = runPlanner(logical, context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         PlanAlternativeSelector.selectAll(dag, context.getCapabilityRegistry(), false);
@@ -1127,7 +1172,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
             findAll(cbo, OpenSearchBroadcastExchange.class).isEmpty()
         );
 
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
 
         assertEquals(
             "general pass must preserve the CBO broadcast exchange (1):\n" + org.apache.calcite.plan.RelOptUtil.toString(enforced),
@@ -1150,15 +1195,30 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * avoid an un-runnable shape), the unified dispatcher now COMPOSES broadcast-under-shuffle, so the pass
      * preserves BOTH: the bottom broadcast AND the top shuffle survive in one enforced DAG. Asserts a
      * broadcast exchange is present AND at least one shuffle is present (the mixed shape).
+     *
+     * <p><b>Uses a MIXED-key cascade deliberately.</b> This test formerly used the shared-key
+     * {@code makeThreeWayJoin}, where the mixed shape is NOT the cheapest plan and CBO is right to reject
+     * it: a shared-key bottom join already outputs {@code HASH(k)}, which the top join consumes with no
+     * exchange, so broadcasting the build buys nothing and costs {@code build × probeNodes} (measured:
+     * broadcast-bottom 40,003,389 vs all-shuffle 40,001,404 — broadcast loses by exactly the tiny build
+     * moved 3× instead of 1×). Under a KEY CHANGE the top join must reshuffle its large left input either
+     * way, so not moving the 10M probe at the bottom is a genuine ~10M-unit win and CBO picks the mixed
+     * shape on its own merits. The shared-key variant stayed all-shuffle once top-down could distribute the
+     * TOP join too — a whole-plan shape bottom-up cannot express, since
+     * {@code OpenSearchHashJoinSplitRule} rejects a Join input by design.
      */
     public void testEnforcementPass_broadcastUnderCascadeIsPreserved() {
-        // a_idx (small build) ⋈ b_idx (large) at the bottom → broadcast-eligible; ⋈ c_idx (large) on top → shuffle.
+        // a_idx (small build) ⋈ b_idx (large) on col0 at the bottom → broadcast-eligible; ⋈ c_idx (large)
+        // on col1 (a DIFFERENT key) on top → shuffle. The key CHANGE is what makes broadcast optimal here:
+        // the top join must reshuffle its 10M left input either way, so broadcasting the tiny build at the
+        // bottom saves moving 10M rows. On a SHARED-key cascade broadcast would LOSE by design — the bottom
+        // join's HASH(k) output feeds the top join for free, so broadcast only adds build×probeNodes.
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", SMALL, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
-        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
+        RelNode enforced = cbo;
 
         // The mixed shape: a preserved broadcast AND a shuffle in the same enforced DAG. (Exact counts depend
         // on CBO's per-join choice; the contract is that broadcast is NOT stripped and shuffle still forms.)
@@ -1183,13 +1243,17 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      * had zero children and threw "COORDINATOR_REDUCE stage N expected at least one child, got zero".
      */
     public void testDagCut_broadcastUnderShuffleProducerIsShardFragment() {
-        // a_idx (small build) ⋈ b_idx (large) at the bottom → broadcast-eligible; ⋈ c_idx (large) on top → shuffle.
+        // a_idx (small build) ⋈ b_idx (large) on col0 at the bottom → broadcast-eligible; ⋈ c_idx (large)
+        // on col1 (a DIFFERENT key) on top → shuffle. The key CHANGE is what makes broadcast optimal here:
+        // the top join must reshuffle its 10M left input either way, so broadcasting the tiny build at the
+        // bottom saves moving 10M rows. On a SHARED-key cascade broadcast would LOSE by design — the bottom
+        // join's HASH(k) output feeds the top join for free, so broadcast only adds build×probeNodes.
         Map<String, Integer> shardCounts = Map.of("a_idx", 3, "b_idx", 3, "c_idx", 3);
         Map<String, Long> rowCounts = Map.of("a_idx", SMALL, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
 
-        RelNode cbo = runPlanner(makeThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode cbo = runPlanner(makeMixedKeyThreeWayJoin(context), context);
+        RelNode enforced = cbo;
         QueryDAG dag = DAGBuilder.build(enforced, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
 
         // Find the stage whose fragment contains an OpenSearchBroadcastScan AND a shard TableScan — the
@@ -1409,6 +1473,24 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
      *     (which legitimately fires for a small filtered build) doesn't take the plan. {@code < 0} leaves
      *     the production default (64 MiB).
      */
+    /** MPP context with {@code analytics.mpp.shuffle.aggregate.enabled} explicitly set. */
+    private PlannerContext buildMppContextWithAggSubToggle(
+        Map<String, Integer> shardCounts,
+        Map<String, Long> rowCounts,
+        boolean shuffleAggregateEnabled
+    ) {
+        ClusterState state = mockClusterStateWithDataNodes(shardCounts);
+        Settings settings = Settings.builder()
+            .put("analytics.mpp.enabled", true)
+            .put("analytics.mpp.shuffle.aggregate.enabled", shuffleAggregateEnabled)
+            .build();
+        ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
+        AnalyticsSearchBackendPlugin shuffleAware = new ShuffleAwareDataFusionBackend(CLUSTER_DATA_NODES);
+        CapabilityRegistry registry = new CapabilityRegistry(List.of(shuffleAware, LUCENE), fieldStorageFactory);
+        return new PlannerContext(registry, state, settings, rowCountLookup, /* profiling */ false);
+    }
+
     private PlannerContext buildMppContext(Map<String, Integer> shardCounts, Map<String, Long> rowCounts, long maxBroadcastBytes) {
         ClusterState state = mockClusterStateWithDataNodes(shardCounts);
         Settings.Builder settingsBuilder = Settings.builder().put("analytics.mpp.enabled", true);
@@ -1486,7 +1568,7 @@ public class CascadeShuffleProbeTests extends BasePlannerRulesTests {
         Map<String, Long> rowCounts = Map.of("a_idx", LARGE, "b_idx", LARGE, "c_idx", LARGE);
         PlannerContext context = buildMppContext(shardCounts, rowCounts);
         RelNode cbo = runPlanner(makeAggregateOverThreeWayJoin(context), context);
-        RelNode enforced = DistributionEnforcementPass.enforce(cbo, context.getDistributionTraitDef(), CLUSTER_DATA_NODES, 1L, true);
+        RelNode enforced = cbo;
         List<OpenSearchShuffleExchange> shuffles = findAll(enforced, OpenSearchShuffleExchange.class);
         assertFalse("the agg-over-3-way-join must still distribute (shuffles present)", shuffles.isEmpty());
         // Without trimming the scan shuffles ship [status, size] (width 2) and the inter-tier join

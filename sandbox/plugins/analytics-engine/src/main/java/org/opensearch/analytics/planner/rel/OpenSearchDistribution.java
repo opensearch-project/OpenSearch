@@ -43,8 +43,9 @@ import java.util.Objects;
  * <p><b>Satisfies semantics.</b> For {@code SINGLETON}, the same locality satisfies; a
  * SINGLETON demand with null locality accepts either SHARD or COORDINATOR (used by callers
  * that don't care whether data is shard-local or gathered). For {@code HASH_DISTRIBUTED},
- * the produced trait satisfies the demand iff the keys are a superset of the demanded keys
- * (finer satisfies coarser) AND the partition counts match exactly.
+ * the produced trait satisfies the demand iff the produced keys are a SUBSET of the demanded
+ * keys (coarser satisfies finer — partitioning on {@code hash(k1)} keeps every {@code (k1,k2)}
+ * group whole, but not the reverse) AND the partition counts match exactly.
  *
  * @opensearch.internal
  */
@@ -74,6 +75,24 @@ public class OpenSearchDistribution implements RelDistribution {
     private final Integer tableId;
     private final Integer shardCount;
     private final Integer partitionCount;
+    /**
+     * True when this partitioning was MATERIALIZED by an exchange (a shuffle actually moved the rows),
+     * false when it was merely DERIVED by an operator claiming its output happens to be so partitioned.
+     *
+     * <p>This is what makes the trait TIER-AWARE. The hash-shuffle transport delivers exactly two named
+     * inputs per worker, so each distributed join input must arrive as its OWN producer stream: a lower
+     * join's derived {@code HASH(k,N)} must NOT satisfy a parent join's {@code HASH(k,N)} demand, or
+     * Volcano would reuse it in place and collapse N joins into one fragment with N shuffle leaves —
+     * which the transport cannot run.
+     *
+     * <p>Previously the same effect was obtained accidentally: the enforcement pass tracked the real
+     * distribution in a side record while the rel's traitSet kept CBO's stale {@code coordSingleton}, so
+     * {@code satisfies()} happened to return false and an inter-tier shuffle got inserted
+     * (the deleted post-CBO enforcement pass depended on that staleness). Encoding the tier in the
+     * trait replaces that accident with a stated rule, which is the prerequisite for making traits
+     * authoritative and retiring the pass's forced {@code buildReducer} calls.
+     */
+    private final boolean exchangeMaterialized;
 
     OpenSearchDistribution(
         OpenSearchDistributionTraitDef traitDef,
@@ -84,6 +103,19 @@ public class OpenSearchDistribution implements RelDistribution {
         Integer shardCount,
         Integer partitionCount
     ) {
+        this(traitDef, locality, type, keys, tableId, shardCount, partitionCount, false);
+    }
+
+    OpenSearchDistribution(
+        OpenSearchDistributionTraitDef traitDef,
+        Locality locality,
+        Type type,
+        List<Integer> keys,
+        Integer tableId,
+        Integer shardCount,
+        Integer partitionCount,
+        boolean exchangeMaterialized
+    ) {
         this.traitDef = traitDef;
         this.locality = locality;
         this.type = type;
@@ -91,6 +123,19 @@ public class OpenSearchDistribution implements RelDistribution {
         this.tableId = tableId;
         this.shardCount = shardCount;
         this.partitionCount = partitionCount;
+        this.exchangeMaterialized = exchangeMaterialized;
+    }
+
+    /** See {@link #exchangeMaterialized}. */
+    public boolean isExchangeMaterialized() {
+        return exchangeMaterialized;
+    }
+
+    /** This distribution with the exchange-materialized flag set — used by the shuffle exchange. */
+    public OpenSearchDistribution asExchangeMaterialized() {
+        return exchangeMaterialized
+            ? this
+            : new OpenSearchDistribution(traitDef, locality, type, keys, tableId, shardCount, partitionCount, true);
     }
 
     public Locality getLocality() {
@@ -145,15 +190,36 @@ public class OpenSearchDistribution implements RelDistribution {
             return this.locality == other.locality;
         }
         if (this.type == Type.HASH_DISTRIBUTED) {
-            // A hash partitioning on keys K is also a hash partitioning on any prefix of K
-            // (rows colocated by hash(k1,k2) are also colocated by hash(k1) — finer satisfies
-            // coarser). Demanded keys must therefore be a prefix of produced keys.
-            if (!isPrefix(other.keys, this.keys)) return false;
+            // PRODUCED keys must be a SUBSET of DEMANDED keys (Spark's
+            // HashPartitioning.satisfies(ClusteredDistribution) direction). Partitioning on hash(k1) keeps
+            // every (k1,k2) group whole, so HASH[k1] satisfies a demand for HASH[k1,k2] — coarser satisfies
+            // finer. NOT the reverse: rows sharing k1 but differing in k2 hash to DIFFERENT buckets, so
+            // HASH[k1,k2] colocates nothing a consumer keyed on k1 alone needs.
+            //
+            // This direction was inverted (`isPrefix(demanded, produced)`, justified as "rows colocated by
+            // hash(k1,k2) are also colocated by hash(k1)", which is false of hashing a tuple). It was masked:
+            // a JOIN is a tier boundary by default and forces its shuffle without consulting satisfies(), and
+            // no unary operator demanded HASH until OpenSearchAggregate began asking for HASH(groupKeys) — at
+            // which point the aggregate would have ridden a child partitioned on [k1,k2] while grouping by
+            // [k1], aggregating groups split across partitions.
+            if (!other.keys.containsAll(this.keys)) return false;
             // Partition counts must match exactly: HASH(k, 4) and HASH(k, 8) place rows in
             // entirely different buckets, so neither satisfies the other regardless of keys.
             // A null demanded partitionCount accepts any (used while the rule is still
             // resolving the count); a concrete demand requires equality.
             if (other.partitionCount != null && !other.partitionCount.equals(this.partitionCount)) {
+                return false;
+            }
+            // TIER AWARENESS: a demand for a MATERIALIZED partitioning is not met by a merely DERIVED
+            // one. A lower join whose output "is" HASH(k,N) never actually shipped those rows through a
+            // shuffle, so satisfying a materialized demand with it puts two join tiers in one fragment.
+            // The transport can now RUN that shape (ShuffleSlots is N-ary), so this is no longer a
+            // capability limit — it is the conservative default: collapsing tiers raises one worker's peak
+            // memory and DataFusion's hash-join build does not spill. A caller that wants collapse asks for
+            // a DERIVED partitioning (the demand `hash()` builds is un-materialized, which any
+            // co-partitioned child satisfies); only a demand explicitly marked materialized insists on a
+            // real shuffle. Producing-side materialized data satisfies BOTH kinds of demand.
+            if (other.exchangeMaterialized && !this.exchangeMaterialized) {
                 return false;
             }
             // Locality: WORKER produced data satisfies a WORKER demand. A null demanded
@@ -226,12 +292,13 @@ public class OpenSearchDistribution implements RelDistribution {
             && Objects.equals(keys, other.keys)
             && Objects.equals(tableId, other.tableId)
             && Objects.equals(shardCount, other.shardCount)
-            && Objects.equals(partitionCount, other.partitionCount);
+            && Objects.equals(partitionCount, other.partitionCount)
+            && exchangeMaterialized == other.exchangeMaterialized;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, locality, keys, tableId, shardCount, partitionCount);
+        return Objects.hash(type, locality, keys, tableId, shardCount, partitionCount, exchangeMaterialized);
     }
 
     @Override

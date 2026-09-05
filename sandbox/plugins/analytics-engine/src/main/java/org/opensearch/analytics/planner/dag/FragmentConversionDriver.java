@@ -265,8 +265,26 @@ public class FragmentConversionDriver {
             if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
-        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
-            factory.createFinalAggregateNode().ifPresent(instructions::add);
+        } else if (leaf instanceof OpenSearchStageInputScan) {
+            // FINAL takes precedence: a fragment topped by FINAL may still contain a PARTIAL below it (the
+            // gather-then-merge shape in one fragment), and the backend must prepare the FINAL half.
+            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
+                factory.createFinalAggregateNode().ifPresent(instructions::add);
+            } else if (containsPartialAggregate(resolvedFragment)) {
+                // A PARTIAL aggregate on a NON-shard fragment — a worker tier reading shuffle inputs.
+                // Without this instruction the backend never calls prepare_partial_plan, so DataFusion runs
+                // the aggregate to COMPLETION instead of emitting partial state. For a state-carrying
+                // aggregate that is a schema break, not just a wrong mode: TPC-H q16's
+                // distinct_count emits Int64 cardinality where the fragment declares the Binary HLL state,
+                // and DatafusionReduceSink rejects the batch with
+                // "batch schema types do not match declared schema … supplier_cnt: Binary not null vs
+                // supplier_cnt: Int(64, true)". It would also be silently WRONG for a non-state aggregate,
+                // since summing completed per-partition results is not the same as merging partials.
+                //
+                // The instruction used to be attached only under the TableScan branch above, which is why
+                // this only ever bit shard fragments' worker counterparts.
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
         }
         return instructions;
     }

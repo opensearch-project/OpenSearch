@@ -8,8 +8,12 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.plan.RelTrait;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.util.Pair;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
@@ -19,6 +23,12 @@ import java.util.function.Function;
 /**
  * Marker interface for all OpenSearch custom RelNodes that carry backend assignment
  * and per-column storage metadata.
+ *
+ * <p>Extends Calcite's {@link PhysicalNode} so distribution traits can propagate TOP-DOWN during
+ * Volcano costing ({@code setTopDownOpt(true)}): {@link #passThroughTraits} answers "given this
+ * required distribution, what do I demand of my inputs?" and {@link #deriveTraits} answers "given
+ * this child's distribution, what can I output?". Exchange placement then becomes emergent AND
+ * priced, instead of being re-derived after the fact.
  *
  * <p>TODO: consider making this an abstract class storing {@code viableBackends} centrally,
  * with a default {@link #copyResolved} that returns {@code this} when already narrowed to
@@ -30,7 +40,35 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public interface OpenSearchRelNode {
+public interface OpenSearchRelNode extends PhysicalNode {
+
+    /** Returns the {@link OpenSearchDistribution} carried by {@code traits}, or null if absent. */
+    static OpenSearchDistribution distributionOf(RelTraitSet traits) {
+        for (int i = 0; i < traits.size(); i++) {
+            RelTrait trait = traits.getTrait(i);
+            if (trait instanceof OpenSearchDistribution distribution) {
+                return distribution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Most operators do not propagate a distribution. Returning {@code null} is Calcite's contract for
+     * "no alternative for this request", which is the safe default: an operator that has not opted in
+     * simply produces no top-down alternative, and the existing enforcement path still applies. This
+     * is what lets the ~10 rel nodes that are not {@link DistributionAware} stay untouched.
+     */
+    @Override
+    default Pair<RelTraitSet, List<RelTraitSet>> passThroughTraits(RelTraitSet required) {
+        return null;
+    }
+
+    /** Counterpart to {@link #passThroughTraits} for bottom-up derivation. Null means "no alternative". */
+    @Override
+    default Pair<RelTraitSet, List<RelTraitSet>> deriveTraits(RelTraitSet childTraits, int childId) {
+        return null;
+    }
 
     /** All backends that could execute this operator, including via delegation. */
     List<String> getViableBackends();

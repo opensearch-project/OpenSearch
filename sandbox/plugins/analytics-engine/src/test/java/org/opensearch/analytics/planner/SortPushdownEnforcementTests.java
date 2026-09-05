@@ -14,7 +14,6 @@ import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 
 import java.util.ArrayList;
@@ -22,7 +21,7 @@ import java.util.List;
 
 /**
  * Interaction tests for {@link org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter}
- * and {@link DistributionEnforcementPass} on NON-aggregate top-N (`sort … | head N`).
+ * and CBO's trait enforcement on NON-aggregate top-N (`sort … | head N`).
  *
  * <p>These two run back-to-back in {@code DefaultPlanExecutor}: {@code PlannerImpl.createPlan} ends with
  * the sort-pushdown rewrite (a shard-local {@code Sort+fetch} below the ER, so each shard ships only its
@@ -61,14 +60,10 @@ public class SortPushdownEnforcementTests extends PlanShapeTestBase {
         );
     }
 
+    /** CBO's trait enforcement now places every exchange, so the "enforced" plan IS the CBO plan. Kept as a
+     *  seam so these tests keep reading as before. */
     private RelNode enforce(RelNode plan, PlannerContext context) {
-        return DistributionEnforcementPass.enforce(
-            plan,
-            context.getDistributionTraitDef(),
-            CLUSTER_DATA_NODES,
-            /* minRows */ 1L,
-            /* shuffleAggregateEnabled */ true
-        );
+        return plan;
     }
 
     private static List<OpenSearchSort> sorts(RelNode plan) {
@@ -165,6 +160,34 @@ public class SortPushdownEnforcementTests extends PlanShapeTestBase {
             sorts(enforced).size()
         );
         assertTrue("the shard-local fetch must remain BELOW the gather:\n" + RelOptUtil.toString(enforced), hasSortBelowReducer(enforced));
+    }
+
+    /**
+     * CORRECTNESS: a bare {@code LIMIT N} must be applied ABOVE the gather, not only per-shard.
+     *
+     * <p>A limit that runs only per-partition returns {@code N × partitions} rows — a 2-shard
+     * {@code LIMIT 10} would yield 20. The trait hooks are what enforce this: an uncollated Sort that
+     * carries a fetch must NOT claim it "rides" its child's distribution, because riding replaces the
+     * coordinator's limit rather than adding a shard-local one beside it. Pushing a copy DOWN is the
+     * optimization ({@code OpenSearchSortPushdownRewriter}); keeping one UP is the correctness half.
+     *
+     * <p>Asserts the outermost operator is a fetch-carrying Sort, so SOMETHING caps the concatenated
+     * result. Regression for the top-down-traits bare-limit bug, where {@code ridesChildDistribution()}
+     * tested only collation and the coordinator limit disappeared entirely.
+     */
+    public void testBareLimit_coordinatorFetchCapsTheGatheredResult() {
+        PlannerContext context = multiShardContext();
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode enforced = enforce(runPlanner(bareLimit(scan, 10), context), context);
+
+        String plan = RelOptUtil.toString(enforced);
+        assertTrue(
+            "a bare LIMIT must be capped ABOVE the gather, else 2 shards return 2xN rows:\n" + plan,
+            enforced instanceof OpenSearchSort topSort && topSort.fetch != null
+        );
+        // And the shard-local copy must still be there (the optimization), below the gather.
+        assertTrue("the shard-local fetch must remain below the gather:\n" + plan, hasSortBelowReducer(enforced));
+        assertEquals("exactly one fetch above and one below the gather:\n" + plan, 2, sorts(enforced).size());
     }
 
     /**

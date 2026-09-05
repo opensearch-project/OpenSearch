@@ -43,6 +43,13 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         this.plannerContext = plannerContext;
     }
 
+    /** The query's {@link PlannerContext}. Exposed so a trait hook — which, unlike a rule, has no
+     *  {@code matches()} to gate on — can read the same settings / cluster state the split rules read
+     *  (see {@code OpenSearchJoin.deriveTraits}'s broadcast case). */
+    public PlannerContext getPlannerContext() {
+        return plannerContext;
+    }
+
     // ---- Factory methods ----
 
     /** COORDINATOR + SINGLETON — data gathered to coord. Stamped on ER output, FINAL
@@ -322,12 +329,17 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             plannerContext.getCapabilityRegistry(),
             viableBackends
         );
+        // Stamp the output trait as EXCHANGE-MATERIALIZED: rows really moved through a shuffle here. That
+        // is what distinguishes this partitioning from one a join merely DERIVED, so a parent join's demand
+        // for a materialized partitioning is satisfied by this and not by a co-partitioned lower join (see
+        // OpenSearchDistribution#exchangeMaterialized — the binary transport needs one producer per input).
+        OpenSearchDistribution materialized = toTrait.asExchangeMaterialized();
         return new OpenSearchShuffleExchange(
             rel.getCluster(),
-            rel.getTraitSet().replace(toTrait),
+            rel.getTraitSet().replace(materialized),
             rel,
-            toTrait.getKeys(),
-            toTrait.getPartitionCount(),
+            materialized.getKeys(),
+            materialized.getPartitionCount(),
             shuffleViable
         );
     }

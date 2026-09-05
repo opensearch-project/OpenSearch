@@ -267,7 +267,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
      * PPL: {@code source=t | sort score | fields name, score | head 3}
      *
      * <p>Inner collated Sort (by score) forces {@code Sort ← ER ← Scan} via
-     * {@link org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule} — concat gather
+     * {@code OpenSearchSort.passThroughTraits} — concat gather
      * can't preserve global order. A narrowing Project over that Sort preserves the SINGLETON
      * input (project is single-input, passthrough-marked, no ER required). Outer pure-LIMIT
      * Sort (no collation) sits at the top; its input is already SINGLETON, so no additional ER.

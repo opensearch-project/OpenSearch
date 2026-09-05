@@ -18,6 +18,7 @@ import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
+import org.opensearch.analytics.planner.JoinKeyAnalysis;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
@@ -105,7 +106,7 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         if (!AnalyticsSettings.MPP_ENABLED.get(context.getSettings())) {
             return false;
         }
-        JoinInfo info = join.analyzeCondition();
+        JoinInfo info = JoinKeyAnalysis.forDistribution(join);
         // Mirror the MPP rules' eligibility EXACTLY: they require at least one equi key (non-empty
         // leftKeys) but tolerate a residual non-equi predicate (they no longer require info.isEqui()
         // — e.g. TPC-H q14: l_partkey=p_partkey AND l_shipdate BETWEEN …). So coord suppresses itself
@@ -290,6 +291,21 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
                 && rd.getType() == RelDistribution.Type.SINGLETON;
         }
         if (joinDist.getLocality() == OpenSearchDistribution.Locality.SHARD && joinDist.getType() == RelDistribution.Type.SINGLETON) {
+            return true;
+        }
+        // A WORKER+HASH join is the hash-shuffle rule's own output (or a broadcast probe's RANDOM+SHARD
+        // join). It is ALREADY a resolved distributed alternative, so the coordinator rule must not fire
+        // on it: its inputs are exchanges rather than shard scans, which makes shouldSuppressCoord's
+        // bothInputsCouldBeMppShardScans check fail, lifting the self-suppression and letting coord
+        // gather the worker join's inputs — collapsing the MPP plan straight back to coordinator-centric.
+        // Under bottom-up Volcano this was masked because the coord alternative was registered before the
+        // worker join existed; top-down explores the worker join first, so the re-fire became reachable.
+        if (joinDist.getLocality() == OpenSearchDistribution.Locality.WORKER
+            && joinDist.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
+            return true;
+        }
+        if (joinDist.getLocality() == OpenSearchDistribution.Locality.SHARD
+            && joinDist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED) {
             return true;
         }
         return false;

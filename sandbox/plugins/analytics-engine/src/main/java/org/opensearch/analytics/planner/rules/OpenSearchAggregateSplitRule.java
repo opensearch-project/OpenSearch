@@ -25,6 +25,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
@@ -55,10 +56,41 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         this.context = context;
     }
 
+    /**
+     * Matches any SINGLE-mode aggregate.
+     *
+     * <p><b>Do NOT gate this on {@code analytics.mpp.shuffle.aggregate.enabled}.</b> {@link #onMatch}
+     * registers the PARTIAL/FINAL split AND the {@code singleOnSingleton} gather-then-aggregate plan, so
+     * suppressing the whole rule also removes the ONLY coordinator-centric alternative, leaving just the
+     * SINGLE aggregate the marking phase placed over RANDOM input.
+     * {@link OpenSearchAggregate#computeSelfCost} prices that at infinity (correctly — per-shard partials
+     * would never merge), so no legal plan remains and the query dies with
+     * {@code CannotPlanException: … the cost is still infinite} instead of routing coord-centric. It took out
+     * unrelated shapes too: any multi-shard windowed or joined query planned while the toggle was off. The
+     * sub-toggle is honoured in {@link #splitSuppressedBySubToggle} instead, which suppresses only the SPLIT.
+     */
     @Override
     public boolean matches(RelOptRuleCall call) {
         OpenSearchAggregate aggregate = call.rel(0);
         return aggregate.getMode() == AggregateMode.SINGLE;
+    }
+
+    /**
+     * Per-strategy sub-toggle {@code analytics.mpp.shuffle.aggregate.enabled}: when off, the aggregate runs
+     * coordinator-centric (gather, then one SINGLE aggregate) while a join BELOW it still distributes.
+     *
+     * <p>Owned by the RULE rather than the post-CBO pass so that distributed-aggregate FORMATION is decided in
+     * one place — a prerequisite for retiring the pass's {@code splitAggregate}. It suppresses only the
+     * PARTIAL/FINAL alternative; {@link #onMatch} still registers {@code singleOnSingleton}, which is what
+     * makes this safe where gating {@link #matches} was not.
+     *
+     * <p>Scoped to MPP being on, per this setting's own contract ("only has effect when MPP is on"): with MPP
+     * off the PARTIAL/FINAL split is just the ordinary shard-partial / coordinator-final path and must keep
+     * working, so the sub-toggle must not degrade it into gathering whole indices to the coordinator.
+     */
+    private boolean splitSuppressedBySubToggle() {
+        return AnalyticsSettings.MPP_ENABLED.get(context.getSettings())
+            && !AnalyticsSettings.MPP_SHUFFLE_AGGREGATE_ENABLED.get(context.getSettings());
     }
 
     /**
@@ -96,7 +128,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * the split is conservative in those shapes — distributed parallelism is traded for
      * correctness.
      *
-     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * <p>Public so the post-CBO {@code OpenSearchPartialAggregatePushdownRewriter}
      * shares the same correctness gates as this coord-centric split — both use an identical PARTIAL/FINAL
      * safety check, so STATE_EXPANDING / DISTINCT / cross-family-non-prefix shapes stay coordinator-centric
      * in every path.
@@ -181,7 +213,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // below forces a gather (a gather-forced input is already singleton — a PARTIAL over it
         // would be invalid). Otherwise emit the single coordinator aggregate.
         boolean partitioned = isPartitioned(child);
-        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate)) {
+        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate) || splitSuppressedBySubToggle()) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -248,7 +280,12 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         for (int i = 0; i < input.getTraitSet().size(); i++) {
             RelTrait trait = input.getTraitSet().getTrait(i);
             if (trait instanceof OpenSearchDistribution dist) {
-                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED;
+                // RANDOM+SHARD: a multi-shard scan, the original case. HASH+WORKER: the output of a
+                // distributed join or a shuffle — also partitioned, and the shape the aggregate-over-join
+                // split (q5/q10) needs. Accepting only RANDOM made this rule and the post-CBO pass agree
+                // on NOTHING: the pass's own isPartitioned means HASH+WORKER exclusively, so the two
+                // predicates covered disjoint sets and the rule could never produce the agg-over-join split.
+                return dist.getType() == RelDistribution.Type.RANDOM_DISTRIBUTED || dist.getType() == RelDistribution.Type.HASH_DISTRIBUTED;
             }
         }
         return false;
@@ -281,7 +318,15 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             if (cur instanceof OpenSearchSort sort) {
                 return !sort.getCollation().getFieldCollations().isEmpty() || sort.fetch != null || sort.offset != null;
             }
-            if (cur instanceof OpenSearchJoin || cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
+            if (cur instanceof OpenSearchJoin) {
+                // A join no longer forces a gather: under top-down it is legal at WORKER+HASH, so an
+                // aggregate above a DISTRIBUTED join can and should split PARTIAL/FINAL (the q5/q10
+                // shape). Defer to the input's actual distribution instead of assuming coordinator —
+                // isPartitioned() reads the trait, and OpenSearchAggregate's own cost gate still rejects
+                // SINGLE-over-partitioned, so an unsafe placement cannot survive.
+                return false;
+            }
+            if (cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
                 return true;
             }
             if (cur instanceof OpenSearchProject project) {
@@ -350,7 +395,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
      * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
      * row-type check on transformTo passes.
      *
-     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * <p>Public so the post-CBO {@code OpenSearchPartialAggregatePushdownRewriter}
      * can call it.
      */
     public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
@@ -387,7 +432,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     /**
      * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
      * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
-     * pass ({@code DistributionEnforcementPass}) shares the exact capture the coord-centric split uses
+     * pass (CBO trait enforcement) shares the exact capture the coord-centric split uses
      * (keeps PARTIAL/FINAL literal handling identical).
      */
     public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {

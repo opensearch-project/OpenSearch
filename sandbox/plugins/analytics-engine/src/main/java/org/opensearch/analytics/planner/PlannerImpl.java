@@ -45,22 +45,24 @@ import org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumRule;
 import org.opensearch.analytics.planner.rules.OpenSearchCheckedLongSumWindowRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistinctCountRule;
-import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchHashJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchJoinConditionFactorRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchLargeJoinDistributionRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchLateMaterializationRewriter;
+import org.opensearch.analytics.planner.rules.OpenSearchPartialAggregatePushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortPushdownRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
-import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTopKRewriter;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
+import org.opensearch.analytics.planner.rules.OpenSearchWindowProjectGatherRule;
 
 import java.util.List;
 import java.util.Optional;
@@ -130,6 +132,7 @@ public class PlannerImpl {
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
         modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
+        modifiedRelNode = factorJoinConditions(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
         modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
@@ -162,6 +165,23 @@ public class PlannerImpl {
         if (sortPushdown.isPresent()) {
             modifiedRelNode = sortPushdown.get();
             RelNodeUtils.logPlan(LOGGER, "After sort pushdown", modifiedRelNode);
+        }
+        // Promotes a gathered join onto a worker tier when its inputs are large enough — the policy half of the
+        // deleted DistributionEnforcementPass. Must run BEFORE the partial-aggregate pushdown so an aggregate
+        // above a promoted join can be split across the new gather.
+        Optional<RelNode> largeJoin = OpenSearchLargeJoinDistributionRewriter.rewrite(modifiedRelNode, context);
+        if (largeJoin.isPresent()) {
+            modifiedRelNode = largeJoin.get();
+            RelNodeUtils.logPlan(LOGGER, "After large-join distribution", modifiedRelNode);
+        }
+        // Splits a SINGLE aggregate across a gather whose input CBO distributed, so the coordinator merges
+        // aggregated groups instead of raw rows. This is what the deleted post-CBO
+        // deleted post-CBO DistributionEnforcementPass supplied; see the rewriter's javadoc for why it cannot form during
+        // search (the distribution lattice has no "partitioned-unspecified" required property).
+        Optional<RelNode> partialAgg = OpenSearchPartialAggregatePushdownRewriter.rewrite(modifiedRelNode, context);
+        if (partialAgg.isPresent()) {
+            modifiedRelNode = partialAgg.get();
+            RelNodeUtils.logPlan(LOGGER, "After partial-aggregate pushdown", modifiedRelNode);
         }
 
         if (listener != null) {
@@ -379,6 +399,19 @@ public class PlannerImpl {
      * Filter sits below the Project — semantically correct but emits operators the
      * Project may not have backend support for.
      */
+    /**
+     * Factors a shared equi conjunct out of an OR'd join condition so {@code JoinInfo.analyzeCondition} can
+     * see it — without this a TPC-H q19-shaped join reads as pure theta and is forced coordinator-centric.
+     * Runs pre-marking so every downstream split rule sees the normalised condition. See
+     * {@link OpenSearchJoinConditionFactorRule}.
+     */
+    private static RelNode factorJoinConditions(RelNode input, RuleProfilingListener listener) {
+        return HepPhase.named("factor-join-conditions")
+            .bottomUp()
+            .addRuleCollection(List.of(OpenSearchJoinConditionFactorRule.INSTANCE))
+            .run(input, listener);
+    }
+
     private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
         // NOTE: join reordering does NOT run here — running JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY
         // in the same ARBITRARY pass loops indefinitely (they invert each other). It lives in its own
@@ -539,13 +572,32 @@ public class PlannerImpl {
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);
         OpenSearchDistributionTraitDef distTraitDef = context.getDistributionTraitDef();
         volcanoPlanner.addRelTraitDef(distTraitDef);
+        // Top-down (Cascades-style) trait propagation. Each OpenSearch* operator answers "given this
+        // required distribution, what do I demand of my inputs?" via Calcite's PhysicalNode
+        // passThroughTraits/deriveTraits hooks, and OpenSearchConvention.enforce materializes the
+        // exchange when a demand isn't already satisfied. That replaces two bottom-up crutches:
+        // - OpenSearchDistributionDeriveRule, which existed ONLY because bottom-up Volcano never pushes
+        // a parent's trait demand into a child's RelSet (its own javadoc named this migration);
+        // - OpenSearchSortSplitRule, now expressed as OpenSearchSort.passThroughTraits demanding
+        // SINGLETON (with the perPartition shard-local top-N riding its child instead).
+        // AbstractConverter.ExpandConversionRule goes too: top-down mode converts through
+        // Convention.enforce rather than by expanding abstract converters.
+        volcanoPlanner.setTopDownOpt(true);
         volcanoPlanner.addRule(new OpenSearchAggregateSplitRule(context));
-        volcanoPlanner.addRule(new OpenSearchSortSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchBroadcastJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchHashJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
-        volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
+        // A window project marked over partitioned input is infinite-cost, and an ER above it cannot fix
+        // that (the ER's input is the infinite project) — the gather has to go BELOW. passThroughTraits
+        // expresses that, but Calcite only offers a passThrough depending on group-optimization order, so
+        // this rule registers the gathered alternative unconditionally.
+        volcanoPlanner.addRule(new OpenSearchWindowProjectGatherRule(context));
+        // STILL REQUIRED alongside Convention.enforce: the split rules materialize their alternatives by
+        // calling RelOptRule.convert(input, traits), which registers an AbstractConverter that only this
+        // rule expands. Convention.enforce serves the top-down passThrough/derive path; it does not
+        // observe an explicit convert() from a rule. Dropping this collapses every broadcast/shuffle
+        // alternative to coordinator-centric.
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
 
         if (listener != null) {
@@ -564,8 +616,8 @@ public class PlannerImpl {
 
             // Root demands SINGLETON with null locality — satisfied by either SHARD+SINGLETON
             // (1-shard scan, no ER) or COORDINATOR+SINGLETON (after ER). Multi-shard scans stamp
-            // RANDOM → ER inserted by ExpandConversionRule + trait def's convert(). Single-shard
-            // scans stamp SHARD+SINGLETON → already satisfies, no top ER.
+            // RANDOM requires an ER, materialized through OpenSearchConvention.enforce(). Single-shard
+            // scans stamp SHARD+SINGLETON → already satisfies the locality-agnostic root demand, no top ER.
             volcanoPlanner.setRoot(copied);
             RelTraitSet desiredTraits = copied.getTraitSet().replace(distTraitDef.anySingleton());
             if (!copied.getTraitSet().equals(desiredTraits)) {
