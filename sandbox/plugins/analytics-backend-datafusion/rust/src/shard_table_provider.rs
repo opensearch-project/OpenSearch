@@ -123,6 +123,9 @@ impl TableProvider for ShardTableProvider {
 
         let mut builder =
             FileScanConfigBuilder::new(self.config.store_url.clone(), Arc::new(parquet_source))
+                .with_expr_adapter(Some(Arc::new(
+                    crate::scalar_to_list_adapter::ScalarToListExprAdapterFactory,
+                )))
                 .with_file_groups(file_groups);
 
         // Always include the row_base partition column (index = num_file_cols)

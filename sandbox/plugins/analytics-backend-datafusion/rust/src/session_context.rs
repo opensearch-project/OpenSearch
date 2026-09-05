@@ -306,53 +306,46 @@ pub async unsafe fn create_session_context(
         .with_collect_stat(true)
         .with_target_partitions(effective_partitions);
 
-    if let Some(sort_exprs) =
-        build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
-    {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     // Register under the planner's logical table name (alias / index pattern / index), shipped
     // explicitly as logicalTableName on the shard-scan instruction node. See
     // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
     // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
     let register_name = resolve_register_name(table_name, plan_bytes);
 
-    // Pre-warm the metadata cache footer-only before infer_schema fires.
-    // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
-    // on a cache miss — fetching full page index bytes. By pre-warming here with
-    // PageIndexPolicy::Skip via load_parquet_metadata, every infer_schema call becomes
-    // a cache hit and never touches the page index bytes.
-    // Cache key is meta.location (Path) — same key infer_schema uses.
-    // Empty shard: loop is a no-op; infer_schema is also skipped below.
-    {
-        let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
-        for meta in shard_view.object_metas.as_ref() {
-            let _ = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
-                Arc::clone(&shard_view.store),
-                &meta.location,
-                meta.clone(),
-                Arc::clone(&metadata_cache),
-            )
-            .await;
-        }
+    // Load every file schema through the shared footer cache, then merge deterministically.
+    // Compatible scalar/List pairs become one logical List field; all other incompatible type
+    // changes remain errors. This replaces ListingOptions::infer_schema because Arrow's default
+    // Schema::try_merge rejects the intentional scalar-to-List promotion across generations.
+    let metadata_cache = runtime.runtime_env.cache_manager.get_file_metadata_cache();
+    let mut discovered_schemas = Vec::with_capacity(shard_view.object_metas.len());
+    for meta in shard_view.object_metas.as_ref() {
+        let (schema, _, _) = crate::indexed_table::parquet_bridge::load_parquet_metadata_with_meta(
+            Arc::clone(&shard_view.store),
+            &meta.location,
+            meta.clone(),
+            Arc::clone(&metadata_cache),
+        )
+        .await
+        .map_err(DataFusionError::Execution)?;
+        discovered_schemas.push((meta.location.to_string(), schema.as_ref().clone()));
     }
+    discovered_schemas.sort_by(|left, right| left.0.cmp(&right.0));
 
-    // Empty shard: skip infer_schema (errors on zero files); widen_schema_from_plan
-    // below populates columns from the substrait base_schema.
-    let inferred: arrow::datatypes::SchemaRef = if shard_view.object_metas.is_empty() {
+    // Empty shards take their logical columns from the Substrait base schema during widening.
+    let inferred: arrow::datatypes::SchemaRef = if discovered_schemas.is_empty() {
         Arc::new(arrow::datatypes::Schema::empty())
     } else {
-        let inferred = listing_options
-            .infer_schema(&ctx.state(), &shard_view.table_path)
-            .await
-            .map_err(|e| {
-                error!("create_session_context: failed to infer schema: {}", e);
-                e
-            })?;
-        // Substrait's type system is narrower than Arrow's; normalize the inferred
-        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-        crate::schema_coerce::coerce_inferred_schema(inferred)
+        let merged = crate::schema_coerce::merge_file_schemas_with_list_promotion(
+            discovered_schemas
+                .into_iter()
+                .map(|(_, schema)| schema)
+                .collect(),
+        )
+        .map_err(|e| {
+            DataFusionError::Execution(format!("failed to infer promoted parquet schema: {e}"))
+        })?;
+        let merged = crate::schema_coerce::transform_schema_to_view_recursive(merged.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(merged))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -367,15 +360,25 @@ pub async unsafe fn create_session_context(
     // failing with "Cannot merge statistics with different number of columns". Non-widened
     // (single-index) scans keep full stats.
     // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
-    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
+    let mut listing_options = if resolved_schema.fields().len() != inferred_field_count {
         listing_options.with_collect_stat(false)
     } else {
         listing_options
     };
+    if let Some(sort_exprs) = build_file_sort_order(
+        &shard_view.sort_fields,
+        &shard_view.sort_orders,
+        resolved_schema.as_ref(),
+    ) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
-        .with_schema(resolved_schema);
+        .with_schema(resolved_schema)
+        .with_expr_adapter_factory(Arc::new(
+            crate::scalar_to_list_adapter::ScalarToListExprAdapterFactory,
+        ));
 
     // Wire the global statistics cache into the ListingTable.
     let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
@@ -736,6 +739,7 @@ fn try_acquire_budget(
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
+    schema: &arrow::datatypes::Schema,
 ) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
     if sort_fields.is_empty() {
         return None;
@@ -748,7 +752,12 @@ pub(crate) fn build_file_sort_order(
         .map(|(name, order)| {
             let ascending = order.eq_ignore_ascii_case("asc");
             let nulls_first = ascending;
-            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
+            let column = Expr::Column(Column::from_name(name.clone()));
+            let key = match schema.field_with_name(name).map(|field| field.data_type()) {
+                Ok(arrow::datatypes::DataType::List(_)) => crate::udf::list_min::expr(column),
+                _ => column,
+            };
+            key.sort(ascending, nulls_first)
         })
         .collect();
     Some(sort_exprs)
@@ -770,6 +779,26 @@ mod tests {
 
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
+
+    #[test]
+    fn file_sort_order_uses_fixed_list_min_for_both_directions() {
+        let child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let schema = Schema::new(vec![
+            Field::new("tags", DataType::List(child), true),
+            Field::new("id", DataType::Int64, true),
+        ]);
+
+        for (order, ascending) in [("asc", true), ("desc", false)] {
+            let ordering =
+                build_file_sort_order(&["tags".into()], &[order.into()], &schema).unwrap();
+            assert!(format!("{}", ordering[0].expr).contains("list_min"));
+            assert_eq!(ordering[0].asc, ascending);
+            assert_eq!(ordering[0].nulls_first, ascending);
+        }
+
+        let scalar = build_file_sort_order(&["id".into()], &["asc".into()], &schema).unwrap();
+        assert!(!format!("{}", scalar[0].expr).contains("list_min"));
+    }
 
     #[tokio::test]
     async fn test_widen_schema_noop_when_plan_empty() {

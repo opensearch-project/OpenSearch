@@ -203,6 +203,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(MultiValueSortRewriter.LIST_MIN_OP, "list_min"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
         FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
@@ -561,6 +562,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         preprocessed = CastToVarcharRewriter.rewrite(preprocessed);
         preprocessed = CastTemporalLiteralValidator.rewrite(preprocessed);
+        preprocessed = MultiValueSortRewriter.rewrite(preprocessed);
         return preprocessed;
     }
 

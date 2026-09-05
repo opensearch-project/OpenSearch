@@ -17,6 +17,7 @@
 //! `create_reader` → `ShardView.writer_generations` → `SessionContextHandle` →
 //! `build_segments`. The catalog is the authoritative source.
 
+use crate::schema_coerce::merge_file_schemas_with_list_promotion;
 use datafusion::parquet::file::metadata::ParquetMetaData;
 
 use super::parquet_bridge;
@@ -26,8 +27,6 @@ use std::sync::Arc;
 
 use datafusion::catalog::Session;
 use datafusion::common::ScalarValue;
-use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::file_format::FileFormat;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 
@@ -49,7 +48,7 @@ const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
 /// (skip_metadata, coerce_int96, binary_as_string, force_view_types,
 /// file_metadata_cache, meta_fetch_concurrency, parquet_encryption)
 pub async fn build_segments(
-    state: &dyn Session,
+    _state: &dyn Session,
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
     writer_generations: &[i64],
@@ -137,21 +136,27 @@ pub async fn build_segments(
         });
     }
 
-    // Delegate to DataFusion's canonical schema inference. Internally:
-    //   1. Fetch each file's schema concurrently (meta_fetch_concurrency).
-    //   2. Sort by location for determinism (see apache/datafusion#6629).
-    //   3. Strip field-level metadata when skip_metadata=true (default).
-    //   4. `arrow::datatypes::Schema::try_merge` — union by field name,
-    //      first-seen order, nullability OR'd, types must match for
-    //      primitives (recursively merged for Struct/List/Union).
-    //   5. Apply `binary_as_string` and `force_view_types` transforms
-    //      if configured.
-    // Use Utf8View — ParquetOpener's apply_file_schema_type_coercions keeps the file/table
-    // schemas aligned, so QTF's coordinator-declared Utf8View matches the produced batches.
-    let format = ParquetFormat::default().with_force_view_types(true);
-    let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
-        .await
-        .map_err(|e| format!("infer_schema union: {}", e))?;
+    // Merge per-file schemas deterministically. Compatible scalar/LIST pairs are promoted to
+    // LIST, while all other incompatible same-name type changes remain fail-fast.
+    let mut segment_schemas = segments
+        .iter()
+        .map(|segment| {
+            (
+                segment.object_path.to_string(),
+                segment.arrow_schema.as_ref().clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    segment_schemas.sort_by(|left, right| left.0.cmp(&right.0));
+    let schema = merge_file_schemas_with_list_promotion(
+        segment_schemas
+            .into_iter()
+            .map(|(_, schema)| schema)
+            .collect(),
+    )
+    .map_err(|e| format!("infer_schema union: {}", e))?;
+    let schema = crate::schema_coerce::transform_schema_to_view_recursive(schema.as_ref());
+    let schema = crate::schema_coerce::coerce_inferred_schema(Arc::new(schema));
 
     Ok((segments, schema))
 }
@@ -214,7 +219,10 @@ fn compute_segment_sort_bounds(
     file_schema: &arrow::datatypes::SchemaRef,
     pq_meta: &ParquetMetaData,
 ) -> (Option<ScalarValue>, Option<ScalarValue>) {
-    if file_schema.index_of(lead_field).is_err() {
+    let Ok(field) = file_schema.field_with_name(lead_field) else {
+        return (None, None);
+    };
+    if matches!(field.data_type(), arrow::datatypes::DataType::List(_)) {
         return (None, None);
     }
 
@@ -292,7 +300,8 @@ fn compute_segment_sort_bounds(
 mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
-    use arrow_array::{Int32Array, RecordBatch, StringArray};
+    use arrow_array::{Int32Array, ListArray, RecordBatch, StringArray};
+    use datafusion::arrow::buffer::OffsetBuffer;
     use datafusion::execution::cache::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
@@ -530,6 +539,61 @@ mod tests {
             fields_ab, fields_ba,
             "schema order must not depend on object-meta input ordering"
         );
+    }
+
+    #[tokio::test]
+    async fn scalar_and_list_field_promote_to_list_schema() {
+        let dir = tempdir().unwrap();
+        let scalar_schema = Arc::new(Schema::new(vec![Field::new("tags", DataType::Utf8, true)]));
+        let list_child = Arc::new(Field::new("element", DataType::Utf8, true));
+        let list_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::clone(&list_child)),
+            true,
+        )]));
+        let scalar_path = write_parquet(
+            dir.path(),
+            "a.parquet",
+            scalar_schema,
+            vec![Arc::new(StringArray::from(vec![Some("prod")]))],
+        );
+        let list_path = write_parquet(
+            dir.path(),
+            "b.parquet",
+            list_schema,
+            vec![Arc::new(ListArray::new(
+                list_child,
+                OffsetBuffer::new(vec![0_i32, 2].into()),
+                Arc::new(StringArray::from(vec!["prod", "error"])),
+                None,
+            ))],
+        );
+
+        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
+        let metas = object_metas(store.as_ref(), &[scalar_path, list_path]).await;
+        let ctx = SessionContext::new();
+        let generations: Vec<i64> = (0..metas.len() as i64).collect();
+        let (segments, schema) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            &generations,
+            default_metadata_cache(),
+            &["tags".to_string()],
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            segments[1].sort_min.is_none() && segments[1].sort_max.is_none(),
+            "LIST child statistics must not be used as per-row list_min bounds"
+        );
+
+        assert!(matches!(
+            schema.field_with_name("tags").unwrap().data_type(),
+            DataType::List(child)
+                if matches!(child.data_type(), DataType::Utf8 | DataType::Utf8View)
+        ));
     }
 
     /// Incompatible types (Int32 vs Int64 on the same field name) is
