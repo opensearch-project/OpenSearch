@@ -8,11 +8,9 @@
 
 package org.opensearch.analytics.spi;
 
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -24,12 +22,10 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.IndicesModule;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -151,53 +147,24 @@ public class DocumentLookupService {
         long primaryTerm = extractLong(row, "_primary_term", SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         long version = extractLong(row, "_version", Versions.NOT_FOUND);
 
-        BytesReference source = asBytesReference(row.get(SourceFieldMapper.NAME));
-        if (source == null) {
-            // Reconstruct _source only when it was not stored. This is intentionally limited to
-            // append-only indexes because column values cannot reproduce the original source exactly.
-            Map<String, Object> filtered = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> e : row.entrySet()) {
-                // Exclude metadata and engine-internal columns from reconstructed _source.
-                String name = e.getKey();
-                if (METADATA_FIELDS.contains(name)
-                    || SeqNoFieldMapper.PRIMARY_TERM_NAME.equals(name)
-                    || DocumentInput.ROW_ID_FIELD.equals(name)) {
-                    continue;
-                }
-                filtered.put(name, e.getValue());
+        Map<String, Object> filtered = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : row.entrySet()) {
+            String name = e.getKey();
+            if (METADATA_FIELDS.contains(name)
+                || SeqNoFieldMapper.PRIMARY_TERM_NAME.equals(name)
+                || DocumentInput.ROW_ID_FIELD.equals(name)) {
+                continue;
             }
-            try (XContentBuilder xcb = XContentFactory.jsonBuilder()) {
-                xcb.map(filtered);
-                source = BytesReference.bytes(xcb);
-            }
+            filtered.put(name, e.getValue());
+        }
+
+        BytesReference source;
+        try (XContentBuilder xcb = XContentFactory.jsonBuilder()) {
+            xcb.map(filtered);
+            source = BytesReference.bytes(xcb);
         }
 
         return new DocumentLookupResult(id, version, true, source, seqNo, primaryTerm, Map.of(), Map.of());
-    }
-
-    /**
-     * Converts a stored {@code _source} value to {@link BytesReference}, or returns {@code null} when
-     * source must be reconstructed.
-     */
-    private static BytesReference asBytesReference(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof BytesReference br) {
-            return br;
-        }
-        if (value instanceof BytesRef ref) {
-            return new BytesArray(ref.bytes, ref.offset, ref.length);
-        }
-        if (value instanceof byte[] bytes) {
-            return new BytesArray(bytes);
-        }
-        if (value instanceof ByteBuffer buf) {
-            byte[] copy = new byte[buf.remaining()];
-            buf.duplicate().get(copy);
-            return new BytesArray(copy);
-        }
-        throw new IllegalStateException("Unsupported _source column value type: " + value.getClass().getName());
     }
 
     public static long extractLong(Map<String, Object> row, String key, long fallback) {

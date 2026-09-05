@@ -112,6 +112,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     /** Row ids to mark deleted during flush. */
     private final Queue<Long> positionalDeletes = new ConcurrentLinkedQueue<>();
     private final AtomicInteger positionalDeleteCount = new AtomicInteger();
+    private volatile boolean positionalDeletesSealed;
     private long mappingVersion;
     private volatile long docCount;
     private volatile boolean flushed;
@@ -301,6 +302,26 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         // Count first so concurrent draining cannot make the count negative.
         positionalDeleteCount.incrementAndGet();
         positionalDeletes.add(insertionRowId);
+        if (positionalDeletesSealed) {
+            discardBufferedPositionalDeletes();
+        }
+    }
+
+    private void sealPositionalDeletes() {
+        positionalDeletesSealed = true;
+        discardBufferedPositionalDeletes();
+    }
+
+    /** Drains {@link #positionalDeletes}, releasing the accounted heap. */
+    private void discardBufferedPositionalDeletes() {
+        int discarded = 0;
+        while (positionalDeletes.poll() != null) {
+            positionalDeleteCount.decrementAndGet();
+            discarded++;
+        }
+        if (discarded > 0) {
+            logger.debug("discarded {} late positional delete(s) for generation={}", discarded, writerGeneration);
+        }
     }
 
     /**
@@ -324,6 +345,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public FileInfos flush(FlushInput flushInput) throws IOException {
         if (docCount == 0) {
+            sealPositionalDeletes();
             return FileInfos.empty();
         }
 
@@ -377,6 +399,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                         "RowIdMapping must not be provided when IndexSort is configured for writer generation [" + writerGeneration + "]"
                     );
                 }
+            } else {
+                indexWriter.getConfig().setMergePolicy(new LogByteSizeMergePolicy());
             }
 
             // Common path: forceMerge to 1 segment, commit, build FileInfos
@@ -392,6 +416,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
             // Apply positional deletes after reordering and before commit.
             applyPositionalDeletes(mapping);
+            sealPositionalDeletes();
 
             long commitStartNanos = System.nanoTime();
             indexWriter.commit();
@@ -812,6 +837,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public void close() throws IOException {
+        sealPositionalDeletes();
         // Close the IndexWriter and Directory if they haven't been closed by flush()
         try {
             if (indexWriter.isOpen()) {

@@ -12,13 +12,27 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * End-to-end update/delete coverage for {@link org.opensearch.index.engine.DataFormatAwareEngine}
@@ -356,5 +370,212 @@ public class DataFormatAwareUpdateIT extends AbstractCompositeEngineIT {
         assertTrue("other-generation doc must survive", client().prepareGet(INDEX, "b").setRealtime(false).get().isExists());
 
         assertEquals("only the emptied generation is dropped", 2L, getTotalRowCount(acquireAndGetSnapshot(INDEX)));
+    }
+
+    private static final String NAME = "name";
+    private static final String TITLE = "title";
+    private static final String VALUE = "value";
+    private static final String PRICE = "price";
+    private static final String ACTIVE = "active";
+
+    /** Updatable composite index with one column of each JSON-renderable, reconstructable type. */
+    private void createManualRefreshMultiFieldIndex() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), false)
+            .put("index.refresh_interval", -1)
+            .build();
+        client().admin()
+            .indices()
+            .prepareCreate(INDEX)
+            .setSettings(settings)
+            .setMapping(NAME, "type=keyword", TITLE, "type=text", VALUE, "type=long", PRICE, "type=double", ACTIVE, "type=boolean")
+            .get();
+        ensureGreen(INDEX);
+    }
+
+    private IndexResponse indexMultiField(String id, String name, String title, long value, double price, boolean active) {
+        return client().prepareIndex(INDEX).setId(id).setSource(NAME, name, TITLE, title, VALUE, value, PRICE, price, ACTIVE, active).get();
+    }
+
+    /** Asserts the five user columns of a parquet row or a GET source. */
+    private static void assertFields(
+        String label,
+        Map<String, Object> row,
+        String name,
+        String title,
+        long value,
+        double price,
+        boolean active
+    ) {
+        assertEquals(label + ": " + NAME, name, row.get(NAME));
+        assertEquals(label + ": " + TITLE, title, row.get(TITLE));
+        assertEquals(label + ": " + VALUE, value, ((Number) row.get(VALUE)).longValue());
+        assertEquals(label + ": " + PRICE, price, ((Number) row.get(PRICE)).doubleValue(), 0.0);
+        assertEquals(label + ": " + ACTIVE, active, row.get(ACTIVE));
+    }
+
+    private static long seqNo(Map<String, Object> row) {
+        return ((Number) row.get("_seq_no")).longValue();
+    }
+
+    private static long version(Map<String, Object> row) {
+        return ((Number) row.get("_version")).longValue();
+    }
+
+    /** Refreshes and flushes, then renders every published parquet file of the shard as rows. */
+    @SuppressForbidden(reason = "JSON parsing for test verification of parquet output")
+    private List<Map<String, Object>> readParquetRows() throws IOException {
+        refreshIndex(INDEX);
+        flushIndex(INDEX);
+        Path parquetDir = getPrimaryShard(INDEX).shardPath().getDataPath().resolve("parquet");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Segment segment : acquireAndGetSnapshot(INDEX).getSegments()) {
+            WriterFileSet parquetFiles = segment.dfGroupedSearchableFiles().get("parquet");
+            if (parquetFiles == null) {
+                continue;
+            }
+            for (String file : parquetFiles.files()) {
+                String json = RustBridge.readAsJson(parquetDir.resolve(file).toString());
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        json
+                    )
+                ) {
+                    for (Object o : parser.list()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> row = (Map<String, Object>) o;
+                        row.put("__generation__", segment.generation());
+                        rows.add(row);
+                    }
+                }
+            }
+        }
+        return rows;
+    }
+
+    /** The one parquet row written by the operation that was assigned {@code seqNo}. */
+    private static Map<String, Object> rowAtSeqNo(List<Map<String, Object>> rows, long seqNo) {
+        List<Map<String, Object>> matches = rows.stream().filter(r -> seqNo(r) == seqNo).collect(Collectors.toList());
+        assertEquals("exactly one parquet row must carry _seq_no=" + seqNo + " in " + rows, 1, matches.size());
+        return matches.get(0);
+    }
+
+    /** Optional: the superseded row, when a merge has not yet compacted it away. */
+    private static Map<String, Object> rowAtSeqNoIfPresent(List<Map<String, Object>> rows, long seqNo) {
+        return rows.stream().filter(r -> seqNo(r) == seqNo).findFirst().orElse(null);
+    }
+
+    /**
+     * A full-document reindex of an existing id across a refresh appends a complete new parquet row
+     * carrying every new value; the original row is never rewritten in place.
+     */
+    public void testFullUpdateWritesCompleteNewParquetRow() throws IOException {
+        createManualRefreshMultiFieldIndex();
+        IndexResponse created = indexMultiField("k1", "old", "old title", 1L, 1.5, true);
+        refreshIndex(INDEX);
+
+        IndexResponse updated = indexMultiField("k1", "new", "new title", 2L, 2.5, false);
+        assertEquals(DocWriteResponse.Result.UPDATED, updated.getResult());
+        assertEquals(2L, updated.getVersion());
+
+        List<Map<String, Object>> rows = readParquetRows();
+        Map<String, Object> newRow = rowAtSeqNo(rows, updated.getSeqNo());
+        assertFields("parquet row after full update", newRow, "new", "new title", 2L, 2.5, false);
+        assertEquals(2L, version(newRow));
+
+        Map<String, Object> oldRow = rowAtSeqNoIfPresent(rows, created.getSeqNo());
+        if (oldRow != null) {
+            assertFields("superseded parquet row must be untouched", oldRow, "old", "old title", 1L, 1.5, true);
+            assertEquals(1L, version(oldRow));
+        }
+
+        GetResponse get = client().prepareGet(INDEX, "k1").setRealtime(false).get();
+        assertFields("get after full update", get.getSourceAsMap(), "new", "new title", 2L, 2.5, false);
+        assertEquals(2L, get.getVersion());
+    }
+
+    /** Same as above but without a refresh between create and update: both rows share one generation. */
+    public void testFullUpdateWithinRefreshWindowLandsInOneGeneration() throws IOException {
+        createManualRefreshMultiFieldIndex();
+        IndexResponse created = indexMultiField("k1", "old", "old title", 1L, 1.5, true);
+        IndexResponse updated = indexMultiField("k1", "new", "new title", 2L, 2.5, false);
+        assertEquals(DocWriteResponse.Result.UPDATED, updated.getResult());
+
+        List<Map<String, Object>> rows = readParquetRows();
+        Map<String, Object> newRow = rowAtSeqNo(rows, updated.getSeqNo());
+        assertFields("parquet row after same-generation full update", newRow, "new", "new title", 2L, 2.5, false);
+        assertEquals(2L, version(newRow));
+
+        Map<String, Object> oldRow = rowAtSeqNoIfPresent(rows, created.getSeqNo());
+        if (oldRow != null) {
+            assertFields("superseded parquet row must be untouched", oldRow, "old", "old title", 1L, 1.5, true);
+            assertEquals("both copies must sit in the same generation", oldRow.get("__generation__"), newRow.get("__generation__"));
+        }
+
+        GetResponse get = client().prepareGet(INDEX, "k1").setRealtime(false).get();
+        assertFields("get after same-generation full update", get.getSourceAsMap(), "new", "new title", 2L, 2.5, false);
+    }
+
+    /**
+     * A partial update rewrites only the supplied field. The new parquet row must carry the updated
+     * column and, for every column the request did not mention, the original value. The refresh before
+     * the update forces its internal get onto the published parquet row rather than the translog, so
+     * this exercises column reconstruction as the merge input.
+     */
+    public void testPartialUpdatePreservesUntouchedColumns() throws IOException {
+        createManualRefreshMultiFieldIndex();
+        indexMultiField("k1", "keep", "keep title", 1L, 1.5, true);
+        refreshIndex(INDEX);
+
+        UpdateResponse updated = client().prepareUpdate(INDEX, "k1").setDoc(VALUE, 42L).get();
+        assertEquals(DocWriteResponse.Result.UPDATED, updated.getResult());
+        assertEquals(2L, updated.getVersion());
+
+        List<Map<String, Object>> rows = readParquetRows();
+        Map<String, Object> newRow = rowAtSeqNo(rows, updated.getSeqNo());
+        assertFields("parquet row after partial update", newRow, "keep", "keep title", 42L, 1.5, true);
+        assertEquals(2L, version(newRow));
+
+        GetResponse get = client().prepareGet(INDEX, "k1").setRealtime(false).get();
+        assertFields("get after partial update", get.getSourceAsMap(), "keep", "keep title", 42L, 1.5, true);
+        assertEquals(2L, get.getVersion());
+    }
+
+    /**
+     * Two partial updates to different fields across a refresh. The second update's merge input is
+     * the row written by the first, so each row must carry the cumulative state and nothing else.
+     */
+    public void testChainedPartialUpdatesAccumulateAcrossRefresh() throws IOException {
+        createManualRefreshMultiFieldIndex();
+        indexMultiField("k1", "keep", "keep title", 1L, 1.5, true);
+        refreshIndex(INDEX);
+
+        UpdateResponse first = client().prepareUpdate(INDEX, "k1").setDoc(VALUE, 10L).get();
+        assertEquals(2L, first.getVersion());
+        refreshIndex(INDEX);
+
+        UpdateResponse second = client().prepareUpdate(INDEX, "k1").setDoc(ACTIVE, false, PRICE, 9.75).get();
+        assertEquals(3L, second.getVersion());
+
+        List<Map<String, Object>> rows = readParquetRows();
+        Map<String, Object> afterFirst = rowAtSeqNoIfPresent(rows, first.getSeqNo());
+        if (afterFirst != null) {
+            assertFields("row after first partial update", afterFirst, "keep", "keep title", 10L, 1.5, true);
+        }
+        Map<String, Object> afterSecond = rowAtSeqNo(rows, second.getSeqNo());
+        assertFields("row after second partial update", afterSecond, "keep", "keep title", 10L, 9.75, false);
+        assertEquals(3L, version(afterSecond));
+
+        GetResponse get = client().prepareGet(INDEX, "k1").setRealtime(false).get();
+        assertFields("get after chained partial updates", get.getSourceAsMap(), "keep", "keep title", 10L, 9.75, false);
+        assertEquals(3L, get.getVersion());
     }
 }

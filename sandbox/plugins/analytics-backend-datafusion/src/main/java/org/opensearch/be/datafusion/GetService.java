@@ -27,7 +27,6 @@ import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
 
 import java.io.Closeable;
@@ -198,7 +197,6 @@ public class GetService implements Closeable {
                             if (idVec != null && !idVec.isNull(i)) {
                                 row.put(IdFieldMapper.NAME, Uid.decodeId((byte[]) idVec.getObject(i)));
                             }
-                            putStoredSource(root, i, row);
                             results.add(row);
                         }
                     }
@@ -217,21 +215,8 @@ public class GetService implements Closeable {
                 var batch = iter.next();
                 try (VectorSchemaRoot root = batch.getArrowRoot()) {
                     if (root.getRowCount() == 0) return null;
-                    Map<String, Object> row = ArrowValues.toSourceMap(root, 0);
-                    putStoredSource(root, 0, row);
-                    return row;
+                    return ArrowValues.toSourceMap(root, 0);
                 }
-            }
-        }
-
-        /**
-         * Restores stored {@code _source} bytes omitted by {@link ArrowValues#toSourceMap}. Other binary
-         * fields remain omitted because their raw bytes cannot be represented in reconstructed JSON.
-         */
-        private static void putStoredSource(VectorSchemaRoot root, int rowIndex, Map<String, Object> row) {
-            FieldVector sourceVec = root.getVector(SourceFieldMapper.NAME);
-            if (sourceVec != null && sourceVec.isNull(rowIndex) == false) {
-                row.put(SourceFieldMapper.NAME, sourceVec.getObject(rowIndex));
             }
         }
 

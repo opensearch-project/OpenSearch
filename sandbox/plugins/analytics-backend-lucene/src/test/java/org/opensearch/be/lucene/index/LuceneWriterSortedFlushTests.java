@@ -674,6 +674,44 @@ public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
         }
     }
 
+    public void testUnsortedFlushMergesMultipleSegmentsBeforePositionalDeletes() throws IOException {
+        Path baseDir = createTempDir();
+        int numDocs = 60;
+        int[] deletedPositions = { 5, 25, 45 };
+        MappedFieldType textField = mockTextField("content");
+
+        try (LuceneWriter writer = newWriterWithMaxBufferedDocs(baseDir, 20)) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+            for (int position : deletedPositions) {
+                writer.recordPositionalDelete(position);
+            }
+
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            assertThat(wfs.numRows(), equalTo((long) numDocs));
+            assertTrue(wfs.files().stream().anyMatch(file -> file.endsWith(".liv")));
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                assertThat(reader.maxDoc(), equalTo(numDocs));
+                assertThat(reader.numDocs(), equalTo(numDocs - deletedPositions.length));
+
+                LeafReader leaf = reader.leaves().get(0).reader();
+                Bits liveDocs = leaf.getLiveDocs();
+                assertNotNull(liveDocs);
+                for (int position : deletedPositions) {
+                    assertFalse("generation-wide position " + position + " must be deleted", liveDocs.get(position));
+                }
+            }
+        }
+    }
+
     /**
      * Sorted flush across multiple in-flight Lucene segments.
      *

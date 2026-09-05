@@ -267,7 +267,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         tryDeletePendingFiles();
 
         // All per-format engines refresh normally (primary passes through, secondary does addIndexes)
-        RefreshInput perFormatInput = new RefreshInput(refreshInput.existingSegments(), refreshInput.writerFiles());
+        RefreshInput perFormatInput = new RefreshInput(
+            refreshInput.existingSegments(),
+            refreshInput.writerFiles(),
+            RefreshInput.NO_GENERATION,
+            refreshInput.deletesApplied()
+        );
         RefreshResult primary = primaryEngine.refresh(perFormatInput);
         List<RefreshResult> secResults = new ArrayList<>();
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {

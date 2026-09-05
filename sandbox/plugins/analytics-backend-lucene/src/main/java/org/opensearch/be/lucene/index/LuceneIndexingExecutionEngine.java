@@ -370,9 +370,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             // Rebuild every live file set because addIndexes can rename files and drained deletes
             // add .liv files. writeAllDeletes=true materializes liveDocs before catalog publication.
             Set<Long> liveGenerations = new HashSet<>();
-            if (sourceDirectories.isEmpty() == false || refreshInput.existingSegments().isEmpty() == false) {
+            final boolean deletesApplied = refreshInput.deletesApplied();
+            if (sourceDirectories.isEmpty() == false || (deletesApplied && refreshInput.existingSegments().isEmpty() == false)) {
                 Path sharedDir = store.shardPath().resolveIndex();
-                try (DirectoryReader reader = DirectoryReader.open(sharedWriter, true, true)) {
+                try (DirectoryReader reader = DirectoryReader.open(sharedWriter, true, deletesApplied)) {
                     for (LeafReaderContext ctx : reader.leaves()) {
                         if (ctx.reader() instanceof SegmentReader segReader) {
                             SegmentCommitInfo segInfo = segReader.getSegmentInfo();
@@ -381,6 +382,9 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                                 continue;
                             }
                             long writerGen = Long.parseLong(genAttr);
+                            if (deletesApplied == false && writerGenerations.contains(writerGen) == false) {
+                                continue;
+                            }
                             liveGenerations.add(writerGen);
 
                             WriterFileSet.Builder wfsBuilder = WriterFileSet.builder()
@@ -418,9 +422,11 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             }
 
             Set<Long> droppedGenerations = new HashSet<>();
-            for (Segment segment : refreshInput.existingSegments()) {
-                if (liveGenerations.contains(segment.generation()) == false) {
-                    droppedGenerations.add(segment.generation());
+            if (deletesApplied) {
+                for (Segment segment : refreshInput.existingSegments()) {
+                    if (liveGenerations.contains(segment.generation()) == false) {
+                        droppedGenerations.add(segment.generation());
+                    }
                 }
             }
 

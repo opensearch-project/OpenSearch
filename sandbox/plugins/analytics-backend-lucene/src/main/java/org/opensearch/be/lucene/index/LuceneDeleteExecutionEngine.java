@@ -39,7 +39,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Tracks per-generation Lucene deleters and document locations for updates and deletes.
@@ -55,11 +55,12 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final IndexWriter parentWriter;
     private final ConcurrentMap<String, GenRow> idToGen;
     private final Store store;
+    private final AtomicBoolean parentDeleteApplied = new AtomicBoolean();
 
-    private static final long BASE_BYTES_PER_ID_TO_GEN_ENTRY = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
-        .shallowSizeOfInstance(GenRow.class);
-    /** Maintained incrementally because {@link #ramBytesUsed()} must not scan {@link #idToGen}. */
-    private final AtomicLong idToGenRamBytesUsed = new AtomicLong();
+    private static final int ESTIMATED_ID_LENGTH = 24;
+
+    private static final long BYTES_PER_ID_TO_GEN_ENTRY = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
+        .shallowSizeOfInstance(GenRow.class) + RamUsageEstimator.sizeOf("0".repeat(ESTIMATED_ID_LENGTH));
 
     /** Generation + insertion rowId where a document currently lives in an active child writer. */
     private record GenRow(long generation, long rowId) {
@@ -110,6 +111,7 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
                 }
                 // The generation retired; apply the late delete to the parent writer.
                 parentWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(deleteInput.id())));
+                parentDeleteApplied.set(true);
                 recordPreviousPositionalDelete(deleteInput.id());
                 return new DeleteResult.Success(1L, 1L, 1L);
             }
@@ -146,14 +148,11 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
         generationToDeleterMap.clear();
         idToGen.clear();
-        idToGenRamBytesUsed.set(0L);
     }
 
     @Override
     public void recordWrite(String id, long generation, long rowId) {
-        if (idToGen.put(id, new GenRow(generation, rowId)) == null) {
-            idToGenRamBytesUsed.addAndGet(entryBytes(id));
-        }
+        idToGen.put(id, new GenRow(generation, rowId));
     }
 
     /**
@@ -162,34 +161,31 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
      */
     @Override
     public long ramBytesUsed() {
-        long total = idToGenRamBytesUsed.get();
+        long total = idToGen.size() * BYTES_PER_ID_TO_GEN_ENTRY;
         for (Deleter deleter : generationToDeleterMap.values()) {
             total += deleter.ramBytesUsed();
         }
         return total;
     }
 
-    private long entryBytes(String id) {
-        return BASE_BYTES_PER_ID_TO_GEN_ENTRY + RamUsageEstimator.sizeOf(id);
-    }
-
     @Override
     public boolean onWriterCheckedOut(long generation) throws IOException {
-        // Conditional removal prevents concurrent retirement from subtracting an entry twice.
+        boolean parentDeleted = parentDeleteApplied.getAndSet(false);
+        // Conditional removal prevents a concurrent write from losing a re-added entry.
         idToGen.forEach((trackedId, genRow) -> {
-            if (genRow.generation() == generation && idToGen.remove(trackedId, genRow)) {
-                idToGenRamBytesUsed.addAndGet(-entryBytes(trackedId));
+            if (genRow.generation() == generation) {
+                idToGen.remove(trackedId, genRow);
             }
         });
 
         Deleter deleter = generationToDeleterMap.remove(generation);
         if (deleter == null) {
-            return false;
+            return parentDeleted;
         }
 
         Queue<String> drained = deleter.deactivate();
         if (drained.isEmpty()) {
-            return false;
+            return parentDeleted;
         }
 
         Set<String> uniqueIds = new LinkedHashSet<>(drained);

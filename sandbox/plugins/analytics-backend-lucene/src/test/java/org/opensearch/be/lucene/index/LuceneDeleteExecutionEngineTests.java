@@ -2075,12 +2075,15 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         assertTrue("tracking an id must account for it", afterFirstId > 0L);
 
         deleteEngine.recordWrite("doc2", 1L, 1L);
-        long afterSecondId = deleteEngine.ramBytesUsed();
-        assertTrue("a second id must grow the footprint", afterSecondId > afterFirstId);
+        assertEquals("footprint is a fixed cost per tracked entry", 2 * afterFirstId, deleteEngine.ramBytesUsed());
+
+        // The per-entry cost is a nominal estimate, so it does not vary with the id's length.
+        deleteEngine.recordWrite("a-considerably-longer-document-identifier", 1L, 2L);
+        assertEquals("entry cost must not depend on id length", 3 * afterFirstId, deleteEngine.ramBytesUsed());
 
         // Re-recording a tracked id overwrites the value in place: no new entry, no growth.
-        deleteEngine.recordWrite("doc1", 1L, 2L);
-        assertEquals("overwriting an id must not grow the footprint", afterSecondId, deleteEngine.ramBytesUsed());
+        deleteEngine.recordWrite("doc1", 1L, 3L);
+        assertEquals("overwriting an id must not grow the footprint", 3 * afterFirstId, deleteEngine.ramBytesUsed());
 
         // Retiring the generation releases everything it tracked.
         deleteEngine.onWriterCheckedOut(1L);
