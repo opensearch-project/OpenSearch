@@ -1278,7 +1278,7 @@ public class DataFormatAwareEngine implements Indexer {
                         if (refreshed || deletesApplied) {
                             final long engineRefreshStartNanos = System.nanoTime();
                             long nextGen = newSegments.size() > 1 ? writerGenerationCounter.incrementAndGet() : RefreshInput.NO_GENERATION;
-                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen);
+                            RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments, nextGen, deletesApplied);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
                             final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
                             logger.debug(

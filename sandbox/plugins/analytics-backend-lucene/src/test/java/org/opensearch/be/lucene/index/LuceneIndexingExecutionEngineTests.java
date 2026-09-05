@@ -290,6 +290,77 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
     }
 
     /**
+     * The delete gate: with no delete applied, an already-published generation's catalog entry is
+     * carried through untouched and no dropped generation is computed. With a delete applied, every
+     * live generation's file set is rebuilt from the reader so new {@code .liv} files are cataloged.
+     */
+    public void testRefreshRebuildsExistingSegmentsOnlyWhenDeletesApplied() throws IOException {
+        LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
+
+        long generation = 1L;
+        Segment published;
+        try (
+            LuceneWriter luceneWriter = new LuceneWriter(
+                generation,
+                0L,
+                luceneDataFormat,
+                createTempDir(),
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            MappedFieldType textField = mockTextField("content");
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                luceneWriter.addDoc(input);
+            }
+            WriterFileSet flushed = luceneWriter.flush(FlushInput.EMPTY).getWriterFileSet(luceneDataFormat).get();
+            RefreshResult initial = engine.refresh(
+                RefreshInput.builder().addSegment(Segment.builder(generation).addSearchableFiles(luceneDataFormat, flushed).build()).build()
+            );
+            published = initial.refreshedSegments().get(0);
+        }
+
+        // Tag the published entry with a name the reader can never produce, so a carried-through
+        // entry is distinguishable from one rebuilt out of the reader's leaves.
+        WriterFileSet publishedFiles = published.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        WriterFileSet tagged = WriterFileSet.builder()
+            .directory(Path.of(publishedFiles.directory()))
+            .writerGeneration(publishedFiles.writerGeneration())
+            .addNumRows(publishedFiles.numRows())
+            .addFiles(publishedFiles.files())
+            .addFile("carried-through.marker")
+            .build();
+        Segment existing = Segment.builder(generation).addSearchableFiles(luceneDataFormat, tagged).build();
+
+        RefreshResult withoutDeletes = engine.refresh(RefreshInput.builder().existingSegments(List.of(existing)).build());
+        WriterFileSet carried = withoutDeletes.refreshedSegments()
+            .get(0)
+            .dfGroupedSearchableFiles()
+            .get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        assertTrue("no-delete refresh must carry the existing entry verbatim", carried.files().contains("carried-through.marker"));
+        assertTrue("no-delete refresh must not compute dropped generations", withoutDeletes.droppedGenerations().isEmpty());
+
+        RefreshResult withDeletes = engine.refresh(RefreshInput.builder().existingSegments(List.of(existing)).deletesApplied(true).build());
+        WriterFileSet rebuilt = withDeletes.refreshedSegments().get(0).dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        assertFalse("delete refresh must rebuild the entry from the reader", rebuilt.files().contains("carried-through.marker"));
+        assertEquals(generation, rebuilt.writerGeneration());
+        assertTrue("nothing was actually deleted, so no generation is dropped", withDeletes.droppedGenerations().isEmpty());
+    }
+
+    /**
      * Use engine.createWriter() to create a writer, add docs, flush, build segment,
      * call engine.refresh(). Verify the shared writer has the docs and the result
      * segments have correct file names from the shared directory.
