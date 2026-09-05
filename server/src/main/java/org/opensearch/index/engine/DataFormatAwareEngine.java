@@ -10,7 +10,10 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -24,6 +27,7 @@ import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.queue.DefaultLockableHolder;
@@ -66,6 +70,7 @@ import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.PrimaryTermFieldType;
+import org.opensearch.index.engine.exec.SearchableDirectoryReaderProvider;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -104,14 +109,17 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -122,6 +130,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -146,6 +155,13 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 @ExperimentalApi
 public class DataFormatAwareEngine implements Indexer {
+
+    /**
+     * SegmentInfo attribute key carrying the absolute Parquet file path backing a leaf's doc values.
+     * Mirrors {@code ParquetSegmentLayout.PARQUET_FILE_ATTRIBUTE} in the parquet-data-format plugin;
+     * duplicated as a literal here because the server module must not depend on a plugin.
+     */
+    private static final String PARQUET_DOCVALUES_FILE_ATTRIBUTE = "parquet.docvalues.file";
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -2094,6 +2110,127 @@ public class DataFormatAwareEngine implements Indexer {
         } catch (Exception e) {
             snapshotRef.close();
             throw e;
+        }
+    }
+
+    /**
+     * Builds a point-in-time {@link Engine.SearcherSupplier} over this composite shard's Lucene reader.
+     * Before wrapping, each segment is stamped with the path of its backing Parquet file so the Parquet
+     * DocValues codec can resolve it; the reader is then wrapped in an {@link OpenSearchDirectoryReader}
+     * so the standard searcher-wrapping path (and any registered reader wrappers) apply.
+     */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        ensureOpen();
+        final GatedCloseable<Reader> readerRef;
+        try {
+            readerRef = acquireReader();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to acquire reader for searcher", e);
+        }
+        try {
+            DataFormat luceneFormat = engineConfig.getDataFormatRegistry().format("lucene");
+            Object luceneReaderObj = readerRef.get().reader(luceneFormat);
+            if (luceneReaderObj == null) {
+                throw new IllegalStateException("No Lucene reader available for composite index " + shardId);
+            }
+            final DirectoryReader rawDirectoryReader = extractDirectoryReader(luceneReaderObj);
+            stampParquetDocValuesFiles(rawDirectoryReader, readerRef.get().catalogSnapshot());
+            // IndexShard.wrapSearcher later asserts the reader is an OpenSearchDirectoryReader.
+            final DirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(rawDirectoryReader, shardId);
+            return new Engine.SearcherSupplier(wrapper) {
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    return new Engine.Searcher(
+                        source,
+                        directoryReader,
+                        engineConfig.getSimilarity(),
+                        engineConfig.getQueryCache(),
+                        engineConfig.getQueryCachingPolicy(),
+                        () -> {}
+                    );
+                }
+
+                @Override
+                protected void doClose() {
+                    IOUtils.closeWhileHandlingException(readerRef);
+                }
+            };
+        } catch (IllegalStateException e) {
+            IOUtils.closeWhileHandlingException(readerRef);
+            throw e;
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(readerRef);
+            throw new EngineException(shardId, "failed to build searcher supplier from composite reader", e);
+        }
+    }
+
+    /**
+     * Resolves the Lucene {@link DirectoryReader} from a format-specific reader object. The lucene
+     * format's reader implements {@link SearchableDirectoryReaderProvider}; the server module unwraps it
+     * through that interface rather than depending on the plugin's concrete type.
+     */
+    private static DirectoryReader extractDirectoryReader(Object luceneReaderObj) {
+        if (luceneReaderObj instanceof SearchableDirectoryReaderProvider searchable) {
+            return searchable.directoryReader();
+        }
+        throw new IllegalStateException(
+            "Lucene format reader "
+                + luceneReaderObj.getClass().getName()
+                + " does not implement SearchableDirectoryReaderProvider; cannot build searcher"
+        );
+    }
+
+    /**
+     * Binds each Lucene leaf of {@code directoryReader} to its backing Parquet file and stamps the
+     * resolved absolute path onto the leaf's {@code SegmentInfo} via {@link #PARQUET_DOCVALUES_FILE_ATTRIBUTE},
+     * so the Parquet DocValues codec reads the right file. Resolution matches the leaf's Lucene file set
+     * against each catalog segment's Lucene {@link WriterFileSet}, then takes that segment's {@code parquet}
+     * file set as the backing file - correct even for merged segments, whose per-leaf writer generation is
+     * reset. Best-effort: a leaf that cannot be resolved is left unstamped and simply serves no Parquet
+     * doc values rather than reading the wrong file.
+     */
+    private void stampParquetDocValuesFiles(DirectoryReader directoryReader, CatalogSnapshot catalogSnapshot) {
+        if (catalogSnapshot == null) {
+            return;
+        }
+        Map<Set<String>, String> luceneFilesToParquetPath = new HashMap<>();
+        for (Segment segment : catalogSnapshot.getSegments()) {
+            WriterFileSet luceneWfs = segment.dfGroupedSearchableFiles().get("lucene");
+            WriterFileSet parquetWfs = segment.dfGroupedSearchableFiles().get("parquet");
+            if (luceneWfs == null || parquetWfs == null || parquetWfs.files().isEmpty()) {
+                continue;
+            }
+            String parquetFileName = parquetWfs.files().iterator().next();
+            String parquetPath = Path.of(parquetWfs.directory(), parquetFileName).toString();
+            luceneFilesToParquetPath.put(luceneWfs.files(), parquetPath);
+        }
+
+        if (luceneFilesToParquetPath.isEmpty()) {
+            return;
+        }
+
+        // Match each live Lucene leaf to its Parquet file by file-set and stamp the resolved path. Both
+        // sides are SegmentCommitInfo.files() captured from the same snapshot, so a Parquet-backed leaf
+        // matches exactly. A leaf that matches nothing is left unstamped and serves no Parquet doc values:
+        // never the wrong file, but the symptom is missing values rather than an error, so the equality is
+        // load-bearing. It holds today only because this engine rejects deletes; once deletes land, a
+        // per-segment identifier should replace file-set equality, because a new .liv file would grow the
+        // leaf's set and break the match.
+        for (LeafReaderContext lrc : directoryReader.leaves()) {
+            try {
+                SegmentReader sr = Lucene.segmentReader(lrc.reader());
+                Set<String> leafFiles = new HashSet<>(sr.getSegmentInfo().files());
+                String parquetPath = luceneFilesToParquetPath.get(leafFiles);
+                if (parquetPath != null) {
+                    sr.getSegmentInfo().info.putAttribute(PARQUET_DOCVALUES_FILE_ATTRIBUTE, parquetPath);
+                }
+            } catch (IOException | RuntimeException e) {
+                // Best-effort binding: a leaf that cannot be resolved is left unstamped and serves no
+                // Parquet doc values. Logged because the visible symptom would otherwise be missing
+                // values rather than a failure.
+                logger.warn(new ParameterizedMessage("could not bind leaf [{}] to its Parquet file", lrc.ord), e);
+            }
         }
     }
 

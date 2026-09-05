@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexCreationValidator;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
@@ -41,6 +42,7 @@ import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.codec.ParquetDocValuesDirectoryReader;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -337,5 +339,30 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new ParquetStatsRestAction(), new ParquetNodeStatsRestAction());
+    }
+
+    /**
+     * Installs the Parquet DocValues reader wrapper at index open so numeric doc values that live only in
+     * Parquet are served through the standard Lucene search and aggregation path. The wrapper is a no-op
+     * per leaf when a segment has no Parquet-resident fields, so the per-request overhead is negligible.
+     *
+     * <p>An index module holds a single reader-wrapper slot ({@code SetOnce}), so a second plugin calling
+     * {@link IndexModule#setReaderWrapper} on the same index fails index creation. This claims the slot
+     * only for indices that opted into a pluggable data format, leaving every other index free for other
+     * plugins. {@code isPluggableDataFormatEnabled()} - the authoritative check, which also requires the
+     * experimental feature flag - is not reachable from {@link IndexModule}, so it stays inside the
+     * factory and can still decline by returning {@code null}.
+     */
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(indexModule.getSettings()) == false) {
+            return;
+        }
+        indexModule.setReaderWrapper(indexService -> {
+            if (indexService.getIndexSettings().isPluggableDataFormatEnabled() == false) {
+                return null;
+            }
+            return reader -> ParquetDocValuesDirectoryReader.wrap(reader, indexService.mapperService());
+        });
     }
 }

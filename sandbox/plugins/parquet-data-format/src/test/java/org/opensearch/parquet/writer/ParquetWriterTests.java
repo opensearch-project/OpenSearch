@@ -150,6 +150,8 @@ public class ParquetWriterTests extends ParquetBaseTests {
 
         writer.flush(FlushInput.EMPTY);
         assertEquals(1, RustBridge.getFileMetadata(filePath).numRows());
+
+        assertEquals(ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION, RustBridge.getFileMetadata(filePath).opensearchFormatVersion());
     }
 
     public void testMultipleDocumentsFlush() throws Exception {

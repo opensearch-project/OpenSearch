@@ -54,6 +54,41 @@ pub fn read_format_version(metadata: &FileMetaData) -> String {
         .unwrap_or_default()
 }
 
+/// Sentinel for a file whose footer carries no parseable opensearch format version.
+pub const FORMAT_VERSION_UNKNOWN: i64 = 0;
+
+/// Long-encodes the opensearch format version stamped in the footer as
+/// `major * 1_000_000 + minor * 1_000 + patch`, the same encoding as the Java constant
+/// `ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION`, so the two are directly comparable.
+///
+/// Returns [`FORMAT_VERSION_UNKNOWN`] when the stamp is absent, empty, or not parseable. This is
+/// reporting only - it never rejects; the Java codec owns the accept/reject decision.
+pub fn read_format_version_encoded(metadata: &FileMetaData) -> i64 {
+    encode_format_version(&read_format_version(metadata))
+}
+
+/// Long-encodes a `major.minor.patch[.build]` version string. See [`read_format_version_encoded`].
+fn encode_format_version(raw: &str) -> i64 {
+    if raw.is_empty() {
+        return FORMAT_VERSION_UNKNOWN;
+    }
+    let mut parts = raw.split('.');
+    let mut encoded = 0i64;
+    for scale in [1_000_000i64, 1_000, 1] {
+        // A missing minor/patch reads as 0 ("1" and "1.0.0" encode identically); a present but
+        // non-numeric or negative component makes the whole version unusable rather than partial.
+        let part = match parts.next() {
+            None => break,
+            Some(part) => part,
+        };
+        match part.parse::<i64>() {
+            Ok(value) if value >= 0 => encoded += value * scale,
+            _ => return FORMAT_VERSION_UNKNOWN,
+        }
+    }
+    encoded
+}
+
 /// Builder for converting NativeSettings into Parquet WriterProperties.
 ///
 /// This struct follows the Single Responsibility Principle by focusing
@@ -1386,6 +1421,20 @@ mod tests {
         let found = kv.iter().find(|k| k.key == FORMAT_VERSION_KEY);
         let entry = found.expect("format_version KV entry missing");
         assert_eq!(entry.value.as_deref(), Some(FORMAT_VERSION));
+    }
+
+    #[test]
+    fn encode_format_version_is_long_encoded_like_the_java_constant() {
+        // "1.0.0.0" is what the writer stamps today; the fourth component is ignored, so this
+        // equals ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION.
+        assert_eq!(encode_format_version(FORMAT_VERSION), 1_000_000);
+        assert_eq!(encode_format_version("2.3.4"), 2_003_004);
+        // A missing minor/patch reads as zero, so "1" and "1.0.0" encode identically.
+        assert_eq!(encode_format_version("1"), 1_000_000);
+        // Unstamped / malformed report unknown, never a partial value.
+        assert_eq!(encode_format_version(""), FORMAT_VERSION_UNKNOWN);
+        assert_eq!(encode_format_version("1.x.0"), FORMAT_VERSION_UNKNOWN);
+        assert_eq!(encode_format_version("-1.0.0"), FORMAT_VERSION_UNKNOWN);
     }
 
     #[test]

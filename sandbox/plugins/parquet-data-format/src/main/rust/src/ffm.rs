@@ -20,6 +20,7 @@ use crate::field_config::FieldConfig;
 use crate::merge;
 use crate::native_settings::NativeSettings;
 use crate::writer::{NativeParquetWriter, SETTINGS_STORE};
+use crate::writer_properties_builder::read_format_version_encoded;
 
 unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
     if ptr.is_null() {
@@ -219,6 +220,7 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
     num_row_groups_out: *mut i64,
+    format_version_out: *mut i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_get_file_metadata: {}", e))?
@@ -233,6 +235,10 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     }
     if !num_row_groups_out.is_null() {
         *num_row_groups_out = metadata.num_row_groups() as i64;
+    }
+
+    if !format_version_out.is_null() {
+        *format_version_out = read_format_version_encoded(fm);
     }
     if let Some(cb) = fm.created_by() {
         if !created_by_buf.is_null() && created_by_buf_len > 0 {
