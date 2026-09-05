@@ -450,10 +450,12 @@ pub fn residual_bool_to_physical_expr(
             Some(Arc::new(NotExpr::new(inner)))
         }
         BoolNode::Collector { .. } => None,
-        // Performance-delegated leaves contribute their original expression to the
-        // residual — the driving backend evaluates them natively. Optional peer
-        // consultation is handled in the evaluator, not in the residual.
-        BoolNode::DelegationPossible { original_expr, .. } => Some(Arc::clone(original_expr)),
+        // Performance-delegated leaves are answered by the peer backend (Lucene).
+        // The driving backend must NOT rebuild the predicate — re-applying the
+        // original expression is a *different* predicate when the two backends
+        // disagree (e.g. analyzed text vs raw columnar string) and would discard
+        // correct peer matches. Same treatment as Collector.
+        BoolNode::DelegationPossible { .. } => None,
     }
 }
 
