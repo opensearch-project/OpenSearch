@@ -23,7 +23,7 @@ use parquet::file::properties::WriterProperties;
 use tempfile::TempDir;
 
 use opensearch_block_cache::foyer::foyer_cache::FoyerCache;
-use opensearch_block_cache::range_cache::range_cache_key;
+use opensearch_block_cache::range_cache::{range_cache_key, CacheKey};
 use opensearch_block_cache::tiered_block_cache::TieredBlockCache;
 use opensearch_block_cache::traits::BlockCache;
 
@@ -39,6 +39,17 @@ const DISK_BYTES: usize = 8 * 1024 * 1024;
 const BUFFER_POOL: usize = 8 * 1024 * 1024;
 const SUBMIT_QUEUE: usize = 8 * 1024 * 1024;
 
+/// Build the data + metadata cache pair used by these tests.
+///
+/// Both Foyer instances are **disk-only**: `FoyerCache` sets the DRAM tier to 1 byte, which
+/// opts out of DRAM caching, so an entry is retrievable only once the storage flusher has
+/// written it to the `FsDevice`. `put`/`insert` is fire-and-forget — it returns before the
+/// flusher persists the entry — so a test that needs a `get` to hit must first call
+/// `cache.wait_for_flush()`, whose documented post-condition is "all previously put() entries
+/// are on SSD and findable via get()". Without that drain, a range still queued in the write
+/// buffer misses; under heavy parallel load (the full suite) that happens often enough to make
+/// the tests below flaky, and a test that deleted its local file to force a cache-only read then
+/// fails with `NotFound` from the vanished file instead of reading from cache.
 fn create_tiered_cache(
     data_dir: &std::path::Path,
     meta_dir: &std::path::Path,
@@ -72,14 +83,14 @@ fn create_tiered_cache(
 
 fn create_store(
     parquet_dir: &std::path::Path,
-    cache: Arc<TieredBlockCache>,
+    cache: Arc<dyn BlockCache>,
     path_str: &str,
     file_size: u64,
 ) -> Arc<TieredObjectStore> {
     let local: Arc<dyn ObjectStore> =
         Arc::new(LocalFileSystem::new_with_prefix(parquet_dir).unwrap());
     let registry = Arc::new(TieredStorageRegistry::new());
-    let store = TieredObjectStore::new(registry, local).with_cache(cache as Arc<dyn BlockCache>);
+    let store = TieredObjectStore::new(registry, local).with_cache(cache);
     let store = Arc::new(store);
     store.registry().register(
         path_str,
@@ -447,6 +458,9 @@ fn metadata_served_from_ssd_not_local_fs() {
         footer_start,
         file_size,
     );
+
+    // Drain the flusher so the warmup put is on SSD before its only other source disappears.
+    block_on(cache.wait_for_flush());
 
     // Delete local file — force subsequent reads to come from cache only
     std::fs::remove_file(parquet_dir.path().join("ssd_only.parquet")).unwrap();
@@ -905,6 +919,9 @@ fn datafusion_query_succeeds_from_cache_after_local_file_deleted() {
         assert_eq!(rows1, 3, "query 1 must return 3 rows");
 
         // ── Delete local file — cache is the only source now ─────────────────
+        // Drain the flusher first: query 1's puts must be on SSD before their only other
+        // source disappears, otherwise query 2 misses and hits the deleted file.
+        cache.wait_for_flush().await;
         std::fs::remove_file(parquet_dir.path().join("align.parquet")).unwrap();
 
         // ── Query 2: same query, file gone — must succeed from cache ─────────
@@ -921,6 +938,133 @@ fn datafusion_query_succeeds_from_cache_after_local_file_deleted() {
         assert_eq!(
             rows2, 3,
             "query 2 (file deleted) must succeed from cache — proves key alignment"
+        );
+    });
+}
+
+/// A [`BlockCache`] that defers publication: `put` stages bytes where `get` cannot see them
+/// until [`DeferredPutCache::flush`] is called.
+///
+/// This models Foyer's disk-only behaviour deterministically. In Foyer, a lookup returns a miss
+/// unless the entry is present in the block engine's in-RAM index, and that index is only
+/// written by the storage flusher once the block has reached the device — so an entry that has
+/// been `put` but not yet flushed is invisible to `get`. The real flusher normally wins that
+/// race within microseconds, which is why the tests here pass on an idle machine and fail under
+/// CI's I/O contention. Staging the bytes reproduces the same window with no timing dependency.
+struct DeferredPutCache {
+    staged: std::sync::Mutex<std::collections::HashMap<CacheKey, bytes::Bytes>>,
+    visible: std::sync::Mutex<std::collections::HashMap<CacheKey, bytes::Bytes>>,
+}
+
+impl DeferredPutCache {
+    fn new() -> Self {
+        Self {
+            staged: std::sync::Mutex::new(std::collections::HashMap::new()),
+            visible: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// The analogue of `TieredBlockCache::wait_for_flush()`: make every staged entry findable.
+    fn flush(&self) {
+        let mut staged = self.staged.lock().unwrap();
+        let mut visible = self.visible.lock().unwrap();
+        for (key, data) in staged.drain() {
+            visible.insert(key, data);
+        }
+    }
+}
+
+impl BlockCache for DeferredPutCache {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get<'a>(
+        &'a self,
+        key: &'a CacheKey,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<bytes::Bytes>> + Send + 'a>>
+    {
+        let hit = self.visible.lock().unwrap().get(key).cloned();
+        Box::pin(async move { hit })
+    }
+
+    fn put(&self, key: &CacheKey, data: bytes::Bytes) {
+        self.staged.lock().unwrap().insert(key.clone(), data);
+    }
+
+    fn evict_prefix(&self, prefix: &str) {
+        for map in [&self.staged, &self.visible] {
+            map.lock()
+                .unwrap()
+                .retain(|key, _| !key.as_str().starts_with(prefix));
+        }
+    }
+
+    fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        self.staged.lock().unwrap().clear();
+        self.visible.lock().unwrap().clear();
+        Box::pin(async {})
+    }
+}
+
+/// Deterministic reproduction of the flake that the `wait_for_flush()` calls above fix.
+///
+/// Same shape as `datafusion_query_succeeds_from_cache_after_local_file_deleted`, but with a
+/// cache whose flush point is explicit instead of a background task. With the puts still
+/// unflushed, deleting the local file makes the cache-only query fail with exactly the
+/// `NotFound` that CI reported: every cache probe misses, `TieredObjectStore::fetch_misses`
+/// falls back to the local store, and the file it wants is gone. Flushing first — what
+/// `wait_for_flush()` does for the real cache — makes the same query succeed.
+#[test]
+fn unflushed_cache_puts_make_query_after_delete_fail() {
+    const QUERY: &str = "SELECT id FROM t WHERE id < 3 ORDER BY id";
+
+    let parquet_dir = TempDir::new().unwrap();
+    let file_size = write_test_parquet(parquet_dir.path(), "deferred.parquet", 2);
+
+    let cache = Arc::new(DeferredPutCache::new());
+    let store = create_store(
+        parquet_dir.path(),
+        cache.clone(),
+        "deferred.parquet",
+        file_size,
+    );
+
+    block_on(async {
+        // ── Query 1: file present. Populates the cache — every put is staged, not visible ──
+        let (ctx, schema) = setup_df_session(store.clone(), "deferred.parquet", "t", None).await;
+        let batches = ctx.sql(QUERY).await.unwrap().collect().await.unwrap();
+        let rows1: usize = batches.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(rows1, 3, "query 1 must return 3 rows");
+
+        std::fs::remove_file(parquet_dir.path().join("deferred.parquet")).unwrap();
+
+        // ── Query 2, no drain: this is the CI failure, deterministically ──────────────
+        let (ctx2, _) =
+            setup_df_session(store.clone(), "deferred.parquet", "t", Some(schema.clone())).await;
+        let err = ctx2
+            .sql(QUERY)
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .expect_err("unflushed puts + deleted local file must fail, not read from cache");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("deferred.parquet")
+                && (msg.contains("NotFound") || msg.contains("No such file")),
+            "expected the NotFound that CI reported, got: {msg}"
+        );
+
+        // ── Query 3, after the drain: succeeds from cache alone ───────────────────────
+        cache.flush();
+        let (ctx3, _) =
+            setup_df_session(store.clone(), "deferred.parquet", "t", Some(schema)).await;
+        let batches3 = ctx3.sql(QUERY).await.unwrap().collect().await.unwrap();
+        let rows3: usize = batches3.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(
+            rows3, 3,
+            "after the flush the same query must succeed from cache with no local file"
         );
     });
 }
@@ -1089,6 +1233,9 @@ fn page_index_key_alignment_warmup_matches_query_time() {
         footer_start,
         file_size,
     );
+
+    // Drain the flusher so both warmup puts are on SSD before the local file goes away.
+    block_on(cache.wait_for_flush());
 
     // Delete local file — all reads must come from metadata cache
     std::fs::remove_file(parquet_dir.path().join("page_idx.parquet")).unwrap();
@@ -1679,6 +1826,9 @@ fn production_warmup_then_query_from_cache_only() {
         assert!(rows1 > 0, "first query must return rows");
 
         // ── Step 3: Delete local file ────────────────────────────────────────
+        // Drain the flusher first: the warmup put_metadata and the first query's data puts
+        // must be on SSD before their only other source disappears.
+        cache.wait_for_flush().await;
         std::fs::remove_file(parquet_dir.path().join("prod.parquet")).unwrap();
 
         // ── Step 4: Second query — must succeed entirely from cache ───────────
