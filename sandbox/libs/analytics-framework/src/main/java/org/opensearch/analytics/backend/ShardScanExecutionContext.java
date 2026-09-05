@@ -198,4 +198,14 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     public void setHasPartialAggregate(boolean hasPartialAggregate) {
         this.hasPartialAggregate = hasPartialAggregate;
     }
+
+    private boolean hasDeletedDocs;
+
+    public boolean hasDeletedDocs() {
+        return hasDeletedDocs;
+    }
+
+    public void setHasDeletedDocs(boolean hasDeletedDocs) {
+        this.hasDeletedDocs = hasDeletedDocs;
+    }
 }

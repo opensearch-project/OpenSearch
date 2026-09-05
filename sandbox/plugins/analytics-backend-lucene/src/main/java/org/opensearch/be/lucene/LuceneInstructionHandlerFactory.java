@@ -66,11 +66,13 @@ final class LuceneInstructionHandlerFactory implements FragmentInstructionHandle
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
         boolean requestsRowIds,
-        String logicalTableName
+        String logicalTableName,
+        boolean requiresDeletedDocFiltering
     ) {
         // Lucene driver doesn't accept delegated predicates, so the with-delegation variant
-        // collapses to a plain shard-scan. The treeShape / delegatedPredicateCount fields
-        // are ignored.
+        // collapses to a plain shard-scan. The treeShape / delegatedPredicateCount and
+        // requiresDeletedDocFiltering fields are ignored — the Lucene correctness Collector
+        // already respects liveDocs, so no separate deleted-doc filtering is needed.
         return createShardScanNode(requestsRowIds, logicalTableName);
     }
 

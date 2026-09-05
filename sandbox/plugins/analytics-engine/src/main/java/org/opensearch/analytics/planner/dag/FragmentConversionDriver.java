@@ -125,12 +125,17 @@ public class FragmentConversionDriver {
                 ? FilterTreeShapeDeriver.derive(filter, plan.backendId())
                 : FilterTreeShape.NO_DELEGATION;
 
+            // Compute whether deleted-doc filtering is required for this query.
+            // Stamped on the instruction node — the data node ANDs with hasDeletedDocs at runtime.
+            boolean requiresDeletedDocFiltering = !"lucene".equals(plan.backendId())
+                && FilterTreeShapeDeriver.requiresDeletedDocFiltering(filter, plan.backendId());
+
             IntraOperatorDelegationBytes delegationBytes = new IntraOperatorDelegationBytes(registry);
             byte[] bytes = convert(plan.resolvedFragment(), convertor, delegationBytes);
 
             // Assemble instruction list
-            List<DelegatedExpression> delegated = delegationBytes.getResult();
-            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes);
+            List<DelegatedExpression> delegated = new ArrayList<>(delegationBytes.getResult());
+            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, filter, delegated);
 
             converted.add(plan.withConvertedBytes(bytes, delegated).withInstructions(instructions));
             LOGGER.debug(
@@ -239,7 +244,8 @@ public class FragmentConversionDriver {
         AnalyticsSearchBackendPlugin backend,
         StagePlan plan,
         FilterTreeShape treeShape,
-        IntraOperatorDelegationBytes delegationBytes
+        OpenSearchFilter filter,
+        List<DelegatedExpression> delegated
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
@@ -255,10 +261,14 @@ public class FragmentConversionDriver {
             // QTF narrows the Scan to [belowAnchorPhysicalFields..., __row_id__]; signal that to the
             // backend so it picks the row-id-aware table provider regardless of delegation.
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
-            List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName)
-                    .ifPresent(instructions::add);
+                factory.createShardScanWithDelegationNode(
+                    treeShape,
+                    delegated.size(),
+                    requestsRowIds,
+                    logicalTableName,
+                    FilterTreeShapeDeriver.requiresDeletedDocFiltering(filter, backend.name())
+                ).ifPresent(instructions::add);
             } else {
                 factory.createShardScanNode(requestsRowIds, logicalTableName).ifPresent(instructions::add);
             }
@@ -692,5 +702,6 @@ public class FragmentConversionDriver {
         }
         return node.copy(node.getTraitSet(), List.of(placeholder));
     }
-
 }
+
+

@@ -55,12 +55,15 @@ public interface FragmentInstructionHandlerFactory {
      * @param logicalTableName the planner's logical table name (alias / index pattern / index) the
      *                         backend should register the scanned shard's table under, or {@code null}
      *                         to let the data node fall back to the concrete shard index name
+     * @param requiresDeletedDocFiltering whether the data node must filter deleted docs when present
+     *                         (the delegated filter tree doesn't guarantee liveDocs coverage)
      */
     Optional<InstructionNode> createShardScanWithDelegationNode(
         FilterTreeShape treeShape,
         int delegatedPredicateCount,
         boolean requestsRowIds,
-        String logicalTableName
+        String logicalTableName,
+        boolean requiresDeletedDocFiltering
     );
 
     /** Creates a partial aggregate instruction node. */
