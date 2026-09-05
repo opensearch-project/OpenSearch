@@ -88,4 +88,31 @@ public class RequestUtilsTests extends OpenSearchTestCase {
         );
         assertEquals("X-Request-Id length [33] exceeds maximum allowed length [32]", exception.getMessage());
     }
+
+    public void testSanitizeHeaderValueNullReturnedUnchanged() {
+        assertNull(RequestUtils.sanitizeHeaderValue(null));
+    }
+
+    public void testSanitizeHeaderValueEmptyReturnedUnchanged() {
+        assertEquals("", RequestUtils.sanitizeHeaderValue(""));
+    }
+
+    public void testSanitizeHeaderValueWellFormedUnchanged() {
+        assertEquals("a1b2c3d4e5f67890abcdef1234567890", RequestUtils.sanitizeHeaderValue("a1b2c3d4e5f67890abcdef1234567890"));
+        assertEquals("a1b2c3d4-e5f6-7890-abcd-ef1234567890", RequestUtils.sanitizeHeaderValue("a1b2c3d4-e5f6-7890-abcd-ef1234567890"));
+        assertEquals("my-trace-id-123", RequestUtils.sanitizeHeaderValue("my-trace-id-123"));
+    }
+
+    public void testSanitizeHeaderValueStripsControlCharacters() {
+        // Control characters (newline, carriage return, tab, NUL) are removed.
+        assertEquals("abcdef", RequestUtils.sanitizeHeaderValue("abc\r\ndef"));
+        assertEquals("tabbed", RequestUtils.sanitizeHeaderValue("tab\tbed"));
+        assertEquals("nul", RequestUtils.sanitizeHeaderValue("n\u0000ul"));
+        // Spaces (0x20) are not control characters and are preserved.
+        assertEquals("has space", RequestUtils.sanitizeHeaderValue("has space\n"));
+    }
+
+    public void testSanitizeHeaderValueControlCharactersOnlyBecomesEmpty() {
+        assertEquals("", RequestUtils.sanitizeHeaderValue("\n\r\t"));
+    }
 }
