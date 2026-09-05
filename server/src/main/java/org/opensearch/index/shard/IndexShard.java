@@ -151,6 +151,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.LuceneReaderAccess;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
@@ -2684,6 +2685,54 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed();
         final Indexer indexer = getIndexer();
         return applyOnEngine(indexer, engine -> engine.acquireSearcher(source, scope, this::wrapSearcher));
+    }
+
+    /**
+     * Acquires a Lucene {@link Engine.Searcher} over a data-format engine's Lucene secondary copy
+     * (for example, a composite parquet+lucene index), for shard-level Lucene operations such as the
+     * Explain API. The returned searcher reads the Lucene secondary, not the primary format, so it
+     * answers "did this document match, and why" against the Lucene copy rather than reflecting the
+     * engine's actual (e.g. Parquet/DataFusion) execution.
+     *
+     * <p>Returns {@code null} for classic (Lucene-engine) shards — callers must use the normal
+     * {@link #acquireSearcher(String)} path there — and for data-format shards that expose no
+     * Lucene-backed secondary. The caller owns the returned searcher and must close it.
+     *
+     * @param source the source that caused this searcher to be acquired
+     * @return a searcher over the Lucene secondary, or {@code null} if not applicable
+     * @throws IOException if acquiring the underlying reader fails
+     */
+    @Nullable
+    public Engine.Searcher acquireDataFormatLuceneSearcher(String source) throws IOException {
+        final Indexer indexer = getIndexerOrNull();
+        if (indexer == null || indexer instanceof EngineBackedIndexer) {
+            return null;
+        }
+        readAllowed();
+        markSearcherAccessed();
+        final GatedCloseable<IndexReaderProvider.Reader> readerRef = indexer.acquireReader();
+        boolean success = false;
+        try {
+            final LuceneReaderAccess luceneReader = readerRef.get().luceneReader();
+            if (luceneReader == null || luceneReader.directoryReader() == null) {
+                return null;
+            }
+            final EngineConfig config = indexer.config();
+            final Engine.Searcher searcher = new Engine.Searcher(
+                source,
+                luceneReader.directoryReader(),
+                config.getSimilarity(),
+                config.getQueryCache(),
+                config.getQueryCachingPolicy(),
+                readerRef
+            );
+            success = true;
+            return searcher;
+        } finally {
+            if (success == false) {
+                readerRef.close();
+            }
+        }
     }
 
     /**
