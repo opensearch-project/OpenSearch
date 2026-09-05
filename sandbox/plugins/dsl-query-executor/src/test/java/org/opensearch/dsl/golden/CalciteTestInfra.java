@@ -128,6 +128,8 @@ public class CalciteTestInfra {
                 return SqlTypeName.DATE;
             case "TIMESTAMP":
                 return SqlTypeName.TIMESTAMP;
+            case "VARBINARY":
+                return SqlTypeName.VARBINARY;
             case "TIMESTAMP_NANOS":
                 return SqlTypeName.TIMESTAMP;
             default:
