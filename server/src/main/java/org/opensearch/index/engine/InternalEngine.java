@@ -174,10 +174,12 @@ public class InternalEngine extends Engine {
     private static final class UncommittedSegmentBytes {
         private final long bytes;
         private final long committedInfosGeneration;
+        private final long flushThresholdBytes;
 
-        private UncommittedSegmentBytes(long bytes, long committedInfosGeneration) {
+        private UncommittedSegmentBytes(long bytes, long committedInfosGeneration, long flushThresholdBytes) {
             this.bytes = bytes;
             this.committedInfosGeneration = committedInfosGeneration;
+            this.flushThresholdBytes = flushThresholdBytes;
         }
     }
 
@@ -1557,10 +1559,17 @@ public class InternalEngine extends Engine {
      * updates) of already committed segments. The value is stamped with the generation of the commit point it was
      * computed against, so a commit implicitly invalidates it.
      *
+     * The flush threshold is stamped in alongside the bytes rather than read from settings on the flush poll, so that
+     * the engine holds no opinion about how the index setting and its cluster fallback are resolved. A threshold change
+     * therefore takes effect from the next successful segments sync, which on an actively written shard is the next
+     * refresh; turning the condition off instead discards the accounting on that sync, see
+     * {@link #clearUncommittedSegmentBytes()}.
+     *
      * @param localSegmentsSizeMap post-refresh local segment file names mapped to their sizes in bytes
+     * @param flushThresholdBytes  uncommitted segment bytes at or above which to flush, resolved by the publisher
      */
     @Override
-    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap) {
+    public void updateUncommittedSegmentBytes(Map<String, Long> localSegmentsSizeMap, long flushThresholdBytes) {
         // the file set and the generation stamp are both taken from this single snapshot, so the published value is
         // always internally consistent. If a flush lands between this snapshot and the publish below, the stamp no
         // longer matches the new last commit and shouldFlushOnUncommittedSegmentBytes() rejects the value -- the
@@ -1584,31 +1593,47 @@ public class InternalEngine extends Engine {
                 bytes += file.getValue();
             }
         }
-        uncommittedSegmentBytes = new UncommittedSegmentBytes(bytes, committedInfos.getGeneration());
+        uncommittedSegmentBytes = new UncommittedSegmentBytes(bytes, committedInfos.getGeneration(), flushThresholdBytes);
     }
 
     /**
-     * Checks whether the uncommitted segment bytes published by the remote segment upload path breach
-     * {@link IndexSettings#INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING}. Only ever
-     * effective on remote-store shards since the accounting is only published there, and only when
-     * {@link IndexSettings#INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING} is enabled; the stamped
-     * commit generation must match the current last commit so that stale values (e.g. right after a flush, before the
-     * next successful segments sync) can never re-trigger a flush.
+     * Discards the published accounting, disarming the uncommitted-segment-bytes flush condition until the next
+     * publication. {@link #shouldFlushOnUncommittedSegmentBytes()} already treats an absent value as "do not flush", so
+     * nulling the field is all that is needed.
+     * <p>
+     * The publisher calls this on every segments sync while the condition is disabled, so the write is guarded: only the
+     * first such sync dirties the field, the rest are a single volatile read and nothing else. A plain guarded write
+     * rather than a compare-and-set is sufficient because the field is only ever written from the segments sync path,
+     * which is serialized per shard by the refresh listener's permit; and even a lost race here could only suppress a
+     * flush trigger until the next sync, never cause a spurious flush.
+     */
+    @Override
+    public void clearUncommittedSegmentBytes() {
+        // snapshot the volatile once, as shouldFlushOnUncommittedSegmentBytes() does
+        final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
+        if (current != null) {
+            uncommittedSegmentBytes = null;
+        }
+    }
+
+    /**
+     * Checks whether the uncommitted segment bytes published by the remote segment upload path breach the threshold
+     * that was published with them. Only ever effective on remote-store shards, since the accounting is only published
+     * there and only while the condition is enabled cluster-wide by
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}; the stamped commit generation must match the
+     * current last commit so that stale values (e.g. right after a flush, before the next successful segments sync)
+     * can never re-trigger a flush.
      */
     private boolean shouldFlushOnUncommittedSegmentBytes() {
         final UncommittedSegmentBytes current = this.uncommittedSegmentBytes;
         if (current == null) {
             return false;
         }
-        final IndexSettings indexSettings = config().getIndexSettings();
-        if (indexSettings.isFlushOnUncommittedSegmentsEnabled() == false) {
-            return false;
-        }
         // snapshot the volatile once so the null check and the generation comparison observe the same commit point
         final SegmentInfos committedInfos = this.lastCommittedSegmentInfos;
         // the threshold setting has a hard 1-byte minimum, so current.bytes >= threshold already implies bytes > 0
         return committedInfos != null
-            && current.bytes >= indexSettings.getFlushOnUncommittedSegmentsThresholdSize().getBytes()
+            && current.bytes >= current.flushThresholdBytes
             && current.committedInfosGeneration == committedInfos.getGeneration();
     }
 

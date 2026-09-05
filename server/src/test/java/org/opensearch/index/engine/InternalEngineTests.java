@@ -6814,9 +6814,9 @@ public class InternalEngineTests extends EngineTestCase {
 
     /**
      * Verifies the engine flush condition on uncommitted segment bytes published by the remote segment upload path:
-     * nothing triggers before a publication, the threshold defaults to {@code index.translog.flush_threshold_size}
-     * via setting fallback, dynamic threshold and enabled-flag updates take effect immediately without a republish,
-     * and a stale commit-generation stamp after a flush can never re-trigger a flush (no flush loop).
+     * nothing triggers before a publication, nothing triggers when the published bytes are below the published
+     * threshold, they do once the threshold published with them is low enough, and a stale commit-generation stamp
+     * after a flush can never re-trigger a flush (no flush loop).
      */
     public void testShouldPeriodicallyFlushOnUncommittedSegmentBytes() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
@@ -6831,41 +6831,47 @@ public class InternalEngineTests extends EngineTestCase {
                 localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
             }
         }
-        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap);
-        assertThat(
-            "Uncommitted bytes below the default threshold inherited from the translog flush threshold",
-            engine.shouldPeriodicallyFlush(),
-            equalTo(false)
-        );
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, Long.MAX_VALUE);
+        assertThat("Uncommitted bytes below the published threshold", engine.shouldPeriodicallyFlush(), equalTo(false));
 
-        final IndexSettings indexSettings = engine.config().getIndexSettings();
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder().put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
-        );
-        assertThat("Uncommitted bytes breach the lowered threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
-
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder()
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), false)
-        );
-        assertThat("Disabling the condition takes effect immediately", engine.shouldPeriodicallyFlush(), equalTo(false));
-
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder()
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED_SETTING.getKey(), true)
-        );
-        assertThat("Re-enabling restores the condition", engine.shouldPeriodicallyFlush(), equalTo(true));
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Uncommitted bytes breach the published threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
 
         engine.flush();
         assertThat("Stale commit generation stamp is ignored after flush", engine.shouldPeriodicallyFlush(), equalTo(false));
 
-        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap);
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
         assertThat("All published files are committed now", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    /**
+     * Verifies that discarding the published accounting disarms the condition, which is how the publisher stops flushes
+     * when {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} is turned off, instead of leaving an
+     * already-armed value to trigger a flush later.
+     */
+    public void testClearUncommittedSegmentBytesDisarmsFlushCondition() throws Exception {
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Published bytes breach the threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Discarding the accounting disarms the condition", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // and it stays disarmed without a commit having happened, i.e. no flush is needed to make it stick
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+        // the publisher calls this on every sync while disabled, so repeating it must be a harmless no-op
+        engine.clearUncommittedSegmentBytes();
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Repeated discards remain a no-op", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("A fresh publication re-arms it", engine.shouldPeriodicallyFlush(), equalTo(true));
     }
 
     /**
@@ -6902,24 +6908,10 @@ public class InternalEngineTests extends EngineTestCase {
         localSegmentsSizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
         assertThat("The workload must produce uncommitted segment files", uncommittedBytes, greaterThan(0L));
 
-        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap);
-
-        final IndexSettings indexSettings = engine.config().getIndexSettings();
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder()
-                .put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), uncommittedBytes + "b")
-        );
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes);
         assertThat("Exactly the uncommitted segment bytes are counted", engine.shouldPeriodicallyFlush(), equalTo(true));
 
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder()
-                .put(
-                    IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(),
-                    (uncommittedBytes + 1) + "b"
-                )
-        );
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes + 1);
         assertThat("Committed files and segments_N never contribute to the accounting", engine.shouldPeriodicallyFlush(), equalTo(false));
 
         final Map<String, Long> committedOnlySizeMap = new HashMap<>();
@@ -6927,11 +6919,7 @@ public class InternalEngineTests extends EngineTestCase {
             committedOnlySizeMap.put(file, engine.store.directory().fileLength(file));
         }
         committedOnlySizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
-        engine.updateUncommittedSegmentBytes(committedOnlySizeMap);
-        updateIndexSettings(
-            indexSettings,
-            Settings.builder().put(IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.getKey(), "1b")
-        );
+        engine.updateUncommittedSegmentBytes(committedOnlySizeMap, 1L);
         assertThat("Zero uncommitted bytes never trigger a flush", engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
