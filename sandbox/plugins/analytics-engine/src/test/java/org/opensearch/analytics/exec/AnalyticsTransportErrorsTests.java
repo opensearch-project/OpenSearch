@@ -165,4 +165,66 @@ public class AnalyticsTransportErrorsTests extends OpenSearchTestCase {
         );
         assertEquals("sbp cancel", recovered.getMessage());
     }
+
+    // ── BIGINT overflow (client 400) ──────────────────────────────────────
+
+    public void testToWireErrorTagsBigintOverflowAsInvalidArgument() {
+        // NativeErrorConverter turns the DataFusion overflow into this IllegalArgumentException.
+        IllegalArgumentException overflow = new IllegalArgumentException(
+            "BIGINT arithmetic overflow: multiplication of two BIGINT values exceeded the 64-bit range"
+        );
+
+        Exception wire = AnalyticsTransportErrors.toWireError(overflow);
+
+        assertTrue(wire instanceof StreamException);
+        assertEquals(StreamErrorCode.INVALID_ARGUMENT, ((StreamException) wire).getErrorCode());
+        assertTrue(wire.getMessage().contains("BIGINT arithmetic overflow"));
+    }
+
+    public void testToWireErrorFindsBigintOverflowInCauseChain() {
+        // The distributed-aggregate path wraps the failure: RuntimeException("Stage N failed", cause).
+        Exception wrapped = new RuntimeException(
+            "Stage 0 failed",
+            new IllegalArgumentException("BIGINT arithmetic overflow: addition of two BIGINT values exceeded the 64-bit range")
+        );
+
+        Exception wire = AnalyticsTransportErrors.toWireError(wrapped);
+
+        assertTrue(wire instanceof StreamException);
+        assertEquals(StreamErrorCode.INVALID_ARGUMENT, ((StreamException) wire).getErrorCode());
+    }
+
+    public void testFromWireErrorRebuildsBigintOverflowAs400() {
+        StreamException wire = new StreamException(StreamErrorCode.INVALID_ARGUMENT, "BIGINT arithmetic overflow: ...");
+
+        Exception recovered = AnalyticsTransportErrors.fromWireError(wire);
+
+        assertTrue(recovered instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.BAD_REQUEST, ((OpenSearchStatusException) recovered).status());
+        assertTrue(recovered.getMessage().contains("BIGINT arithmetic overflow"));
+    }
+
+    public void testFromWireErrorFindsInvalidArgumentInCauseChain() {
+        Exception wrapped = new RuntimeException(
+            "Stage 0 failed",
+            new StreamException(StreamErrorCode.INVALID_ARGUMENT, "BIGINT arithmetic overflow: ...")
+        );
+
+        Exception recovered = AnalyticsTransportErrors.fromWireError(wrapped);
+
+        assertTrue(recovered instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.BAD_REQUEST, ((OpenSearchStatusException) recovered).status());
+    }
+
+    public void testBigintOverflowSurvivesRoundTripAs400() {
+        IllegalArgumentException overflow = new IllegalArgumentException(
+            "BIGINT arithmetic overflow: multiplication of two BIGINT values exceeded the 64-bit range"
+        );
+
+        Exception onWire = AnalyticsTransportErrors.toWireError(overflow);
+        Exception recovered = AnalyticsTransportErrors.fromWireError(onWire);
+
+        assertTrue(recovered instanceof OpenSearchStatusException);
+        assertEquals(RestStatus.BAD_REQUEST, ((OpenSearchStatusException) recovered).status());
+    }
 }

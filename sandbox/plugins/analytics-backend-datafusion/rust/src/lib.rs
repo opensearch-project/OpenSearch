@@ -25,6 +25,7 @@ pub mod api;
 pub mod cache;
 pub mod can_match;
 pub mod cancellation;
+pub mod checked_arith_rewrite;
 pub mod cross_rt_stream;
 pub mod datafusion_query_config;
 pub mod executor;
