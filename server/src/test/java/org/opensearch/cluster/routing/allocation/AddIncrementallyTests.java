@@ -240,7 +240,7 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         final int existingNodeCount = 119;
         final int numberOfIndices = 300;
         final int shardsPerIndex = 100;
-        final String newNodeId = "nZKTfD_GQZeanFJ8-OEV-w";
+        final String newNodeId = randomAlphaOfLength(10);
 
         AllocationService initialAllocationService = createAllocationService(
             Settings.builder()
