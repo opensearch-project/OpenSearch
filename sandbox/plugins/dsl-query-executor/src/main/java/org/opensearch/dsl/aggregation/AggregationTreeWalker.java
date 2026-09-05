@@ -14,6 +14,7 @@ import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
 import org.opensearch.dsl.aggregation.bucket.SizedBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 
 import java.util.ArrayList;
@@ -45,8 +46,8 @@ public class AggregationTreeWalker {
         this.registry = registry;
     }
 
-    /** One step of the accumulated nesting path: the aggregation name and its grouping. */
-    private record PathStep(String aggName, GroupingInfo grouping) {
+    /** One step of the accumulated nesting path: the aggregation name, its grouping, and an optional filter. */
+    private record PathStep(String aggName, GroupingInfo grouping, QueryBuilder filterQuery) {
     }
 
     /**
@@ -107,13 +108,15 @@ public class AggregationTreeWalker {
         RelDataType rowType
     ) throws ConversionException {
         GroupingInfo grouping = translator.getGrouping(aggBuilder);
+        QueryBuilder stepFilter = translator.getFilterQuery(aggBuilder).orElse(null);
 
         List<PathStep> accumulatedPath = new ArrayList<>(currentPath);
-        accumulatedPath.add(new PathStep(aggBuilder.getName(), grouping));
+        accumulatedPath.add(new PathStep(aggBuilder.getName(), grouping, stepFilter));
 
         // Every bucket aggregation defines its own plan; sibling names are unique by DSL
         // contract, so the path key cannot collide with another plan's.
         AggregationMetadataBuilder builder = getOrCreateBuilder(accumulatedPath, plans);
+        translator.getFilterQuery(aggBuilder).ifPresent(builder::setFilterQuery);
         if (translator instanceof SizedBucketTranslator<AggregationBuilder> sized) {
             builder.setBucketDefinition(translator.getBucketOrder(aggBuilder), sized.size(aggBuilder), sized.minDocCount(aggBuilder));
         } else {
@@ -148,8 +151,18 @@ public class AggregationTreeWalker {
 
         List<String> aggNamePath = path.stream().map(PathStep::aggName).toList();
         AggregationMetadataBuilder builder = new AggregationMetadataBuilder(aggNamePath);
-        for (PathStep step : path) {
+        int definingIndex = path.size() - 1;
+        for (int i = 0; i < path.size(); i++) {
+            PathStep step = path.get(i);
             builder.addGrouping(step.grouping());
+            // The last path step is the defining aggregation itself; its own filter is captured
+            // separately via setFilterQuery, so only genuine ancestors (steps above it)
+            // contribute ancestor filters. Excluding the own filter here — rather than
+            // deduplicating downstream by name — keeps a descendant that legally reuses an
+            // ancestor's name from dropping that same-named ancestor's predicate.
+            if (i != definingIndex && step.filterQuery() != null) {
+                builder.addAncestorFilter(step.aggName(), step.filterQuery());
+            }
         }
         if (!path.isEmpty()) {
             builder.requestImplicitCount();

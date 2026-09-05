@@ -17,6 +17,19 @@ import java.util.Map;
  * <p>Each golden file encodes a complete test scenario: the input DSL, expected
  * RelNode plan, simulated execution rows, and expected output DSL. The
  * {@code indexMapping} field allows schema construction without a live cluster.
+ *
+ * <p><b>Harness limitation:</b> the response driver supplies mock rows to only the FIRST
+ * matching plan of the declared type. Fixtures whose input DSL produces multiple aggregation
+ * plans (e.g. sibling filter aggs, or a bucket sub-agg under a filter) must omit
+ * {@code expectedOutputDsl} — they prove plan shape only, not counting correctness.
+ * Use hand-authored multi-plan tests for sub-aggregation scoping coverage.
+ *
+ * <p><b>Explicit opt-out ({@code planShapeOnly}):</b> when a fixture legitimately cannot
+ * provide {@code expectedOutputDsl} (because its multi-plan structure prevents a single
+ * mock-row array from covering all plans), it MUST set {@code "planShapeOnly": true} in the
+ * JSON. The loader rejects any fixture that omits {@code expectedOutputDsl} without this
+ * flag — this prevents accidental loss of response assertion coverage. Conversely, setting
+ * the flag while also providing {@code expectedOutputDsl} is contradictory and also rejected.
  */
 public class GoldenTestCase {
 
@@ -31,6 +44,7 @@ public class GoldenTestCase {
     private Map<String, Object> mockCountRow;
     private Map<String, Object> expectedOutputDsl;
     private String planType;
+    private boolean planShapeOnly;
 
     public String getTestName() {
         return testName;
@@ -115,6 +129,20 @@ public class GoldenTestCase {
 
     public void setPlanType(String planType) {
         this.planType = planType;
+    }
+
+    /**
+     * Returns {@code true} when this fixture intentionally omits {@code expectedOutputDsl}
+     * because its multi-plan structure cannot be exercised by the single-plan response driver.
+     * The loader rejects any fixture that omits {@code expectedOutputDsl} without setting this
+     * flag, preventing silent loss of response assertion coverage.
+     */
+    public boolean isPlanShapeOnly() {
+        return planShapeOnly;
+    }
+
+    public void setPlanShapeOnly(boolean planShapeOnly) {
+        this.planShapeOnly = planShapeOnly;
     }
 
     @Override

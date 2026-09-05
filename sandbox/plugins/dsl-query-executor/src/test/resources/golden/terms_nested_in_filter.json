@@ -1,0 +1,43 @@
+{
+  "testName": "terms_nested_in_filter",
+  "indexName": "test-index",
+  "planShapeOnly": true,
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "active_only": {
+        "filter": {
+          "term": {
+            "status": "active"
+          }
+        },
+        "aggregations": {
+          "by_brand": {
+            "terms": {
+              "field": "brand"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], _count=[COUNT()])",
+    "  LogicalFilter(condition=[=($3, CAST('active':VARCHAR):VARCHAR)])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["_count"],
+  "mockResultRows": [
+    [3]
+  ],
+  "mockCountRow": {
+    "_total": 5
+  }
+}
