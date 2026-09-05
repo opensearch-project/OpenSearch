@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -233,6 +234,55 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         assertThat(newState, equalTo(clusterState));
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
+    }
+
+    public void testThrottledRebalanceDoesNotRelocateAwayFromNewNode() {
+        final int existingNodeCount = 119;
+        final int numberOfIndices = 300;
+        final int shardsPerIndex = 100;
+        final String newNodeId = randomAlphaOfLength(10);
+
+        AllocationService initialAllocationService = createAllocationService(
+            Settings.builder()
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 1000)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1000)
+                .build()
+        );
+        ClusterState clusterState = initCluster(initialAllocationService, existingNodeCount, numberOfIndices, shardsPerIndex, 0);
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(newNode(newNodeId)).build();
+        clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
+
+        AllocationService throttledAllocationService = createAllocationService(
+            Settings.builder()
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 4)
+                .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", 2)
+                .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 2)
+                .build()
+        );
+        clusterState = throttledAllocationService.reroute(clusterState, "add throttled node");
+
+        for (int round = 0; round <= 50; round++) {
+            RoutingNode newNode = clusterState.getRoutingNodes().node(newNodeId);
+            int incomingShards = newNode.numberOfShardsWithState(INITIALIZING);
+            int outgoingShards = newNode.numberOfShardsWithState(RELOCATING);
+            logger.info(
+                "new node after reroute round [{}]: owning_shards=[{}], started_shards=[{}], "
+                    + "incoming_shards=[{}], outgoing_shards=[{}]",
+                round,
+                newNode.numberOfOwningShards(),
+                newNode.numberOfShardsWithState(STARTED),
+                incomingShards,
+                outgoingShards
+            );
+
+            assertThat(incomingShards, equalTo(2));
+            assertThat("underweight node relocated shards out after reroute round [" + round + "]", outgoingShards, equalTo(0));
+            clusterState = startInitializingShardsAndReroute(throttledAllocationService, clusterState);
+        }
     }
 
     private void assertNumIndexShardsPerNode(ClusterState state, Matcher<Integer> matcher) {
