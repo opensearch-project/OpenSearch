@@ -19,11 +19,25 @@ package org.opensearch.analytics.backend;
  * @param hasPartialAggregate      whether this fragment performs partial aggregation
  * @param taskId                   the task ID for correlation with _tasks API
  * @param opaqueId                 the X-Opaque-Id header for correlation with the client request (nullable)
+ * @param metricsJson              DataFusion execution metrics as JSON bytes (nullable; populated only for slow fragments)
  *
  * @opensearch.internal
  */
 public record FragmentExecutionStats(long rowsProduced, boolean usedSecondaryIndex, int delegatedPredicateCount, String filterTreeShape,
-    boolean hasPartialAggregate, long taskId, String opaqueId) {
+    boolean hasPartialAggregate, long taskId, String opaqueId, byte[] metricsJson) {
 
-    public static final FragmentExecutionStats EMPTY = new FragmentExecutionStats(0, false, 0, null, false, -1, null);
+    /** Backwards-compatible constructor without metricsJson. */
+    public FragmentExecutionStats(
+        long rowsProduced,
+        boolean usedSecondaryIndex,
+        int delegatedPredicateCount,
+        String filterTreeShape,
+        boolean hasPartialAggregate,
+        long taskId,
+        String opaqueId
+    ) {
+        this(rowsProduced, usedSecondaryIndex, delegatedPredicateCount, filterTreeShape, hasPartialAggregate, taskId, opaqueId, null);
+    }
+
+    public static final FragmentExecutionStats EMPTY = new FragmentExecutionStats(0, false, 0, null, false, -1, null, null);
 }
