@@ -416,7 +416,19 @@ public final class ParquetSettings {
     /** Set of ArrowType classes that do NOT support dictionary encoding. */
     private static final Set<Class<? extends ArrowType>> DICTIONARY_INCOMPATIBLE_TYPES = Set.of(ArrowType.Bool.class);
 
-    /** Maps arrow type name strings to representative ArrowType instances for compatibility checks. */
+    /**
+     * Maps arrow type name strings to representative ArrowType instances for compatibility checks.
+     *
+     * <p>TODO: add {@code Struct} so OpenSearch {@code object} fields can be written as native
+     * Parquet structs instead of flat dotted leaf columns. A struct yields the same leaf column
+     * chunks we already write, so pruning and encoding are unchanged — but the reader could then
+     * hand the object back assembled, removing the need to reassemble it at query time (see
+     * {@code ObjectStructMaterializer}, which documents the full search-side impact). Also needs the
+     * merge path to recurse into struct children: {@code build_parquet_root_schema} unions segment
+     * schemas by top-level name only, and {@code ColumnMapping} null-fills a whole missing column but
+     * never a missing struct child, so a struct gaining a sub-field between segments fails the merge.
+     * {@code List} is the same gap for {@code nested}.
+     */
     public static final Map<String, ArrowType> ARROW_TYPE_NAME_TO_INSTANCE = Map.ofEntries(
         Map.entry("int8", new ArrowType.Int(8, true)),
         Map.entry("int16", new ArrowType.Int(16, true)),

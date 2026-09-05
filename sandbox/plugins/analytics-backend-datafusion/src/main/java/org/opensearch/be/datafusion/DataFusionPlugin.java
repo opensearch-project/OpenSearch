@@ -738,6 +738,7 @@ public class DataFusionPlugin extends Plugin
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
+            SimpleExtension.ExtensionCollection structExtensions = SimpleExtension.load(List.of("/opensearch_struct_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
             SimpleExtension.ExtensionCollection windowExtensions = SimpleExtension.load(List.of("/opensearch_window_functions.yaml"));
             SimpleExtension.ExtensionCollection arithmeticOverloads = SimpleExtension.load(
@@ -746,6 +747,7 @@ public class DataFusionPlugin extends Plugin
             return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
+                .merge(structExtensions)
                 .merge(aggregateExtensions)
                 .merge(windowExtensions)
                 .merge(arithmeticOverloads);

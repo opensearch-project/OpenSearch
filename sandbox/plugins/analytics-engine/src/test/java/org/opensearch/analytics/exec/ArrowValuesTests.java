@@ -29,6 +29,7 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -326,6 +327,102 @@ public class ArrowValuesTests extends OpenSearchTestCase {
             assertEquals("alice", out.get("name"));
             assertEquals(30L, out.get("age"));
             assertFalse(out.containsKey("missing"));
+        }
+    }
+
+    // ── struct cells: sparse like _source, and formatted at any depth ──────────────────
+    //
+    // getObject already skips null children, so the first test guards behaviour we inherit rather
+    // than behaviour structToMap adds. The other three fail without it: getObject returns {} for an
+    // all-absent struct instead of null, and hands back child values stripped of the Field needed
+    // to format a nested temporal.
+
+    /** An absent leaf is omitted; a leaf genuinely holding "" is kept. Inherited from getObject. */
+    public void testStructOmitsAbsentLeafButKeepsEmptyString() {
+        try (StructVector sv = StructVector.empty("obj", allocator)) {
+            VarCharVector present = sv.addOrGet("present", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            VarCharVector empty = sv.addOrGet("empty", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            VarCharVector absent = sv.addOrGet("absent", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            sv.allocateNew();
+            present.setSafe(0, "v".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            empty.setSafe(0, new byte[0]);
+            absent.setNull(0);
+            sv.setIndexDefined(0);
+            sv.setValueCount(1);
+            present.setValueCount(1);
+            empty.setValueCount(1);
+            absent.setValueCount(1);
+
+            Object value = ArrowValues.toJavaValue(sv, 0);
+
+            assertEquals(Map.of("present", "v", "empty", ""), value);
+        }
+    }
+
+    /** A struct with nothing populated is null, not an empty map — matches vanilla. */
+    public void testStructWithNothingPopulatedIsNull() {
+        try (StructVector sv = StructVector.empty("obj", allocator)) {
+            VarCharVector a = sv.addOrGet("a", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            VarCharVector b = sv.addOrGet("b", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            sv.allocateNew();
+            a.setNull(0);
+            b.setNull(0);
+            sv.setIndexDefined(0);
+            sv.setValueCount(1);
+            a.setValueCount(1);
+            b.setValueCount(1);
+
+            assertNull(ArrowValues.toJavaValue(sv, 0));
+        }
+    }
+
+    /** An empty sub-object is dropped by its parent rather than appearing as {} or null. */
+    public void testEmptySubObjectIsOmittedFromParent() {
+        try (StructVector parent = StructVector.empty("parent", allocator)) {
+            VarCharVector kept = parent.addOrGet("kept", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            StructVector child = parent.addOrGetStruct("child");
+            VarCharVector grandchild = child.addOrGet("g", FieldType.nullable(new ArrowType.Utf8()), VarCharVector.class);
+            parent.allocateNew();
+            kept.setSafe(0, "x".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            grandchild.setNull(0);
+            child.setIndexDefined(0);
+            parent.setIndexDefined(0);
+            parent.setValueCount(1);
+            kept.setValueCount(1);
+            child.setValueCount(1);
+            grandchild.setValueCount(1);
+
+            assertEquals(Map.of("kept", "x"), ArrowValues.toJavaValue(parent, 0));
+        }
+    }
+
+    /**
+     * A nested timestamp is formatted the same as a top-level one. Reading child values out of
+     * {@code getObject} would return the raw epoch instead, because the values arrive stripped of
+     * the Field that says how to format them.
+     */
+    public void testNestedTimestampIsFormattedLikeTopLevel() {
+        try (StructVector sv = StructVector.empty("obj", allocator)) {
+            TimeStampMilliVector ts = sv.addOrGet(
+                "at",
+                FieldType.nullable(new ArrowType.Timestamp(TimeUnit.MILLISECOND, null)),
+                TimeStampMilliVector.class
+            );
+            sv.allocateNew();
+            ts.setSafe(0, 1_700_000_000_000L);
+            sv.setIndexDefined(0);
+            sv.setValueCount(1);
+            ts.setValueCount(1);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> out = (Map<String, Object>) ArrowValues.toJavaValue(sv, 0);
+
+            try (TimeStampMilliVector standalone = new TimeStampMilliVector("at", allocator)) {
+                standalone.allocateNew(1);
+                standalone.setSafe(0, 1_700_000_000_000L);
+                standalone.setValueCount(1);
+                assertEquals(ArrowValues.toJavaValue(standalone, 0), out.get("at"));
+            }
         }
     }
 }

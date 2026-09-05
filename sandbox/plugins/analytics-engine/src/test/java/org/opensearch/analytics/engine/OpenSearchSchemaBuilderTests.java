@@ -120,7 +120,8 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     /**
      * Test that nested/object fields are skipped.
      */
-    public void testNestedAndObjectFieldsSkipped() throws Exception {
+    /** {@code nested} is skipped; a shapeless {@code object} stays addressable (always null). */
+    public void testNestedSkippedAndShapelessObjectAddressable() throws Exception {
         ClusterState clusterState = buildClusterState(
             Map.of("nested_index", Map.of("name", "keyword", "address", "object", "tags", "nested"))
         );
@@ -131,8 +132,10 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNotNull(table);
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
-        assertEquals("Should only have 'name' field, skipping object/nested", 1, rowType.getFieldCount());
+        assertEquals("name plus the shapeless object; nested is skipped", 2, rowType.getFieldCount());
         assertFieldType(rowType, "name", SqlTypeName.VARCHAR);
+        assertNotNull("shapeless object is addressable", rowType.getField("address", true, false));
+        assertNull("nested stays unsupported", rowType.getField("tags", true, false));
     }
 
     /**
@@ -259,10 +262,22 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNotNull(table);
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
-        assertEquals("Only 2 supported nested leaves should remain", 2, rowType.getFieldCount());
+        // 2 supported leaves + the struct-typed `customer` parent column (the object itself is
+        // now addressable; ObjectStructMaterializer assembles it from these leaves).
+        assertEquals("2 supported nested leaves plus the object parent", 3, rowType.getFieldCount());
         assertFieldType(rowType, "customer.id", SqlTypeName.VARCHAR);
         assertFieldType(rowType, "customer.age", SqlTypeName.INTEGER);
         assertNull("nested geo_point leaf must be dropped", rowType.getField("customer.home", true, false));
+
+        // The unsupported sub-field is dropped from the struct too, for the same reason it is
+        // dropped from the flat columns.
+        RelDataTypeField parent = rowType.getField("customer", true, false);
+        assertNotNull("object parent must be exposed as a column", parent);
+        assertEquals(SqlTypeName.ROW, parent.getType().getSqlTypeName());
+        assertEquals("struct carries only the supported sub-fields", 2, parent.getType().getFieldCount());
+        assertNotNull(parent.getType().getField("id", true, false));
+        assertNotNull(parent.getType().getField("age", true, false));
+        assertNull("geo_point sub-field must be dropped from the struct", parent.getType().getField("home", true, false));
     }
 
     /**
@@ -856,5 +871,57 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * A bare {@code {"type": "object"}} with no {@code properties} — what dynamic mapping leaves
+     * behind before any document populates the object. Nothing is known about its shape, so it gets
+     * a field-less ROW: addressable, and always resolving to null. Matches vanilla, measured on a
+     * lucene-only 3.8.0 cluster — {@code fields attrs} there gives schema {@code [(attrs, struct)]}
+     * with row {@code [null]}, and the field appears under {@code *} too.
+     */
+    public void testBareObjectWithoutPropertiesIsAddressableAndEmpty() throws Exception {
+        String mapping = "{\"properties\":{" + "\"id\":{\"type\":\"keyword\"}," + "\"attrs\":{\"type\":\"object\"}" + "}}";
+        ClusterState clusterState = buildClusterStateRaw("bare_object", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("bare_object").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataTypeField attrs = rowType.getField("attrs", true, false);
+        assertNotNull("a shapeless object must stay addressable", attrs);
+        assertTrue("must be a struct type", attrs.getType().isStruct());
+        assertEquals("with no fields, since its shape is unknown", 0, attrs.getType().getFieldCount());
+        assertTrue("nullable, since it always resolves to null", attrs.getType().isNullable());
+        assertFieldType(rowType, "id", SqlTypeName.VARCHAR);
+    }
+
+    /**
+     * Same one level down, and the asymmetry that matches vanilla: {@code outer.shapeless} is
+     * addressable and null, while {@code outer}'s own struct type does <em>not</em> carry it — so
+     * {@code fields outer} returns {@code {name: x}} and {@code fields outer.shapeless} returns
+     * null, exactly as measured against vanilla.
+     */
+    public void testNestedBareObjectIsAddressableButAbsentFromParentStruct() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"outer\":{\"properties\":{"
+            + "\"name\":{\"type\":\"keyword\"},"
+            + "\"shapeless\":{\"type\":\"object\"}"
+            + "}}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("bare_nested", mapping);
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(clusterState);
+        RelDataType rowType = schema.getTable("bare_nested").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+
+        RelDataTypeField shapeless = rowType.getField("outer.shapeless", true, false);
+        assertNotNull("nested shapeless object must stay addressable", shapeless);
+        assertEquals(0, shapeless.getType().getFieldCount());
+        assertFieldType(rowType, "outer.name", SqlTypeName.VARCHAR);
+
+        RelDataTypeField outer = rowType.getField("outer", true, false);
+        assertNotNull(outer);
+        assertEquals("parent's struct carries only the resolvable leaf", 1, outer.getType().getFieldCount());
+        assertNotNull(outer.getType().getField("name", true, false));
+        assertNull("shapeless child is not part of the parent struct", outer.getType().getField("shapeless", true, false));
     }
 }

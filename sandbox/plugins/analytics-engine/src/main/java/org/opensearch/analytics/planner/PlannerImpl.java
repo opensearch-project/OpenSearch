@@ -128,6 +128,8 @@ public class PlannerImpl {
 
         RelNode modifiedRelNode = rawRelNode;
         modifiedRelNode = removeSubQueries(modifiedRelNode, listener);
+        // Must run before trimFields — see ObjectStructMaterializer.
+        modifiedRelNode = ObjectStructMaterializer.rewrite(modifiedRelNode).orElse(modifiedRelNode);
         modifiedRelNode = trimFields(modifiedRelNode);
         modifiedRelNode = extractLiteralAgg(modifiedRelNode, listener);
         modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
