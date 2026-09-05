@@ -12,26 +12,42 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import java.io.FileOutputStream;
+import java.io.FilePermission;
+import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.UUID;
 
+import org.xml.sax.InputSource;
+
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("removal")
 public class FileInterceptorNegativeIntegTests {
+    private static DocumentBuilderFactory documentBuilderFactory;
+
     private static Path getTestDir() {
         Path baseDir = Path.of(System.getProperty("user.dir"));
         Path integTestFiles = baseDir.resolve("integ-test-files").normalize();
         return integTestFiles;
+    }
+
+    private static String getJacocoDirPermissionPath() {
+        return Path.of(System.getProperty("user.dir")).resolve("../../jacoco").normalize() + "/-";
     }
 
     private String randomAlphaOfLength(int length) {
@@ -41,11 +57,26 @@ public class FileInterceptorNegativeIntegTests {
 
     @BeforeClass
     public static void setUp() throws Exception {
+        documentBuilderFactory = DocumentBuilderFactory.newInstance();
+        documentBuilderFactory.setExpandEntityReferences(true);
+
         Policy policy = new Policy() {
             @Override
             public PermissionCollection getPermissions(ProtectionDomain domain) {
                 Permissions permissions = new Permissions();
+                permissions.add(new FilePermission(getJacocoDirPermissionPath(), "write"));
                 return permissions;
+            }
+
+            @Override
+            public boolean implies(ProtectionDomain domain, Permission permission) {
+                final PermissionCollection pc = getPermissions(domain);
+
+                if (pc == null) {
+                    return false;
+                }
+
+                return pc.implies(permission);
             }
         };
         AgentPolicy.setPolicy(policy);
@@ -153,5 +184,39 @@ public class FileInterceptorNegativeIntegTests {
         // Verify error when calling newOutputStream
         SecurityException exception = assertThrows(SecurityException.class, () -> Files.newOutputStream(tempPath));
         assertTrue(exception.getMessage().contains("Denied OPEN (read/write) access to file"));
+    }
+
+    @Test
+    public void testFileOutputStream() throws Exception {
+        Path tmpDir = getTestDir();
+        Path tempPath = tmpDir.resolve("test-output-stream-" + randomAlphaOfLength(8) + ".txt");
+
+        // Verify error when opening legacy output stream
+        SecurityException exception = assertThrows(SecurityException.class, () -> new FileOutputStream(tempPath.toFile()));
+        assertTrue(exception.getMessage().contains("Denied WRITE access to file"));
+    }
+
+    @Test
+    public void testFileUrlOpenStream() {
+        Path unauthorizedFile = Path.of(System.getProperty("java.home"), "release");
+        assertTrue("JDK release metadata should exist", unauthorizedFile.toFile().isFile());
+
+        SecurityException exception = assertThrows(SecurityException.class, () -> {
+            try (InputStream ignored = unauthorizedFile.toUri().toURL().openStream()) {
+                // Opening the stream is sufficient to exercise FileInputStream.
+            }
+        });
+        assertTrue(exception.getMessage().contains("Denied READ access to file"));
+    }
+
+    @Test
+    public void testXmlExternalEntityFileRead() throws Exception {
+        DocumentBuilder builder = documentBuilderFactory.newDocumentBuilder();
+        Path unauthorizedFile = Path.of(System.getProperty("java.home"), "release");
+        assertTrue("JDK release metadata should exist", unauthorizedFile.toFile().isFile());
+        String xml = "<!DOCTYPE root [<!ENTITY xxe SYSTEM \"" + unauthorizedFile.toUri() + "\">]><root>&xxe;</root>";
+
+        SecurityException exception = assertThrows(SecurityException.class, () -> builder.parse(new InputSource(new StringReader(xml))));
+        assertTrue(exception.getMessage().contains("Denied READ access to file"));
     }
 }
