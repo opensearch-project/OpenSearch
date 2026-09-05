@@ -419,6 +419,53 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
     }
 
+    public void testSkipsMetadataUploadWhenPublishedStateIsUnchanged() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertEquals(metadataFileCount, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
+    public void testUploadsMetadataWhenTranslogGenerationChanges() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+        int segmentFileCount = remoteDirectory.getSegmentsUploadedToRemoteStoreSize();
+
+        indexShard.rollTranslogGeneration();
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertEquals(segmentFileCount, remoteDirectory.getSegmentsUploadedToRemoteStoreSize());
+        assertEquals(metadataFileCount + 1, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
+    public void testUploadsMetadataWhenExistingSegmentIsReuploaded() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+        String fileToReupload = remoteDirectory.getSegmentsUploadedToRemoteStore()
+            .keySet()
+            .stream()
+            .filter(file -> RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false)
+            .findFirst()
+            .orElseThrow();
+
+        remoteDirectory.deleteFile(fileToReupload);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertTrue(remoteDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileToReupload));
+        assertEquals(metadataFileCount + 1, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
     public void testAfterMultipleCommits() throws IOException {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
@@ -989,6 +1036,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }
         }
         assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteSegmentStoreDirectory() {
+        return (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+            .getDelegate();
     }
 
     public void testRemoteSegmentStoreNotInSync() throws IOException {
