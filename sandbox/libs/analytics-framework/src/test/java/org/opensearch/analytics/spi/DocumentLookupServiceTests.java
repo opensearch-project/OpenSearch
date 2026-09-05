@@ -26,10 +26,13 @@ import java.util.Map;
 
 import org.mockito.ArgumentCaptor;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -219,6 +222,38 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         assertEquals(Versions.NOT_FOUND, result.version());
         assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, result.seqNo());
         assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, result.primaryTerm());
+    }
+
+    public void testGetVersionMetadata_servedFromResolverWithoutReadingRow() throws Exception {
+        when(resolver.resolveMetadata(reader, "doc1")).thenReturn(
+            new DocumentMetadataResolver.DocumentMetadata("doc1", 0L, 7L, 5L, 42L, 2L)
+        );
+
+        DocumentLookupResult result = service.getVersionMetadata("doc1", reader, INDEX);
+
+        assertTrue(result.exists());
+        assertEquals(5L, result.version());
+        assertEquals(42L, result.seqNo());
+        assertEquals(2L, result.primaryTerm());
+        assertNull(result.source());
+
+        verify(executor, never()).executeSingleRow(anyLong(), any());
+        verify(snapshot, never()).findFileSet(any(), anyLong());
+    }
+
+    public void testGetVersionMetadata_fallsBackToRowWhenResolverReportsPartialMetadata() throws Exception {
+        when(resolver.resolveMetadata(reader, "doc1")).thenReturn(
+            new DocumentMetadataResolver.DocumentMetadata("doc1", 0L, 7L, 5L, DocumentMetadataResolver.UNSET, 2L)
+        );
+        WriterFileSet fs = fileSet(7L, "0.parquet");
+        when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
+        when(executor.executeSingleRow(0L, fs)).thenReturn(row("_seq_no", 42L, "_primary_term", 2L, "_version", 5L));
+
+        DocumentLookupResult result = service.getVersionMetadata("doc1", reader, INDEX);
+
+        assertTrue(result.exists());
+        assertEquals(42L, result.seqNo());
+        verify(executor).executeSingleRow(0L, fs);
     }
 
     // ---- getDocsAboveSeqNo --------------------------------------------------

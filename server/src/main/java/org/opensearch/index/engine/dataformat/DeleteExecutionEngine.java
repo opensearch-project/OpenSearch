@@ -12,17 +12,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.LongFunction;
 
 /**
- * Engine for executing delete operations for a specific data format.
- * Each deleter is paired with a writer and shares its generation, enabling
- * format-specific delete tracking (e.g., live-doc bitsets for Parquet files).
- *
- * <p>A single universal implementation handles all data formats by internally
- * using a {@code LuceneIndexingExecutionEngine} + {@code LuceneCommitter} for
- * durable delete tracking. The engine decides at runtime whether to create its
- * own Lucene infrastructure (Parquet-only) or reuse an existing one (composite/Lucene).
+ * Coordinates per-generation delete tracking for a data format.
  *
  * @param <T> the data format type
  * @opensearch.experimental
@@ -31,22 +23,19 @@ import java.util.function.LongFunction;
 public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
 
     /**
-     * Creates a new deleter paired with the given writer.
-     * The deleter tracks deletes for documents managed by this writer.
+     * Creates delete state for a writer generation.
      *
-     * @param writer the writer this deleter is paired with
-     * @return a new deleter instance
+     * @param writer the paired writer
+     * @return the deleter, or {@code null} when the writer has no delete-capable format
      */
     Deleter createDeleter(Writer<?> writer);
 
     /**
-     * Refreshes delete state, making buffered deletes visible to readers.
-     * For Parquet-only format, this incorporates per-gen Lucene segments into
-     * the parent writer and builds delete bitmaps.
+     * Makes buffered deletes visible to readers.
      *
-     * @param refreshInput the refresh configuration
-     * @return the result of the refresh operation
-     * @throws IOException if an I/O error occurs during refresh
+     * @param refreshInput the refresh context
+     * @return the refresh result
+     * @throws IOException if refresh fails
      */
     RefreshResult refresh(RefreshInput refreshInput) throws IOException;
 
@@ -58,27 +47,42 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
     T getDataFormat();
 
     /**
-     * Deletes a document by looking up the deleter for the generation specified
-     * in the input and delegating the delete operation.
+     * Records a delete against the requested generation.
      *
-     * @param deleteInput the input containing field name, term, and generation
-     * @return the result of the delete operation
-     * @throws IOException if an I/O error occurs during deletion
+     * @param deleteInput the document and generation
+     * @param writer      the locked current writer used to determine delete capability
+     * @return the delete result
+     * @throws IOException if deletion fails
      */
-    DeleteResult deleteDocument(DeleteInput deleteInput, LongFunction<Closeable> writerByGenSupplier) throws IOException;
-
-    void recordWrite(String id, long generation);
+    DeleteResult deleteDocument(DeleteInput deleteInput, Writer<?> writer) throws IOException;
 
     /**
-     * Called by the writer pool when a writer is permanently removed from the pool.
-     * Atomically:
-     *   - drops idToGen entries pointing at this generation,
-     *   - removes the deleter from the active map,
-     *   - deactivates the deleter (under its write lock; waits for in-flight deleteDoc to drain),
-     *   - applies the drained buffered deletes to the parent writer.
+     * Records that document {@code id} now lives at {@code rowId} within the active writer
+     * {@code generation}. The rowId is the insertion position (0-based) within that
+     * generation's segment.
      *
-     * After this returns, no future deleteDocument call can record buffered deletes on or
-     * apply deleteDoc to this generation.
+     * @param id         the document id
+     * @param generation the writer generation the document was written to
+     * @param rowId      the insertion row id within that generation
+     */
+    void recordWrite(String id, long generation, long rowId);
+
+    /**
+     * Retires a writer generation, removes its document locations, and applies its buffered IDs to the
+     * parent writer.
+     *
+     * @param generation the retired writer generation
+     * @return {@code true} if buffered deletes were applied
+     * @throws IOException if applying deletes fails
      */
     boolean onWriterCheckedOut(long generation) throws IOException;
+
+    /**
+     * Returns estimated heap used by in-memory delete tracking.
+     *
+     * @return estimated bytes, or 0 when no state is tracked
+     */
+    default long ramBytesUsed() {
+        return 0L;
+    }
 }

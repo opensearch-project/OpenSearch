@@ -13,11 +13,14 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.Bits;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -110,6 +113,89 @@ public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
                     long rowIdValue = rowIdDV.nextValue();
                     assertThat("Doc at position " + docId + " should have sequential row_id " + docId, rowIdValue, equalTo((long) docId));
                 }
+            }
+        }
+    }
+
+    /**
+     * Two-phase sorted flush with a positional delete (same-generation create→update): 3 docs, a
+     * positional delete of insertion row id 1, flushed with permutation (0→2, 1→0, 2→1). The row is
+     * retained (maxDoc == 3, 1:1 with parquet) and hidden via {@code .liv} (numDocs == 2); the hidden
+     * doc is the one from insertion row id 1 (marker 100) at post-reorder position 0, and
+     * {@code __row_id__} stays sequential.
+     */
+    public void testSortedFlushWithPositionalDeleteRetainsRowAndMarksDeleted() throws IOException {
+        Path baseDir = createTempDir();
+        int numDocs = 3;
+        MappedFieldType textField = mockTextField("content");
+
+        // Permutation: insertion row id 1 (v_old) maps to post-reorder position 0.
+        long[] oldRowIds = { 0, 1, 2 };
+        long[] newRowIds = { 2, 0, 1 };
+        FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
+
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                1L,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                input.getFinalInput().add(new SortedNumericDocValuesField("marker", i * 100L));
+                writer.addDoc(input);
+            }
+
+            // Same-generation update: the prior version was inserted at row id 1. Defer its
+            // liveDocs-only delete to this flush (phase 2), retaining the row through the reorder.
+            writer.recordPositionalDelete(1L);
+
+            FileInfos fileInfos = writer.flush(sortedFlushInput);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            // All rows retained (aligned with parquet), and a .liv was produced and cataloged.
+            assertThat(wfs.numRows(), equalTo((long) numDocs));
+            assertTrue(
+                "flush must produce a .liv (liveDocs) file for the deferred positional delete",
+                wfs.files().stream().anyMatch(f -> f.endsWith(".liv"))
+            );
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                LeafReader leaf = reader.leaves().get(0).reader();
+
+                // Row retained physically (maxDoc unchanged); exactly one doc hidden via liveDocs.
+                assertThat(leaf.maxDoc(), equalTo(numDocs));
+                assertThat(reader.numDocs(), equalTo(numDocs - 1));
+
+                Bits liveDocs = leaf.getLiveDocs();
+                assertNotNull("liveDocs must exist after a positional delete", liveDocs);
+                assertFalse("post-reorder position 0 (former row id 1) must be deleted", liveDocs.get(0));
+                assertTrue(liveDocs.get(1));
+                assertTrue(liveDocs.get(2));
+
+                // __row_id__ still sequential 0..N-1 (deleted docs keep their doc values).
+                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                assertNotNull(rowIdDV);
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(rowIdDV.advanceExact(docId));
+                    assertThat(rowIdDV.nextValue(), equalTo((long) docId));
+                }
+
+                // The deleted doc is the one that carried insertion row id 1 → marker 100, now at position 0.
+                SortedNumericDocValues markerDV = leaf.getSortedNumericDocValues("marker");
+                assertNotNull(markerDV);
+                assertTrue(markerDV.advanceExact(0));
+                assertThat("deleted position 0 must be the former row-id-1 doc (marker 100)", markerDV.nextValue(), equalTo(100L));
             }
         }
     }
@@ -233,6 +319,58 @@ public class LuceneWriterSortedFlushTests extends LucenePluginBaseTests {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.writerGeneration(), equalTo(gen));
+        }
+    }
+
+    /**
+     * Guards that a freshly flushed segment stamps {@link LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
+     * with the writer generation on its {@code .si}. Both {@code LuceneReaderManager} and the refresh
+     * drop-generation reconciliation hard-require this attribute on every live leaf; the reorder merge
+     * no longer stamps it (the codec does), so assert it survives a reorder flush.
+     */
+    public void testFlushStampsWriterGenerationOnSegmentInfo() throws IOException {
+        Path baseDir = createTempDir();
+        long gen = 13L;
+        MappedFieldType textField = mockTextField("content");
+
+        long[] oldRowIds = { 0, 1, 2 };
+        long[] newRowIds = { 2, 0, 1 };
+        FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
+
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                gen,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                writer.addDoc(input);
+            }
+
+            FileInfos fileInfos = writer.flush(sortedFlushInput);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()))) {
+                SegmentInfos infos = SegmentInfos.readLatestCommit(dir);
+                assertThat("flush must produce exactly one segment", infos.size(), equalTo(1));
+                for (SegmentCommitInfo sci : infos) {
+                    assertThat(
+                        "every flushed .si must carry the writer_generation attribute",
+                        sci.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE),
+                        equalTo(String.valueOf(gen))
+                    );
+                }
+            }
         }
     }
 
