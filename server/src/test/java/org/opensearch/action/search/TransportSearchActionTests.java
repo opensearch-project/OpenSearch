@@ -113,6 +113,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1251,7 +1252,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 new SearchRequestOperationsCompositeListenerFactory(),
                 mock(Tracer.class),
                 mock(TaskResourceTrackingService.class),
-                mock(IndicesService.class)
+                mock(IndicesService.class),
+                mock(WorkloadGroupService.class)
             );
 
             // Actual test cases start here:

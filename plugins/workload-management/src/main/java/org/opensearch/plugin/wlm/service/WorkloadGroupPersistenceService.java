@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.Version;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -27,12 +28,17 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.util.Collection;
 import java.util.EnumMap;
@@ -365,5 +371,62 @@ public class WorkloadGroupPersistenceService {
      */
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    /**
+     * Rejects a throttling config the cluster cannot actually honour. Both cases below would otherwise return a 200 for
+     * a config that silently never takes effect:
+     * <ul>
+     *   <li>a node older than {@link Version#V_3_9_0} is still in the cluster. {@code throttling} is gated on the wire,
+     *       so the config is dropped when the request or the resulting cluster state crosses that node, and the group
+     *       reads back without it.</li>
+     *   <li>the attribute keys on a principal ({@code username}/{@code role}) but no principal attribute is registered,
+     *       so no bucket can ever be resolved and the limit always fails open.</li>
+     * </ul>
+     * Called from the cluster-manager transport actions rather than from a cluster-state applier or settings update
+     * consumer on purpose: throwing while applying cluster state wedges the cluster-manager.
+     *
+     * @param throttling   the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
+     * @param clusterState state used to read the oldest node version in the cluster
+     * @throws IllegalArgumentException if the config cannot be enforced
+     */
+    public static void validateThrottlingIsEnforceable(Settings throttling, ClusterState clusterState) {
+        if (throttling == null || throttling.isEmpty()) {
+            return;
+        }
+        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+        if (minNodeVersion.before(Version.V_3_9_0)) {
+            throw new IllegalArgumentException(
+                "workload group throttling requires every node to be on "
+                    + Version.V_3_9_0
+                    + " or later, but the oldest node in the cluster is on "
+                    + minNodeVersion
+                    + ". The throttling config would be silently dropped; complete the upgrade first."
+            );
+        }
+        // ATTRIBUTE.get returns "" (its default), not null, when the key is absent -- which is the normal shape of a
+        // partial update that only changes the limit. Only an explicitly principal-keyed attribute is checked here; the
+        // merged config is validated separately.
+        String attribute = WorkloadGroupThrottleSettings.ATTRIBUTE.get(throttling);
+        if (attribute == null || attribute.isEmpty() || WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP.equals(attribute)) {
+            return;
+        }
+        try {
+            FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+            if (featureType.getAllowedAttributesRegistry().containsKey(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "throttling attribute ["
+                        + attribute
+                        + "] needs a principal attribute provider (the security plugin) to be installed, otherwise the "
+                        + "limit can never be enforced. Use attribute ["
+                        + WorkloadGroupThrottleSettings.ATTRIBUTE_GROUP
+                        + "] instead."
+                );
+            }
+        } catch (ResourceNotFoundException e) {
+            // Feature type not registered on this node yet. Skip rather than reject a config that is probably fine --
+            // the throttle path fails open anyway, so a false rejection here is worse than a missed warning.
+            logger.debug("WLM feature type not registered; skipping principal-attribute check for throttling config", e);
+        }
     }
 }

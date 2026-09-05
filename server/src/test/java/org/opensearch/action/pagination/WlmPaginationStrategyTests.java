@@ -240,7 +240,7 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
         WorkloadGroupStats.ResourceStats dummyStats = new WorkloadGroupStats.ResourceStats(0.1, 2, 3);
         Map<ResourceType, WorkloadGroupStats.ResourceStats> resourceMap = Map.of(ResourceType.CPU, dummyStats);
 
-        WorkloadGroupStats.WorkloadGroupStatsHolder holder = new WorkloadGroupStats.WorkloadGroupStatsHolder(1, 2, 3, 4, resourceMap);
+        WorkloadGroupStats.WorkloadGroupStatsHolder holder = new WorkloadGroupStats.WorkloadGroupStatsHolder(1, 2, 3, 4, 5, resourceMap);
         Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> groupStats = new HashMap<>();
         groupStats.put("group-1", holder);
 

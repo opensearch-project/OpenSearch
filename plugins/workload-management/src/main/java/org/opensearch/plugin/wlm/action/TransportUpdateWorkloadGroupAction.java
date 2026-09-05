@@ -18,6 +18,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -65,12 +66,40 @@ public class TransportUpdateWorkloadGroupAction extends TransportClusterManagerN
         this.workloadGroupPersistenceService = workloadGroupPersistenceService;
     }
 
+    /**
+     * Validates the throttling config on the node that accepted the request, before it is forwarded. See
+     * {@link TransportCreateWorkloadGroupAction#doExecute} for why the manager-side check alone misses the pre-3.9-manager
+     * topology; the manager-side call stays authoritative.
+     */
+    @Override
+    protected void doExecute(Task task, UpdateWorkloadGroupRequest request, ActionListener<UpdateWorkloadGroupResponse> listener) {
+        try {
+            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+                request.getmMutableWorkloadGroupFragment().getThrottling(),
+                clusterService.state()
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        super.doExecute(task, request, listener);
+    }
+
     @Override
     protected void clusterManagerOperation(
         UpdateWorkloadGroupRequest request,
         ClusterState clusterState,
         ActionListener<UpdateWorkloadGroupResponse> listener
     ) {
+        try {
+            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+                request.getmMutableWorkloadGroupFragment().getThrottling(),
+                clusterState
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         workloadGroupPersistenceService.updateInClusterStateMetadata(request, listener);
     }
 

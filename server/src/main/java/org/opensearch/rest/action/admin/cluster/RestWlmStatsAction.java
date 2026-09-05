@@ -192,6 +192,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell("|");
         table.addCell("TOTAL_CANCELLATIONS", verbose ? "desc:Total Canceled Queries" : "");
         table.addCell("|");
+        table.addCell("TOTAL_THROTTLED", verbose ? "desc:Total Throttled Queries" : "");
+        table.addCell("|");
         table.addCell("CPU_USAGE", verbose ? "desc:CPU Usage" : "");
         table.addCell("|");
         table.addCell("MEMORY_USAGE", verbose ? "desc:Memory Usage" : "");
@@ -212,6 +214,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell(statsHolder.getRejections());
         table.addCell("|");
         table.addCell(statsHolder.getCancellations());
+        table.addCell("|");
+        table.addCell(statsHolder.getThrottled());
         table.addCell("|");
 
         WorkloadGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);
@@ -236,7 +240,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
      * Builds a tabular response with '|' column separators.
      */
     protected void buildTable(Table table, List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
-        final int COLUMN_COUNT = 13;
+        final int COLUMN_COUNT = 15;
 
         for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();
