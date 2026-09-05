@@ -42,9 +42,10 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
         }
         RexNode bigOr = buildFlatOr(predicates);
 
-        // 30 predicates with limit 10 — should fail
+        // 30 predicates with limit 10 — should fail. The guard short-circuits, so the message
+        // reports "more than [limit]" rather than the exact leaf count (which it never computes).
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FilterPredicateGuard.validate(bigOr, 10));
-        assertTrue(e.getMessage().contains("30 predicates"));
+        assertTrue(e.getMessage().contains("more than 10 predicates"));
         assertTrue(e.getMessage().contains("maximum allowed [10]"));
     }
 
@@ -93,6 +94,71 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
         // NOT(a=1) — 1 leaf predicate; NOT itself doesn't count
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, makeComparison());
         assertEquals("leaf count", 1, FilterPredicateGuard.countLeaves(notNode));
+    }
+
+    /**
+     * A condition tree deep enough to overflow a recursive walk must be rejected with the
+     * intended {@link IllegalArgumentException} (HTTP 400), NOT escape as a {@link StackOverflowError}.
+     * This is the core regression: the guard's own traversal must be bounded so pathological input
+     * cannot defeat the guard before it runs. A right-leaning AND chain of 200k nodes is far past
+     * the default JVM recursion limit for this walk.
+     */
+    public void testDeeplyNestedConditionRejectedWithoutStackOverflow() {
+        RexNode deep = buildDeepAndChain(200_000);
+        // limit 500 (the production default) — the deep chain has 200k leaves, so it must be rejected.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FilterPredicateGuard.validate(deep, 500));
+        assertTrue(e.getMessage().contains("more than 500 predicates"));
+        assertTrue(e.getMessage().contains("maximum allowed [500]"));
+    }
+
+    /**
+     * A deep tree that fits under the limit must still be walked without recursing into a
+     * StackOverflowError. Depth here (with only a handful of leaves) exceeds a naive recursive
+     * walk's safe depth, proving traversal depth is decoupled from the JVM call stack.
+     */
+    public void testDeeplyNestedConditionWithinLimitDoesNotOverflow() {
+        // 200k-deep chain of NOT(...) around a single comparison: exactly 1 leaf predicate, but
+        // 200k levels of nesting. A recursive walk would overflow; the iterative walk must not.
+        RexNode deepButOneLeaf = makeComparison();
+        for (int i = 0; i < 200_000; i++) {
+            deepButOneLeaf = rexBuilder.makeCall(SqlStdOperatorTable.NOT, deepButOneLeaf);
+        }
+        // 1 leaf, limit 500 — passes without throwing (and without StackOverflowError).
+        FilterPredicateGuard.validate(deepButOneLeaf, 500);
+        assertEquals("leaf count", 1, FilterPredicateGuard.countLeaves(deepButOneLeaf));
+    }
+
+    /**
+     * The disabled guard (limit 0) must return immediately without walking the tree at all, so an
+     * arbitrarily deep condition can't overflow when the guard is turned off.
+     */
+    public void testDisabledGuardSkipsDeepTreeEntirely() {
+        RexNode deep = buildDeepAndChain(200_000);
+        FilterPredicateGuard.validate(deep, 0); // no throw, no overflow
+    }
+
+    /**
+     * {@code countLeavesUpTo} must stop counting once it reaches the limit, capping the work the
+     * guard does on a hostile tree. A 50-leaf flat OR probed with limit 10 returns exactly 10.
+     */
+    public void testCountLeavesUpToShortCircuitsAtLimit() {
+        List<RexNode> predicates = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            predicates.add(makeComparison());
+        }
+        RexNode bigOr = buildFlatOr(predicates);
+        assertEquals("short-circuited count", 10, FilterPredicateGuard.countLeavesUpTo(bigOr, 10));
+        // Full count still reachable via the unbounded entry point.
+        assertEquals("full count", 50, FilterPredicateGuard.countLeaves(bigOr));
+    }
+
+    /** Right-leaning AND chain: AND(a, AND(a, AND(a, ...))) with {@code depth} leaf comparisons. */
+    private RexNode buildDeepAndChain(int depth) {
+        RexNode node = makeComparison();
+        for (int i = 1; i < depth; i++) {
+            node = rexBuilder.makeCall(SqlStdOperatorTable.AND, makeComparison(), node);
+        }
+        return node;
     }
 
     private RexNode makeComparison() {
