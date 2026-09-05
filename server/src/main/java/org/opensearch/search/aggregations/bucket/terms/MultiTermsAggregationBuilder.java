@@ -27,6 +27,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -280,6 +281,15 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         }
         this.terms = terms;
         return this;
+    }
+
+    /**
+     * Returns the configured term sources in declaration order.
+     *
+     * @return an unmodifiable view of the term sources, empty when none are configured
+     */
+    public List<MultiTermsValuesSourceConfig> terms() {
+        return terms == null ? List.of() : Collections.unmodifiableList(terms);
     }
 
     /**

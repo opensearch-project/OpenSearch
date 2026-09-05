@@ -1,0 +1,54 @@
+{
+  "testName": "multi_terms_size_truncation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "brand": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "brand" },
+            { "field": "status" }
+          ],
+          "size": 2
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC], dir1=[ASC], dir2=[ASC])",
+    "  LogicalAggregate(group=[{0, 1}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[AND(IS NOT NULL($0), IS NOT NULL($1))])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "status", "_count"],
+  "mockResultRows": [
+    ["A", "x", 1],
+    ["B", "y", 5],
+    ["C", "z", 2],
+    ["D", "w", 4]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": { "value": 0, "relation": "eq" },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "combo": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 3,
+        "buckets": [
+          { "key": ["B", "y"], "key_as_string": "B|y", "doc_count": 5 },
+          { "key": ["D", "w"], "key_as_string": "D|w", "doc_count": 4 }
+        ]
+      }
+    }
+  }
+}
