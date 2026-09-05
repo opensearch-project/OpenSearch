@@ -257,7 +257,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         return new ParquetWriter(
             filePath.toString(),
             config.writerGeneration(),
-            0L,
+            mappingVersion,
             dataFormat,
             schema,
             this::getOrBuildSchema,
