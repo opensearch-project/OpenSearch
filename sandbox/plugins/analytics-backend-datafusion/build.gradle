@@ -108,6 +108,10 @@ dependencies {
 
 }
 
+tasks.named('bundlePlugin').configure {
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+}
+
 test {
   jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
