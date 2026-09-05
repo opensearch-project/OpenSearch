@@ -21,7 +21,6 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.plugins.NativeStoreHandle;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -38,7 +37,7 @@ import static org.apache.arrow.c.Data.importField;
  * Tests use sqlToSubstrait to generate plan bytes, then feed them through
  * the same executeQueryAsync path used in production.
  */
-public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
+public class DataFusionQueryExecutionTests extends NativeSpillDirTestCase {
 
     private NativeRuntimeHandle runtimeHandle;
     private ReaderHandle readerHandle;
@@ -51,7 +50,7 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         runtimeHandle = new NativeRuntimeHandle(
             NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024)
         );
