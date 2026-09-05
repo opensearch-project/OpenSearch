@@ -657,15 +657,38 @@ impl CustomCacheManager {
 
         // Step 5: Promote bytes to metadata Foyer (never-evict tier).
         // No-op when `store` is not a TieredObjectStore (default trait impl is no-op).
-        store.put_metadata(file_path, &index_ranges, &fetched_bytes);
+        let promotion = store.put_metadata(file_path, &index_ranges, &fetched_bytes);
 
+        // Report what was actually promoted, not what we asked to promote. The metadata
+        // tier refuses entries above its per-entry bound, so a wide-schema file can have
+        // its footer cached and its page-index region refused.
         native_bridge_common::log_debug!(
-            "[warm-tier] warmed file='{}' size={} promoted {} metadata ranges ({} bytes)",
+            "[warm-tier] warmed file='{}' size={} requested {} metadata ranges ({} bytes), \
+             promoted {} ({} bytes)",
             file_path,
             object_meta.size,
             index_ranges.len(),
-            index_ranges.iter().map(|r| r.end - r.start).sum::<u64>()
+            index_ranges.iter().map(|r| r.end - r.start).sum::<u64>(),
+            promotion.accepted,
+            promotion.accepted_bytes
         );
+
+        // A refused range is fetched from the remote store on every query that touches
+        // it, for the life of the shard — the file looks warm but pays cold-read cost.
+        // Surface it loudly enough to be actionable: the fix is to raise
+        // `block_cache.foyer.metadata_block_size`.
+        if promotion.has_rejections() {
+            error!(
+                "[warmup::warmup_file_with_store] file='{}' partially warmed: {} of {} \
+                 metadata ranges refused by the metadata cache ({} bytes). Reads of those \
+                 ranges will fall back to the remote store. Raise \
+                 block_cache.foyer.metadata_block_size to cache them.",
+                file_path,
+                promotion.rejected,
+                promotion.accepted + promotion.rejected,
+                promotion.rejected_bytes
+            );
+        }
 
         Ok(true)
     }

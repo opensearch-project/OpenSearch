@@ -145,7 +145,7 @@ fn test_create_with_zero_cache_ptr_creates_uncached_store() {
 fn test_create_with_cache_does_not_consume_pointer() {
     use bytes::Bytes;
     use opensearch_block_cache::range_cache::CacheKey;
-    use opensearch_block_cache::traits::BlockCache;
+    use opensearch_block_cache::traits::{BlockCache, PutOutcome};
 
     // Minimal no-op cache used only to construct a valid Box<Arc<dyn BlockCache>> pointer.
     struct NoopCache;
@@ -160,7 +160,9 @@ fn test_create_with_cache_does_not_consume_pointer() {
         {
             Box::pin(std::future::ready(None))
         }
-        fn put(&self, _key: &CacheKey, _data: Bytes) {}
+        fn put(&self, _key: &CacheKey, _data: Bytes) -> PutOutcome {
+            PutOutcome::Accepted
+        }
         fn evict_prefix(&self, _prefix: &str) {}
         fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
             Box::pin(std::future::ready(()))
