@@ -160,6 +160,26 @@ impl LocalSession {
         Ok(sender)
     }
 
+    /// Registers a pull-based Java Arrow batch source.
+    pub fn register_arrow_batch_source_provider(
+        &mut self,
+        name: &str,
+        schema: SchemaRef,
+        binding_id: i64,
+        task_id: i64,
+    ) -> Result<(), DataFusionError> {
+        let table =
+            crate::arrow_batch_source::ArrowBatchTableProvider::new(schema, binding_id, task_id);
+        self.ctx
+            .register_table(name, Arc::new(table))
+            .map_err(|error| {
+                DataFusionError::Execution(format!(
+                    "Failed to register Arrow batch source table '{name}': {error}"
+                ))
+            })?;
+        Ok(())
+    }
+
     /// Registers an in-memory input on the session under `name`, holding all
     /// `batches` in a single [`MemTable`] partition.
     ///

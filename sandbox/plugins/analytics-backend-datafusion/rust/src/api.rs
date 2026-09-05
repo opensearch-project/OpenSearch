@@ -1925,6 +1925,22 @@ pub unsafe fn close_local_session(ptr: i64) {
     }
 }
 
+/// Registers a Java-backed Arrow batch source on a local session.
+///
+/// # Safety
+/// `session_ptr` must be a valid local-session pointer.
+pub unsafe fn register_arrow_batch_source_provider(
+    session_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+    binding_id: i64,
+    task_id: i64,
+) -> Result<(), DataFusionError> {
+    let session = &mut *(session_ptr as *mut LocalSession);
+    let schema = schema_from_ipc_bytes(schema_ipc)?;
+    session.register_arrow_batch_source_provider(input_id, schema, binding_id, task_id)
+}
+
 /// Registers a streaming input on the session under `input_id`. The schema is
 /// derived by lowering `partial_plan_bytes` (the producer side's substrait) to
 /// a physical plan and reading its output schema — that is the schema the

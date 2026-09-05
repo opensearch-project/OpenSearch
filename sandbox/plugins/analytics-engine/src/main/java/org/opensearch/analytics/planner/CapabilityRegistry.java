@@ -249,7 +249,7 @@ public class CapabilityRegistry {
 
     // ---- Field-level lookups (iterates all formats a field has) ----
 
-    /** All backends that can filter on this field across all its storage formats. */
+    /** All backends that can filter on this field through a declared scan capability. */
     public List<String> filterBackendsForField(ScalarFunction function, FieldStorageInfo field) {
         FieldType fieldType = field.getFieldType();
         List<String> result = new ArrayList<>();
@@ -259,6 +259,9 @@ public class CapabilityRegistry {
         for (String format : field.getIndexFormats()) {
             result.addAll(filterBackends(function, fieldType, format));
         }
+        List<String> docValueReaders = scanBackendsForField(field);
+        List<String> indexReaders = indexScanBackendsForField(field);
+        result.removeIf(backend -> docValueReaders.contains(backend) == false && indexReaders.contains(backend) == false);
         return result;
     }
 

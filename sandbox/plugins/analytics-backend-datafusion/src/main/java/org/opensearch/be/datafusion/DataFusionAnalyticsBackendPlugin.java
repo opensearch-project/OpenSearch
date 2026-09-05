@@ -11,6 +11,8 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -20,10 +22,13 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.planner.CalciteToArrowSchema;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ArrowBatchSourceFactory;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DataTransferCapability;
@@ -60,6 +65,7 @@ import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapte
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.tasks.Task;
 
 import java.util.HashSet;
 import java.util.List;
@@ -906,6 +912,47 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public FragmentConvertor getFragmentConvertor() {
         return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+    }
+
+    @Override
+    public boolean supportsArrowBatchSourceExecution() {
+        return true;
+    }
+
+    @Override
+    public byte[] compileArrowBatchSourcePlan(RelNode fragment, boolean partialAggregate) {
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, getCapabilityProvider());
+        DataFusionFragmentConvertor convertor = new DataFusionFragmentConvertor(plugin.getSubstraitExtensions());
+        if (partialAggregate == false) {
+            return convertor.convertFragment(adapted);
+        }
+        if (adapted instanceof Aggregate == false) {
+            throw new IllegalArgumentException("partial Arrow source plan must be rooted at an Aggregate");
+        }
+        Aggregate aggregate = (Aggregate) adapted;
+        return convertor.attachPartialAggOnTop(aggregate, convertor.convertFragment(aggregate.getInput()));
+    }
+
+    @Override
+    public byte[] attachArrowBatchSourcePlan(RelNode fragment, byte[] innerPlanBytes) {
+        RelNode adapted = BackendPlanAdapter.adaptFragment(fragment, getCapabilityProvider());
+        return new DataFusionFragmentConvertor(plugin.getSubstraitExtensions()).attachFragmentOnTop(adapted, innerPlanBytes);
+    }
+
+    @Override
+    public EngineResultStream executeArrowBatchSource(
+        BufferAllocator resultAllocator,
+        ArrowBatchSourcePlan plan,
+        ArrowBatchSourceFactory sourceFactory,
+        Task task,
+        DelegationThreadTracker threadTracker
+    ) {
+        DataFusionService service = plugin.getDataFusionService();
+        if (service == null) {
+            sourceFactory.close();
+            throw new IllegalStateException("DataFusionService not initialized");
+        }
+        return new DatafusionArrowBatchSourceExecutor(service).execute(resultAllocator, plan, sourceFactory, task, threadTracker);
     }
 
     @Override
