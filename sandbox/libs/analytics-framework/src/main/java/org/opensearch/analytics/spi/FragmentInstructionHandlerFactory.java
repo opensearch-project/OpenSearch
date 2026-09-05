@@ -36,6 +36,13 @@ public interface FragmentInstructionHandlerFactory {
      */
     Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName);
 
+    /**
+     * Creates a shard scan instruction node with optional targetPartitions override.
+     */
+    default Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName, Integer targetPartitions) {
+        return createShardScanNode(requestsRowIds, logicalTableName);
+    }
+
     /** Creates a filter delegation instruction node with the given delegation metadata. */
     Optional<InstructionNode> createFilterDelegationNode(
         FilterTreeShape treeShape,
@@ -62,6 +69,19 @@ public interface FragmentInstructionHandlerFactory {
         boolean requestsRowIds,
         String logicalTableName
     );
+
+    /**
+     * Creates a shard scan with delegation instruction node with optional targetPartitions override.
+     */
+    default Optional<InstructionNode> createShardScanWithDelegationNode(
+        FilterTreeShape treeShape,
+        int delegatedPredicateCount,
+        boolean requestsRowIds,
+        String logicalTableName,
+        Integer targetPartitions
+    ) {
+        return createShardScanWithDelegationNode(treeShape, delegatedPredicateCount, requestsRowIds, logicalTableName);
+    }
 
     /** Creates a partial aggregate instruction node. */
     Optional<InstructionNode> createPartialAggregateNode();

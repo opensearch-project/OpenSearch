@@ -39,4 +39,42 @@ public class RestPPLQueryActionTests extends OpenSearchTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
         assertTrue(ex.getMessage().contains("query"));
     }
+
+    public void testPrepareRequestWithTargetPartitions() throws Exception {
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/_analytics/ppl")
+            .withContent(new BytesArray("{\"query\":\"source=test\",\"target_partitions\":4}"), XContentType.JSON)
+            .build();
+
+        action.prepareRequest(request, null);
+    }
+
+    public void testPrepareRequestWithInvalidTargetPartitions() {
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/_analytics/ppl")
+            .withContent(new BytesArray("{\"query\":\"source=test\",\"target_partitions\":0}"), XContentType.JSON)
+            .build();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertTrue(ex.getMessage().contains("target_partitions must be greater than or equal to 1"));
+    }
+
+    public void testPrepareRequestWithNullTargetPartitions() throws Exception {
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/_analytics/ppl")
+            .withContent(new BytesArray("{\"query\":\"source=test\",\"target_partitions\":null}"), XContentType.JSON)
+            .build();
+
+        action.prepareRequest(request, null);
+    }
+
+    public void testPrepareRequestWithNonNumberTargetPartitions() {
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/_analytics/ppl")
+            .withContent(new BytesArray("{\"query\":\"source=test\",\"target_partitions\":\"invalid\"}"), XContentType.JSON)
+            .build();
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertTrue(ex.getMessage().contains("target_partitions must be a positive integer"));
+    }
 }

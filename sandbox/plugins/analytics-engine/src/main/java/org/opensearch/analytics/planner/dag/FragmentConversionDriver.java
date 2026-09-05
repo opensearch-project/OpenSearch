@@ -84,7 +84,7 @@ public class FragmentConversionDriver {
      * {@link StagePlan#convertedBytes()} on each plan.
      */
     public static void convertAll(QueryDAG dag, CapabilityRegistry registry) {
-        convertStage(dag.rootStage(), registry);
+        convertStage(dag.rootStage(), registry, dag.targetPartitions());
         // Root stage executes locally at coordinator — store factory for instruction dispatch.
         Stage root = dag.rootStage();
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
@@ -93,9 +93,9 @@ public class FragmentConversionDriver {
         }
     }
 
-    private static void convertStage(Stage stage, CapabilityRegistry registry) {
+    private static void convertStage(Stage stage, CapabilityRegistry registry, Integer targetPartitions) {
         for (Stage child : stage.getChildStages()) {
-            convertStage(child, registry);
+            convertStage(child, registry, targetPartitions);
         }
         // After children are converted, surface any decorator-induced schema delta as
         // postDecorationSchemaBytes on the child plans. The reduce sink consults this when
@@ -130,7 +130,7 @@ public class FragmentConversionDriver {
 
             // Assemble instruction list
             List<DelegatedExpression> delegated = delegationBytes.getResult();
-            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes);
+            List<InstructionNode> instructions = assembleInstructions(backend, plan, treeShape, delegationBytes, targetPartitions);
 
             converted.add(plan.withConvertedBytes(bytes, delegated).withInstructions(instructions));
             LOGGER.debug(
@@ -239,7 +239,8 @@ public class FragmentConversionDriver {
         AnalyticsSearchBackendPlugin backend,
         StagePlan plan,
         FilterTreeShape treeShape,
-        IntraOperatorDelegationBytes delegationBytes
+        IntraOperatorDelegationBytes delegationBytes,
+        Integer targetPartitions
     ) {
         FragmentInstructionHandlerFactory factory = backend.getInstructionHandlerFactory();
         LinkedList<InstructionNode> instructions = new LinkedList<>();
@@ -257,10 +258,10 @@ public class FragmentConversionDriver {
             boolean requestsRowIds = tableScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD);
             List<DelegatedExpression> delegated = delegationBytes.getResult();
             if (!delegated.isEmpty()) {
-                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName)
+                factory.createShardScanWithDelegationNode(treeShape, delegated.size(), requestsRowIds, logicalTableName, targetPartitions)
                     .ifPresent(instructions::add);
             } else {
-                factory.createShardScanNode(requestsRowIds, logicalTableName).ifPresent(instructions::add);
+                factory.createShardScanNode(requestsRowIds, logicalTableName, targetPartitions).ifPresent(instructions::add);
             }
             if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);

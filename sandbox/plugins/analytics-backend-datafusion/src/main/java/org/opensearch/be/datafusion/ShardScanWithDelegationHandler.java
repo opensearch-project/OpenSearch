@@ -65,6 +65,9 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         int delegatedPredicateCount = node.getDelegatedPredicateCount();
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        if (node.getTargetPartitions() != null) {
+            snapshot = WireConfigSnapshot.builder(snapshot).targetPartitions(node.getTargetPartitions()).build();
+        }
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
             snapshot.writeTo(segment);
