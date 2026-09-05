@@ -1057,7 +1057,7 @@ pub async unsafe fn fetch_by_row_ids(
         .runtime_env()
         .cache_manager
         .get_file_metadata_cache();
-    let (segments, _schema) = build_segments(
+    let (segments, resolved_schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
         shard_view.object_metas.as_ref(),
@@ -1130,15 +1130,6 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 3. Register ShardTableProvider ──
 
     let store_url = store_url_from_table_path(&shard_view.table_path)?;
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(Arc::new(
-        datafusion::datasource::file_format::parquet::ParquetFormat::new(),
-    ))
-    .with_file_extension(".parquet")
-    .with_collect_stat(true);
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await?;
-
     let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
         file_schema: resolved_schema,
         files,

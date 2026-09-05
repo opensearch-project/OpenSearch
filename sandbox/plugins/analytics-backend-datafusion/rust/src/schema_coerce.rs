@@ -85,9 +85,86 @@
 //!     the schema from Java to Rust and adds a second mapping table to keep in
 //!     sync with `OpenSearchSchemaBuilder.mapFieldType`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
+use datafusion::arrow::error::ArrowError;
+
+/// Merges file schemas while treating `T` and `List<T>` for the same field as one logical
+/// `List<T>` column. This is the one-way schema promotion used after a keyword first receives
+/// multiple stored values. Other incompatible type changes remain errors.
+pub fn merge_file_schemas_with_list_promotion(
+    schemas: Vec<Schema>,
+) -> Result<SchemaRef, ArrowError> {
+    let mut list_fields: HashMap<String, Arc<Field>> = HashMap::new();
+    for schema in &schemas {
+        for field in schema.fields() {
+            if matches!(field.data_type(), DataType::List(_)) {
+                list_fields.insert(field.name().clone(), Arc::clone(field));
+            }
+        }
+    }
+
+    let normalized = schemas
+        .into_iter()
+        .map(|schema| {
+            let fields = schema
+                .fields()
+                .iter()
+                .map(|field| {
+                    let Some(list_field) = list_fields.get(field.name()) else {
+                        return field.as_ref().clone();
+                    };
+                    let DataType::List(child) = list_field.data_type() else {
+                        return field.as_ref().clone();
+                    };
+                    if field.data_type() == child.data_type() {
+                        list_field
+                            .as_ref()
+                            .clone()
+                            .with_nullable(list_field.is_nullable() || field.is_nullable())
+                    } else {
+                        field.as_ref().clone()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Schema::new_with_metadata(fields, schema.metadata().clone())
+        })
+        .collect::<Vec<_>>();
+
+    Schema::try_merge(normalized).map(Arc::new)
+}
+
+/// Convert Parquet string/binary fields to Arrow view types, including LIST children.
+/// DataFusion's `transform_schema_to_view` only rewrites top-level fields, while the
+/// coordinator declares `ARRAY<VARCHAR>` as `List<Utf8View>`.
+pub fn transform_schema_to_view_recursive(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .map(|field| Arc::new(rewrite_field_to_view(field)))
+        .collect::<Vec<_>>();
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+fn rewrite_field_to_view(field: &Field) -> Field {
+    Field::new(
+        field.name(),
+        rewrite_data_type_to_view(field.data_type()),
+        field.is_nullable(),
+    )
+    .with_metadata(field.metadata().clone())
+}
+
+fn rewrite_data_type_to_view(data_type: &DataType) -> DataType {
+    match data_type {
+        DataType::Utf8 | DataType::LargeUtf8 => DataType::Utf8View,
+        DataType::Binary | DataType::LargeBinary => DataType::BinaryView,
+        DataType::List(child) => DataType::List(Arc::new(rewrite_field_to_view(child))),
+        other => other.clone(),
+    }
+}
 
 /// Rewrite the schema to forms Substrait can bind against:
 ///   - `BinaryView` → `Binary`
@@ -192,6 +269,39 @@ pub fn append_missing_nullable(registered: &Schema, expected: &Schema) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merge_promotes_scalar_and_list_independent_of_input_order() {
+        let child = Arc::new(Field::new("element", DataType::Utf8, true));
+        let scalar = Schema::new(vec![Field::new("tags", DataType::Utf8, false)]);
+        let list = Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::clone(&child)),
+            true,
+        )]);
+
+        for schemas in [
+            vec![scalar.clone(), list.clone()],
+            vec![list.clone(), scalar.clone()],
+        ] {
+            let merged = merge_file_schemas_with_list_promotion(schemas).unwrap();
+            let tags = merged.field_with_name("tags").unwrap();
+            assert_eq!(tags.data_type(), &DataType::List(Arc::clone(&child)));
+            assert!(tags.is_nullable());
+        }
+    }
+
+    #[test]
+    fn merge_rejects_scalar_with_different_list_child_type() {
+        let scalar = Schema::new(vec![Field::new("tags", DataType::Utf8, true)]);
+        let list = Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(Arc::new(Field::new("element", DataType::Int32, true))),
+            true,
+        )]);
+
+        assert!(merge_file_schemas_with_list_promotion(vec![scalar, list]).is_err());
+    }
 
     #[test]
     fn append_missing_adds_absent_columns_as_nullable() {

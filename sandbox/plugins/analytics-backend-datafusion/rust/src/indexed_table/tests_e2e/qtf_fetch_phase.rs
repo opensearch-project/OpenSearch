@@ -532,3 +532,145 @@ async fn test_qtf_fetch_empty_result() {
     assert!(row_ids.is_empty());
     assert!(batches.is_empty()); // fetch_phase returns empty vec for empty row_ids
 }
+
+/// QTF fetch must use the schema already reconciled by `build_segments` and apply the
+/// scalar-to-singleton-LIST adapter to old generations. Re-running default schema inference here
+/// rejects the intentional Utf8/List<Utf8> evolution before the fetch can execute.
+#[tokio::test]
+async fn test_qtf_fetch_mixed_scalar_and_list_files_uses_promoted_schema() {
+    use datafusion::arrow::array::{ListArray, StringViewArray};
+    use datafusion::arrow::buffer::OffsetBuffer;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::parquet::arrow::ArrowWriter;
+
+    let dir = tempfile::tempdir().unwrap();
+    let scalar_path = dir.path().join("scalar.parquet");
+    let list_path = dir.path().join("list.parquet");
+
+    let scalar_schema = Arc::new(Schema::new(vec![Field::new("tags", DataType::Utf8, true)]));
+    let scalar_batch = RecordBatch::try_new(
+        Arc::clone(&scalar_schema),
+        vec![Arc::new(StringArray::from(vec![Some("prod")]))],
+    )
+    .unwrap();
+    let mut scalar_writer = ArrowWriter::try_new(
+        std::fs::File::create(&scalar_path).unwrap(),
+        scalar_schema,
+        None,
+    )
+    .unwrap();
+    scalar_writer.write(&scalar_batch).unwrap();
+    scalar_writer.close().unwrap();
+
+    let list_child = Arc::new(Field::new("element", DataType::Utf8, true));
+    let list_schema = Arc::new(Schema::new(vec![Field::new(
+        "tags",
+        DataType::List(Arc::clone(&list_child)),
+        true,
+    )]));
+    let list_batch = RecordBatch::try_new(
+        Arc::clone(&list_schema),
+        vec![Arc::new(ListArray::new(
+            list_child,
+            OffsetBuffer::new(vec![0_i32, 2].into()),
+            Arc::new(StringArray::from(vec!["error", "prod"])),
+            None,
+        ))],
+    )
+    .unwrap();
+    let mut list_writer = ArrowWriter::try_new(
+        std::fs::File::create(&list_path).unwrap(),
+        list_schema,
+        None,
+    )
+    .unwrap();
+    list_writer.write(&list_batch).unwrap();
+    list_writer.close().unwrap();
+
+    let object_meta = |path: &std::path::Path| object_store::ObjectMeta {
+        location: object_store::path::Path::from(path.to_string_lossy().as_ref()),
+        last_modified: chrono::Utc::now(),
+        size: std::fs::metadata(path).unwrap().len(),
+        e_tag: None,
+        version: None,
+    };
+    let ctx = SessionContext::new();
+    let store: Arc<dyn object_store::ObjectStore> =
+        Arc::new(object_store::local::LocalFileSystem::new());
+    let metas = vec![object_meta(&scalar_path), object_meta(&list_path)];
+    let metadata_cache = ctx
+        .state()
+        .runtime_env()
+        .cache_manager
+        .get_file_metadata_cache();
+    let (segments, promoted_schema) = crate::indexed_table::segment_info::build_segments(
+        &ctx.state(),
+        Arc::clone(&store),
+        &metas,
+        &[0, 1],
+        metadata_cache,
+        &[],
+    )
+    .await
+    .unwrap();
+    let files = segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| ShardFileInfo {
+            object_meta: metas[index].clone(),
+            row_base: segment.global_base as i64,
+            num_rows: segment.max_doc as u64,
+            row_group_row_counts: segment
+                .row_groups
+                .iter()
+                .map(|rg| rg.num_rows as u64)
+                .collect(),
+            access_plan: None,
+        })
+        .collect();
+
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    ctx.register_object_store(store_url.as_ref(), store);
+    ctx.register_table(
+        "t",
+        Arc::new(ShardTableProvider::new(ShardTableConfig {
+            file_schema: promoted_schema,
+            files,
+            store_url,
+        })),
+    )
+    .unwrap();
+
+    let batches = ctx
+        .sql("SELECT tags FROM t")
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
+    let mut rows = Vec::new();
+    for batch in batches {
+        let lists = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .unwrap();
+        for row in 0..lists.len() {
+            let values = lists.value(row);
+            let values = values.as_any().downcast_ref::<StringViewArray>().unwrap();
+            rows.push(
+                (0..values.len())
+                    .map(|index| values.value(index).to_string())
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+    rows.sort();
+    assert_eq!(
+        rows,
+        vec![
+            vec!["error".to_string(), "prod".to_string()],
+            vec!["prod".to_string()]
+        ]
+    );
+}
