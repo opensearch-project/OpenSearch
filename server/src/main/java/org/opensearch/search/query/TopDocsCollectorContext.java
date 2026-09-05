@@ -864,6 +864,11 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 searchContext.trackScores(),
                 searchContext.searchAfter()
             );
+        } else if (isConstantZeroScoreQuery(query) && searchContext.sort() == null && searchContext.rescore().isEmpty()) {
+            // Filter-only query: all documents score 0.0 (BoostQuery^0.0).
+            // No need to score — just collect first N doc-IDs and count total hits.
+            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            return new FilterOnlyTopDocsCollectorContext(reader, query, numDocs, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -926,6 +931,179 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             } else if (query instanceof OpenSearchToParentBlockJoinQuery q) {
                 hasInfMaxScore |= (q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None);
             }
+        }
+    }
+
+    /**
+     * Returns true if the query is a filter-only query that produces a constant score of 0.0
+     * for all matching documents. This is the case when a BooleanQuery with only FILTER clauses
+     * is rewritten to BoostQuery(ConstantScoreQuery(...), 0.0).
+     */
+    static boolean isConstantZeroScoreQuery(Query query) {
+        return query instanceof BoostQuery bq && bq.getBoost() == 0f;
+    }
+
+    /**
+     * A collector context for filter-only queries where all documents score 0.0.
+     * Uses ScoreMode.COMPLETE_NO_SCORES to avoid any scoring overhead, collects
+     * the first N doc-IDs (since all scores are tied, doc-ID order determines the result),
+     * and counts total hits without scoring.
+     */
+    static class FilterOnlyTopDocsCollectorContext extends TopDocsCollectorContext {
+        private final int trackTotalHitsUpTo;
+        private final int hitCount;
+        private final int numHits;
+        // stop once we've got numHits AND counted this many; 0 = stop right away, MAX_VALUE = never
+        private final int earlyTerminateThreshold;
+        private FilterOnlyCollector filterCollector;
+
+        FilterOnlyTopDocsCollectorContext(IndexReader reader, Query query, int numHits, int trackTotalHitsUpTo, boolean hasFilterCollector)
+            throws IOException {
+            super(REASON_SEARCH_TOP_HITS, numHits);
+            this.numHits = numHits;
+            this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+            this.hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+            if (this.hitCount >= 0 || trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                this.earlyTerminateThreshold = 0;
+            } else {
+                this.earlyTerminateThreshold = trackTotalHitsUpTo;
+            }
+        }
+
+        @Override
+        Collector create(Collector in) throws IOException {
+            assert in == null;
+            this.filterCollector = new FilterOnlyCollector(numHits, earlyTerminateThreshold, new java.util.concurrent.atomic.LongAdder());
+            return filterCollector;
+        }
+
+        @Override
+        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+            assert in == null;
+            // shared so the count check is global across slices
+            final java.util.concurrent.atomic.LongAdder sharedHitCount = new java.util.concurrent.atomic.LongAdder();
+            return new CollectorManager<FilterOnlyCollector, ReduceableSearchResult>() {
+                @Override
+                public FilterOnlyCollector newCollector() {
+                    return new FilterOnlyCollector(numHits, earlyTerminateThreshold, sharedHitCount);
+                }
+
+                @Override
+                public ReduceableSearchResult reduce(Collection<FilterOnlyCollector> collectors) {
+                    int totalHitsCount = 0;
+                    List<ScoreDoc> allDocs = new ArrayList<>();
+                    for (FilterOnlyCollector c : collectors) {
+                        totalHitsCount += c.totalHits;
+                        allDocs.addAll(c.collectedDocs);
+                    }
+                    allDocs.sort((a, b) -> Integer.compare(a.doc, b.doc));
+                    ScoreDoc[] scoreDocs = allDocs.stream().limit(numHits).toArray(ScoreDoc[]::new);
+                    final int finalTotalHits = hitCount >= 0 ? hitCount : totalHitsCount;
+                    TotalHits.Relation relation = (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE)
+                        ? TotalHits.Relation.EQUAL_TO
+                        : (finalTotalHits >= trackTotalHitsUpTo
+                            ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                            : TotalHits.Relation.EQUAL_TO);
+                    TopDocs topDocs = new TopDocs(new TotalHits(finalTotalHits, relation), scoreDocs);
+                    return (QuerySearchResult result) -> {
+                        float maxScore = scoreDocs.length > 0 ? 0.0f : Float.NaN;
+                        result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), null);
+                    };
+                }
+            };
+        }
+
+        @Override
+        void postProcess(QuerySearchResult result) throws IOException {
+            if (filterCollector == null) {
+                return;
+            }
+            int totalHitsCount = hitCount >= 0 ? hitCount : filterCollector.totalHits;
+            TotalHits.Relation relation = (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE)
+                ? TotalHits.Relation.EQUAL_TO
+                : (totalHitsCount >= trackTotalHitsUpTo ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO);
+            ScoreDoc[] scoreDocs = filterCollector.collectedDocs.toArray(new ScoreDoc[0]);
+            TopDocs topDocs = new TopDocs(new TotalHits(totalHitsCount, relation), scoreDocs);
+            float maxScore = scoreDocs.length > 0 ? 0.0f : Float.NaN;
+            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), null);
+        }
+    }
+
+    /**
+     * A lightweight collector that does NOT score documents.
+     * Collects the first N doc-IDs and counts total hits.
+     * Uses DocIdStream.count() for bulk counting after first N docs are collected.
+     */
+    static class FilterOnlyCollector implements Collector {
+        final int numHits;
+        final int earlyTerminateThreshold;
+        // shared across slices so termination decision is global
+        final java.util.concurrent.atomic.LongAdder globalHitCount;
+        int totalHits = 0;
+        final List<ScoreDoc> collectedDocs = new ArrayList<>();
+
+        FilterOnlyCollector(int numHits, int earlyTerminateThreshold, java.util.concurrent.atomic.LongAdder globalHitCount) {
+            this.numHits = numHits;
+            this.earlyTerminateThreshold = earlyTerminateThreshold;
+            this.globalHitCount = globalHitCount;
+        }
+
+        @Override
+        public org.apache.lucene.search.ScoreMode scoreMode() {
+            return org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        private boolean canTerminate() {
+            return collectedDocs.size() >= numHits && globalHitCount.sum() >= earlyTerminateThreshold;
+        }
+
+        @Override
+        public org.apache.lucene.search.LeafCollector getLeafCollector(LeafReaderContext context) {
+            // skip remaining leaves once we're done — CollectionTerminatedException only ends the current leaf
+            if (canTerminate()) {
+                throw new org.apache.lucene.search.CollectionTerminatedException();
+            }
+            final int docBase = context.docBase;
+            return new org.apache.lucene.search.LeafCollector() {
+                @Override
+                public void setScorer(org.apache.lucene.search.Scorable scorer) {
+                    // no-op: we don't need scores
+                }
+
+                @Override
+                public void collect(int doc) {
+                    totalHits++;
+                    globalHitCount.increment();
+                    if (collectedDocs.size() < numHits) {
+                        collectedDocs.add(new ScoreDoc(doc + docBase, 0.0f));
+                    } else if (canTerminate()) {
+                        throw new org.apache.lucene.search.CollectionTerminatedException();
+                    }
+                }
+
+                @Override
+                public void collect(org.apache.lucene.search.DocIdStream stream) throws IOException {
+                    if (collectedDocs.size() >= numHits) {
+                        if (canTerminate()) {
+                            throw new org.apache.lucene.search.CollectionTerminatedException();
+                        }
+                        int c = stream.count();
+                        totalHits += c;
+                        globalHitCount.add(c);
+                        if (canTerminate()) {
+                            throw new org.apache.lucene.search.CollectionTerminatedException();
+                        }
+                    } else {
+                        stream.forEach(doc -> {
+                            totalHits++;
+                            globalHitCount.increment();
+                            if (collectedDocs.size() < numHits) {
+                                collectedDocs.add(new ScoreDoc(doc + docBase, 0.0f));
+                            }
+                        });
+                    }
+                }
+            };
         }
     }
 }
