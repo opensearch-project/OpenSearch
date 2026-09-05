@@ -31,6 +31,8 @@ import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.dsl.result.SearchResponseBuilder;
+import org.opensearch.dsl.settings.DslGateInputs;
+import org.opensearch.dsl.settings.DslQuerySettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -67,6 +69,9 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
      * @param executor analytics engine plan executor
      * @param clusterService cluster service for resolving index aliases
      * @param indexNameExpressionResolver resolves aliases and wildcards to concrete indices
+     * @param threadPool the node's thread pool
+     * @param dslSettings holder of the DSL operator knobs, including the fan-out width setting
+     * @param gateInputs reader for the cross-plugin inputs the fan-out width needs
      */
     @Inject
     public TransportDslExecuteAction(
@@ -77,11 +82,13 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         ClusterService clusterService,
         IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        DslQuerySettings dslSettings,
+        DslGateInputs gateInputs
     ) {
         super(DslExecuteAction.NAME, transportService, actionFilters, SearchRequest::new);
         this.contextProvider = contextProvider;
-        this.planExecutor = new DslQueryPlanExecutor(executor);
+        this.planExecutor = new DslQueryPlanExecutor(executor, clusterService, threadPool, dslSettings, gateInputs);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -92,8 +99,9 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             final long startNanos = System.nanoTime();
-            // One snapshot per request: index resolution, the engine schema, and response
-            // typing all derive from the same immutable cluster state.
+            // One snapshot per request: index resolution, the engine schema, response typing and the
+            // fan-out width's shard-layout term all derive from the same immutable cluster state. A second
+            // read is a TOCTOU where the width is decided against a routing table that never coexisted
             final ClusterState state = clusterService.state();
             final IndexMetadata indexMetadata;
             try {
@@ -103,6 +111,10 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 return;
             }
             final String indexName = indexMetadata.getIndex().getName();
+
+            // `state` and `indexName` are both threaded to the plan executor below, which needs the
+            // resolved name and that snapshot's routing table to read the shard layout the fan-out width
+            // divides by. The fan-out change computed the name as a `concreteIndices.length == 1 ? ... :
 
             // Response typing works off the mapping pinned at request start: one immutable
             // snapshot for conversion and response building, created lazily, and closed when
@@ -129,7 +141,7 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
                 requestListener.onFailure(e);
                 return;
             }
-            executePlans(plans, request, converter, startNanos, requestListener);
+            executePlans(plans, request, converter, state, indexName, startNanos, requestListener);
         });
     }
 
@@ -143,6 +155,8 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         QueryPlans plans,
         SearchRequest request,
         SearchSourceConverter converter,
+        ClusterState state,
+        String concreteIndex,
         long startNanos,
         ActionListener<SearchResponse> listener
     ) {
@@ -159,6 +173,8 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             try {
                 planExecutor.execute(
                     mainPlans,
+                    state,
+                    concreteIndex,
                     ActionListener.wrap(results -> buildAndRespond(results, request, converter, startNanos, listener), listener::onFailure)
                 );
             } catch (Exception e) {
@@ -177,14 +193,16 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         }, listener::onFailure), 1 + countPlans.size());
 
         try {
-            planExecutor.execute(mainPlans, joined);
+            planExecutor.execute(mainPlans, state, concreteIndex, joined);
         } catch (Exception e) {
             joined.onFailure(e);
         }
 
         for (QueryPlans.QueryPlan countPlan : countPlans) {
             try {
-                planExecutor.execute(new QueryPlans.Builder().add(countPlan).build(), joined);
+                // One plan per call, so each of these is a single-plan execution that never reaches the
+                // fan-out decision. They already run concurrently with the main plans through `joined`.
+                planExecutor.execute(new QueryPlans.Builder().add(countPlan).build(), state, concreteIndex, joined);
             } catch (Exception e) {
                 joined.onFailure(e);
             }

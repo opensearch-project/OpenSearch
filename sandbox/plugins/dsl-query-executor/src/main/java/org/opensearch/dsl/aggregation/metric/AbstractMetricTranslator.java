@@ -67,7 +67,13 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
             throw new ConversionException("Aggregation field '" + fieldName + "' not found in schema");
         }
 
-        // Calcite enforces the return type to be same as input type; eg: AVG int→double coercion happens in response layer.
+        // A translator says which function over which column, and declares the column's own type; what
+        // type the result actually is stays the type system's call. Where the two differ — SUM, which
+        // DslTypeSystems.NANO_TIMESTAMP widens to the engine's accumulator width, and AVG, which it
+        // declares DOUBLE because the engine reduces an average into a division — the declared type is
+        // reconciled against the type system in AggregationMetadataBuilder#build, the one place every
+        // metric call is assembled into a plan. So nothing here restates a type: declaring the column's
+        // own type for every metric is what keeps that reconciliation the single widening point.
         return AggregateCall.create(
             getAggFunction(),
             false,
@@ -87,8 +93,8 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
     }
 
     /**
-     * Coerces an engine result cell to double. Calcite keeps the input column type (AVG over
-     * an INTEGER column returns an integral value), so the int→double widening happens here.
+     * Coerces an engine result cell to double, which the metric responses this plugin renders
+     * ({@code InternalAvg}, {@code InternalMin}, {@code InternalMax}) all carry.
      *
      * @param value the raw cell value (must be a {@link Number})
      */

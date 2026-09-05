@@ -13,6 +13,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -160,24 +161,27 @@ public class AggregationMetadataBuilder {
         boolean noGroupBy = groupings.isEmpty();
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
+            RelDataType declared = deriveTypeThroughTypeSystem(call, typeFactory);
             if (noGroupBy) {
-                RelDataType nullableType = typeFactory.createTypeWithNullability(call.getType(), true);
-                allCalls.add(
-                    AggregateCall.create(
-                        call.getAggregation(),
-                        call.isDistinct(),
-                        call.isApproximate(),
-                        call.ignoreNulls(),
-                        call.getArgList(),
-                        call.filterArg,
-                        call.getCollation(),
-                        nullableType,
-                        call.getName()
-                    )
-                );
-            } else {
-                allCalls.add(call);
+                declared = typeFactory.createTypeWithNullability(declared, true);
             }
+            if (declared.equals(call.getType())) {
+                allCalls.add(call);
+                continue;
+            }
+            allCalls.add(
+                AggregateCall.create(
+                    call.getAggregation(),
+                    call.isDistinct(),
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.getArgList(),
+                    call.filterArg,
+                    call.getCollation(),
+                    declared,
+                    call.getName()
+                )
+            );
         }
         List<String> allFieldNames = new ArrayList<>(aggregateFieldNames);
 
@@ -225,6 +229,26 @@ public class AggregationMetadataBuilder {
             havingMinDocCount,
             missingValues
         );
+    }
+
+    /**
+     * Re-derives a metric call's declared type through the plan's own type system, which is the
+     * authority {@code Aggregate} validates against.
+     *
+     * @param call the translator-produced call
+     * @param typeFactory the plan's type factory, carrying the plan's type system
+     * @return the type the call must declare for {@code Aggregate} to accept it
+     */
+    private static RelDataType deriveTypeThroughTypeSystem(AggregateCall call, RelDataTypeFactory typeFactory) {
+        RelDataTypeSystem typeSystem = typeFactory.getTypeSystem();
+        // Both derivations are idempotent on an already-derived type, so re-deriving a call that was
+        // built correctly is safe; and both carry the argument's nullability, so the noGroupBy rule
+        // the caller applies afterwards still decides nullability on its own.
+        return switch (call.getAggregation().getKind()) {
+            case SUM -> typeSystem.deriveSumType(typeFactory, call.getType());
+            case AVG -> typeSystem.deriveAvgAggType(typeFactory, call.getType());
+            default -> call.getType();
+        };
     }
 
     /**

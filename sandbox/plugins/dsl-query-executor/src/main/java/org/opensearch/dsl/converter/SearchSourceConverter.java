@@ -142,20 +142,22 @@ public class SearchSourceConverter {
         // Request-scoped workspace for the hits/aggregation plans. The count and eligible-count
         // plans below build in their own workspaces: they are submitted to the engine
         // concurrently with these plans and must not share a metadata cache (see newCluster).
-        RelOptCluster cluster = newCluster();
-        ConversionContext ctx = new ConversionContext(searchSource, cluster, table);
-        RelNode base = buildBase(ctx);
-
         int size = searchSource.size() != -1 ? searchSource.size() : SearchService.DEFAULT_SIZE;
         boolean hasAggs = hasAggregations(searchSource);
 
         QueryPlans.Builder builder = new QueryPlans.Builder();
 
+        // Every plan below gets its own workspace — its own cluster and its own Scan → Filter
+        // nodes. The engine plans the plans of one request on different threads, and a plan's
+        // metadata lookups follow the cluster of the nodes they touch, so one shared cluster or
+        // one shared node puts two threads on the same unguarded metadata cache (see newCluster).
+
         // Hits path: Scan → Filter → Project → Sort
         // size=0 skips hits — total doc count comes from analytics plugin metadata
         if (size > 0) {
-            RelNode hits = projectConverter.convert(base, ctx);
-            hits = sortConverter.convert(hits, ctx);
+            ConversionContext hitsCtx = new ConversionContext(searchSource, newCluster(), table);
+            RelNode hits = projectConverter.convert(buildBase(hitsCtx), hitsCtx);
+            hits = sortConverter.convert(hits, hitsCtx);
             builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, hits));
         }
 
@@ -163,27 +165,15 @@ public class SearchSourceConverter {
         // (one plan per bucket aggregation — size, min_doc_count, and order are baked in;
         // nested levels additionally semi-join their parent level's plan for the per-parent bound)
         List<AggregationMetadata> metadataList = hasAggs
-            ? treeWalker.walk(searchSource.aggregations().getAggregatorFactories(), table.getRowType(), cluster.getTypeFactory())
+            ? treeWalker.walk(searchSource.aggregations().getAggregatorFactories(), table.getRowType(), typeFactory)
             : List.of();
-        // The walker emits parents before their children, so a child's parent plan is
-        // always already built when the child needs it as its semi-join input.
-        Map<String, RelNode> builtPlansByPath = new LinkedHashMap<>();
+        // The walker emits parents before their children, so a child's parent metadata is always
+        // already registered by the time the child rebuilds that level in its own workspace.
+        Map<String, AggregationMetadata> metadataByPath = new LinkedHashMap<>();
         for (AggregationMetadata metadata : metadataList) {
-            ConversionContext aggCtx = ctx.withAggregationMetadata(metadata);
-            if (metadata.getPerParentFetch() != null) {
-                List<String> path = metadata.getAggNamePath();
-                RelNode parentPlan = builtPlansByPath.get(aggPathKey(path.subList(0, path.size() - 1)));
-                if (parentPlan == null) {
-                    throw new ConversionException(
-                        "Parent plan not built before nested plan [" + String.join(",", path) + "] — walker order broken"
-                    );
-                }
-                aggCtx = aggCtx.withParentPlan(parentPlan);
-            }
-            RelNode aggInput = preAggConverter.convert(base, aggCtx);
-            RelNode aggs = aggConverter.convert(aggInput, metadata);
-            aggs = postAggConverter.convert(aggs, aggCtx);
-            builtPlansByPath.put(aggPathKey(metadata.getAggNamePath()), aggs);
+            metadataByPath.put(aggPathKey(metadata.getAggNamePath()), metadata);
+            ConversionContext planCtx = new ConversionContext(searchSource, newCluster(), table);
+            RelNode aggs = buildAggPlan(metadata, planCtx, buildBase(planCtx), metadataByPath);
             builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs, metadata));
         }
 
@@ -211,7 +201,10 @@ public class SearchSourceConverter {
                 totalServesAsEligibleCount = true;
             } else {
                 String fieldName = metadata.getGroupByFieldNames().get(0);
-                RelDataTypeField field = base.getRowType().getField(fieldName, false, false);
+                // The table's row type, not a plan's: a plan's base is Scan → Filter and a
+                // Filter's row type is its input's, so this is the same row type every plan sees
+                // — and no plan's nodes have to be reachable from here to read an index off it.
+                RelDataTypeField field = table.getRowType().getField(fieldName, false, false);
                 if (field == null) {
                     throw new ConversionException("Group-by field '" + fieldName + "' not found in schema");
                 }
@@ -223,7 +216,50 @@ public class SearchSourceConverter {
             builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.COUNT, flatCountPlan));
         }
 
-        return builder.build();
+        QueryPlans plans = builder.build();
+        // Translating the query clause is what validates it, and every translation now happens
+        // inside some plan's own buildBase. A request that emits no plan at all — size=0, no
+        // aggregations, track_total_hits:false, so not even a COUNT plan — would therefore never
+        // look at its query, and a malformed one would come back as an empty 200 the caller cannot
+        // tell apart from "no results" instead of the 400 the conversion error becomes. Translate
+        // it once here and drop the result: this workspace is fresh and unshared, so it shares no
+        // planning state with anything, and a valid query still yields the normal empty result.
+        if (plans.getAll().isEmpty()) {
+            buildBase(new ConversionContext(searchSource, newCluster(), table));
+        }
+        return plans;
+    }
+
+    /**
+     * Builds one aggregation level's plan inside {@code ctx}'s own workspace, rebuilding any
+     * ancestor level it semi-joins there too.
+     *
+     * @param metadata the level to build
+     * @param ctx this plan's workspace context, carrying neither metadata nor a parent plan
+     * @param base this plan's own {@code Scan → Filter} subtree
+     * @param metadataByPath every level the walker has emitted so far, by canonical path key
+     * @return the level's plan, entirely inside {@code ctx}'s cluster
+     * @throws ConversionException if conversion fails, or the walker emitted a child before its parent
+     */
+    private RelNode buildAggPlan(
+        AggregationMetadata metadata,
+        ConversionContext ctx,
+        RelNode base,
+        Map<String, AggregationMetadata> metadataByPath
+    ) throws ConversionException {
+        ConversionContext aggCtx = ctx.withAggregationMetadata(metadata);
+        if (metadata.getPerParentFetch() != null) {
+            List<String> path = metadata.getAggNamePath();
+            AggregationMetadata parent = metadataByPath.get(aggPathKey(path.subList(0, path.size() - 1)));
+            if (parent == null) {
+                throw new ConversionException(
+                    "Parent plan not built before nested plan [" + String.join(",", path) + "] — walker order broken"
+                );
+            }
+            aggCtx = aggCtx.withParentPlan(buildAggPlan(parent, ctx, base, metadataByPath));
+        }
+        RelNode aggInput = preAggConverter.convert(base, aggCtx);
+        return postAggConverter.convert(aggConverter.convert(aggInput, metadata), aggCtx);
     }
 
     /** Canonical plan key — see {@link AggregationMetadata#pathKey}. */
@@ -232,18 +268,23 @@ public class SearchSourceConverter {
     }
 
     /**
-     * Creates a fresh workspace (cluster) for one plan family. Calcite's per-cluster metadata
-     * cache is not thread-safe, and its cycle detection assumes a single planning thread —
-     * concurrent metadata queries over a shared cache misread each other's in-progress markers
-     * as cycles ({@code CyclicMetadataException}). Plans the engine may plan concurrently must
-     * therefore not share a cluster, nor any {@code RelNode}: a node is permanently bound to
-     * the cluster it was created in, and metadata lookups follow {@code node.getCluster()}.
+     * Creates a fresh workspace (cluster) for one emitted plan — called once per plan, with no
+     * exceptions. Calcite's per-cluster metadata cache is not thread-safe: {@code mq} is neither
+     * volatile nor guarded and {@code getMetadataQuery()} is an unsynchronized check-then-act that
+     * re-reads the field on its return path, so one thread's {@code invalidateMetadataQuery()} —
+     * which the engine and {@code logPlan} both issue per plan — can land inside another's lazy
+     * init and make the call return null. The cache is also the cycle-detection structure, so two
+     * threads sharing it misread each other's in-progress markers as cycles
+     * ({@code CyclicMetadataException}) and clear each other's entries. Plans the engine may plan
+     * concurrently must therefore not share a cluster, nor any {@code RelNode}: a node is
+     * permanently bound to the cluster it was created in, and metadata lookups follow
+     * {@code node.getCluster()}.
      */
     private RelOptCluster newCluster() {
         return RelOptCluster.create(new HepPlanner(HepProgram.builder().build()), new RexBuilder(typeFactory));
     }
 
-    /** Builds a plan family's private base — Scan → Filter — inside the context's own workspace. */
+    /** Builds one plan's private base — Scan → Filter — inside the context's own workspace. */
     private RelNode buildBase(ConversionContext ctx) throws ConversionException {
         RelNode scan = LogicalTableScan.create(ctx.getCluster(), ctx.getTable(), List.of());
         return filterConverter.convert(scan, ctx);

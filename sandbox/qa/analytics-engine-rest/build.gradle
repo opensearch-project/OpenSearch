@@ -152,6 +152,14 @@ integTest {
     exclude '**/YmlOversamplingIT.class'
     exclude '**/*NoMergeIT.class'
     exclude '**/planshape/*IT.class'
+    // DSL-path ITs, each on its own cluster below. DslFanOutIT mutates cluster-wide dynamic
+    // setting (dsl.query.max_parallel_sub_plans) and would leak it
+    // into the ~150 siblings that share this single-fork cluster; the other two are excluded so
+    // each DSL IT runs in exactly one task and its provisioning cannot race a sibling's.
+    // Named individually rather than as '**/Dsl*IT.class' — that glob would also pull the
+    // pre-existing DslClickBenchIT out of this task, where it currently runs.
+    exclude '**/DslFanOutIT.class'
+    exclude '**/DslMultiShardSumWideningIT.class'
 
     // Note: parallel forks against the same 2-node testCluster slow the suite down
     // (cluster is the bottleneck, not JVM startup) and cause cross-fork data races
@@ -364,6 +372,55 @@ testClusters.integTestYmlOversampling {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
     setting 'analytics.shard_bucket_oversampling_factor', '2.0'
+}
+
+// ── DSL sub-plan fan-out variant: 2 nodes, own cluster because it mutates settings ──
+// DslFanOutIT drives dsl.query.max_parallel_sub_plans over
+// _cluster/settings. AnalyticsRestTestCase preserves the cluster on completion, so the framework
+// never wipes cluster settings for this suite — the IT clears both keys itself in an @After, and
+// running it on its own cluster keeps a mid-test failure from reaching the default integTest's
+// siblings. It is excluded from integTest above.
+task integTestDslFanout(type: RestIntegTestTask) {
+    description = 'Runs the DSL sub-plan fan-out IT, which mutates cluster-wide dsl.query.* settings'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.DslFanOutIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+check.dependsOn(integTestDslFanout)
+
+testClusters.integTestDslFanout {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
+}
+
+// ── DSL SUM-widening variant: 2 nodes, 2-shard index, PARTIAL/FINAL exchange ──
+// DslMultiShardSumWideningIT needs its 2-shard index's PARTIAL/FINAL split to cross a real
+// exchange between two nodes, which is where a sum declared narrower than DataFusion's
+// accumulator is rejected. It changes no cluster setting; it gets its own task so the shard
+// layout of its index is not competing with the default suite's provisioning.
+task integTestDslSumWidening(type: RestIntegTestTask) {
+    description = 'Runs the DSL SUM-widening IT against a 2-shard index on a 2-node cluster'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching 'org.opensearch.analytics.qa.DslMultiShardSumWideningIT'
+    }
+    systemProperty 'tests.security.manager', 'false'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+check.dependsOn(integTestDslSumWidening)
+
+testClusters.integTestDslSumWidening {
+    numberOfNodes = 2
+    configureAnalyticsCluster(delegate)
 }
 
 // Run against an external cluster (no testClusters lifecycle):
