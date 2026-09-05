@@ -1587,6 +1587,109 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    /**
+     * BWC for the derived-source multi-field store fix: under index.derived_source.enabled, text
+     * multi-fields (sub-fields) are no longer force-stored, while the parent text field still is.
+     * The forced store is a Lucene FieldType bit recomputed on every mapping parse (incl.
+     * MAPPING_RECOVERY on restart), so this verifies both _source reconstruction (GET) and search
+     * (query) keep working for documents indexed BEFORE and AFTER the upgrade.
+     *
+     * NOTE: derived_source (index.derived_source.enabled) is available from 3.3.0 onwards (#18565).
+     */
+    public void testDerivedSourceMultiFieldStore() throws Exception {
+        assumeTrue(
+            "derived_source (index.derived_source.enabled) is available from 3.3.0 onwards",
+            getOldClusterVersion().onOrAfter(Version.fromString("3.3.0"))
+        );
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.field("index.derived_source.enabled", true);
+                mappingsAndSettings.endObject();
+            }
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("title");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.startObject("fields");
+                    {
+                        mappingsAndSettings.startObject("sub");
+                        mappingsAndSettings.field("type", "text");
+                        mappingsAndSettings.endObject();
+                    }
+                    mappingsAndSettings.endObject();
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(mappingsAndSettings.toString());
+            client().performRequest(createIndex);
+
+            // 3 OLD docs (multi-field force-stored by old code)
+            for (int i = 0; i < 3; i++) {
+                Request doc = new Request("PUT", "/" + index + "/_doc/" + i);
+                doc.setJsonEntity("{\"title\":\"quick brown fox " + i + "\"}");
+                client().performRequest(doc);
+            }
+            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
+
+            // OLD cluster: GET _source + query both work on old docs
+            assertDerivedSourceTitle(0, "quick brown fox 0");
+            assertDerivedSourceTitle(2, "quick brown fox 2");
+            assertMatchCount("title.sub", "fox", 3);   // query on the multi-field
+            assertMatchCount("title", "quick", 3);      // query on the parent
+        } else {
+            // --- OLD docs after full restart + mapping re-parse by new code ---
+            // GET _source still reconstructs for old docs
+            assertDerivedSourceTitle(0, "quick brown fox 0");
+            assertDerivedSourceTitle(2, "quick brown fox 2");
+            // query still matches old docs (sub-field still indexed; parent still stored)
+            assertMatchCount("title.sub", "fox", 3);
+            assertMatchCount("title", "quick", 3);
+
+            // --- NEW docs written on the upgraded cluster into the SAME old index ---
+            for (int i = 10; i < 13; i++) {
+                Request doc = new Request("PUT", "/" + index + "/_doc/" + i);
+                doc.setJsonEntity("{\"title\":\"lazy dog " + i + "\"}");
+                client().performRequest(doc);
+            }
+            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
+
+            // GET _source works for new docs (parent field still force-stored -> derivation OK)
+            assertDerivedSourceTitle(11, "lazy dog 11");
+            assertDerivedSourceTitle(12, "lazy dog 12");
+            // query works for new docs on both the multi-field and the parent
+            assertMatchCount("title.sub", "dog", 3);
+            assertMatchCount("title", "lazy", 3);
+
+            // old docs remain queryable alongside the new ones
+            assertMatchCount("title.sub", "fox", 3);
+        }
+    }
+
+    private void assertDerivedSourceTitle(int id, String expectedTitle) throws IOException {
+        Map<String, Object> doc = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_doc/" + id)));
+        assertThat(XContentMapValues.extractValue("_source.title", doc), equalTo(expectedTitle));
+    }
+
+    private void assertMatchCount(String field, String term, int expectedHits) throws IOException {
+        Request search = new Request("GET", "/" + index + "/_search");
+        search.setJsonEntity("{\"track_total_hits\":true,\"query\":{\"match\":{\"" + field + "\":\"" + term + "\"}}}");
+        Map<String, Object> resp = entityAsMap(client().performRequest(search));
+        assertNoFailures(resp);
+        assertThat("hits for " + field + ":" + term, extractTotalHits(resp), equalTo(expectedHits));
+    }
+
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);

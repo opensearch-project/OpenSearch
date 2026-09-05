@@ -1096,7 +1096,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+    private MapperService createDerivedSourceMapperService() throws IOException {
         IndexMetadata build = IndexMetadata.builder("test_index")
             .settings(
                 Settings.builder()
@@ -1116,7 +1116,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        MapperService mapperService = new MapperService(
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -1128,10 +1128,87 @@ public class TextFieldMapperTests extends MapperTestCase {
             () -> true,
             scriptService
         );
+    }
 
+    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+        MapperService mapperService = createDerivedSourceMapperService();
         merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
         TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertTrue(textFieldMapper.fieldType.stored());
+    }
+
+    public void testMultiFieldTextNotStoredForDerivedSource() throws IOException {
+        MapperService mapperService = createDerivedSourceMapperService();
+        merge(mapperService, mapping(b -> {
+            // top-level text field: still force-stored (it is walked by _source reconstruction)
+            b.startObject("desc").field("type", "text").field("store", false).endObject();
+            // keyword field with a text multi-field: the multi-field must NOT be force-stored,
+            // as multi-fields are never used for derived-source reconstruction
+            b.startObject("app_name");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("analyzed").field("type", "text").field("store", false).endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        TextFieldMapper topLevel = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("desc");
+        assertTrue("top-level text field should be force-stored under derived_source", topLevel.fieldType.stored());
+
+        TextFieldMapper multiField = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("app_name.analyzed");
+        assertFalse("text multi-field should NOT be force-stored under derived_source", multiField.fieldType.stored());
+    }
+
+    public void testNestedMultiFieldTextNotStoredForDerivedSource() throws IOException {
+        // Multi-fields within multi-fields are deprecated but still allowed. The multiField flag on
+        // BuilderContext is saved and restored across nested builds, so a nested multi-field build
+        // must not clear the flag for sibling sub-fields of the outer build (subB below).
+        MapperService mapperService = createDerivedSourceMapperService();
+        merge(mapperService, mapping(b -> {
+            b.startObject("parent");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("subA");
+                    {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("inner").field("type", "text").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.startObject("subB").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        TextFieldMapper subA = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subA");
+        assertFalse("multi-field subA should NOT be force-stored under derived_source", subA.fieldType.stored());
+
+        TextFieldMapper inner = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subA.inner");
+        assertFalse("nested multi-field inner should NOT be force-stored under derived_source", inner.fieldType.stored());
+
+        // subB is built AFTER subA's nested multi-field build; without save/restore of the multiField
+        // flag it would be incorrectly force-stored
+        TextFieldMapper subB = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("parent.subB");
+        assertFalse("multi-field subB after a nested multi-field should NOT be force-stored", subB.fieldType.stored());
+
+        assertWarnings(
+            "At least one multi-field, [subA], was encountered that itself contains a multi-field. "
+                + "Defining multi-fields within a multi-field is deprecated and will no longer be supported in 8.0. "
+                + "To resolve the issue, all instances of [fields] that occur within a [fields] block should be removed "
+                + "from the mappings, either by flattening the chained [fields] blocks into a single level, or "
+                + "switching to [copy_to] if appropriate."
+        );
     }
 
     public void testDerivedValueFetching_StoredField() throws IOException {
