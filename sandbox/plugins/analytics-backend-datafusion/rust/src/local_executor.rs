@@ -38,7 +38,6 @@ use datafusion::execution::{SendableRecordBatchStream, SessionStateBuilder};
 use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::prelude::{SessionConfig, SessionContext};
-use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use native_bridge_common::log_debug;
 use prost::Message;
 use substrait::proto::Plan;
@@ -203,7 +202,8 @@ impl LocalSession {
         let plan = Plan::decode(bytes).map_err(|e| {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
-        let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        let logical_plan =
+            crate::substrait_consumer::from_substrait_plan(&self.ctx.state(), &plan).await?;
         log_debug!(
             "DataFusion logical plan:\n{}",
             logical_plan.display_indent()
@@ -248,7 +248,8 @@ impl LocalSession {
                 e
             ))
         })?;
-        let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        let logical_plan =
+            crate::substrait_consumer::from_substrait_plan(&self.ctx.state(), &plan).await?;
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
         // Strip first so `force_aggregate_mode(Final)` can find the Final/Partial pair

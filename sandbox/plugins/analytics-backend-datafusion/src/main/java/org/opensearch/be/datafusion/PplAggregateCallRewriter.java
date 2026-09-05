@@ -16,6 +16,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -44,6 +45,8 @@ final class PplAggregateCallRewriter {
         DataFusionFragmentConvertor.LOCAL_FIRST_OP,
         DataFusionFragmentConvertor.LOCAL_LAST_OP,
         DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP,
+        DataFusionFragmentConvertor.LOCAL_MV_COLLECT_OP,
+        DataFusionFragmentConvertor.LOCAL_MV_COLLECT_DISTINCT_OP,
         DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP,
         DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP,
         DataFusionFragmentConvertor.LOCAL_PERCENTILE_APPROX_OP,
@@ -164,9 +167,16 @@ final class PplAggregateCallRewriter {
                 RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
                 boolean arg0IsList = arg0Type.getComponentType() != null;
                 if (arg0IsList) {
-                    targetOp = isValues
-                        ? DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP
-                        : DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP;
+                    boolean finalState = readsStageInput(agg.getInput());
+                    if (finalState) {
+                        targetOp = isValues
+                            ? DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP
+                            : DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP;
+                    } else {
+                        targetOp = isValues
+                            ? DataFusionFragmentConvertor.LOCAL_MV_COLLECT_DISTINCT_OP
+                            : DataFusionFragmentConvertor.LOCAL_MV_COLLECT_OP;
+                    }
                     targetDistinct = false;
                     explicitReturnType = arg0Type;
                 } else {
@@ -231,6 +241,14 @@ final class PplAggregateCallRewriter {
             explicitReturnType,
             call.getName()
         );
+    }
+
+    private static boolean readsStageInput(RelNode node) {
+        if (node instanceof TableScan scan) {
+            List<String> qualifiedName = scan.getTable().getQualifiedName();
+            return !qualifiedName.isEmpty() && qualifiedName.getLast().startsWith("input-");
+        }
+        return node.getInputs().size() == 1 && readsStageInput(node.getInput(0));
     }
 
     private static RelDataType internalPatternReturnType(RelDataTypeFactory typeFactory) {

@@ -1057,7 +1057,7 @@ pub async unsafe fn fetch_by_row_ids(
         .runtime_env()
         .cache_manager
         .get_file_metadata_cache();
-    let (segments, _schema) = build_segments(
+    let (segments, resolved_schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
         shard_view.object_metas.as_ref(),
@@ -1130,15 +1130,6 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 3. Register ShardTableProvider ──
 
     let store_url = store_url_from_table_path(&shard_view.table_path)?;
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(Arc::new(
-        datafusion::datasource::file_format::parquet::ParquetFormat::new(),
-    ))
-    .with_file_extension(".parquet")
-    .with_collect_stat(true);
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await?;
-
     let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
         file_schema: resolved_schema,
         files,
@@ -1614,7 +1605,7 @@ fn derive_schema_from_partial_plan(
     use datafusion::prelude::SessionContext;
     use datafusion_substrait::extensions::Extensions;
     use datafusion_substrait::logical_plan::consumer::{
-        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+        from_substrait_named_struct, DefaultSubstraitConsumer,
     };
     use prost::Message;
     use substrait::proto::{read_rel::ReadType, Plan};
@@ -1702,7 +1693,9 @@ fn derive_schema_from_partial_plan(
         })
         .unwrap_or_default();
 
-    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let logical_plan = futures::executor::block_on(
+        crate::substrait_consumer::from_substrait_plan(&session_state, &plan),
+    )?;
     let physical_plan =
         futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 

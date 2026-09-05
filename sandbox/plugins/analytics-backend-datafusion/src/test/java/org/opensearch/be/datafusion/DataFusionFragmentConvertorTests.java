@@ -16,8 +16,13 @@ import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.CorrelationId;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Uncollect;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalCorrelate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rel.logical.LogicalValues;
@@ -708,8 +713,117 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
 
     // ── Extension function rename tests ────────────────────────────────────────
 
+    public void testListOverSourceMultiValueRoutesToMvCollect() throws Exception {
+        assertListAggregateUses("test_index", "mv_collect");
+    }
+
+    public void testListOverFinalStateRoutesToListMerge() throws Exception {
+        assertListAggregateUses("input-7", "list_merge");
+    }
+
+    public void testListGroupByAddsDistinctReplaceExpansion() throws Exception {
+        RelNode scan = buildListTableScan("test_index");
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count"
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(aggregate)));
+        assertTrue(root.hasAggregate());
+        Rel expanded = root.getAggregate().getInput();
+        assertTrue("LIST GROUP BY must use an ExtensionSingleRel", expanded.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(-1, payload.getInt());
+        assertEquals("implicit GROUP BY expansion replaces the LIST field", 0, payload.getInt());
+        assertEquals("implicit GROUP BY expansion de-duplicates within each document", 1, payload.getInt());
+    }
+
+    public void testExplicitMvExpandCorrelateEmitsAppendExtensionWithLimit() throws Exception {
+        RelNode left = buildListTableScan("test_index");
+        CorrelationId correlationId = cluster.createCorrel();
+        RexNode correlatedTags = rexBuilder.makeFieldAccess(rexBuilder.makeCorrel(left.getRowType(), correlationId), 0);
+        RelNode values = LogicalValues.createOneRow(cluster);
+        RelNode project = LogicalProject.create(
+            values,
+            List.of(),
+            List.of(correlatedTags),
+            List.of("tags"),
+            java.util.Set.of(correlationId)
+        );
+        RelNode uncollect = Uncollect.create(cluster.traitSet(), project, false, List.of());
+        RexNode fetch = rexBuilder.makeLiteral(2, typeFactory.createSqlType(SqlTypeName.INTEGER), true);
+        RelNode limited = LogicalSort.create(uncollect, RelCollations.EMPTY, null, fetch);
+        RelNode correlate = LogicalCorrelate.create(left, limited, correlationId, ImmutableBitSet.of(0), JoinRelType.INNER);
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(correlate)));
+        assertTrue(root.hasExtensionSingle());
+        java.nio.ByteBuffer payload = root.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(2, payload.getInt());
+        assertEquals("explicit mvexpand appends its element for the frontend projection", 1, payload.getInt());
+        assertEquals("explicit mvexpand preserves duplicate elements", 0, payload.getInt());
+    }
+
+    private void assertListAggregateUses(String tableName, String expectedFunction) throws Exception {
+        RelNode scan = buildListTableScan(tableName);
+        SqlAggFunction list = new SqlAggFunction(
+            "LIST",
+            null,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.ARG0,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION,
+            false,
+            false,
+            Optionality.FORBIDDEN
+        ) {
+        };
+        AggregateCall call = AggregateCall.create(
+            list,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(0),
+            -1,
+            null,
+            RelCollations.EMPTY,
+            0,
+            scan,
+            scan.getRowType().getFieldList().get(0).getType(),
+            "values"
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(call));
+        Plan plan = decodeSubstrait(newConvertor().convertFragment(aggregate));
+        assertTrue(
+            "expected aggregate extension " + expectedFunction,
+            plan.getExtensionsList()
+                .stream()
+                .filter(SimpleExtensionDeclaration::hasExtensionFunction)
+                .map(declaration -> declaration.getExtensionFunction().getName())
+                .map(name -> name.contains(":") ? name.substring(0, name.indexOf(':')) : name)
+                .anyMatch(expectedFunction::equals)
+        );
+    }
+
+    private RelNode buildListTableScan(String tableName) {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType type = typeFactory.builder().add("tags", list).build();
+        return new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), tableName, type);
+    }
+
     /**
      * APPROX_COUNT_DISTINCT aggregate emits as {@code approx_distinct} in the
+
      * Substrait extension declarations — not the Calcite-native
      * {@code approx_count_distinct} name.
      */

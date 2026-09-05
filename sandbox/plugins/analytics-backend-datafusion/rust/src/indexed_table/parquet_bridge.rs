@@ -252,6 +252,9 @@ fn create_stream_with_access_plan(
 
     let mut config_builder =
         FileScanConfigBuilder::new(config.store_url.clone(), Arc::new(parquet_source))
+            .with_expr_adapter(Some(Arc::new(
+                crate::scalar_to_list_adapter::ScalarToListExprAdapterFactory,
+            )))
             .with_file(partitioned_file);
 
     if let Some(ref proj) = config.projection {

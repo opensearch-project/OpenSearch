@@ -68,8 +68,9 @@ public final class ArrowValues {
 
     /**
      * Reads an Arrow cell as a JSON-friendly scalar: numerics coerced to
-     * {@code long}/{@code double}, timestamps rendered as ISO-8601 UTC strings. Binary and
-     * complex (list/struct/decimal) types are not yet supported and return {@code null}.
+     * {@code long}/{@code double}, timestamps rendered as ISO-8601 UTC strings, list columns as a
+     * {@code List} of converted elements. Binary and remaining complex (struct/decimal) types are
+     * not yet supported and return {@code null}.
      */
     public static Object toSourceValue(FieldVector vec, int idx) {
         if (vec == null || vec.isNull(idx)) return null;
@@ -83,6 +84,19 @@ public final class ArrowValues {
                 return null;
             default:
                 break;
+        }
+        // Multi-valued fields are LIST columns; _source is reconstructed from these columns (there
+        // are no Lucene stored fields on this path), so dropping them would silently lose the
+        // field from every get-by-id response. MapVector extends ListVector, so exclude maps.
+        if (vec instanceof ListVector listVector && vec instanceof MapVector == false) {
+            FieldVector data = listVector.getDataVector();
+            int start = listVector.getOffsetBuffer().getInt((long) idx * ListVector.OFFSET_WIDTH);
+            int end = listVector.getOffsetBuffer().getInt((long) (idx + 1) * ListVector.OFFSET_WIDTH);
+            List<Object> values = new ArrayList<>(Math.max(0, end - start));
+            for (int i = start; i < end; i++) {
+                values.add(toSourceValue(data, i));
+            }
+            return values;
         }
         Object raw = vec.getObject(idx);
         switch (id) {
