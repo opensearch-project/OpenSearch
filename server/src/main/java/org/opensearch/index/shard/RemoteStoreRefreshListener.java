@@ -596,7 +596,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     private record MetadataUploadState(ReplicationCheckpointState checkpoint, long catalogGeneration, long catalogVersion,
-                                       long lastCommitGeneration, long translogGeneration, Map<String, String> userData, Set<String> segmentFiles) {
+        long lastCommitGeneration, long translogGeneration, Map<String, String> userData, Set<String> segmentFiles) {
         private MetadataUploadState {
             userData = Map.copyOf(userData);
             segmentFiles = Set.copyOf(segmentFiles);
@@ -604,7 +604,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     private record ReplicationCheckpointState(long primaryTerm, long segmentsGeneration, long segmentInfosVersion, long length,
-                                              String codec) {
+        String codec) {
     }
 
     boolean isLowPriorityUpload() {
@@ -736,8 +736,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-            || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-            || indexShard.shouldSeedRemoteStore());
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                || indexShard.shouldSeedRemoteStore());
     }
 
     /**
