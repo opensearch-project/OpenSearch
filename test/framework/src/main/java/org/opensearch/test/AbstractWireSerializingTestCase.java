@@ -32,7 +32,10 @@
 package org.opensearch.test;
 
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -55,5 +58,32 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
     @Override
     protected final T copyInstance(T instance, Version version) throws IOException {
         return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
+    }
+
+    /**
+     * Verifies that an instance retains an exact wire representation captured from an older release.
+     * This catches compatible reader and writer changes that ordinary same-version round trips cannot detect.
+     */
+    protected final void assertWireFixture(T expectedInstance, Version version, BytesReference fixture) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
+            expectedInstance.writeTo(output);
+            assertArrayEquals(
+                "wire bytes changed for [" + expectedInstance.getClass().getName() + "] at version [" + version + "]",
+                BytesReference.toBytes(fixture),
+                BytesReference.toBytes(output.bytes())
+            );
+        }
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(fixture.streamInput(), getNamedWriteableRegistry())) {
+            input.setVersion(version);
+            final T fixtureInstance = instanceReader().read(input);
+            assertEquals(
+                "wire reader for [" + expectedInstance.getClass().getName() + "] left unread fixture bytes at version [" + version + "]",
+                0,
+                input.available()
+            );
+            assertEqualInstances(expectedInstance, fixtureInstance);
+        }
     }
 }
