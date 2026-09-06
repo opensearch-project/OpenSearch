@@ -16,21 +16,30 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.FlatObjectDocValueFormat;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -398,6 +407,42 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             Throwable throwable = assertThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
             assertEquals("Field [field] of type [flat_object] does not support doc_value in root field", throwable.getMessage());
+        }
+    }
+
+    public void testDocValueFormatSerialization() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flat_object")));
+        MappedFieldType fieldType = mapperService.fieldType("field.name");
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.writeNamedWriteable(format);
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+            );
+            try (StreamInput input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
+                DocValueFormat copy = input.readNamedWriteable(DocValueFormat.class);
+                assertEquals("1234", copy.format(new BytesRef("field.field.name=1234")));
+                assertEquals(new BytesRef("field.field.name=1234"), copy.parseBytesRef("1234"));
+            }
+        }
+    }
+
+    public void testLegacyDocValueFormatSerialization() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flat_object")));
+        DocValueFormat format = mapperService.fieldType("field.name").docValueFormat(null, null);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_3_8_0);
+            output.writeNamedWriteable(format);
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+            );
+            try (StreamInput input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
+                input.setVersion(Version.V_3_8_0);
+                assertThat(input.readNamedWriteable(DocValueFormat.class), instanceOf(FlatObjectDocValueFormat.class));
+                assertEquals(0, input.available());
+            }
         }
     }
 

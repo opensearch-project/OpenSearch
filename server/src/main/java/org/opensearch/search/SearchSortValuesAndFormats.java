@@ -33,11 +33,13 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.FlatObjectDocValueFormat;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -94,7 +96,11 @@ public class SearchSortValuesAndFormats implements Writeable {
         out.writeArray(Lucene::writeSortValue, rawSortValues);
         out.writeArray(Lucene::writeSortValue, formattedSortValues);
         for (int i = 0; i < sortValueFormats.length; i++) {
-            out.writeNamedWriteable(sortValueFormats[i]);
+            DocValueFormat format = sortValueFormats[i];
+            if (out.getVersion().before(Version.V_3_9_0) && format instanceof FlatObjectDocValueFormat) {
+                format = DocValueFormat.RAW;
+            }
+            out.writeNamedWriteable(format);
         }
     }
 

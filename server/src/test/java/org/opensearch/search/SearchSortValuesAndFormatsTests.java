@@ -33,12 +33,15 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.FlatObjectDocValueFormat;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -108,5 +111,15 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
             sortValueFormats[i] = DocValueFormat.RAW;
         }
         return new SearchSortValuesAndFormats(values, sortValueFormats);
+    }
+
+    public void testFlatObjectFormatFallsBackForLegacyNodes() throws IOException {
+        SearchSortValuesAndFormats instance = new SearchSortValuesAndFormats(
+            new Object[] { new BytesRef("field.field.name=1234") },
+            new DocValueFormat[] { new FlatObjectDocValueFormat("field.field.name=") }
+        );
+
+        SearchSortValuesAndFormats copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), Version.V_3_8_0);
+        assertSame(DocValueFormat.RAW, copy.getSortValueFormats()[0]);
     }
 }
