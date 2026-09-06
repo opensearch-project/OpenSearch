@@ -116,6 +116,7 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:s3-fixture',
   'test:logger-usage',
+  'test:wire-serialization-audit',
   'test:telemetry'
 ]
 
