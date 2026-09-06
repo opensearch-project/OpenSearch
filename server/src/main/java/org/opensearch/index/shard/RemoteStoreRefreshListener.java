@@ -100,7 +100,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     /**
      * State represented by the last metadata file uploaded successfully by this listener. Segment filenames alone are not a sufficient
-     * identity. Metadata file also publishes the primary term, replication checkpoint, translog generation, and commit user data.
+     * identity. The metadata file also publishes the primary term, replication checkpoint, translog generation, and commit user data.
      *
      * <p>The state is cleared before uploading any segment file because a re-upload changes the local-to-remote filename mapping even when
      * the local filename and the rest of the index state are unchanged.</p>
