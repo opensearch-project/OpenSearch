@@ -1611,7 +1611,13 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 in.setVersion(version);
-                return reader.read(in);
+                final T copy = reader.read(in);
+                assertEquals(
+                    "wire reader for [" + original.getClass().getName() + "] left unread bytes at version [" + version + "]",
+                    0,
+                    in.available()
+                );
+                return copy;
             }
         }
     }

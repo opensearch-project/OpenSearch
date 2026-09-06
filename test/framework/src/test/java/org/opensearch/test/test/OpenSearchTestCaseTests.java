@@ -32,9 +32,12 @@
 
 package org.opensearch.test.test;
 
+import org.opensearch.Version;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,6 +57,7 @@ import java.util.function.Supplier;
 
 import junit.framework.AssertionFailedError;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -84,6 +88,27 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
             assertNull(assertFailed.getCause());
             assertEquals("Expected exception IllegalArgumentException but no exception was thrown", assertFailed.getMessage());
         }
+    }
+
+    public void testCopyWriteableRejectsUnreadBytes() {
+        final Writeable writeable = out -> {
+            out.writeInt(1);
+            out.writeInt(2);
+        };
+        final AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> copyWriteable(writeable, new NamedWriteableRegistry(Collections.emptyList()), in -> {
+                in.readInt();
+                return writeable;
+            })
+        );
+
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "wire reader for [" + writeable.getClass().getName() + "] left unread bytes at version [" + Version.CURRENT + "]"
+            )
+        );
     }
 
     public void testShuffleMap() throws IOException {

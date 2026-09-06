@@ -44,7 +44,9 @@ public class ListViewNamesAction extends ActionType<ListViewNamesAction.Response
     public static class Request extends ActionRequest {
         public Request() {}
 
-        public Request(final StreamInput in) {}
+        public Request(final StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
         public boolean equals(Object o) {
