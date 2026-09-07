@@ -95,6 +95,13 @@ crc32fast = { workspace = true }
 # rewrite. STANDARD alphabet matches the OpenSearch `binary` field wire contract.
 base64 = "0.22"
 
+# Liquid Cache (off by default): uncomment the dep + the dep: entry below and build with -PliquidCache to use liquid cache.
+# opensearch-liquid-cache = { path = "../../liquid-cache/src/main/rust", optional = true }
+
+[features]
+# Off by default; when on, the hook in src/liquid_cache.rs engages the process-global cache.
+liquid_cache = [] # ["dep:opensearch-liquid-cache"]
+
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }

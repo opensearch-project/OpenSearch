@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Liquid Cache native crates — a self-contained Cargo workspace holding the
+# in-memory decoded-batch cache (./core) and its DataFusion parquet reader
+# (./datafusion). These crates are compiled into the analytics engine's native
+# library only when it is built with the `liquid_cache` cargo feature; on their
+# own they are just a buildable, self-testing library.
+[workspace]
+resolver = "2"
+members = ["core", "datafusion"]
+
+[workspace.dependencies]
+arrow = { version = "=58.3.0", features = ["ffi"] }
+arrow-schema = "=58.3.0"
+parquet = "=58.3.0"
+datafusion = "=54.0.0"
+datafusion-common = "=54.0.0"
+datafusion-expr-common = "=54.0.0"
+datafusion-physical-expr = "=54.0.0"
+datafusion-datasource = "=54.0.0"
+tokio = { version = "=1.52.3", features = ["full"] }
+futures = "=0.3.32"
+object_store = "=0.13.2"
+bytes = "=1.11.1"
+log = "=0.4.29"
+serde = { version = "=1.0.228", features = ["derive"] }
+ahash = "=0.8.12"
+congee = "=0.4.1"
+fastlanes = "=0.5.2"
+num-traits = "=0.2.19"
+tempfile = "=3.27.0"
+opensearch-liquid-cache-core = { path = "core" }
+opensearch-liquid-cache-datafusion = { path = "datafusion" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1

@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Vendored in-memory subset of liquid-cache core.
+# Provenance: https://github.com/cocosz/liquid-cache branch lc-opensearch-df54-v2
+# commit 8311bccc258756127adbebee3e54140b60fc09ba. See ../README.md.
+
+[package]
+name = "opensearch-liquid-cache-core"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+# Keep the upstream crate name so vendored code and the integration keep
+# their `use liquid_cache::...` paths, making future upstream re-syncs diffable.
+name = "liquid_cache"
+path = "src/lib.rs"
+
+[dependencies]
+ahash = { workspace = true }
+arrow = { workspace = true }
+arrow-schema = { workspace = true }
+congee = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-expr-common = { workspace = true }
+datafusion-physical-expr = { workspace = true }
+fastlanes = { workspace = true }
+log = { workspace = true }
+num-traits = { workspace = true }
+serde = { workspace = true }
