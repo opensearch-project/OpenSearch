@@ -76,8 +76,8 @@ public interface DocumentInput<T> extends AutoCloseable {
      * <p>When emitted between {@link #startNestedChild(String)} and {@link #endNestedChild()} the entry
      * belongs to that nested element's map child; otherwise it belongs to a document-root map column.
      *
-     * <p>Default is a no-op so formats with no map notion (e.g. Lucene, which stores flat_object as its
-     * own {@code _value} / {@code _valueAndPath} terms) are unaffected.
+     * <p>Default is a no-op so formats with no map notion (e.g. Lucene, which never represents
+     * flat_object or nested data at all — Parquet is the sole source for both) are unaffected.
      *
      * @param mapField the map-typed field the entry belongs to
      * @param key the entry key — the leaf's dotted path relative to {@code mapField}
