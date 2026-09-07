@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.indices.scale.searchonly;
 
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
@@ -16,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
@@ -25,6 +27,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -88,9 +91,17 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
                 assertSearchNodeDocCounts(10, TEST_INDEX);
             } else {
                 try {
-                    client().prepareSearch(TEST_INDEX).setSize(0).get();
-                } catch (Exception e) {
-                    assertTrue(e.getMessage().contains("all shards failed"));
+                    client().prepareSearch(TEST_INDEX).setPreference(Preference.SEARCH_REPLICA.type()).setSize(0).get();
+                    fail("search replica should have failed");
+                } catch (NoShardAvailableActionException e) {
+                    assertEquals(
+                        String.format(
+                            Locale.ROOT,
+                            "Strictly require querying search only shards, but the number of search only replicas for index %s is 0",
+                            TEST_INDEX
+                        ),
+                        e.getMessage()
+                    );
                 }
             }
         }, 30, TimeUnit.SECONDS);
@@ -123,6 +134,22 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         }, 10, TimeUnit.SECONDS);
 
         ensureGreen(TEST_INDEX);
+
+        if (searchOnlyReplica == 0) {
+            try {
+                client().prepareSearch(TEST_INDEX).setSize(0).get();
+                fail("search replica should have failed");
+            } catch (NoShardAvailableActionException e) {
+                assertEquals(
+                    String.format(
+                        Locale.ROOT,
+                        "The index %s is in the scale down state, and the number of search only shards is 0",
+                        TEST_INDEX
+                    ),
+                    e.getMessage()
+                );
+            }
+        }
 
         assertAcked(
             client().admin()
