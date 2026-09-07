@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Transport search action for streaming search
@@ -89,7 +90,7 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         GroupShardsIterator<SearchShardIterator> shardIterators,
         SearchTimeProvider timeProvider,
         BiFunction<String, String, Transport.Connection> connectionLookup,
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
         Map<String, Set<String>> indexRoutings,
@@ -127,7 +128,7 @@ public class StreamTransportSearchAction extends TransportSearchAction {
                         listener,
                         shardIterators,
                         timeProvider,
-                        clusterState,
+                        clusterStateSupplier,
                         task,
                         clusters,
                         searchRequestContext,
