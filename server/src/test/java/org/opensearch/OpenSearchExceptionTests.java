@@ -114,7 +114,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
 
         exception = new RemoteTransportException("test", new ResourceAlreadyExistsException("test"));
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.status(), equalTo(RestStatus.CONFLICT));
 
         exception = new RemoteTransportException("test", new IllegalArgumentException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));

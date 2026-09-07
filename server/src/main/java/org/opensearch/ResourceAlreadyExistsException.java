@@ -60,6 +60,6 @@ public class ResourceAlreadyExistsException extends OpenSearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
+        return RestStatus.CONFLICT;
     }
 }
