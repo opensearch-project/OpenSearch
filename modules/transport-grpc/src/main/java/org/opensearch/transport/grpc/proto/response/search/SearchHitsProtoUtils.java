@@ -69,14 +69,18 @@ public class SearchHitsProtoUtils {
     private static void processTotalHits(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) {
         org.opensearch.protobufs.HitsMetadataTotal.Builder totalBuilder = org.opensearch.protobufs.HitsMetadataTotal.newBuilder();
 
+        if (hits.getTotalHits() == null) {
+            hitsMetaData.setTotal(totalBuilder.build());
+            return;
+        }
+
         // TODO need to pass parameters
         // boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         boolean totalHitAsInt = false;
 
         if (totalHitAsInt) {
-            long total = hits.getTotalHits() == null ? -1 : hits.getTotalHits().value();
-            totalBuilder.setInt64(total);
-        } else if (hits.getTotalHits() != null) {
+            totalBuilder.setInt64(hits.getTotalHits().value());
+        } else {
             org.opensearch.protobufs.TotalHits.Builder totalHitsBuilder = org.opensearch.protobufs.TotalHits.newBuilder();
             totalHitsBuilder.setValue(hits.getTotalHits().value());
 
