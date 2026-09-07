@@ -33,6 +33,7 @@
 grant {
    // reindex opens socket connections using the rest client
    permission java.net.SocketPermission "*", "connect";
+   permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
 };
 
 grant codeBase "${codebase.opensearch-rest-client}" {
