@@ -318,7 +318,21 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onResponse(getResponse(request, observer.setAndGetObservedState(), waitCount, TimeoutState.TIMED_OUT));
+                    ClusterState finalState = observer.setAndGetObservedState();
+
+                    // Check if timeout was due to missing indices
+                    if (CollectionUtils.isEmpty(request.indices()) == false) {
+                        try {
+                            indexNameExpressionResolver.concreteIndexNames(finalState, IndicesOptions.strictExpand(), request);
+                        } catch (IndexNotFoundException e) {
+                            // Indices still don't exist after timeout - return 404 instead of timed out response
+                            listener.onFailure(e);
+                            return;
+                        }
+                    }
+
+                    // Normal timeout response for other reasons
+                    listener.onResponse(getResponse(request, finalState, waitCount, TimeoutState.TIMED_OUT));
                 }
             };
             observer.waitForNextChange(stateListener, validationPredicate, request.timeout());

@@ -339,13 +339,18 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         createIndex("index", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
         request.timeout("5s");
-        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        assertThat(response, notNullValue());
-        assertThat(response.isTimedOut(), equalTo(true));
-        assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
-        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertNoIndices(response);
+        // After the fix, querying non-existent index should return 404 instead of timeout
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(
+            exception.getMessage(),
+            equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [notexisted-index]]")
+        );
     }
 
     public void testRemoteInfo() throws Exception {
