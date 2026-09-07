@@ -47,6 +47,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Requests;
 
@@ -422,5 +423,28 @@ public class BulkRequestTests extends OpenSearchTestCase {
             MediaTypeRegistry.JSON
         );
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
+
+    public void testScriptParamsAreIncludedInSize() {
+        BulkRequest bulkRequest = new BulkRequest();
+
+        UpdateRequest requestWithEmptyParams = new UpdateRequest("index", "id1");
+        requestWithEmptyParams.script(
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())
+        );
+        bulkRequest.add(requestWithEmptyParams);
+        long sizeWithEmptyParams = bulkRequest.estimatedSizeInBytes();
+
+        UpdateRequest requestWithParams = new UpdateRequest("index", "id2");
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", "test_value");
+        requestWithParams.script(
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", params)
+        );
+        bulkRequest.add(requestWithParams);
+        long sizeWithParams = bulkRequest.estimatedSizeInBytes();
+
+        assertTrue(sizeWithParams > sizeWithEmptyParams);
+        assertTrue(sizeWithParams - sizeWithEmptyParams >= params.toString().length());
     }
 }
