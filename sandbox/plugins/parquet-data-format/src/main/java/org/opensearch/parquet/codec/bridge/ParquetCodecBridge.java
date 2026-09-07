@@ -49,7 +49,8 @@ public final class ParquetCodecBridge {
                 ValueLayout.ADDRESS,    // column_ptr
                 ValueLayout.JAVA_LONG,  // column_len
                 ValueLayout.JAVA_LONG,  // initial_batch_size
-                ValueLayout.JAVA_LONG   // max_batch_size
+                ValueLayout.JAVA_LONG,  // max_batch_size
+                ValueLayout.JAVA_LONG   // store_ptr
             )
         );
         CLOSE_CURSOR = linker.downcallHandle(
@@ -81,12 +82,15 @@ public final class ParquetCodecBridge {
      *
      * @param initialBatchSize rows in the first decode window; must be in {@code 1..=maxBatchSize}
      * @param maxBatchSize     ceiling the adaptive window grows to, for this cursor's lifetime
+     * @param storePtr         native object-store pointer the cursor reads {@code file} through, or
+     *                         {@code 0} to read from the local filesystem
      */
-    public static long openColumnCursor(String file, String column, long initialBatchSize, long maxBatchSize) throws IOException {
+    public static long openColumnCursor(String file, String column, long initialBatchSize, long maxBatchSize, long storePtr)
+        throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var c = call.str(column);
-            return call.invokeIO(OPEN_CURSOR, f.segment(), f.len(), c.segment(), c.len(), initialBatchSize, maxBatchSize);
+            return call.invokeIO(OPEN_CURSOR, f.segment(), f.len(), c.segment(), c.len(), initialBatchSize, maxBatchSize, storePtr);
         }
     }
 

@@ -39,6 +39,7 @@ use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
 use once_cell::sync::Lazy;
+use opensearch_tiered_storage::tiered_object_store::MetadataCachingStore;
 use parking_lot::Mutex;
 use parquet::arrow::{parquet_to_arrow_schema_by_columns, ProjectionMask};
 #[cfg(test)]
@@ -66,6 +67,10 @@ const TEST_MAX_BATCH_SIZE: usize = BATCH_SIZE_HARD_LIMIT;
 /// `ffm_safe`, so only non-negative values are status; 1 is unused. Mirrors `ParquetCodecBridge`.
 const RC_OK: i64 = 0;
 const RC_EOF: i64 = 2;
+
+/// Store pointer meaning "read from the local filesystem", which is every hot shard. Mirrors
+/// `ParquetColumnReader.LOCAL_STORE` on the Java side.
+const LOCAL_STORE: i64 = 0;
 
 static NEXT_HANDLE: AtomicI64 = AtomicI64::new(1); // 0 is never a live handle
 static CURSORS: Lazy<DashMap<i64, Arc<Mutex<DocValuesCursor>>>> = Lazy::new(DashMap::new);
@@ -435,20 +440,53 @@ fn borrowable_buffers(array: &dyn Array) -> Option<BorrowedBuffers> {
     })
 }
 
+/// Resolves the store a cursor reads through from a Java-supplied pointer.
+///
+/// `0` means the shard's Parquet files are on local disk, which is every hot shard: the cursor
+/// builds its own `LocalFileSystem` and reads through a synchronous `ChunkReader`. A non-zero
+/// pointer is a warm shard's `TieredObjectStore`, whose files live in the remote object store; the
+/// `Arc` is cloned out of the box so the cursor keeps the store alive for its own lifetime rather
+/// than depending on the shard's box outliving it.
+///
+/// # Safety
+///
+/// `store_ptr` must be `0` or a pointer obtained from `ts_get_object_store_box_ptr` that has not yet
+/// been destroyed, which is what `ParquetDataFormatStoreHandler` hands out for the shard's lifetime.
+unsafe fn store_from_ptr(store_ptr: i64) -> Option<Arc<dyn ObjectStore>> {
+    if store_ptr <= LOCAL_STORE {
+        return None;
+    }
+    // Same pointer type and upcast dance as `api::create_reader`: bind the concrete trait object
+    // first, because `Arc::clone` alone cannot infer the supertrait.
+    let boxed = &*(store_ptr as *const Arc<dyn MetadataCachingStore>);
+    let caching: Arc<dyn MetadataCachingStore> = Arc::clone(boxed);
+    Some(caching)
+}
+
 /// Opens a cursor and registers it, returning the handle Java holds.
-fn open_and_register(
+///
+/// # Safety
+///
+/// See [`store_from_ptr`] for the contract `store_ptr` must satisfy.
+unsafe fn open_and_register(
     filename: &str,
     column: &str,
     initial_batch_size: usize,
     max_batch_size: usize,
+    store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
     let runtime = io_runtime()?;
+    // The object path is derived from `filename` in both cases. A warm shard's registry is keyed by
+    // the same absolute path this cursor is opened with (`StoreStrategyRegistry` seeds it from
+    // `shardPath.getDataPath().resolve(file)`), and both `ObjectPath` and the registry normalise the
+    // leading slash away, so no separate location override is needed.
+    let store = store_from_ptr(store_ptr);
     let cursor = runtime.block_on(DocValuesCursor::open(
         filename,
         column,
         initial_batch_size,
         max_batch_size,
-        None,
+        store,
         None,
         Arc::clone(&runtime),
     ))?;
@@ -479,6 +517,8 @@ pub unsafe extern "C" fn parquet_df_open_iter(
     column_len: i64,
     initial_batch_size: i64,
     max_batch_size: i64,
+    // 0 for a local (hot) shard; a warm shard passes its TieredObjectStore box pointer.
+    store_ptr: i64,
 ) -> i64 {
     static FN: &str = "parquet_df_open_iter";
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("{FN} file: {e}"))?;
@@ -502,6 +542,7 @@ pub unsafe extern "C" fn parquet_df_open_iter(
         column,
         initial_batch_size as usize,
         max_batch_size as usize,
+        store_ptr,
     )
     .map_err(|e| e.to_string())
 }
@@ -1199,6 +1240,12 @@ mod ffm_tests {
     use std::ffi::{c_char, CString};
     use std::io::Write;
 
+    use object_store::memory::InMemory;
+    use object_store::ObjectStoreExt;
+    use opensearch_tiered_storage::registry::traits::FileRegistry;
+    use opensearch_tiered_storage::registry::TieredStorageRegistry;
+    use opensearch_tiered_storage::tiered_object_store::TieredObjectStore;
+    use opensearch_tiered_storage::types::{FileLocation, TieredFileEntry};
     use tempfile::NamedTempFile;
 
     use super::tests::{parquet_fixture_with_page_rows, register_test_metadata_cache};
@@ -1242,6 +1289,7 @@ mod ffm_tests {
                 column.len() as i64,
                 initial,
                 max,
+                LOCAL_STORE, // these fixtures are real files on disk
             )
         }
     }
@@ -1529,6 +1577,102 @@ mod ffm_tests {
         }
     }
 
+    /// Wraps `store` the way `ts_get_object_store_box_ptr` does, so the pointer handed to
+    /// `parquet_df_open_iter` has exactly the shape a warm shard's store handle carries.
+    fn leak_store_pointer(store: Arc<TieredObjectStore>) -> i64 {
+        let boxed: Box<Arc<dyn MetadataCachingStore>> =
+            Box::new(store as Arc<dyn MetadataCachingStore>);
+        Box::into_raw(boxed) as i64
+    }
+
+    /// Releases a pointer from [`leak_store_pointer`], mirroring `ts_destroy_object_store_box_ptr`.
+    ///
+    /// # Safety
+    /// `ptr` must come from [`leak_store_pointer`] and not have been freed.
+    unsafe fn free_store_pointer(ptr: i64) {
+        drop(Box::from_raw(ptr as *mut Arc<dyn MetadataCachingStore>));
+    }
+
+    /// A warm shard's Parquet files are not on local disk, so the cursor must read every byte - footer,
+    /// page index and pages - through the store pointer Java supplies rather than through its own
+    /// `LocalFileSystem`.
+    ///
+    /// The file here is put into an in-memory store behind a `TieredObjectStore`, so the stamped path
+    /// exists in no filesystem at all: anything that fell back to a local read would fail outright
+    /// instead of quietly reading the wrong bytes.
+    #[test]
+    fn a_supplied_store_is_read_through_for_a_file_that_is_on_no_local_disk() {
+        register_test_metadata_cache();
+        let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
+        let bytes = parquet_fixture_with_page_rows(1, ROWS_PER_PAGE);
+        let size = bytes.len() as u64;
+
+        // Absolute, like the path the engine stamps and the shard's registry is keyed by.
+        let path = format!(
+            "/var/data/nodes/0/indices/idx/0/parquet/_generation_{}.parquet",
+            NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
+        );
+        let location = ObjectPath::from(path.as_str());
+        assert!(
+            std::path::Path::new(&path).exists() == false,
+            "the fixture path must not exist locally, or this test proves nothing"
+        );
+
+        let backing: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        runtime
+            .block_on(backing.put(&location, bytes.into()))
+            .unwrap();
+        let store = Arc::new(TieredObjectStore::new(
+            Arc::new(TieredStorageRegistry::new()),
+            backing,
+        ));
+        store.registry().register(
+            location.as_ref(),
+            TieredFileEntry::with_size(FileLocation::Local, None, size),
+        );
+        let store_ptr = leak_store_pointer(store);
+
+        let column = "value";
+
+        let handle = unsafe {
+            parquet_df_open_iter(
+                path.as_ptr(),
+                path.len() as i64,
+                column.as_ptr(),
+                column.len() as i64,
+                8,
+                TEST_MAX_BATCH_SIZE as i64,
+                store_ptr,
+            )
+        };
+        assert!(handle >= 0, "{}", error_message(handle));
+
+        let batch = next_batch(handle, 0);
+        assert_eq!(batch.rc, RC_OK, "{}", error_message(batch.rc));
+        assert_eq!(batch.first_row, 0);
+        assert_eq!(batch.last_row, 7);
+        assert_eq!(
+            unsafe { exported_i64s(batch.values_addr, 8) },
+            (0..8i64).collect::<Vec<_>>(),
+            "values decoded from the store must match what was written"
+        );
+
+        // A page boundary, so the read cannot be satisfied from the first fetch alone.
+        let later = next_batch(handle, ROWS_PER_PAGE as i64 + 3);
+        assert_eq!(later.rc, RC_OK, "{}", error_message(later.rc));
+        assert_eq!(
+            unsafe { exported_i64s(later.values_addr, 1) },
+            vec![ROWS_PER_PAGE as i64 + 3],
+            "a later page must also come through the store"
+        );
+
+        unsafe {
+            parquet_df_close_iter(handle);
+            // Only after the cursor is gone: it cloned the Arc, so this frees the box, not the store.
+            free_store_pointer(store_ptr);
+        }
+    }
+
     #[test]
     fn a_missing_column_is_reported_without_leaving_a_handle_behind() {
         register_test_metadata_cache();
@@ -1544,6 +1688,7 @@ mod ffm_tests {
                 column.len() as i64,
                 8,
                 TEST_MAX_BATCH_SIZE as i64,
+                LOCAL_STORE,
             )
         };
         let message = error_message(rc);

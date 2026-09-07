@@ -52,6 +52,13 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
 
     private static final long CLOSED_HANDLE = -1L;
 
+    /**
+     * Store pointer meaning "read from the local filesystem", which is every hot shard: its Parquet
+     * files are on the node's disk. A warm shard's files live in the remote object store and it
+     * passes its own store pointer instead.
+     */
+    public static final long LOCAL_STORE = 0L;
+
     /** Number of scalar out-parameters {@code nextBatch} writes back. */
     private static final int OUT_PARAM_COUNT = 6;
 
@@ -76,9 +83,14 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         this.maxBatchSize = maxBatchSize;
     }
 
-    /** Opens a numeric cursor using the default batch-size settings. */
+    /** Opens a numeric cursor over a local file using the default batch-size settings. */
     public static ParquetColumnReader open(Path file, String column) throws IOException {
         return open(file, column, Settings.EMPTY);
+    }
+
+    /** Opens a numeric cursor over a local file, sized from {@code settings}. */
+    public static ParquetColumnReader open(Path file, String column, Settings settings) throws IOException {
+        return open(file, column, settings, LOCAL_STORE);
     }
 
     /**
@@ -86,9 +98,24 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
      * {@code index.parquet.docvalues.max_batch_size}.
      *
      * @param settings index settings, or {@link Settings#EMPTY} to take the defaults
+     * @param storePtr native object store to read through, or {@link #LOCAL_STORE} for a local file
      */
-    public static ParquetColumnReader open(Path file, String column, Settings settings) throws IOException {
-        return open(file, column, ParquetSettings.docValuesInitialBatchSize(settings), ParquetSettings.docValuesMaxBatchSize(settings));
+    public static ParquetColumnReader open(Path file, String column, Settings settings, long storePtr) throws IOException {
+        return open(
+            file,
+            column,
+            ParquetSettings.docValuesInitialBatchSize(settings),
+            ParquetSettings.docValuesMaxBatchSize(settings),
+            storePtr
+        );
+    }
+
+    /**
+     * Opens a numeric cursor over a local file with explicit window sizes, bypassing settings
+     * resolution.
+     */
+    public static ParquetColumnReader open(Path file, String column, int initialBatchSize, int maxBatchSize) throws IOException {
+        return open(file, column, initialBatchSize, maxBatchSize, LOCAL_STORE);
     }
 
     /**
@@ -96,9 +123,11 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
      *
      * @param initialBatchSize rows in the first decode window; must be in {@code 1..=maxBatchSize}
      * @param maxBatchSize     ceiling the adaptive window grows to
+     * @param storePtr         native object store to read through, or {@link #LOCAL_STORE} for a local file
      */
-    public static ParquetColumnReader open(Path file, String column, int initialBatchSize, int maxBatchSize) throws IOException {
-        long handle = ParquetCodecBridge.openColumnCursor(file.toString(), column, initialBatchSize, maxBatchSize);
+    public static ParquetColumnReader open(Path file, String column, int initialBatchSize, int maxBatchSize, long storePtr)
+        throws IOException {
+        long handle = ParquetCodecBridge.openColumnCursor(file.toString(), column, initialBatchSize, maxBatchSize, storePtr);
         return new ParquetColumnReader(handle, file, column, maxBatchSize);
     }
 
