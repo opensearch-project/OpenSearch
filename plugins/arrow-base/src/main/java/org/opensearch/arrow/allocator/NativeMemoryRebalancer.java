@@ -94,6 +94,21 @@ public class NativeMemoryRebalancer implements Runnable {
         this.shrinkFactor = value;
     }
 
+    /** The pressure threshold currently in effect. Exposed for tests. */
+    double getPressureThreshold() {
+        return pressureThreshold;
+    }
+
+    /** The idle threshold currently in effect. Exposed for tests. */
+    double getIdleThreshold() {
+        return idleThreshold;
+    }
+
+    /** The shrink factor currently in effect. Exposed for tests. */
+    double getShrinkFactor() {
+        return shrinkFactor;
+    }
+
     @Override
     public void run() {
         try {
