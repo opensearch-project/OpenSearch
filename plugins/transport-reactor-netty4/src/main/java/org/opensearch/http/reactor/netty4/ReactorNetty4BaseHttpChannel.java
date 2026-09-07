@@ -35,10 +35,9 @@ final class ReactorNetty4BaseHttpChannel {
             final ChannelHandler[] channels = new ChannelHandler[1];
             request.withConnection(connection -> {
                 final Channel channel = connection.channel();
-                if (channel.parent() != null) {
+                channels[0] = channel.pipeline().get(NettyPipeline.SslHandler);
+                if (channels[0] == null && channel.parent() != null) {
                     channels[0] = channel.parent().pipeline().get(NettyPipeline.SslHandler);
-                } else {
-                    channels[0] = channel.pipeline().get(NettyPipeline.SslHandler);
                 }
             });
             if (channels[0] != null) {
