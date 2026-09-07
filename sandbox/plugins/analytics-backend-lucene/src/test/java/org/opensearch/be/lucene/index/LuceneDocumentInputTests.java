@@ -108,7 +108,7 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         assertNull("_seq_no field should be present in document", field);
     }
 
-    public void testNestedKeywordLeafIsFlattened() {
+    public void testNestedKeywordLeafIsNotRepresented() {
         MappedFieldType keywordField = mockNestedLeafField("comments.author", KeywordFieldMapper.CONTENT_TYPE);
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.startNestedChild("comments");
@@ -116,10 +116,11 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         input.endNestedChild();
 
         Document doc = input.getFinalInput();
-        assertNotNull("keyword nested leaf should be flattened", doc.getField("comments._value"));
+        assertNull("nested leaves are Parquet-only, even keyword", doc.getField("comments._value"));
+        assertNull("no exists marker either", doc.getField("comments"));
     }
 
-    public void testNestedTextLeafIsFlattened() {
+    public void testNestedTextLeafIsNotRepresented() {
         MappedFieldType textField = mockNestedLeafField("comments.summary", TextFieldMapper.CONTENT_TYPE);
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.startNestedChild("comments");
@@ -127,10 +128,10 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         input.endNestedChild();
 
         Document doc = input.getFinalInput();
-        assertNotNull("text nested leaf should be flattened", doc.getField("comments._value"));
+        assertNull("nested leaves are Parquet-only, even text", doc.getField("comments._value"));
     }
 
-    public void testNestedIntegerLeafIsNotFlattened() {
+    public void testNestedIntegerLeafIsNotRepresented() {
         MappedFieldType integerField = mockNestedLeafField("comments.votes", "integer");
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.startNestedChild("comments");
@@ -138,13 +139,13 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         input.endNestedChild();
 
         Document doc = input.getFinalInput();
-        assertNull("non-keyword/text nested leaf must not be represented in Lucene", doc.getField("comments._value"));
-        assertNull("non-keyword/text nested leaf must not add an exists marker either", doc.getField("comments"));
+        assertNull("nested leaves are Parquet-only", doc.getField("comments._value"));
+        assertNull("no exists marker either", doc.getField("comments"));
     }
 
-    public void testNestedMultiFieldKeywordLeafIsFlattened() {
+    public void testNestedMultiFieldLeafIsNotRepresented() {
         // A multi-field (e.g. author.raw) resolves to KeywordFieldMapper.KeywordFieldType same as its
-        // parent, so it must pass the same keyword/text check.
+        // parent — still Parquet-only, no special casing.
         MappedFieldType rawSubField = mockNestedLeafField("comments.author.raw", KeywordFieldMapper.CONTENT_TYPE);
         LuceneDocumentInput input = new LuceneDocumentInput();
         input.startNestedChild("comments");
@@ -152,7 +153,29 @@ public class LuceneDocumentInputTests extends LucenePluginBaseTests {
         input.endNestedChild();
 
         Document doc = input.getFinalInput();
-        assertNotNull("multi-field keyword nested leaf should be flattened", doc.getField("comments._value"));
+        assertNull("multi-field nested leaf is Parquet-only too", doc.getField("comments._value"));
+    }
+
+    public void testAddMapEntryAtRootIsNoOp() {
+        MappedFieldType flatObjectField = mockNestedLeafField("attributes", "flat_object");
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.addMapEntry(flatObjectField, "http.method", "GET");
+
+        Document doc = input.getFinalInput();
+        assertNull("flat_object is Parquet-only, even at the document root", doc.getField("attributes._value"));
+        assertNull("no exists marker either", doc.getField("attributes"));
+    }
+
+    public void testAddMapEntryInsideNestedIsNoOp() {
+        MappedFieldType flatObjectField = mockNestedLeafField("comments.attrs", "flat_object");
+        LuceneDocumentInput input = new LuceneDocumentInput();
+        input.startNestedChild("comments");
+        input.addMapEntry(flatObjectField, "device", "mobile");
+        input.endNestedChild();
+
+        Document doc = input.getFinalInput();
+        assertNull("flat_object inside nested is Parquet-only too", doc.getField("comments._value"));
+        assertNull("no exists marker either", doc.getField("comments"));
     }
 
     private static MappedFieldType mockNestedLeafField(String fullName, String typeName) {
