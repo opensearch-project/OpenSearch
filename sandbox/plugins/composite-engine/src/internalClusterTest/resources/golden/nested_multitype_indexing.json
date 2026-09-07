@@ -18,8 +18,8 @@
   },
   "expectedParquetTitle": "golden doc",
   "expectedParquetCommentsShapeSubstrings": ["List", "Struct", "author", "votes"],
-  "expectedLuceneFieldsPresent": ["title", "comments", "comments._value", "comments._valueAndPath"],
-  "expectedLuceneFieldsAbsent": ["comments.author", "comments.votes"],
-  "expectedLuceneValueTermsPresent": ["comments.alice"],
-  "expectedLuceneValueTermsAbsent": ["comments.5"]
+  "expectedLuceneFieldsPresent": ["title"],
+  "expectedLuceneFieldsAbsent": ["comments", "comments._value", "comments._valueAndPath", "comments.author", "comments.votes"],
+  "expectedLuceneValueTermsPresent": [],
+  "expectedLuceneValueTermsAbsent": ["comments.alice", "comments.5"]
 }

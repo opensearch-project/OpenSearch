@@ -17,6 +17,10 @@ Sandbox plugin that orchestrates multi-format indexing across multiple data form
 | `index.composite.primary_data_format` | `"lucene"` | The authoritative format used for merge operations |
 | `index.composite.secondary_data_formats` | `[]` | Additional formats that receive writes alongside the primary |
 
+## Documentation
+
+- [Nested field ingestion — sequence diagram](docs/nested-field-ingestion-sequence.md)
+
 ## How it fits in
 
 Format plugins (e.g., Parquet) extend this plugin by declaring `extendedPlugins = ['composite-engine']` in their `build.gradle` and implementing `DataFormatPlugin`. The `ExtensiblePlugin` SPI discovers them automatically during node bootstrap.

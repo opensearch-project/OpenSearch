@@ -292,8 +292,8 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
      * for its expected type-shape substrings, not exact leaf values (Parquet's real per-element
      * fidelity for nested data is already covered by unit tests in
      * {@code VSRManagerNestedTests}/{@code ArrowSchemaBuilderNestedTests}). Also verifies, via real
-     * Lucene {@code SortedSetDocValues} term iteration (not just field-name presence), that the
-     * `votes` leaf's value never reaches Lucene at all — the keyword/text-only restriction.
+     * Lucene {@code SortedSetDocValues} term iteration (not just field-name presence), that no
+     * nested leaf's value ever reaches Lucene at all — nested data is Parquet-only, by design.
      */
     public void testNestedIndexingMatchesGoldenFile() throws Exception {
         startCluster();
@@ -350,7 +350,7 @@ public class CompositeFieldCapabilityIT extends AbstractCompositeEngineIT {
         }
         for (Object expected : (List<?>) golden.get("expectedLuceneValueTermsAbsent")) {
             assertFalse(
-                "expected Lucene doc-values term ABSENT (keyword/text-only restriction): " + expected + " in " + valueTerms,
+                "expected Lucene doc-values term ABSENT (nested data is Parquet-only): " + expected + " in " + valueTerms,
                 valueTerms.contains(expected)
             );
         }
