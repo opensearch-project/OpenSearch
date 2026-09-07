@@ -248,6 +248,91 @@ teardown:
   - match: { _source: { "text": "text3", "field1": "value1" } }
 
 ---
+"Test bulk doc_as_upsert with final_pipeline matches single update on existing doc":
+  - skip:
+      version: " - 3.7.99"
+      reason: "Fixed in 3.8.0 - pipelines run after merge for bulk doc_as_upsert (#10864)"
+
+  - do:
+      ingest.put_pipeline:
+        id: "duration_pipeline"
+        body: >
+          {
+            "description": "compute begin/end/duration like issue 10864",
+            "processors": [
+              {
+                "script": {
+                  "lang": "painless",
+                  "source": "ctx.old_duration = 'Old duration was : ' + ctx.event_duration;"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "source": "if (ctx.event_begin == null || ((long) ctx.event_min) < ((long) ctx.event_begin)) { ctx.event_begin = (long)ctx.event_min; } else { ctx.event_min = ctx.event_begin; }"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "source": "if (ctx.event_end == null || ((long) ctx.event_max) > ((long) ctx.event_end)) { ctx.event_end = (long)ctx.event_max; } else { ctx.event_max = ctx.event_end; }"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "source": "ctx.event_duration = (long)(ctx.event_max - ctx.event_min);"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.create:
+        index: index_duration_bulk
+        body:
+          mappings:
+            properties:
+              event_min: { type: float }
+              event_max: { type: float }
+              event_begin: { type: date, format: epoch_millis }
+              event_end: { type: date, format: epoch_millis }
+              event_duration: { type: long }
+              event_name: { type: keyword }
+              old_duration: { type: keyword }
+          settings:
+            index.final_pipeline: duration_pipeline
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update":{"_index":"index_duration_bulk","_id":"doc1"}}
+          {"doc":{"event_min":1,"event_max":2,"event_name":"occurrence_1"},"doc_as_upsert":true}
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"update":{"_index":"index_duration_bulk","_id":"doc1"}}
+          {"doc":{"event_min":3,"event_max":5,"event_name":"occurrence_2"},"doc_as_upsert":true}
+
+  - do:
+      get:
+        index: index_duration_bulk
+        id: doc1
+
+  - match: { _source.event_begin: 1 }
+  - match: { _source.event_end: 5 }
+  - match: { _source.event_min: 1 }
+  - match: { _source.event_max: 5 }
+  - match: { _source.event_duration: 4 }
+  - match: { _source.event_name: "occurrence_2" }
+  - match: { _source.old_duration: "Old duration was : 1" }
+
+---
 "Test bulk API with invalid batch_size":
   - skip:
       version: " - 2.13.99"
@@ -264,3 +349,4 @@ teardown:
           - '{"text": "text1"}'
           - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
           - '{"text": "text2"}'
+
