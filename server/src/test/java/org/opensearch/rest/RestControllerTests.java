@@ -358,6 +358,29 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertEquals(0, inFlightRequestsBreaker.getUsed());
     }
 
+    /**
+     * Reproducer for opensearch-project/OpenSearch#22311 Bug B: a second {@link RestChannel#sendResponse} after the
+     * first must not throw when the circuit-breaker-backed channel is already closed.
+     */
+    public void testResourceHandlingChannelCloseIsIdempotent() {
+        restController.registerHandler(RestRequest.Method.GET, "/repro-bug-b", (request, channel, client) -> {
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(
+                new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+            );
+        });
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        RestRequest request = testRestRequest("/repro-bug-b", content, MediaTypeRegistry.JSON);
+        MultiResponseChannel channel = new MultiResponseChannel(request, true);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertEquals(2, channel.getResponseCount());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, channel.getLastStatus());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
     public void testDispatchRequestLimitsBytes() {
         int contentLength = BREAKER_LIMIT.bytesAsInt() + 1;
         String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
@@ -803,6 +826,30 @@ public class RestControllerTests extends OpenSearchTestCase {
             return getRestResponse() != null;
         }
 
+    }
+
+    public static final class MultiResponseChannel extends AbstractRestChannel {
+
+        private final AtomicReference<RestStatus> lastStatus = new AtomicReference<>();
+        private int responseCount;
+
+        public MultiResponseChannel(RestRequest request, boolean detailedErrorsEnabled) {
+            super(request, detailedErrorsEnabled);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            responseCount++;
+            lastStatus.set(response.status());
+        }
+
+        int getResponseCount() {
+            return responseCount;
+        }
+
+        RestStatus getLastStatus() {
+            return lastStatus.get();
+        }
     }
 
     private static final class ExceptionThrowingChannel extends AbstractRestChannel {

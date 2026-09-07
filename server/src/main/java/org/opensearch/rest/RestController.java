@@ -662,11 +662,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+            if (closed.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
     }
 
@@ -753,11 +751,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+            if (closed.compareAndSet(false, true)) {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
         @Override
