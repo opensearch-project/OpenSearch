@@ -39,6 +39,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -181,9 +182,28 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            if (parent instanceof ApproximateScoreQuery approximateScoreQuery
-                && approximateScoreQuery.getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
-                terms.add(Result.UNKNOWN);
+            if (parent instanceof ApproximateScoreQuery approximateScoreQuery) {
+                if (approximateScoreQuery.getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
+                    terms.add(Result.UNKNOWN);
+                    return QueryVisitor.EMPTY_VISITOR;
+                }
+                // ApproximateScoreQuery visits both the original query and its approximation
+                // through the returned sub visitor. The approximation matches the same documents
+                // as the original query but cannot be analyzed (its leaf would come out as
+                // UNKNOWN, making the whole result unverifiable). Analyze only the original
+                // query and swallow both visits.
+                ResultBuilder child = new ResultBuilder(version, true);
+                children.add(child);
+                approximateScoreQuery.getOriginalQuery().visit(child);
+                return QueryVisitor.EMPTY_VISITOR;
+            }
+            if (parent instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
+                // Same for IndexOrDocValuesQuery: it visits both its index query and its doc
+                // values query, which match the same documents. The doc values query usually
+                // cannot be analyzed, so analyze only the index query and swallow both visits.
+                ResultBuilder child = new ResultBuilder(version, true);
+                children.add(child);
+                indexOrDocValuesQuery.getIndexQuery().visit(child);
                 return QueryVisitor.EMPTY_VISITOR;
             }
             this.verified = isVerified(parent);
@@ -266,8 +286,15 @@ final class QueryAnalyzer {
 
         byte[] interval = new byte[16];
         NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
+        // Not verified, because the candidate check for ranges packs the percolated document's
+        // values into one [min, max] interval per field, which can produce false candidate matches
+        // for multi-valued documents. It is exact for single-valued documents though, so the
+        // result is verifiedIfSingleValued and the decision is deferred to percolate time, when
+        // the document's fields can be inspected.
         return new Result(
             false,
+            false,
+            true,
             Collections.singleton(new QueryExtraction(new Range(query.getField(), lowerPoint, upperPoint, interval))),
             1
         );
@@ -299,6 +326,7 @@ final class QueryAnalyzer {
 
         int msm = 0;
         boolean verified = conjunctionsWithUnknowns.size() == conjunctions.size();
+        boolean verifiedIfSingleValued = verified;
         boolean matchAllDocs = true;
         Set<QueryExtraction> extractions = new HashSet<>();
         Set<String> seenRangeFields = new HashSet<>();
@@ -323,6 +351,11 @@ final class QueryAnalyzer {
                     if (seenRangeFields.contains(queryExtraction.range.fieldName)) {
                         resultMsm = Math.max(0, resultMsm - 1);
                         verified = false;
+                        // Multiple ranges on the same field collapse into a single candidate
+                        // clause, so a candidate match no longer implies that every range
+                        // matches — not even for single-valued documents
+                        // (e.g. field:[1,2] AND field:[5,6] candidate-matches value 1).
+                        verifiedIfSingleValued = false;
                     }
                 } else {
                     // In case that there are duplicate term query extractions we need to be careful with
@@ -333,6 +366,7 @@ final class QueryAnalyzer {
                     if (extractions.contains(queryExtraction)) {
                         resultMsm = Math.max(0, resultMsm - 1);
                         verified = false;
+                        verifiedIfSingleValued = false;
                     }
                 }
             }
@@ -348,14 +382,17 @@ final class QueryAnalyzer {
                 verified = false;
 
             }
+            if (result.verifiedIfSingleValued == false || result.minimumShouldMatch < result.extractions.size()) {
+                verifiedIfSingleValued = false;
+            }
             matchAllDocs &= result.matchAllDocs;
             extractions.addAll(result.extractions);
         }
 
         if (matchAllDocs) {
-            return new Result(matchAllDocs, verified);
+            return new Result(matchAllDocs, verified, verifiedIfSingleValued);
         } else {
-            return new Result(verified, extractions, msm);
+            return new Result(false, verified, verifiedIfSingleValued, extractions, msm);
         }
     }
 
@@ -369,6 +406,7 @@ final class QueryAnalyzer {
         // Keep track of the msm for each clause:
         List<Integer> clauses = new ArrayList<>(disjunctions.size());
         boolean verified = true;
+        boolean verifiedIfSingleValued = true;
         int numMatchAllClauses = 0;
         boolean hasRangeExtractions = false;
 
@@ -397,6 +435,11 @@ final class QueryAnalyzer {
                 || (subResult.extractions.size() > 1 && requiredShouldClauses > 1)) {
                 verified = false;
             }
+            if (subResult.verifiedIfSingleValued == false
+                || subResult.minimumShouldMatch > 1
+                || (subResult.extractions.size() > 1 && requiredShouldClauses > 1)) {
+                verifiedIfSingleValued = false;
+            }
             if (subResult.matchAllDocs) {
                 numMatchAllClauses++;
             }
@@ -404,6 +447,7 @@ final class QueryAnalyzer {
             for (QueryExtraction extraction : subResult.extractions) {
                 if (terms.add(extraction) == false) {
                     verified = false;
+                    verifiedIfSingleValued = false;
                     hasDuplicateTerms = true;
                 }
             }
@@ -436,10 +480,16 @@ final class QueryAnalyzer {
         } else {
             msm = 1;
         }
+        if (hasRangeExtractions && requiredShouldClauses > 1) {
+            // With range extractions present the combined msm is collapsed to 1 (see above),
+            // dropping the candidate bar below the actual `minimum_should_match`; a candidate
+            // match then no longer implies a real match, not even for single-valued documents.
+            verifiedIfSingleValued = false;
+        }
         if (matchAllDocs) {
-            return new Result(matchAllDocs, verified);
+            return new Result(matchAllDocs, verified, verifiedIfSingleValued);
         } else {
-            return new Result(verified, terms, msm);
+            return new Result(false, verified, verifiedIfSingleValued, terms, msm);
         }
     }
 
@@ -557,19 +607,42 @@ final class QueryAnalyzer {
 
         final Set<QueryExtraction> extractions;
         final boolean verified;
+        /**
+         * Whether a candidate match doesn't need to be verified provided the percolated document
+         * contains at most one value for every field targeted by a range extraction. Candidate
+         * matching packs the document's values into a single {@code [min, max]} interval per
+         * field, which is exact for single-valued fields but can produce false candidate matches
+         * for multi-valued ones (e.g. values {1, 10} intersect a stored range [4, 6] although no
+         * actual value falls inside it).
+         * <p>
+         * Invariant: {@code verified} implies {@code verifiedIfSingleValued}.
+         */
+        final boolean verifiedIfSingleValued;
         final int minimumShouldMatch;
         final boolean matchAllDocs;
 
-        Result(boolean matchAllDocs, boolean verified, Set<QueryExtraction> extractions, int minimumShouldMatch) {
+        Result(
+            boolean matchAllDocs,
+            boolean verified,
+            boolean verifiedIfSingleValued,
+            Set<QueryExtraction> extractions,
+            int minimumShouldMatch
+        ) {
             if (minimumShouldMatch > extractions.size()) {
                 throw new IllegalArgumentException(
                     "minimumShouldMatch can't be greater than the number of extractions: " + minimumShouldMatch + " > " + extractions.size()
                 );
             }
+            assert verified == false || verifiedIfSingleValued : "verified results are trivially verified for single-valued documents";
             this.matchAllDocs = matchAllDocs;
             this.extractions = extractions;
             this.verified = verified;
+            this.verifiedIfSingleValued = verifiedIfSingleValued;
             this.minimumShouldMatch = minimumShouldMatch;
+        }
+
+        Result(boolean matchAllDocs, boolean verified, Set<QueryExtraction> extractions, int minimumShouldMatch) {
+            this(matchAllDocs, verified, verified, extractions, minimumShouldMatch);
         }
 
         Result(boolean verified, Set<QueryExtraction> extractions, int minimumShouldMatch) {
@@ -580,14 +653,18 @@ final class QueryAnalyzer {
             this(matchAllDocs, verified, Collections.emptySet(), 0);
         }
 
+        Result(boolean matchAllDocs, boolean verified, boolean verifiedIfSingleValued) {
+            this(matchAllDocs, verified, verifiedIfSingleValued, Collections.emptySet(), 0);
+        }
+
         @Override
         public String toString() {
             return extractions.toString();
         }
 
         Result unverify() {
-            if (verified) {
-                return new Result(matchAllDocs, false, extractions, minimumShouldMatch);
+            if (verified || verifiedIfSingleValued) {
+                return new Result(matchAllDocs, false, false, extractions, minimumShouldMatch);
             } else {
                 return this;
             }
