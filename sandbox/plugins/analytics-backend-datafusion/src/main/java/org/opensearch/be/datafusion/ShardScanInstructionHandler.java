@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
@@ -26,6 +28,8 @@ import java.lang.foreign.MemorySegment;
  * the default ListingTable provider for parquet scans.
  */
 public class ShardScanInstructionHandler implements FragmentInstructionHandler<ShardScanInstructionNode> {
+
+    private static final Logger logger = LogManager.getLogger(ShardScanInstructionHandler.class);
 
     private final DataFusionPlugin plugin;
 
@@ -62,7 +66,17 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
         if (node.getTargetPartitions() != null) {
-            int effectivePartitions = Math.min(node.getTargetPartitions(), Runtime.getRuntime().availableProcessors());
+            int availableProcessors = Runtime.getRuntime().availableProcessors();
+            int effectivePartitions = Math.min(node.getTargetPartitions(), availableProcessors);
+            if (node.getTargetPartitions() > availableProcessors) {
+                logger.debug(
+                    "Requested target_partitions [{}] exceeds available processors [{}]; clamping to [{}] for table [{}]",
+                    node.getTargetPartitions(),
+                    availableProcessors,
+                    effectivePartitions,
+                    tableName
+                );
+            }
             snapshot = WireConfigSnapshot.builder(snapshot).targetPartitions(effectivePartitions).build();
         }
         try (Arena arena = Arena.ofConfined()) {

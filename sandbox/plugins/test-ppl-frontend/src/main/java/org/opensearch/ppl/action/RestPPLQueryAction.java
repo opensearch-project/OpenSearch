@@ -62,7 +62,7 @@ public class RestPPLQueryAction extends BaseRestHandler {
                     } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                         targetPartitions = null;
                     } else {
-                        throw new IllegalArgumentException("target_partitions must be a positive integer");
+                        throw new IllegalArgumentException("target_partitions must be an integer");
                     }
                     if (targetPartitions != null && targetPartitions < 1) {
                         throw new IllegalArgumentException("target_partitions must be greater than or equal to 1");

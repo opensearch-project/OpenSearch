@@ -75,6 +75,6 @@ public class RestPPLQueryActionTests extends OpenSearchTestCase {
             .build();
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertTrue(ex.getMessage().contains("target_partitions must be a positive integer"));
+        assertTrue(ex.getMessage().contains("target_partitions must be an integer"));
     }
 }
