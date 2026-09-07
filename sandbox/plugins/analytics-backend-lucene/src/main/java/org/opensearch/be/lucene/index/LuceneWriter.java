@@ -665,7 +665,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                     if (docID == rowIdToPurge) {
                         return rowIdToPurge;
                     }
-                    return (int) mapping.getNewRowId(docID, RowIdMapping.SINGLE_GEN);
+                    return (int) mapping.getNewRowId(docID);
                 }
 
                 @Override

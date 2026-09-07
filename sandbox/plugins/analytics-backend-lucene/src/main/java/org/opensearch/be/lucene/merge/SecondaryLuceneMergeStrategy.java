@@ -15,12 +15,13 @@ import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Merge strategy for when Lucene is a <b>secondary</b> data format in a composite index.
  *
- * <p>As a secondary format, Lucene receives a {@link RowIdMapping} from the primary format
- * and must:
+ * <p>As a secondary format, Lucene receives per-generation {@link RowIdMapping}s from the
+ * primary format and must:
  * <ol>
  *   <li>Remap row ID doc values to the new global IDs (via {@link RowIdRemappingCodecReader})</li>
  *   <li>Reorder documents to match the primary format's merged output (via IndexSort on the
@@ -29,7 +30,7 @@ import java.util.List;
  *
  * <p>This strategy creates a {@link RowIdRemappingOneMerge} that wraps each segment's
  * {@link org.apache.lucene.index.CodecReader} during the merge process. The
- * {@code buildRowIdMapping} method passes through the input mapping since the primary
+ * {@code buildRowIdMappings} method passes through the input mappings since the primary
  * format is the authority on document ordering.
  *
  * @opensearch.experimental
@@ -38,13 +39,17 @@ import java.util.List;
 public class SecondaryLuceneMergeStrategy implements LuceneMergeStrategy {
 
     @Override
-    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration) {
-        return new RowIdRemappingOneMerge(segments, rowIdMapping, outputWriterGeneration);
+    public MergePolicy.OneMerge createOneMerge(
+        List<SegmentCommitInfo> segments,
+        Map<Long, RowIdMapping> rowIdMappings,
+        long outputWriterGeneration
+    ) {
+        return new RowIdRemappingOneMerge(segments, rowIdMappings, outputWriterGeneration);
     }
 
     @Override
-    public RowIdMapping buildRowIdMapping(MergePolicy.OneMerge completedMerge, MergeInput mergeInput) {
-        // Secondary format passes through the mapping from the primary — it does not produce its own.
-        return mergeInput.rowIdMapping();
+    public Map<Long, RowIdMapping> buildRowIdMappings(MergePolicy.OneMerge completedMerge, MergeInput mergeInput) {
+        // Secondary format passes through the mappings from the primary — it does not produce its own.
+        return mergeInput.rowIdMappings();
     }
 }

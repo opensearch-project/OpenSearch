@@ -13,22 +13,23 @@ import org.opensearch.common.annotation.ExperimentalApi;
 /**
  * Mapping interface for translating old row IDs to new row IDs after a merge or sort operation.
  *
+ * <p>Each {@code RowIdMapping} instance represents the mapping for a <b>single generation</b>.
+ * For merge operations involving multiple generations, callers maintain a
+ * {@code Map<Long, RowIdMapping>} keyed by writer generation and pass the appropriate
+ * per-generation mapping to each consumer.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public interface RowIdMapping {
 
-    /** Sentinel generation for single-gen flush sort scenarios. */
-    long SINGLE_GEN = -1L;
-
     /**
-     * Returns the new row ID corresponding to the given old row ID and generation.
+     * Returns the new row ID corresponding to the given old row ID within this generation.
      *
      * @param oldId the original row ID
-     * @param oldGeneration the original writer generation
      * @return the new row ID, or -1 if not found
      */
-    long getNewRowId(long oldId, long oldGeneration);
+    long getNewRowId(long oldId);
 
     /**
      * Reverse lookup: returns the old row ID corresponding to the given new row ID.

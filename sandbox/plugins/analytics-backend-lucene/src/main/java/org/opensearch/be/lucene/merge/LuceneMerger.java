@@ -99,7 +99,7 @@ public class LuceneMerger implements Merger {
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         long start = System.nanoTime();
         try {
-            RowIdMapping rowIdMapping = mergeInput.rowIdMapping();
+            Map<Long, RowIdMapping> rowIdMappings = mergeInput.rowIdMappings();
             List<Segment> segments = mergeInput.segments();
 
             if (segments.isEmpty()) {
@@ -163,7 +163,7 @@ public class LuceneMerger implements Merger {
             // writer_generation attribute onto the merged SegmentInfo via setMergeInfo, which
             // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
             // attribute is persisted to the .si file and survives a writer reopen.
-            MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
+            MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMappings, mergeInput.newWriterGeneration());
             indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
             // Build the merged WriterFileSet from the output segment info
@@ -171,7 +171,7 @@ public class LuceneMerger implements Merger {
             WriterFileSet mergedFileSet = buildMergedFileSet(mergedInfo, mergeInput.newWriterGeneration());
 
             // Delegate RowIdMapping production to the strategy
-            RowIdMapping outputMapping = strategy.buildRowIdMapping(oneMerge, mergeInput);
+            Map<Long, RowIdMapping> outputMappings = strategy.buildRowIdMappings(oneMerge, mergeInput);
 
             logger.debug(
                 "LuceneMerger: completed merge of {} segments at generation {} ({} docs, {} files)",
@@ -182,7 +182,7 @@ public class LuceneMerger implements Merger {
             );
 
             stats.incMergeTotal();
-            return new MergeResult(Map.of(dataFormat, mergedFileSet), outputMapping);
+            return new MergeResult(Map.of(dataFormat, mergedFileSet), outputMappings);
         } catch (IOException e) {
             stats.incMergeFailures();
             throw e;

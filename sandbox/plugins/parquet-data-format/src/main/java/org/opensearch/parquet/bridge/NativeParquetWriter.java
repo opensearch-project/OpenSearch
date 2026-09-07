@@ -176,4 +176,21 @@ public class NativeParquetWriter {
         }
     }
 
+    /**
+     * Releases the native memory backing the row ID mapping, if any. Called when the
+     * owning writer closes — after the flush lifecycle that consumes the mapping has
+     * completed. Idempotent. Any access to the mapping after release throws
+     * {@link IllegalStateException} rather than reading freed memory.
+     */
+    public void releaseRowIdMapping() {
+        RowIdMapping mapping = rowIdMapping.get();
+        if (mapping instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to release native row ID mapping for " + filePath, e);
+            }
+        }
+    }
+
 }

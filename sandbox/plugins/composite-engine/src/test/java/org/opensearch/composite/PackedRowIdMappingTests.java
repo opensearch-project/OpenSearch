@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -20,25 +21,17 @@ import java.util.Map;
 public class PackedRowIdMappingTests extends OpenSearchTestCase {
 
     /**
-     * Basic lookup: two generations with known mappings.
-     * gen=1 (3 rows): 0→4, 1→3, 2→2
-     * gen=2 (2 rows): 0→1, 1→0
+     * Basic forward lookup with a simple permutation.
      */
-    public void testBasicLookup() {
+    public void testBasicForwardLookup() {
         long[] mappingArray = { 4, 3, 2, 1, 0 };
-        Map<Long, Integer> offsets = Map.of(1L, 0, 2L, 3);
-        Map<Long, Integer> sizes = Map.of(1L, 3, 2L, 2);
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
 
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-
-        // gen=1 lookups
-        assertEquals(4L, mapping.getNewRowId(0, 1L));
-        assertEquals(3L, mapping.getNewRowId(1, 1L));
-        assertEquals(2L, mapping.getNewRowId(2, 1L));
-
-        // gen=2 lookups
-        assertEquals(1L, mapping.getNewRowId(0, 2L));
-        assertEquals(0L, mapping.getNewRowId(1, 2L));
+        assertEquals(4L, mapping.getNewRowId(0));
+        assertEquals(3L, mapping.getNewRowId(1));
+        assertEquals(2L, mapping.getNewRowId(2));
+        assertEquals(1L, mapping.getNewRowId(3));
+        assertEquals(0L, mapping.getNewRowId(4));
     }
 
     /**
@@ -46,24 +39,9 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
      */
     public void testImplementsInterface() {
         long[] mappingArray = { 10, 20 };
-        Map<Long, Integer> offsets = Map.of(5L, 0);
-        Map<Long, Integer> sizes = Map.of(5L, 2);
-
-        RowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-        assertEquals(10L, mapping.getNewRowId(0, 5L));
-        assertEquals(20L, mapping.getNewRowId(1, 5L));
-    }
-
-    /**
-     * Unknown generation returns -1.
-     */
-    public void testUnknownGenerationReturnsNegativeOne() {
-        long[] mappingArray = { 0 };
-        Map<Long, Integer> offsets = Map.of(1L, 0);
-        Map<Long, Integer> sizes = Map.of(1L, 1);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-        assertEquals(-1L, mapping.getNewRowId(0, 99L));
+        RowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
+        assertEquals(10L, mapping.getNewRowId(0));
+        assertEquals(20L, mapping.getNewRowId(1));
     }
 
     /**
@@ -71,12 +49,9 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
      */
     public void testOutOfBoundsRowIdReturnsNegativeOne() {
         long[] mappingArray = { 5, 6 };
-        Map<Long, Integer> offsets = Map.of(1L, 0);
-        Map<Long, Integer> sizes = Map.of(1L, 2);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-        assertEquals(-1L, mapping.getNewRowId(2, 1L));
-        assertEquals(-1L, mapping.getNewRowId(-1, 1L));
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
+        assertEquals(-1L, mapping.getNewRowId(2));
+        assertEquals(-1L, mapping.getNewRowId(-1));
     }
 
     /**
@@ -84,25 +59,8 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
      */
     public void testSize() {
         long[] mappingArray = { 0, 1, 2, 3, 4 };
-        Map<Long, Integer> offsets = Map.of(1L, 0, 2L, 3);
-        Map<Long, Integer> sizes = Map.of(1L, 3, 2L, 2);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
         assertEquals(5, mapping.size());
-    }
-
-    /**
-     * Generation size returns correct count per generation.
-     */
-    public void testGenerationSize() {
-        long[] mappingArray = { 0, 1, 2, 3, 4 };
-        Map<Long, Integer> offsets = Map.of(1L, 0, 2L, 3);
-        Map<Long, Integer> sizes = Map.of(1L, 3, 2L, 2);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-        assertEquals(3, mapping.getGenerationSize(1L));
-        assertEquals(2, mapping.getGenerationSize(2L));
-        assertEquals(0, mapping.getGenerationSize(99L));
     }
 
     /**
@@ -113,10 +71,7 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
         for (int i = 0; i < 1000; i++) {
             mappingArray[i] = i;
         }
-        Map<Long, Integer> offsets = Map.of(1L, 0);
-        Map<Long, Integer> sizes = Map.of(1L, 1000);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
         assertTrue("RAM bytes used should be positive", mapping.ramBytesUsed() > 0);
     }
 
@@ -125,58 +80,78 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
      */
     public void testEmptyMapping() {
         long[] mappingArray = {};
-        Map<Long, Integer> offsets = Map.of();
-        Map<Long, Integer> sizes = Map.of();
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
         assertEquals(0, mapping.size());
-        assertEquals(-1L, mapping.getNewRowId(0, 1L));
+        assertEquals(-1L, mapping.getNewRowId(0));
     }
 
     /**
-     * Null arguments throw NullPointerException.
+     * Null mapping array throws NullPointerException.
      */
     public void testNullArgumentsThrow() {
-        expectThrows(NullPointerException.class, () -> new PackedRowIdMapping(null, Map.of(), Map.of()));
-        expectThrows(NullPointerException.class, () -> new PackedRowIdMapping(new long[0], null, Map.of()));
-        expectThrows(NullPointerException.class, () -> new PackedRowIdMapping(new long[0], Map.of(), null));
+        expectThrows(NullPointerException.class, () -> new PackedRowIdMapping(null, false));
     }
 
     /**
-     * Generation offsets and sizes maps are unmodifiable.
+     * Reverse lookup works when reverseSupported=true.
      */
-    public void testMapsAreUnmodifiable() {
-        long[] mappingArray = { 0 };
-        Map<Long, Integer> offsets = Map.of(1L, 0);
-        Map<Long, Integer> sizes = Map.of(1L, 1);
+    public void testReverseLookup() {
+        // Permutation: 0→2, 1→0, 2→1
+        long[] mappingArray = { 2, 0, 1 };
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, true);
 
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
-        expectThrows(UnsupportedOperationException.class, () -> mapping.getGenerationOffsets().put(2L, 1));
-        expectThrows(UnsupportedOperationException.class, () -> mapping.getGenerationSizes().put(2L, 1));
+        assertTrue(mapping.isNewToOldSupported());
+        // Forward: old→new
+        assertEquals(2L, mapping.getNewRowId(0));
+        assertEquals(0L, mapping.getNewRowId(1));
+        assertEquals(1L, mapping.getNewRowId(2));
+        // Reverse: new→old
+        assertEquals(1L, mapping.getOldRowId(0));
+        assertEquals(2L, mapping.getOldRowId(1));
+        assertEquals(0L, mapping.getOldRowId(2));
     }
 
     /**
-     * Three generations with non-sequential offsets (simulating real merge order).
+     * Reverse lookup throws when reverseSupported=false.
      */
-    public void testThreeGenerationsNonSequentialOrder() {
-        // Merge processes generations in order [5, 0, 3]
-        // gen=5 (2 rows): offset=0, mapping[0]=2, mapping[1]=3
-        // gen=0 (3 rows): offset=2, mapping[2]=0, mapping[3]=4, mapping[4]=1
-        // gen=3 (1 row): offset=5, mapping[5]=5
-        long[] mappingArray = { 2, 3, 0, 4, 1, 5 };
-        Map<Long, Integer> offsets = Map.of(5L, 0, 0L, 2, 3L, 5);
-        Map<Long, Integer> sizes = Map.of(5L, 2, 0L, 3, 3L, 1);
+    public void testReverseUnsupportedThrows() {
+        long[] mappingArray = { 0, 1, 2 };
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
+        assertFalse(mapping.isNewToOldSupported());
+        expectThrows(UnsupportedOperationException.class, () -> mapping.getOldRowId(0));
+    }
 
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
+    /**
+     * Reverse lookup with out-of-bounds returns -1.
+     */
+    public void testReverseOutOfBoundsReturnsNegativeOne() {
+        long[] mappingArray = { 1, 0 };
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, true);
+        assertEquals(-1L, mapping.getOldRowId(5));
+        assertEquals(-1L, mapping.getOldRowId(-1));
+    }
 
-        assertEquals(2L, mapping.getNewRowId(0, 5L));
-        assertEquals(3L, mapping.getNewRowId(1, 5L));
-        assertEquals(0L, mapping.getNewRowId(0, 0L));
-        assertEquals(4L, mapping.getNewRowId(1, 0L));
-        assertEquals(1L, mapping.getNewRowId(2, 0L));
-        assertEquals(5L, mapping.getNewRowId(0, 3L));
+    /**
+     * Per-generation mappings can be stored in a Map for merge use cases.
+     */
+    public void testMultiGenerationViaMap() {
+        // gen=1: 3 rows, permutation 0→4, 1→3, 2→2
+        long[] gen1Array = { 4, 3, 2 };
+        // gen=2: 2 rows, permutation 0→1, 1→0
+        long[] gen2Array = { 1, 0 };
 
-        assertEquals(6, mapping.size());
+        Map<Long, RowIdMapping> mappings = new HashMap<>();
+        mappings.put(1L, new PackedRowIdMapping(gen1Array, false));
+        mappings.put(2L, new PackedRowIdMapping(gen2Array, false));
+
+        RowIdMapping gen1 = mappings.get(1L);
+        assertEquals(4L, gen1.getNewRowId(0));
+        assertEquals(3L, gen1.getNewRowId(1));
+        assertEquals(2L, gen1.getNewRowId(2));
+
+        RowIdMapping gen2 = mappings.get(2L);
+        assertEquals(1L, gen2.getNewRowId(0));
+        assertEquals(0L, gen2.getNewRowId(1));
     }
 
     /**
@@ -184,13 +159,8 @@ public class PackedRowIdMappingTests extends OpenSearchTestCase {
      */
     public void testToString() {
         long[] mappingArray = { 0, 1, 2 };
-        Map<Long, Integer> offsets = Map.of(1L, 0);
-        Map<Long, Integer> sizes = Map.of(1L, 3);
-
-        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, offsets, sizes);
+        PackedRowIdMapping mapping = new PackedRowIdMapping(mappingArray, false);
         String str = mapping.toString();
         assertTrue(str.contains("size=3"));
-        assertTrue(str.contains("generations=1"));
-        assertTrue(str.contains("estimatedMemoryBytes="));
     }
 }

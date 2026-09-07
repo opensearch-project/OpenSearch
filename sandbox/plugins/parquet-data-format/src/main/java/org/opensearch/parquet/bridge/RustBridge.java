@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
@@ -109,7 +111,9 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,                           // num_row_groups_out
                 ValueLayout.ADDRESS,                           // sort_perm_ptr_out
-                ValueLayout.ADDRESS                            // sort_perm_len_out
+                ValueLayout.ADDRESS,                           // sort_perm_byte_len_out
+                ValueLayout.ADDRESS,                           // sort_perm_count_out
+                ValueLayout.ADDRESS                            // sort_perm_bpv_out
             )
         );
         GET_FILE_METADATA = linker.downcallHandle(
@@ -263,7 +267,7 @@ public class RustBridge {
             lib.find("parquet_free_row_id_mapping").orElseThrow(),
             FunctionDescriptor.ofVoid(
                 ValueLayout.JAVA_LONG,                         // mapping_ptr
-                ValueLayout.JAVA_LONG                          // mapping_len
+                ValueLayout.JAVA_LONG                          // byte_len
             )
         );
         COLLECT_RUNTIME_METRICS = linker.downcallHandle(
@@ -359,7 +363,9 @@ public class RustBridge {
             var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
             var sortPermPtrOut = call.longOut();
-            var sortPermLenOut = call.longOut();
+            var sortPermByteLenOut = call.longOut();
+            var sortPermCountOut = call.longOut();
+            var sortPermBpvOut = call.longOut();
             long rc = call.invokeIO(
                 FINALIZE_WRITER,
                 f.segment(),
@@ -372,7 +378,9 @@ public class RustBridge {
                 crc32Out,
                 numRowGroupsOut,
                 sortPermPtrOut,
-                sortPermLenOut
+                sortPermByteLenOut,
+                sortPermCountOut,
+                sortPermBpvOut
             );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
@@ -386,23 +394,35 @@ public class RustBridge {
                 (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
 
-            // Read sort permutation if present
+            // Wrap the bit-packed permutation buffer (forward + reverse, ~bpv/8 bytes per
+            // value per direction) zero-copy. The mapping takes ownership of the native
+            // buffer and frees it via parquet_free_row_id_mapping on close(); no Java heap
+            // allocation is made for the mapping data.
             long permAddr = sortPermPtrOut.get(ValueLayout.JAVA_LONG, 0);
-            long permLen = sortPermLenOut.get(ValueLayout.JAVA_LONG, 0);
+            long permByteLen = sortPermByteLenOut.get(ValueLayout.JAVA_LONG, 0);
+            long permCount = sortPermCountOut.get(ValueLayout.JAVA_LONG, 0);
+            long permBpv = sortPermBpvOut.get(ValueLayout.JAVA_LONG, 0);
             RowIdMapping rowIdMapping = null;
-            if (permAddr != 0 && permLen > 0) {
+            if (permAddr != 0 && permByteLen > 0 && permCount > 0) {
                 try {
-                    long[] mappingArray = MemorySegment.ofAddress(permAddr)
-                        .reinterpret(permLen * ValueLayout.JAVA_LONG.byteSize())
-                        .toArray(ValueLayout.JAVA_LONG);
-                    rowIdMapping = new PackedRowIdMapping(mappingArray, true);
-                } finally {
-                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permLen);
+                    rowIdMapping = new NativePackedRowIdMapping(permAddr, permByteLen, (int) permCount, (int) permBpv);
+                } catch (RuntimeException e) {
+                    // Wrapper construction failed — free the native buffer to avoid a leak.
+                    NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, permAddr, permByteLen);
+                    throw e;
                 }
             }
 
             return new WriterFinalizeResult(metadata, rowIdMapping);
         }
+    }
+
+    /**
+     * Frees a bit-packed row ID mapping buffer previously returned by the finalize call.
+     * Invoked by {@link NativePackedRowIdMapping} on close (or its Cleaner backstop).
+     */
+    static void freeRowIdMapping(long addr, long byteLen) {
+        NativeCall.invokeVoid(FREE_ROW_ID_MAPPING, addr, byteLen);
     }
 
     public static ParquetFileMetadata getFileMetadata(String file) throws IOException {
@@ -639,7 +659,7 @@ public class RustBridge {
                 0
             );
 
-            RowIdMapping rowIdMapping = readAndFreeMergeResult(
+            Map<Long, RowIdMapping> rowIdMappings = readAndFreeMergeResult(
                 outMappingPtr,
                 outMappingLen,
                 outGenKeysPtr,
@@ -652,13 +672,13 @@ public class RustBridge {
             long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
             long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
 
-            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
+            return new MergeFilesResult(rowIdMappings, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }
     }
 
-    private static RowIdMapping readAndFreeMergeResult(
+    private static Map<Long, RowIdMapping> readAndFreeMergeResult(
         MemorySegment outMappingPtr,
         MemorySegment outMappingLen,
         MemorySegment outGenKeysPtr,
@@ -674,12 +694,10 @@ public class RustBridge {
         long genCount = outGenCount.get(ValueLayout.JAVA_LONG, 0);
 
         try {
-            // Read mapping array (i64[])
-            long[] mappingArray = MemorySegment.ofAddress(mappingAddr)
-                .reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize())
-                .toArray(ValueLayout.JAVA_LONG);
+            // Create a view over the native mapping array — no bulk copy
+            MemorySegment fullSegment = MemorySegment.ofAddress(mappingAddr).reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize());
 
-            // Read generation keys (i64[]), offsets (i32[]), sizes (i32[])
+            // Read generation metadata (small arrays, OK to copy)
             long[] genKeys = MemorySegment.ofAddress(genKeysAddr)
                 .reinterpret(genCount * ValueLayout.JAVA_LONG.byteSize())
                 .toArray(ValueLayout.JAVA_LONG);
@@ -690,14 +708,20 @@ public class RustBridge {
                 .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
                 .toArray(ValueLayout.JAVA_INT);
 
-            Map<Long, Integer> offsetMap = new HashMap<>((int) genCount);
-            Map<Long, Integer> sizeMap = new HashMap<>((int) genCount);
+            // Build one PackedRowIdMapping per generation by reading element-by-element
+            // directly from native memory into PackedLongValues — no intermediate long[] allocation
+            Map<Long, RowIdMapping> result = new HashMap<>((int) genCount);
             for (int i = 0; i < (int) genCount; i++) {
-                offsetMap.put(genKeys[i], genOffsets[i]);
-                sizeMap.put(genKeys[i], genSizes[i]);
+                int offset = genOffsets[i];
+                int size = genSizes[i];
+                PackedLongValues.Builder builder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                for (int j = 0; j < size; j++) {
+                    builder.add(fullSegment.getAtIndex(ValueLayout.JAVA_LONG, offset + j));
+                }
+                result.put(genKeys[i], new PackedRowIdMapping(builder.build(), null));
             }
 
-            return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
+            return result;
         } finally {
             NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
         }

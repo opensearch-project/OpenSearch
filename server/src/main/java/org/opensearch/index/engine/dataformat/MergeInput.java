@@ -14,6 +14,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -23,14 +24,34 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, Map<Long, RowIdMapping> rowIdMappings, long newWriterGeneration) {
 
     public MergeInput {
         segments = List.copyOf(segments);
+        rowIdMappings = rowIdMappings != null ? Map.copyOf(rowIdMappings) : Map.of();
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMappings, builder.newWriterGeneration);
+    }
+
+    /**
+     * Returns the {@link RowIdMapping} for a specific writer generation, or null if not present.
+     *
+     * @param generation the writer generation
+     * @return the row ID mapping for that generation, or null
+     */
+    public RowIdMapping getRowIdMapping(long generation) {
+        return rowIdMappings.get(generation);
+    }
+
+    /**
+     * Returns whether any row ID mappings are available.
+     *
+     * @return true if at least one generation mapping exists
+     */
+    public boolean hasRowIdMappings() {
+        return rowIdMappings != null && !rowIdMappings.isEmpty();
     }
 
     /**
@@ -58,7 +79,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
     @ExperimentalApi
     public static class Builder {
         private List<Segment> segments = new ArrayList<>();
-        private RowIdMapping rowIdMapping;
+        private Map<Long, RowIdMapping> rowIdMappings;
         private long newWriterGeneration;
 
         private Builder() {}
@@ -86,13 +107,13 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
         }
 
         /**
-         * Sets the row ID mapping for secondary data format merges.
+         * Sets the row ID mappings keyed by writer generation for secondary data format merges.
          *
-         * @param rowIdMapping the row ID mapping
+         * @param rowIdMappings map of writer generation to row ID mapping
          * @return this builder
          */
-        public Builder rowIdMapping(RowIdMapping rowIdMapping) {
-            this.rowIdMapping = rowIdMapping;
+        public Builder rowIdMappings(Map<Long, RowIdMapping> rowIdMappings) {
+            this.rowIdMappings = rowIdMappings;
             return this;
         }
 
