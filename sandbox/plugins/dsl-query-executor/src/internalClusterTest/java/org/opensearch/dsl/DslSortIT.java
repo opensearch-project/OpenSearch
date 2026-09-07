@@ -10,6 +10,8 @@ package org.opensearch.dsl;
 
 import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
 
 /**
@@ -52,5 +54,51 @@ public class DslSortIT extends DslIntegTestBase {
     public void testFromOffset() {
         createTestIndex();
         assertOk(search(new SearchSourceBuilder().from(10).size(5)));
+    }
+
+    public void testSortModeMin() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MIN);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
+    }
+
+    public void testSortModeMax() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.DESC).sortMode(SortMode.MAX);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
+    }
+
+    public void testSortModeAvg() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.AVG);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
+    }
+
+    public void testSortModeSum() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.SUM);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
+    }
+
+    public void testSortModeMedian() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MEDIAN);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder)));
+    }
+
+    public void testSortModeWithMultipleSorts() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder modeSort = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.MIN);
+        assertOk(search(
+            new SearchSourceBuilder()
+                .sort(modeSort)
+                .sort("name", SortOrder.DESC)
+        ));
+    }
+
+    public void testSortModeWithPagination() {
+        createTestIndexWithArrayField();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("tags").order(SortOrder.ASC).sortMode(SortMode.AVG);
+        assertOk(search(new SearchSourceBuilder().sort(sortBuilder).from(0).size(5)));
     }
 }
