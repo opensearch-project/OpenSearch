@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -81,6 +82,43 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
         @Override
         public InternalAggregation buildEmptyAggregation() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    private class PrecomputeAggregator extends BogusAggregator {
+        PrecomputeAggregator(SearchContext searchContext, Aggregator parent) throws IOException {
+            super(searchContext, parent);
+        }
+
+        @Override
+        protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) {
+            return true;
+        }
+    }
+
+    public void testSegmentPrecomputeSkippedUnderIntraSegmentSearch() throws IOException {
+        IndexService indexService = createIndexWithSimpleMappings("precompute_gate", Settings.EMPTY, "bytes", "type=keyword");
+        client().prepareIndex("precompute_gate").setSource("bytes", "value").get();
+        indexService.getShard(0).refresh("test");
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
+            SearchContext searchContext = mockSearchContext(new MatchAllDocsQuery());
+            when(searchContext.shouldUseIntraSegmentSearch()).thenReturn(true);
+            when(searchContext.shouldUseConcurrentSearch()).thenReturn(true);
+            PrecomputeAggregator intraSegmentAggregator = new PrecomputeAggregator(searchContext, null);
+            intraSegmentAggregator.preCollection();
+            expectThrows(UnsupportedOperationException.class, () -> intraSegmentAggregator.getLeafCollector(leafReaderContext));
+
+            when(searchContext.shouldUseIntraSegmentSearch()).thenReturn(false);
+            when(searchContext.shouldUseConcurrentSearch()).thenReturn(false);
+            PrecomputeAggregator wholeSegmentAggregator = new PrecomputeAggregator(searchContext, null);
+            wholeSegmentAggregator.preCollection();
+            expectThrows(CollectionTerminatedException.class, () -> wholeSegmentAggregator.getLeafCollector(leafReaderContext));
+
+            when(searchContext.shouldUseConcurrentSearch()).thenReturn(true);
+            PrecomputeAggregator concurrentAggregator = new PrecomputeAggregator(searchContext, null);
+            concurrentAggregator.preCollection();
+            expectThrows(UnsupportedOperationException.class, () -> concurrentAggregator.getLeafCollector(leafReaderContext));
         }
     }
 
