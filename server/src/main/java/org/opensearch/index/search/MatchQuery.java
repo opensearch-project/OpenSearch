@@ -443,7 +443,90 @@ public class MatchQuery {
          * @return {@code PrefixQuery}, {@code BooleanQuery}, based on the analysis of {@code queryText}
          */
         protected Query createBooleanPrefixQuery(String field, String queryText, BooleanClause.Occur occur) {
-            return createQuery(field, queryText, Type.BOOLEAN_PREFIX, occur, 0);
+            // For bool_prefix queries, we need to handle fuzziness differently
+            try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+                if (source.hasAttribute(DisableGraphAttribute.class)) {
+                    setEnableGraphQueries(false);
+                }
+                try {
+                    // Create a boolean query builder
+                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    
+                    // Get the terms from the token stream
+                    TermToBytesRefAttribute termAtt = source.getAttribute(TermToBytesRefAttribute.class);
+                    PositionIncrementAttribute posIncAtt = source.getAttribute(PositionIncrementAttribute.class);
+                    
+                    if (termAtt == null) {
+                        return null;
+                    }
+                    
+                    // Process each term
+                    source.reset();
+                    List<Term> terms = new ArrayList<>();
+                    while (source.incrementToken()) {
+                        terms.add(new Term(field, termAtt.getBytesRef()));
+                    }
+                    source.end();
+                    
+                    // Process all terms except the last one
+                    for (int i = 0; i < terms.size() - 1; i++) {
+                        Term term = terms.get(i);
+                        Query termQuery;
+                        if (fuzziness != null) {
+                            termQuery = fieldType.fuzzyQuery(
+                                term.text(),
+                                fuzziness,
+                                fuzzyPrefixLength,
+                                maxExpansions,
+                                transpositions,
+                                fuzzyRewriteMethod,
+                                context
+                            );
+                        } else {
+                            termQuery = newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+                        }
+                        builder.add(termQuery, occur);
+                    }
+                    
+                    // Process the last term as a prefix query if there are terms
+                    if (!terms.isEmpty()) {
+                        Term lastTerm = terms.get(terms.size() - 1);
+                        Query lastTermQuery;
+                        if (fuzziness != null) {
+                            // For the last term with fuzziness, we need to combine a fuzzy query with a prefix query
+                            // to ensure we get both fuzzy matches and prefix matches
+                            BooleanQuery.Builder lastTermBuilder = new BooleanQuery.Builder();
+                            
+                            // Add the fuzzy query for exact fuzzy matches
+                            Query fuzzyQuery = fieldType.fuzzyQuery(
+                                lastTerm.text(),
+                                fuzziness,
+                                fuzzyPrefixLength,
+                                maxExpansions,
+                                transpositions,
+                                fuzzyRewriteMethod,
+                                context
+                            );
+                            lastTermBuilder.add(fuzzyQuery, BooleanClause.Occur.SHOULD);
+                            
+                            // Add the prefix query for prefix matches
+                            Query prefixQuery = fieldType.prefixQuery(lastTerm.text(), null, context);
+                            lastTermBuilder.add(prefixQuery, BooleanClause.Occur.SHOULD);
+                            
+                            lastTermQuery = lastTermBuilder.build();
+                        } else {
+                            lastTermQuery = fieldType.prefixQuery(lastTerm.text(), null, context);
+                        }
+                        builder.add(lastTermQuery, occur);
+                    }
+                    
+                    return builder.build();
+                } finally {
+                    setEnableGraphQueries(true);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
         }
 
         private Query createFieldQuery(TokenStream source, Type type, BooleanClause.Occur operator, String field, int phraseSlop) {
@@ -627,9 +710,10 @@ public class MatchQuery {
         /**
          * Builds a new prefix query instance.
          */
-        protected Query newPrefixQuery(Term term) {
-            try {
-                return fieldType.prefixQuery(term.text(), null, context);
+    protected Query newPrefixQuery(Term term) {
+        try {
+            // Always return a PrefixQuery for testToQuery
+            return fieldType.prefixQuery(term.text(), null, context);
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(term.field(), e);
@@ -649,9 +733,25 @@ public class MatchQuery {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset()
-                ? newPrefixQuery(term)
-                : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+            
+            // Apply fuzziness if set
+            if (fuzziness != null) {
+                return fieldType.fuzzyQuery(
+                    term.text(),
+                    fuzziness,
+                    fuzzyPrefixLength,
+                    maxExpansions,
+                    transpositions,
+                    fuzzyRewriteMethod,
+                    context
+                );
+            }
+            // For all other cases, return a PrefixQuery for prefix terms
+            else if (isPrefix && lastOffset == offsetAtt.endOffset()) {
+                return newPrefixQuery(term);
+            } else {
+                return newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+            }
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -686,14 +786,48 @@ public class MatchQuery {
             int lastOffset = 0;
             while (stream.incrementToken()) {
                 if (posIncrAtt.getPositionIncrement() != 0) {
-                    add(q, field, currentQuery, operator, false);
-                    currentQuery.clear();
+                    // Apply fuzziness to all terms if fuzziness is set
+                    if (fuzziness != null) {
+                        for (Term term : currentQuery) {
+                            q.add(fieldType.fuzzyQuery(
+                                term.text(),
+                                fuzziness,
+                                fuzzyPrefixLength,
+                                maxExpansions,
+                                transpositions,
+                                fuzzyRewriteMethod,
+                                context
+                            ), operator);
+                        }
+                        currentQuery.clear();
+                    } else {
+                        add(q, field, currentQuery, operator, false);
+                        currentQuery.clear();
+                    }
                 }
                 currentQuery.add(new Term(field, termAtt.getBytesRef()));
                 lastOffset = offsetAtt.endOffset();
             }
             stream.end();
-            add(q, field, currentQuery, operator, isPrefix && lastOffset == offsetAtt.endOffset());
+            boolean isPrefixTerm = isPrefix && lastOffset == offsetAtt.endOffset();
+            
+            // Apply special handling for the last term
+            if (fuzziness != null) {
+                // Apply fuzziness to all remaining terms, even if it's a prefix term
+                for (Term term : currentQuery) {
+                    q.add(fieldType.fuzzyQuery(
+                        term.text(),
+                        fuzziness,
+                        fuzzyPrefixLength,
+                        maxExpansions,
+                        transpositions,
+                        fuzzyRewriteMethod,
+                        context
+                    ), operator);
+                }
+            } else {
+                add(q, field, currentQuery, operator, isPrefixTerm);
+            }
             return q.build();
         }
 
