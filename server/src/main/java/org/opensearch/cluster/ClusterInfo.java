@@ -270,7 +270,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Note that this does not take account of reserved space: there may be another path with less available _and unreserved_ space.
      */
     public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
-        return Collections.unmodifiableMap(this.leastAvailableSpaceUsage);
+        return this.leastAvailableSpaceUsage == null ? Collections.emptyMap() : Collections.unmodifiableMap(this.leastAvailableSpaceUsage);
     }
 
     /**
@@ -278,7 +278,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Note that this does not take account of reserved space: there may be another path with more available _and unreserved_ space.
      */
     public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
-        return Collections.unmodifiableMap(this.mostAvailableSpaceUsage);
+        return this.mostAvailableSpaceUsage == null ? Collections.emptyMap() : Collections.unmodifiableMap(this.mostAvailableSpaceUsage);
     }
 
     /**
