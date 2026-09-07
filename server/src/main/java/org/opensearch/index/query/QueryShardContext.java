@@ -692,6 +692,17 @@ public class QueryShardContext extends BaseQueryRewriteContext {
     }
 
     /**
+     * Null-safe check for the pluggable-dataformat gate. Returns {@code true} only when this
+     * context has index-scoped settings and the setting is enabled. Callers use this to route
+     * query construction (e.g. numeric range/term/bitmap) through the pure doc-values branch
+     * on pluggable-dataformat indices, where the Lucene secondary writes no BKD for numeric
+     * fields.
+     */
+    public boolean isPluggableDataFormatEnabled() {
+        return indexSettings != null && indexSettings.isPluggableDataFormatEnabled();
+    }
+
+    /**
      * Return the MapperService.
      */
     public MapperService getMapperService() {
