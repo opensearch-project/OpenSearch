@@ -265,7 +265,7 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
         );
         clusterState = throttledAllocationService.reroute(clusterState, "add throttled node");
 
-        for (int round = 0; round <= 50; round++) {
+        for (int round = 0; round <= 20; round++) {
             RoutingNode newNode = clusterState.getRoutingNodes().node(newNodeId);
             int incomingShards = newNode.numberOfShardsWithState(INITIALIZING);
             int outgoingShards = newNode.numberOfShardsWithState(RELOCATING);

@@ -1060,15 +1060,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * simulation model as well as on the cluster.
      */
     private boolean tryRelocateShard(BalancedShardsAllocator.ModelNode minNode, BalancedShardsAllocator.ModelNode maxNode, String idx) {
-        if (hasUnrealizedInbound(maxNode, idx)) {
-            logger.trace(
-                "Skip relocating shards of [{}] from [{}] because its balance model includes unrealized inbound shards",
-                idx,
-                maxNode.getNodeId()
-            );
-            return false;
-        }
-
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
             logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1110,7 +1101,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 --totalShardCount;
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                if (decision.type() == Decision.Type.YES) {
+                Decision.Type type = decision.type();
+                if (type == Decision.Type.YES && !hasUnrealizedInbound(shard, type, maxNode, idx)) {
                     /* only allocate on the cluster if we are not throttled */
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
@@ -1119,7 +1111,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 } else {
                     /* allocate on the model even if throttled */
                     logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                    assert decision.type() == Decision.Type.THROTTLE;
+                    assert type != Decision.Type.NO;
                     minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
                     ++totalShardCount;
                     return false;
@@ -1130,10 +1122,19 @@ public class LocalShardsBalancer extends ShardsBalancer {
         return false;
     }
 
-    private boolean hasUnrealizedInbound(BalancedShardsAllocator.ModelNode node, String index) {
+    private boolean hasUnrealizedInbound(ShardRouting shard, Decision.Type type, BalancedShardsAllocator.ModelNode node, String index) {
+        assert type == Decision.Type.YES;
         final RoutingNode routingNode = node.getRoutingNode();
-        return node.numShards() > routingNode.numberOfOwningShards()
+        boolean result = node.numShards() > routingNode.numberOfOwningShards()
             || node.numShards(index) > routingNode.numberOfOwningShardsForIndex(metadata.index(index).getIndex());
+        if (result) {
+            logger.trace(
+                "Skip real relocation of [{}] from [{}] because its balance model includes unrealized inbound shards",
+                shard,
+                node.getNodeId()
+            );
+        }
+        return result;
     }
 
 }
