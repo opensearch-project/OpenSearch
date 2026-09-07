@@ -96,6 +96,12 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
             .get();
         assertTrue(searchResponse.isTimedOut());
         assertEquals(0, searchResponse.getFailedShards());
+        // Verify timed_out count in _shards is positive and consistent with the boolean
+        assertTrue("timedOutShards should be > 0 when timed_out is true", searchResponse.getTimedOutShards() > 0);
+        assertTrue(
+            "timedOutShards should be <= successful - skipped",
+            searchResponse.getTimedOutShards() <= searchResponse.getSuccessfulShards() - searchResponse.getSkippedShards()
+        );
     }
 
     public void testSimpleDoesNotTimeout() throws Exception {
@@ -112,6 +118,8 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
         assertFalse(searchResponse.isTimedOut());
         assertEquals(0, searchResponse.getFailedShards());
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
+        // Verify timed_out count is 0 when no timeout occurred
+        assertEquals(0, searchResponse.getTimedOutShards());
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
