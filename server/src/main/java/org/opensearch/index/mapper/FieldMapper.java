@@ -802,6 +802,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return empty();
                 } else {
                     context.path().add(mainFieldBuilder.name());
+                    context.setMultiField(true);
                     Map mapperBuilders = this.mapperBuilders;
                     for (final Map.Entry<String, Mapper.Builder> cursor : this.mapperBuilders.entrySet()) {
                         String key = cursor.getKey();
@@ -810,6 +811,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         assert mapper instanceof FieldMapper;
                         mapperBuilders.put(key, mapper);
                     }
+                    context.setMultiField(false);
                     context.path().remove();
                     final Map<String, FieldMapper> mappers = (Map<String, FieldMapper>) mapperBuilders;
                     return new MultiFields(mappers);
