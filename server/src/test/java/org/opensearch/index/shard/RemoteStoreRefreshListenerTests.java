@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.mockito.stubbing.Answer;
@@ -417,6 +418,97 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
         }
+    }
+
+    public void testSkipsMetadataUploadWhenPublishedStateIsUnchanged() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertEquals(metadataFileCount, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
+    public void testUploadsMetadataWhenTranslogGenerationChanges() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+        int segmentFileCount = remoteDirectory.getSegmentsUploadedToRemoteStoreSize();
+
+        indexShard.rollTranslogGeneration();
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertEquals(segmentFileCount, remoteDirectory.getSegmentsUploadedToRemoteStoreSize());
+        assertEquals(metadataFileCount + 1, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
+    public void testUploadsMetadataWhenExistingSegmentIsReuploaded() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+        String fileToReupload = remoteDirectory.getSegmentsUploadedToRemoteStore()
+            .keySet()
+            .stream()
+            .filter(file -> RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false)
+            .findFirst()
+            .orElseThrow();
+
+        remoteDirectory.deleteFile(fileToReupload);
+        remoteStoreRefreshListener.afterRefresh(true);
+
+        assertTrue(remoteDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileToReupload));
+        assertEquals(metadataFileCount + 1, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
+    }
+
+    public void testRepublishesMetadataOnRetryAfterFailedPublishOfReuploadedBlob() throws IOException {
+        setup(true, 3);
+        RemoteSegmentStoreDirectory remoteDirectory = getRemoteSegmentStoreDirectory();
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+
+        org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> realSerializer = indexShard
+            .catalogSnapshotToRemoteMetadataSerializer();
+        AtomicBoolean failNextPublish = new AtomicBoolean(false);
+        org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> failingSerializer = snapshot -> {
+            if (failNextPublish.compareAndSet(true, false)) {
+                throw new IOException("induced metadata publish failure");
+            }
+            return realSerializer.apply(snapshot);
+        };
+        IndexShard spyShard = spy(indexShard);
+        doReturn(failingSerializer).when(spyShard).catalogSnapshotToRemoteMetadataSerializer();
+
+        RemoteStoreRefreshListener listener = new RemoteStoreRefreshListener(
+            spyShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+        remoteStoreRefreshListener = listener;
+
+        listener.afterRefresh(true);
+        int metadataFileCount = remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size();
+        String fileToReupload = remoteDirectory.getSegmentsUploadedToRemoteStore()
+            .keySet()
+            .stream()
+            .filter(file -> RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false)
+            .findFirst()
+            .orElseThrow();
+        remoteDirectory.deleteFile(fileToReupload);
+
+        failNextPublish.set(true);
+        listener.afterRefresh(true);
+        assertTrue(remoteDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileToReupload));
+
+        listener.afterRefresh(true);
+
+        assertEquals(metadataFileCount + 1, remoteDirectory.readLatestNMetadataFiles(Integer.MAX_VALUE).size());
     }
 
     public void testAfterMultipleCommits() throws IOException {
@@ -989,6 +1081,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }
         }
         assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteSegmentStoreDirectory() {
+        return (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+            .getDelegate();
     }
 
     public void testRemoteSegmentStoreNotInSync() throws IOException {

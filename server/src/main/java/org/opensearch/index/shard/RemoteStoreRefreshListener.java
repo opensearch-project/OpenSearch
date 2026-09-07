@@ -98,6 +98,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private final RemoteStoreSettings remoteStoreSettings;
     private final RemoteStoreUploader remoteStoreUploader;
 
+    /**
+     * State represented by the last metadata file uploaded successfully by this listener. Segment filenames alone are not a sufficient
+     * identity. The metadata file also publishes the primary term, replication checkpoint, translog generation, and commit user data.
+     *
+     * <p>The state is cleared before uploading any segment file because a re-upload changes the local-to-remote filename mapping even when
+     * the local filename and the rest of the index state are unchanged.</p>
+     */
+    private volatile MetadataUploadState lastUploadedMetadataState;
+
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
@@ -308,6 +317,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
+                    Collection<String> segmentsToUpload = localSegmentsPostRefresh.stream()
+                        .filter(file -> skipUpload(file) == false)
+                        .collect(Collectors.toList());
+                    if (segmentsToUpload.isEmpty() == false) {
+                        // The uploaded blob names are generated afresh. Force metadata publication so a retry cannot retain mappings to
+                        // blobs that were replaced or were uploaded before a failed metadata upload.
+                        lastUploadedMetadataState = null;
+                    }
+
                     evictUploadedChecksums(localSegmentsPostRefresh);
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
@@ -320,8 +338,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             try {
                                 logger.debug("New segments upload successful");
                                 // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
-                                logger.debug("Metadata upload successful");
+                                if (uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint)) {
+                                    logger.debug("Metadata upload successful");
+                                } else {
+                                    logger.debug("Skipping remote segment metadata upload because the published state is unchanged");
+                                }
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -349,7 +370,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }, latch);
 
                     // Start the segments files upload with crypto
-                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
+                    uploadNewSegments(segmentsToUpload, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
                     if (latch.await(
                         remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
                         TimeUnit.MILLISECONDS
@@ -395,24 +416,23 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     /**
      * Uploads new segment files to the remote store.
      *
-     * @param localSegmentsPostRefresh collection of segment files present after refresh
+     * @param segmentsToUpload collection of segment files that are not present in the remote store
      * @param localSegmentsSizeMap map of segment file names to their sizes
      * @param segmentUploadsCompletedListener listener to be notified when upload completes
      * @param cryptoMetadata  CryptoMetadata for index-level encryption
      */
     private void uploadNewSegments(
-        Collection<String> localSegmentsPostRefresh,
+        Collection<String> segmentsToUpload,
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> segmentUploadsCompletedListener,
         CryptoMetadata cryptoMetadata
     ) {
-        Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(
             localSegmentsSizeMap
         );
 
         remoteStoreUploader.uploadSegments(
-            filteredFiles,
+            segmentsToUpload,
             localSegmentsSizeMap,
             segmentUploadsCompletedListener,
             uploadListenerFunction,
@@ -519,7 +539,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
     }
 
-    void uploadMetadata(
+    boolean uploadMetadata(
         Collection<String> localSegmentsPostRefresh,
         CatalogSnapshot catalogSnapshot,
         ReplicationCheckpoint replicationCheckpoint
@@ -543,6 +563,24 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
+            MetadataUploadState currentMetadataState = new MetadataUploadState(
+                new ReplicationCheckpointState(
+                    replicationCheckpoint.getPrimaryTerm(),
+                    replicationCheckpoint.getSegmentsGen(),
+                    replicationCheckpoint.getSegmentInfosVersion(),
+                    replicationCheckpoint.getLength(),
+                    replicationCheckpoint.getCodec()
+                ),
+                catalogSnapshotCloned.getGeneration(),
+                catalogSnapshotCloned.getVersion(),
+                catalogSnapshotCloned.getLastCommitGeneration(),
+                translogFileGeneration,
+                catalogSnapshotCloned.getUserData(),
+                Set.copyOf(localSegmentsPostRefresh)
+            );
+            if (currentMetadataState.equals(lastUploadedMetadataState)) {
+                return false;
+            }
             remoteDirectory.uploadMetadata(
                 localSegmentsPostRefresh,
                 catalogSnapshotCloned,
@@ -552,7 +590,21 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 indexShard.getNodeId(),
                 serializer
             );
+            lastUploadedMetadataState = currentMetadataState;
+            return true;
         }
+    }
+
+    private record MetadataUploadState(ReplicationCheckpointState checkpoint, long catalogGeneration, long catalogVersion,
+        long lastCommitGeneration, long translogGeneration, Map<String, String> userData, Set<String> segmentFiles) {
+        private MetadataUploadState {
+            userData = Map.copyOf(userData);
+            segmentFiles = Set.copyOf(segmentFiles);
+        }
+    }
+
+    private record ReplicationCheckpointState(long primaryTerm, long segmentsGeneration, long segmentInfosVersion, long length,
+        String codec) {
     }
 
     boolean isLowPriorityUpload() {
