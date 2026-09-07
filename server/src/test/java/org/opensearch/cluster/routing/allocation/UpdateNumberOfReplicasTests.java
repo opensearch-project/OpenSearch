@@ -436,4 +436,151 @@ public class UpdateNumberOfReplicasTests extends OpenSearchAllocationTestCase {
         assertEquals(shardRoutingTable.replicaShards().get(0).state(), STARTED);
         assertEquals(shardRoutingTable.replicaShards().get(0).currentNodeId(), nodeHoldingReplica);
     }
+
+    public void testMinNumberOfReplicas() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(3)
+                    .settings(
+                        Settings.builder()
+                            .put(settings(Version.CURRENT).build())
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 3)
+                            .put(IndexMetadata.SETTING_MIN_NUMBER_OF_REPLICAS, 1)
+                    )
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        // Add 4 nodes and start all shards
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
+            .build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        // Verify: 1 primary + 3 replicas, all started
+        assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(4));
+        assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
+        for (ShardRouting replica : clusterState.routingTable().index("test").shard(0).replicaShards()) {
+            assertThat(replica.state(), equalTo(STARTED));
+        }
+
+        // Now update number_of_replicas to 2 with min=1.
+        // This should remove 1 replica (from 3 down to 2).
+        final String[] indices = { "test" };
+        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, 1, indices).build();
+        metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(2, indices).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
+
+        assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().size(), equalTo(2));
+
+        // Now simulate: current replicas=2, update with numberOfReplicas=2 and min=1.
+        // Since current (2) is between min (1) and max (2), no changes should happen.
+        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, 1, indices).build();
+        assertThat(updatedRoutingTable.index("test").shard(0).size(), equalTo(3));
+        assertThat(updatedRoutingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
+
+        // Now simulate: current replicas=2, update with numberOfReplicas=3 and min=1.
+        // Since current (2) is between min (1) and max (3), no changes — we don't add up to max.
+        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(3, 1, indices).build();
+        assertThat(updatedRoutingTable.index("test").shard(0).size(), equalTo(3));
+        assertThat(updatedRoutingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
+
+        // Now reduce to 0 replicas with min=1.
+        // Since current (2) > max (0)... wait, that doesn't make sense with min > max.
+        // Let's test: reduce max to 1 with min=1. Current=2, should remove down to 1.
+        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1, 1, indices).build();
+        assertThat(updatedRoutingTable.index("test").shard(0).size(), equalTo(2));
+        assertThat(updatedRoutingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+    }
+
+    public void testMinNumberOfReplicasAddsUpToMin() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        // Start with 0 replicas
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        // Verify: 1 primary + 0 replicas
+        assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(1));
+
+        // Now update with numberOfReplicas=3 and min=1.
+        // Current (0) < min (1), so should add up to 1 (not 3).
+        final String[] indices = { "test" };
+        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(3, 1, indices).build();
+
+        assertThat(updatedRoutingTable.index("test").shard(0).size(), equalTo(2));
+        assertThat(updatedRoutingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+    }
+
+    public void testMinNumberOfReplicasDefaultBehavior() {
+        // When min is not set, the 2-arg overload should behave identically to before:
+        // it adds/removes to match numberOfReplicas exactly.
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        // 1 shard + 1 replica = 2 shard routings
+        assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
+
+        // Using the old 2-arg overload to increase replicas to 3
+        final String[] indices = { "test" };
+        RoutingTable updated = RoutingTable.builder(routingTable).updateNumberOfReplicas(3, indices).build();
+        assertThat(updated.index("test").shard(0).size(), equalTo(4));
+        assertThat(updated.index("test").shard(0).replicaShards().size(), equalTo(3));
+
+        // Using the old 2-arg overload to decrease back to 1
+        updated = RoutingTable.builder(updated).updateNumberOfReplicas(1, indices).build();
+        assertThat(updated.index("test").shard(0).size(), equalTo(2));
+        assertThat(updated.index("test").shard(0).replicaShards().size(), equalTo(1));
+    }
+
+    public void testMinNumberOfReplicasValidation() {
+        // min_number_of_replicas > number_of_replicas should fail
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(settings(Version.CURRENT).build())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetadata.SETTING_MIN_NUMBER_OF_REPLICAS, 2)
+                )
+                .build()
+        );
+        assertThat(e.getMessage(), equalTo("index.min_number_of_replicas [2] must be <= index.number_of_replicas [1] for [test]"));
+    }
 }
