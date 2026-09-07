@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -165,13 +164,78 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long bucket) throws IOException {
+                growArrays(bucket);
+                final double[] minMax = { mins.get(bucket), maxes.get(bucket) };
+                compensatedSum.reset(sums.get(bucket), compensations.get(bucket));
+                compensatedSumOfSqr.reset(sumOfSqrs.get(bucket), compensationOfSqrs.get(bucket));
+                int docCount = 0;
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        final int valuesCount = values.docValueCount();
+                        docCount += valuesCount;
+                        for (int j = 0; j < valuesCount; j++) {
+                            double value = values.nextValue();
+                            compensatedSum.add(value);
+                            compensatedSumOfSqr.add(value * value);
+                            minMax[0] = Math.min(minMax[0], value);
+                            minMax[1] = Math.max(minMax[1], value);
+                        }
+                    }
+                }
+                counts.increment(bucket, docCount);
+                sums.set(bucket, compensatedSum.value());
+                compensations.set(bucket, compensatedSum.delta());
+                sumOfSqrs.set(bucket, compensatedSumOfSqr.value());
+                compensationOfSqrs.set(bucket, compensatedSumOfSqr.delta());
+                mins.set(bucket, minMax[0]);
+                maxes.set(bucket, minMax[1]);
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
+            public void collectRange(int rangeMin, int rangeMax, long bucket) throws IOException {
+                growArrays(bucket);
+                double minimum = mins.get(bucket);
+                double maximum = maxes.get(bucket);
+                compensatedSum.reset(sums.get(bucket), compensations.get(bucket));
+                compensatedSumOfSqr.reset(sumOfSqrs.get(bucket), compensationOfSqrs.get(bucket));
+                int count = 0;
+                for (int doc = rangeMin; doc < rangeMax; doc++) {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        count += valuesCount;
+                        for (int i = 0; i < valuesCount; i++) {
+                            double value = values.nextValue();
+                            compensatedSum.add(value);
+                            compensatedSumOfSqr.add(value * value);
+                            minimum = Math.min(minimum, value);
+                            maximum = Math.max(maximum, value);
+                        }
+                    }
+                }
+                counts.increment(bucket, count);
+                sums.set(bucket, compensatedSum.value());
+                compensations.set(bucket, compensatedSum.delta());
+                sumOfSqrs.set(bucket, compensatedSumOfSqr.value());
+                compensationOfSqrs.set(bucket, compensatedSumOfSqr.delta());
+                mins.set(bucket, minimum);
+                maxes.set(bucket, maximum);
+            }
+
+            private void growArrays(long bucket) {
+                if (bucket >= counts.size()) {
+                    final long from = counts.size();
+                    final long overSize = BigArrays.overSize(bucket + 1);
+                    counts = bigArrays.resize(counts, overSize);
+                    sums = bigArrays.resize(sums, overSize);
+                    compensations = bigArrays.resize(compensations, overSize);
+                    mins = bigArrays.resize(mins, overSize);
+                    maxes = bigArrays.resize(maxes, overSize);
+                    sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+                    compensationOfSqrs = bigArrays.resize(compensationOfSqrs, overSize);
+                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+                }
             }
         };
     }
