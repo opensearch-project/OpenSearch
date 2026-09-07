@@ -90,7 +90,7 @@ public abstract class TransportSingleItemBulkWriteAction<
         ActionListener<Response> listener
     ) {
         return ActionListener.wrap(bulkItemResponses -> {
-            assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk request";
+            assert bulkItemResponses.getItems().length >= 1 : "expected only one item in bulk request";
             BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
                 final DocWriteResponse response = bulkItemResponse.getResponse();

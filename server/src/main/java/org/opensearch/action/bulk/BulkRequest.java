@@ -88,6 +88,23 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * the one with the least casts.
      */
     final List<DocWriteRequest<?>> requests = new ArrayList<>();
+
+    /**
+     * Tracks whether dual-write mirror requests have already been appended to this bulk.
+     * Set to {@code true} by {@code TransportBulkAction} after expansion to prevent
+     * re-expansion on subsequent calls to {@code doInternalExecute} (e.g. after mirror
+     * pipeline execution).
+     */
+    private boolean dualWriteExpanded = false;
+
+    public boolean isDualWriteExpanded() {
+        return dualWriteExpanded;
+    }
+
+    public void setDualWriteExpanded(boolean dualWriteExpanded) {
+        this.dualWriteExpanded = dualWriteExpanded;
+    }
+
     private final Set<String> indices = new HashSet<>();
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
