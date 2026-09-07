@@ -1,0 +1,112 @@
+# Integration tests for Tamil analysis components
+#
+"Tamil stemmer filter":
+    - do:
+        indices.analyze:
+          body:
+            filter:       [tamil_stemmer]
+            text:         பள்ளிக்கு
+            tokenizer:    standard
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: பள்ளி }
+---
+"Tamil stemmer with plural suffix":
+    - do:
+        indices.analyze:
+          body:
+            filter:       [tamil_stemmer]
+            text:         குழந்தைகள்
+            tokenizer:    standard
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: குழந்தை }
+---
+"Tamil stop filter":
+    - do:
+        indices.analyze:
+          body:
+            filter:       [tamil_stop]
+            text:         நான் தமிழ்
+            tokenizer:    standard
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: தமிழ் }
+---
+"Tamil analyzer":
+    - do:
+        indices.analyze:
+          body:
+            analyzer:     tamil
+            text:         நான் பள்ளிக்கு
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: பள்ளி }
+---
+"Custom tamil_stemmer with min_stem_length":
+    - do:
+        indices.create:
+            index:  test_tamil
+            body:
+                settings:
+                    index:
+                        analysis:
+                            filter:
+                                custom_tamil_stemmer:
+                                    type: tamil_stemmer
+                                    min_stem_length: 5
+    - do:
+        indices.analyze:
+          index:    test_tamil
+          body:
+            filter: ["custom_tamil_stemmer"]
+            tokenizer:  standard
+            text:     பள்ளிக்கு
+    # பள்ளி has 3 chars, below min_stem_length=5, so no stemming
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: பள்ளிக்கு }
+---
+"Custom stopwords":
+    - do:
+        indices.create:
+            index:  test_tamil_stop
+            body:
+                settings:
+                    index:
+                        analysis:
+                            filter:
+                                custom_tamil_stop:
+                                    type: tamil_stop
+                                    stopwords: ["தமிழ்"]
+    - do:
+        indices.analyze:
+          index:    test_tamil_stop
+          body:
+            filter: ["custom_tamil_stop"]
+            tokenizer:  standard
+            text:     நான் தமிழ்
+    # தமிழ் is a custom stopword, நான் is not (custom replaces default)
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: நான் }
+---
+"Index with tamil analyzer":
+    - do:
+        indices.create:
+            index:  tirukkural
+            body:
+                mappings:
+                    properties:
+                        tamil_text:
+                            type: text
+                            analyzer: tamil
+    - do:
+        index:
+            index:  tirukkural
+            id:     1
+            body:
+                tamil_text: அகர முதல எழுத்தெல்லாம் ஆதி பகவன் முதற்றே உலகு
+            refresh: true
+    - do:
+        search:
+            index: tirukkural
+            body:
+                query:
+                    match:
+                        tamil_text: எழுத்து
+    - match: { hits.total.value: 1 }
