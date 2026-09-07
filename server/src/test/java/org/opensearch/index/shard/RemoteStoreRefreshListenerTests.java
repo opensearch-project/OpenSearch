@@ -71,6 +71,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -111,6 +112,101 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+    }
+
+    /**
+     * The segment-flow gate has to have teeth in code, not only in the model: a superseded copy must not publish
+     * segment metadata or collect garbage, because an unfenced publish moves the reference set collection prunes to and
+     * the legitimate owner's own collection then deletes files it is still hydrating. See FenceSegmentFlow.tla.
+     * <p>
+     * Asserted on the code path rather than on side effects: reaching the catalog snapshot is the first thing
+     * {@code syncSegments} does past the gate, so it is a precise and deterministic signal, independent of whatever the
+     * shard's own internal refresh listeners do.
+     */
+    public void testSegmentSyncIsSkippedWhenSupersededByAHigherTerm() throws Exception {
+        setup(true, 3);
+        IndexShard supersededShard = spy(indexShard);
+        doReturn(true).when(supersededShard).isRemoteStoreFenceSuperseded();
+        doReturn(fencedIndexSettings()).when(supersededShard).indexSettings();
+
+        newRefreshListenerFor(supersededShard).afterRefresh(true);
+
+        // The gate was consulted, and nothing past it ran: syncSegments reads the shard's remote store settings for
+        // the stale-segment cleanup just past the gate, and never gets there.
+        verify(supersededShard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(supersededShard, never()).getRemoteStoreSettings();
+    }
+
+    /** With fencing disabled there is no fence to consult: both failure directions answer "not superseded". */
+    public void testFenceOwnershipQueriesWithoutFencingEnabled() throws Exception {
+        setup(true, 1);
+        assertFalse(indexShard.isRemoteStoreFenceSuperseded());
+        assertFalse(indexShard.isRemoteStoreFenceSupersededFailingClosed());
+    }
+
+    /** The positive control: with the fence still ours, the same path proceeds past the gate. */
+    public void testSegmentSyncProceedsWhenNotSuperseded() throws Exception {
+        setup(true, 3);
+        IndexShard owningShard = spy(indexShard);
+        doReturn(false).when(owningShard).isRemoteStoreFenceSuperseded();
+        doReturn(false).when(owningShard).isRemoteStoreFenceSupersededFailingClosed();
+        doReturn(fencedIndexSettings()).when(owningShard).indexSettings();
+
+        newRefreshListenerFor(owningShard).afterRefresh(true);
+
+        verify(owningShard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(owningShard, atLeastOnce()).getRemoteStoreSettings();
+    }
+
+    /**
+     * The two gates must fail in OPPOSITE directions, independently: an unreadable fence lets the publication proceed
+     * (fail open - the worst case is an orphan) but must skip the stale-segment collection (fail closed - a wrongly
+     * permitted delete is unrecoverable). A single shared fail-open check would relax both at once, which is the
+     * combination {@code FenceSegmentFlow.tla} proves violates HydrationIntegrity.
+     */
+    public void testStaleSegmentCleanupFailsClosedWhileThePublishGateFailsOpen() throws Exception {
+        setup(true, 3);
+        IndexShard shard = spy(indexShard);
+        // An unreadable fence: the publish gate reports "not superseded" (fail open), the collection gate reports
+        // "superseded" (fail closed).
+        doReturn(false).when(shard).isRemoteStoreFenceSuperseded();
+        doReturn(true).when(shard).isRemoteStoreFenceSupersededFailingClosed();
+        doReturn(fencedIndexSettings()).when(shard).indexSettings();
+        RemoteStoreSettings settingsSpy = spy(indexShard.getRemoteStoreSettings());
+        // Force the collection decision to be reached once anything has been uploaded.
+        doReturn(0).when(settingsSpy).getUploadedSegmentsCleanupThreshold();
+        doReturn(settingsSpy).when(shard).getRemoteStoreSettings();
+
+        RemoteStoreRefreshListener listener = newRefreshListenerFor(shard);
+        listener.afterRefresh(true); // first sync populates the uploaded-segments map
+        listener.afterRefresh(true); // second sync reaches the collection decision
+
+        // The sync proceeded past the publish gate and reached the collection decision...
+        verify(shard, atLeastOnce()).isRemoteStoreFenceSuperseded();
+        verify(shard, atLeastOnce()).isRemoteStoreFenceSupersededFailingClosed();
+        // ...but the collection itself did not run: its retention argument is read only at the deletion call site.
+        verify(settingsSpy, never()).getMinRemoteSegmentMetadataFiles();
+    }
+
+    /** Index settings identical to the shard's, except that remote store fencing is on. */
+    private IndexSettings fencedIndexSettings() {
+        IndexMetadata fenced = IndexMetadata.builder(indexShard.indexSettings().getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    .put(indexShard.indexSettings().getIndexMetadata().getSettings())
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            )
+            .build();
+        return new IndexSettings(fenced, indexShard.indexSettings().getNodeSettings());
+    }
+
+    private RemoteStoreRefreshListener newRefreshListenerFor(IndexShard shard) {
+        return new RemoteStoreRefreshListener(
+            shard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId()),
             DefaultRemoteStoreSettings.INSTANCE
         );
     }

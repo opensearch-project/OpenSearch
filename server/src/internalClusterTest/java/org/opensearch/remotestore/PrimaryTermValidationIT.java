@@ -47,6 +47,18 @@ public class PrimaryTermValidationIT extends RemoteStoreBaseIntegTestCase {
     protected Path absolutePath;
     protected Path absolutePath2;
 
+    /**
+     * This suite exercises the primary-term VALIDATION path: the isolated stale primary must stay writable long
+     * enough to learn it is stale from its assumed replica's {@code ShardNotFoundException}. The object-store fence
+     * deliberately preempts that mechanism — the isolated primary's next translog sync is refused by the successor's
+     * fence and the shard fails itself before term validation is ever consulted — so fencing must stay off here.
+     * The fenced behavior of a partitioned stale primary is covered by {@code RemoteStoreFencingIT}.
+     */
+    @Override
+    protected boolean remoteStoreFencingForAllIndices() {
+        return false;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());

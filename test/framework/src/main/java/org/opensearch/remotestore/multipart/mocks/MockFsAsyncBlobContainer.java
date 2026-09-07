@@ -45,6 +45,19 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
         this.triggerDataIntegrityFailure = triggerDataIntegrityFailure;
     }
 
+    /**
+     * Test support only. {@link FsBlobContainer} reports {@code false} because its conditional write is emulated per
+     * JVM, which is no fencing primitive between hosts, so remote store fencing correctly refuses it in production.
+     * Integration tests run every cluster node inside one JVM and therefore share that emulation, making the
+     * precondition genuinely exclusive here. Overriding keeps fencing exercisable through the mock remote-store
+     * repositories - which {@code RemoteStoreBaseIntegTestCase} selects at random via {@code asyncUploadMockFsRepo} -
+     * without weakening the production guard.
+     */
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
 

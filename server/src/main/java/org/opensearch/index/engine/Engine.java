@@ -1607,8 +1607,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Base operation class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Operation {
 
         /**
