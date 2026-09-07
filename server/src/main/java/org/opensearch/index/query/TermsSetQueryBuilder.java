@@ -246,6 +246,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
+        if (minimumShouldMatchField == null && minimumShouldMatchScript == null) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] requires either a [minimum_should_match_field] "
+                    + "or [minimum_should_match_script] to be set"
+            );
+        }
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
