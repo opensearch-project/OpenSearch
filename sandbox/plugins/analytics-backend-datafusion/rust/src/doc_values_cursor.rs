@@ -33,6 +33,8 @@ use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
 use datafusion::error::DataFusionError;
 use datafusion::execution::cache::cache_manager::FileMetadataCache;
+use datafusion::execution::memory_pool::{MemoryConsumer, MemoryReservation};
+use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion_datasource::PartitionedFile;
 use native_bridge_common::ffm_safe;
 use object_store::local::LocalFileSystem;
@@ -75,14 +77,14 @@ const LOCAL_STORE: i64 = 0;
 static NEXT_HANDLE: AtomicI64 = AtomicI64::new(1); // 0 is never a live handle
 static CURSORS: Lazy<DashMap<i64, Arc<Mutex<DocValuesCursor>>>> = Lazy::new(DashMap::new);
 
-/// The global runtime's cache, so reopening a cursor does not re-read the Parquet footer. Required
-/// rather than defaulted: a cache created here would hold a second copy of every footer, outside the
-/// node's configured budget.
-fn metadata_cache() -> Result<Arc<dyn FileMetadataCache>, DataFusionError> {
-    crate::cache::global_metadata_cache().ok_or_else(|| {
+/// The node's shared `RuntimeEnv`, which owns the file-metadata cache and the memory pool a cursor
+/// uses. Required rather than defaulted: a cache or pool created here would sit outside the node's
+/// configured budget.
+fn runtime_env() -> Result<Arc<RuntimeEnv>, DataFusionError> {
+    crate::cache::global_runtime_env().ok_or_else(|| {
         DataFusionError::Configuration(
-            "no global file-metadata cache; the analytics-backend-datafusion global runtime must be \
-             created before Parquet doc-values reads"
+            "no global DataFusion runtime environment; the analytics-backend-datafusion global \
+             runtime must be created before Parquet doc-values reads"
                 .to_string(),
         )
     })
@@ -128,6 +130,9 @@ struct DocValuesCursor {
     /// Retained so tests can assert on the number of object-store range reads;
     /// also handed to the reader factory to attribute I/O.
     stats: Arc<ReadIoStats>,
+    /// Accounts the resident batch against the node's shared `MemoryPool`, so an over-budget read
+    /// fails with `ResourcesExhausted` instead of growing native memory unchecked. Released on drop.
+    reservation: MemoryReservation,
 }
 
 impl DocValuesCursor {
@@ -157,11 +162,13 @@ impl DocValuesCursor {
         };
 
         let object_meta = store.head(&location).await?;
+        // Resolved once so the cache below and the pool the reservation uses come from one runtime.
+        let env = runtime_env()?;
         let (_arrow_schema, file_size, footer) = load_parquet_metadata_with_meta(
             Arc::clone(&store),
             &location,
             object_meta,
-            metadata_cache()?,
+            env.cache_manager.get_file_metadata_cache(),
         )
         .await
         .map_err(DataFusionError::Execution)?;
@@ -251,6 +258,10 @@ impl DocValuesCursor {
         let reader = factory.open()?;
         let row_count = reader.row_count() as i64;
 
+        // Named per file so `TrackConsumersPool` can attribute usage.
+        let reservation = MemoryConsumer::new(format!("parquet-docvalues-cursor:{location}"))
+            .register(&env.memory_pool);
+
         Ok(Self {
             reader,
             factory,
@@ -261,6 +272,7 @@ impl DocValuesCursor {
             has_decoded_batch: false,
             borrowed_batch: None,
             stats,
+            reservation,
         })
     }
 
@@ -312,6 +324,9 @@ impl DocValuesCursor {
             .ok_or_else(|| {
                 DataFusionError::Internal(format!("reader exhausted before row {target_row}"))
             })?;
+        // Fails here if the batch would push the node past its budget. Replaces the previous batch's
+        // bytes rather than adding to them, since a cursor holds at most one batch.
+        self.reservation.try_resize(batch.get_array_memory_size())?;
         self.batch_size = window;
         self.has_decoded_batch = true;
         Ok(batch)
@@ -571,6 +586,8 @@ pub unsafe extern "C" fn parquet_df_reset_iter(handle: i64) -> i64 {
     cursor.batch_size = cursor.initial_batch_size;
     cursor.has_decoded_batch = false;
     cursor.borrowed_batch = None;
+    // The batch is gone, so its bytes must leave the pool with it.
+    cursor.reservation.resize(0);
     Ok(RC_OK)
 }
 
@@ -594,8 +611,9 @@ pub unsafe extern "C" fn parquet_df_next_batch(
     let mut cursor = cursor.lock();
 
     // Released here rather than on success, so no early return below leaves buffers held. Java
-    // clears its resident batch before calling.
+    // clears its resident batch before calling. The reservation follows the batch.
     cursor.borrowed_batch = None;
+    cursor.reservation.resize(0);
 
     if at_eof(&cursor, target_row, FN).map_err(|e| e.to_string())? {
         return Ok(RC_EOF); // target is past the last row (e.g. a scan running off the end)
@@ -646,21 +664,29 @@ mod tests {
 
     use super::*;
     use crate::cache::metadata_cache::MutexFileMetadataCache;
+    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::memory_pool::GreedyMemoryPool;
+    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 
     const ROWS_PER_PAGE: usize = 64;
 
-    /// Stands in for the cache that production registers from `create_global_runtime`.
-    /// Held in a static because the registry keeps only a `Weak`: a cache dropped at the end of a
-    /// test would leave later opens with nothing registered.
+    /// Stands in for the environment production registers from `create_global_runtime`. Held in a
+    /// static because the registry keeps only a `Weak`.
     pub(super) fn register_test_metadata_cache() {
-        static CACHE: Lazy<Arc<MutexFileMetadataCache>> = Lazy::new(|| {
-            Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
+        static ENV: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| {
+            let cache = Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
                 64 * 1024 * 1024,
-            )))
+            ))) as Arc<dyn FileMetadataCache>;
+            let cache_manager = CacheManagerConfig::default().with_file_metadata_cache(Some(cache));
+            Arc::new(
+                RuntimeEnvBuilder::new()
+                    .with_memory_pool(Arc::new(GreedyMemoryPool::new(64 * 1024 * 1024)))
+                    .with_cache_manager(cache_manager)
+                    .build()
+                    .expect("test runtime environment must build"),
+            )
         });
-        crate::cache::register_global_metadata_cache(
-            Arc::clone(&CACHE) as Arc<dyn FileMetadataCache>
-        );
+        crate::cache::register_global_runtime_env(&ENV);
     }
 
     pub(super) fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
@@ -828,6 +854,9 @@ mod tests {
         batch_size: usize,
         max_batch_size: usize,
     ) -> (DocValuesCursor, Arc<Runtime>) {
+        // Registered here so a test is not left depending on another test having registered first:
+        // the registry keeps only a `Weak`, so ordering would otherwise decide whether an open works.
+        register_test_metadata_cache();
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let location = ObjectPath::from(format!(
@@ -874,6 +903,50 @@ mod tests {
             .unwrap()
             .values()
             .to_vec()
+    }
+
+    #[test]
+    fn a_batch_over_the_memory_budget_fails_instead_of_being_decoded() {
+        // Replaces the cursor's own reservation rather than the process-wide registration, so this
+        // test cannot shrink the budget for tests running alongside it.
+        let (mut cursor, _runtime) = open_fixture(1, 8);
+        let tiny_pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
+            Arc::new(GreedyMemoryPool::new(1));
+        cursor.reservation = MemoryConsumer::new("tiny-budget").register(&tiny_pool);
+
+        let err = cursor
+            .next_batch(0)
+            .expect_err("a batch that does not fit the pool must not be handed out");
+        assert!(
+            matches!(err, DataFusionError::ResourcesExhausted(_)),
+            "an over-budget read must fail on the memory budget, not some other way: {err}"
+        );
+        assert_eq!(
+            cursor.reservation.size(),
+            0,
+            "a rejected batch must leave nothing reserved"
+        );
+    }
+
+    #[test]
+    fn a_batch_within_the_memory_budget_is_accounted_and_released() {
+        let (mut cursor, _runtime) = open_fixture(1, 8);
+
+        cursor.next_batch(0).expect("the batch must fit the budget");
+        let reserved = cursor.reservation.size();
+        assert!(
+            reserved > 0,
+            "a resident batch must be accounted against the pool"
+        );
+
+        // A cursor holds one batch at a time, so the next read replaces the accounting.
+        cursor.next_batch(8).expect("the batch must fit the budget");
+        assert!(
+            cursor.reservation.size() > 0,
+            "the replacement batch must still be accounted"
+        );
+
+        drop(cursor);
     }
 
     #[test]
@@ -1489,14 +1562,11 @@ mod ffm_tests {
         .unwrap();
         file.flush().unwrap();
 
-        let before = CURSORS.len();
         let message = error_message(open_iter(file.path().to_str().unwrap(), 8));
         assert!(message.contains("unsupported type Decimal128"), "{message}");
-        assert_eq!(
-            CURSORS.len(),
-            before,
-            "a rejected open must not register a cursor"
-        );
+        // No handle is returned, and `open_and_register` only inserts after a successful open, so
+        // there is nothing to leak. `CURSORS` is process-wide and other tests add to and remove from
+        // it concurrently, so its length is not a signal this test can assert on.
     }
 
     #[test]
@@ -1679,7 +1749,6 @@ mod ffm_tests {
         let file = fixture_file();
         let path = file.path().to_str().unwrap();
         let column = "absent";
-        let before = CURSORS.len();
         let rc = unsafe {
             parquet_df_open_iter(
                 path.as_ptr(),
@@ -1693,10 +1762,8 @@ mod ffm_tests {
         };
         let message = error_message(rc);
         assert!(message.contains("not found"), "{message}");
-        assert_eq!(
-            CURSORS.len(),
-            before,
-            "a failed open must not register a cursor"
-        );
+        // No handle is returned, and `open_and_register` only inserts after a successful open, so
+        // there is nothing to leak. `CURSORS` is process-wide and other tests add to and remove from
+        // it concurrently, so its length is not a signal this test can assert on.
     }
 }

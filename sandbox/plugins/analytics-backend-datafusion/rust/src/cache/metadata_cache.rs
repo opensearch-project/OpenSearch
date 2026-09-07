@@ -18,6 +18,7 @@ use datafusion::execution::cache::cache_manager::{
 };
 use datafusion::execution::cache::CacheAccessor;
 use datafusion::execution::cache::DefaultFilesMetadataCache;
+use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use native_bridge_common::log_error;
 use object_store::path::Path;
@@ -235,21 +236,20 @@ impl FileMetadataCache for MutexFileMetadataCache {
     }
 }
 
-/// The global runtime's `FileMetadataCache`, for callers that have no `RuntimeEnv` to read it from.
-/// `Weak`, so a registration never keeps a closed runtime's cache alive.
-static GLOBAL_METADATA_CACHE: RwLock<Option<Weak<dyn FileMetadataCache>>> = RwLock::new(None);
+/// The global runtime's `RuntimeEnv`, for callers that have none to read it from. Sharing the whole
+/// environment keeps a caller's cache and memory budget consistent with the node's. `Weak`, so a
+/// registration never keeps a closed runtime alive.
+static GLOBAL_RUNTIME_ENV: RwLock<Option<Weak<RuntimeEnv>>> = RwLock::new(None);
 
 /// Called once per `create_global_runtime`; a later runtime replaces the registration.
-pub fn register_global_metadata_cache(cache: Arc<dyn FileMetadataCache>) {
-    *GLOBAL_METADATA_CACHE.write() = Some(Arc::downgrade(&cache));
+pub fn register_global_runtime_env(runtime_env: &Arc<RuntimeEnv>) {
+    *GLOBAL_RUNTIME_ENV.write() = Some(Arc::downgrade(runtime_env));
 }
 
-/// The registered cache, or `None` before a global runtime exists or after the last one was closed.
-pub fn global_metadata_cache() -> Option<Arc<dyn FileMetadataCache>> {
-    GLOBAL_METADATA_CACHE
-        .read()
-        .as_ref()
-        .and_then(Weak::upgrade)
+/// The registered environment, or `None` before a global runtime exists or after the last one was
+/// closed.
+pub fn global_runtime_env() -> Option<Arc<RuntimeEnv>> {
+    GLOBAL_RUNTIME_ENV.read().as_ref().and_then(Weak::upgrade)
 }
 
 #[cfg(test)]
@@ -260,38 +260,31 @@ mod global_cache_registry_tests {
     /// The registry is process-wide, so these tests serialize against each other.
     static REGISTRY_GUARD: Mutex<()> = Mutex::new(());
 
-    /// Held in statics: the registry keeps only a `Weak`, so a cache dropped at test end would leave
-    /// a dead registration for the next test in this binary.
-    static FIRST: Lazy<Arc<dyn FileMetadataCache>> = Lazy::new(|| {
-        Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
-            1024 * 1024,
-        ))) as Arc<dyn FileMetadataCache>
-    });
-    static SECOND: Lazy<Arc<dyn FileMetadataCache>> = Lazy::new(|| {
-        Arc::new(MutexFileMetadataCache::new(DefaultFilesMetadataCache::new(
-            1024 * 1024,
-        ))) as Arc<dyn FileMetadataCache>
-    });
+    /// Held in statics: the registry keeps only a `Weak`, so an environment dropped at test end
+    /// would leave a dead registration for the next test in this binary.
+    static FIRST: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| Arc::new(RuntimeEnv::default()));
+    static SECOND: Lazy<Arc<RuntimeEnv>> = Lazy::new(|| Arc::new(RuntimeEnv::default()));
 
     #[test]
-    fn a_registered_cache_reads_back_as_the_same_object() {
+    fn a_registered_runtime_env_reads_back_as_the_same_object() {
         let _guard = REGISTRY_GUARD.lock().unwrap();
-        register_global_metadata_cache(Arc::clone(&FIRST));
+        register_global_runtime_env(&FIRST);
 
-        let read_back = global_metadata_cache().expect("a registered cache must be readable");
+        let read_back = global_runtime_env().expect("a registered environment must be readable");
         assert!(
             Arc::ptr_eq(&FIRST, &read_back),
-            "readers must share one cache, otherwise each caller warms its own copy of every footer"
+            "readers must share one environment, otherwise each caller gets its own cache and \
+             memory budget"
         );
     }
 
     #[test]
     fn a_later_registration_replaces_the_earlier_one() {
         let _guard = REGISTRY_GUARD.lock().unwrap();
-        register_global_metadata_cache(Arc::clone(&FIRST));
-        register_global_metadata_cache(Arc::clone(&SECOND));
+        register_global_runtime_env(&FIRST);
+        register_global_runtime_env(&SECOND);
 
-        let read_back = global_metadata_cache().expect("the later cache must be readable");
+        let read_back = global_runtime_env().expect("the later environment must be readable");
         assert!(Arc::ptr_eq(&SECOND, &read_back));
         assert!(!Arc::ptr_eq(&FIRST, &read_back));
     }
