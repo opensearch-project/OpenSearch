@@ -416,8 +416,20 @@ public class MetadataRolloverService {
                     + "] was expected"
             );
         }
-        if (indexAbstraction.getWriteIndex() == null) {
+        final IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+        if (writeIndex == null) {
             throw new IllegalArgumentException("rollover target [" + indexAbstraction.getName() + "] does not point to a write index");
+        }
+        if (writeIndex.useIngestionSource()) {
+            throw new IllegalArgumentException(
+                "rollover target ["
+                    + indexAbstraction.getName()
+                    + "] has write index ["
+                    + writeIndex.getIndex().getName()
+                    + "] with ["
+                    + IndexMetadata.SETTING_INGESTION_SOURCE_TYPE
+                    + "] set, pull-based ingestion does not support index rollover"
+            );
         }
         if (indexAbstraction.getType() == DATA_STREAM) {
             if (Strings.isNullOrEmpty(newIndexName) == false) {
