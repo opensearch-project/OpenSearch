@@ -1210,6 +1210,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             Arrays.asList(
@@ -1291,5 +1294,32 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mockTransportService.close();
             }
         }
+    }
+
+    public void testForceExecutionQueueThresholdSettingDefaultValue() {
+        assertEquals(-1, (int) TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.get(Settings.EMPTY));
+    }
+
+    public void testForceExecutionQueueThresholdSettingIsRegisteredInClusterSettings() {
+        assertTrue(
+            "SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD must be registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS",
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD)
+        );
+    }
+
+    public void testForceExecutionQueueThresholdSettingDynamicUpdate() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicInteger updatedValue = new AtomicInteger(-1);
+        clusterSettings.addSettingsUpdateConsumer(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD, updatedValue::set);
+
+        clusterSettings.applySettings(
+            Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.getKey(), 5).build()
+        );
+        assertEquals("Dynamic update must propagate the new threshold value", 5, updatedValue.get());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(TransportSearchAction.SEARCH_FORCE_EXECUTION_QUEUE_THRESHOLD.getKey(), 0).build()
+        );
+        assertEquals("Dynamic update must allow setting threshold to 0", 0, updatedValue.get());
     }
 }

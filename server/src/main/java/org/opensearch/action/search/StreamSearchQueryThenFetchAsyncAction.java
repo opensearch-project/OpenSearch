@@ -52,7 +52,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
-        Tracer tracer
+        Tracer tracer,
+        int forceExecutionQueueThreshold
     ) {
         super(
             logger,
@@ -72,7 +73,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             task,
             clusters,
             searchRequestContext,
-            tracer
+            tracer,
+            forceExecutionQueueThreshold
         );
     }
 

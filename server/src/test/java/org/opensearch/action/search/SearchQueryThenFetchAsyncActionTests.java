@@ -243,7 +243,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest,
                 () -> null
             ),
-            NoopTracer.INSTANCE
+            NoopTracer.INSTANCE,
+            -1
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
