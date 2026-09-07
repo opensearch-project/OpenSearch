@@ -12,7 +12,6 @@ use std::sync::{Arc, Mutex};
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::schema::types::SchemaDescriptor;
 
 use super::error::{MergeError, MergeResult};
 use super::heap::{get_sort_values, SortKey};
@@ -45,6 +44,7 @@ pub struct FileCursor {
     pub sort_col_indices: Vec<usize>,
     pub sort_col_types: Vec<ArrowDataType>,
     pub nulls_first: Vec<bool>,
+    pub max_sort_modes: Vec<bool>,
     current_sort_batch_bytes: usize,
     current_data_batch_bytes: usize,
 }
@@ -55,10 +55,11 @@ impl FileCursor {
         file_id: usize,
         sort_columns: &[String],
         nulls_first: &[bool],
+        max_sort_modes: &[bool],
         batch_size: usize,
         deferred_threshold: usize,
         reservation: &mut MemoryReservation,
-    ) -> MergeResult<(Self, Arc<ArrowSchema>, SchemaDescriptor, i64, usize)> {
+    ) -> MergeResult<(Self, Arc<ArrowSchema>, i64, usize)> {
         // Open file and read metadata
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -68,7 +69,6 @@ impl FileCursor {
             file_id,
         );
         let total_row_count = builder.metadata().file_metadata().num_rows() as usize;
-        let parquet_schema_descr = builder.parquet_schema().clone();
 
         // Resolve sort column types
         let sort_col_types: Vec<ArrowDataType> = sort_columns
@@ -207,6 +207,7 @@ impl FileCursor {
             sort_col_indices,
             sort_col_types,
             nulls_first: nulls_first.to_vec(),
+            max_sort_modes: max_sort_modes.to_vec(),
             current_sort_batch_bytes: 0,
             current_data_batch_bytes: 0,
         };
@@ -217,13 +218,7 @@ impl FileCursor {
         cursor.current_sort_batch_bytes = batch_bytes;
 
         cursor.start_sort_prefetch();
-        Ok((
-            cursor,
-            projected_schema,
-            parquet_schema_descr,
-            writer_generation,
-            total_row_count,
-        ))
+        Ok((cursor, projected_schema, writer_generation, total_row_count))
     }
 
     fn start_sort_prefetch(&mut self) {
@@ -383,6 +378,7 @@ impl FileCursor {
             &self.sort_col_indices,
             &self.sort_col_types,
             &self.nulls_first,
+            &self.max_sort_modes,
         )
     }
 
@@ -398,6 +394,7 @@ impl FileCursor {
             &self.sort_col_indices,
             &self.sort_col_types,
             &self.nulls_first,
+            &self.max_sort_modes,
         )
     }
 

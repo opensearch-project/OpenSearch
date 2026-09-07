@@ -295,6 +295,7 @@ fn sorted_merge_keeps_list_values_with_their_row() {
         &["id".to_string()],
         &[false],
         &[false],
+        &[],
         0,
     )
     .unwrap();
@@ -345,6 +346,7 @@ fn sorted_merge_uses_minimum_list_element_as_sort_key() {
         &["tags".to_string()],
         &[false],
         &[false],
+        &[],
         0,
     )
     .unwrap();
@@ -390,6 +392,7 @@ fn sorted_merge_uses_minimum_list_element_as_sort_key() {
         &["tags".to_string()],
         &[true],
         &[false],
+        &[],
         0,
     )
     .unwrap();
@@ -436,6 +439,7 @@ fn sorted_merge_orders_scalar_and_list_generations_by_minimum_value() {
         &["tags".to_string()],
         &[false],
         &[false],
+        &[],
         0,
     )
     .unwrap();
@@ -516,6 +520,7 @@ fn sorted_merge_list_across_batches_in_deferred_mode() {
         &["id".to_string()],
         &[false],
         &[false],
+        &[],
         0,
     )
     .unwrap();
@@ -701,6 +706,7 @@ fn sorted_merge_uses_scalar_tiebreaker_after_list_minimum() {
         &["tags".to_string(), "id".to_string()],
         &[false, true],
         &[false, false],
+        &[],
         0,
     )
     .unwrap();
@@ -713,4 +719,180 @@ fn sorted_merge_uses_scalar_tiebreaker_after_list_minimum() {
     assert_eq!(pairs[0], (40, v(&["alpha", "zz"])));
     assert_eq!(pairs[1], (30, v(&["z", "alpha"])));
     assert_eq!(pairs[4], (20, v(&["m", "beta"])));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// index.sort.mode (MIN / MAX) coverage for LIST sort columns.
+//
+// Each input file is pre-sorted by the *reduced* key for the mode under test
+// (the writer's eager sort produces such chunks in production). Rows are chosen
+// so the MIN and MAX reductions order them differently:
+//   row A tags=["a","z"] -> MIN="a", MAX="z"
+//   row B tags=["m","n"] -> MIN="m", MAX="n"
+// MIN ascending  => A before B.  MAX ascending => B before A.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Explicit MAX mode, ascending: rows order by the per-row MAX element.
+#[test]
+fn sorted_merge_list_explicit_max_ascending() {
+    let tmp = tempdir().unwrap();
+    let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    let out = tmp.path().join("out.parquet").to_string_lossy().to_string();
+
+    // Pre-sorted by MAX element ascending: B(MAX=n) then A(MAX=z).
+    write_list_file(&b, &[20], &[Some(vec!["m", "n"])]);
+    write_list_file(&a, &[10], &[Some(vec!["a", "z"])]);
+
+    merge_sorted(
+        &[b, a],
+        &out,
+        "merge-list-max-asc",
+        &["tags".to_string()],
+        &[false], // ascending
+        &[false],
+        &[true], // MAX reduction
+        0,
+    )
+    .unwrap();
+
+    let ids: Vec<i64> = read_pairs(&out).into_iter().map(|(id, _)| id).collect();
+    // MAX asc: n(20) < z(10) => [20, 10]
+    assert_eq!(ids, vec![20, 10]);
+}
+
+/// Explicit MIN mode, ascending: rows order by the per-row MIN element.
+#[test]
+fn sorted_merge_list_explicit_min_ascending() {
+    let tmp = tempdir().unwrap();
+    let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    let out = tmp.path().join("out.parquet").to_string_lossy().to_string();
+
+    // Pre-sorted by MIN element ascending: A(MIN=a) then B(MIN=m).
+    write_list_file(&a, &[10], &[Some(vec!["a", "z"])]);
+    write_list_file(&b, &[20], &[Some(vec!["m", "n"])]);
+
+    merge_sorted(
+        &[a, b],
+        &out,
+        "merge-list-min-asc-explicit",
+        &["tags".to_string()],
+        &[false],
+        &[false],
+        &[false], // MIN reduction
+        0,
+    )
+    .unwrap();
+
+    let ids: Vec<i64> = read_pairs(&out).into_iter().map(|(id, _)| id).collect();
+    // MIN asc: a(10) < m(20) => [10, 20]
+    assert_eq!(ids, vec![10, 20]);
+}
+
+/// DESC direction with explicit MIN mode: reduce by MIN, order descending.
+#[test]
+fn sorted_merge_list_explicit_min_descending() {
+    let tmp = tempdir().unwrap();
+    let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    let out = tmp.path().join("out.parquet").to_string_lossy().to_string();
+
+    // Pre-sorted by MIN element descending: B(MIN=m) then A(MIN=a).
+    write_list_file(&b, &[20], &[Some(vec!["m", "n"])]);
+    write_list_file(&a, &[10], &[Some(vec!["a", "z"])]);
+
+    merge_sorted(
+        &[b, a],
+        &out,
+        "merge-list-min-desc",
+        &["tags".to_string()],
+        &[true], // descending
+        &[false],
+        &[false], // explicit MIN reduction (overrides direction default of MAX)
+        0,
+    )
+    .unwrap();
+
+    let ids: Vec<i64> = read_pairs(&out).into_iter().map(|(id, _)| id).collect();
+    // MIN desc: m(20) > a(10) => [20, 10]
+    assert_eq!(ids, vec![20, 10]);
+}
+
+/// DESC direction with explicit MAX mode: reduce by MAX, order descending.
+#[test]
+fn sorted_merge_list_explicit_max_descending() {
+    let tmp = tempdir().unwrap();
+    let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let b = tmp.path().join("b.parquet").to_string_lossy().to_string();
+    let out = tmp.path().join("out.parquet").to_string_lossy().to_string();
+
+    // Pre-sorted by MAX element descending: A(MAX=z) then B(MAX=n).
+    write_list_file(&a, &[10], &[Some(vec!["a", "z"])]);
+    write_list_file(&b, &[20], &[Some(vec!["m", "n"])]);
+
+    merge_sorted(
+        &[a, b],
+        &out,
+        "merge-list-max-desc",
+        &["tags".to_string()],
+        &[true], // descending
+        &[false],
+        &[true], // MAX reduction
+        0,
+    )
+    .unwrap();
+
+    let ids: Vec<i64> = read_pairs(&out).into_iter().map(|(id, _)| id).collect();
+    // MAX desc: z(10) > n(20) => [10, 20]
+    assert_eq!(ids, vec![10, 20]);
+}
+
+/// Null / empty / all-null LIST rows sort as null keys (nulls-last) under MAX.
+#[test]
+fn sorted_merge_list_max_null_empty_allnull_rows() {
+    let tmp = tempdir().unwrap();
+    let a = tmp.path().join("a.parquet").to_string_lossy().to_string();
+    let out = tmp.path().join("out.parquet").to_string_lossy().to_string();
+
+    // Single file, already ordered by MAX ascending with nulls last:
+    //   id=1 MAX="c"; id=2 MAX="y"; then the three null-key rows.
+    write_nullable_list_file(
+        &a,
+        &[1, 2, 3, 4, 5],
+        &[
+            Some(vec![Some("a"), Some("c")]),
+            Some(vec![Some("y"), Some("x")]),
+            None,                   // null list
+            Some(vec![]),           // empty list
+            Some(vec![None, None]), // all-null elements
+        ],
+    );
+
+    merge_sorted(
+        &[a],
+        &out,
+        "merge-list-max-nulls",
+        &["tags".to_string()],
+        &[false],
+        &[false], // nulls last
+        &[true],  // MAX reduction
+        0,
+    )
+    .unwrap();
+
+    let ids: Vec<i64> = read_nullable_pairs(&out)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    // Non-null keys first in MAX-asc order, then the three null-key rows (any order).
+    assert_eq!(&ids[..2], &[1, 2]);
+    assert_eq!(ids.len(), 5);
+    for expected in [3, 4, 5] {
+        assert!(
+            ids[2..].contains(&expected),
+            "missing null-key row {}",
+            expected
+        );
+    }
 }

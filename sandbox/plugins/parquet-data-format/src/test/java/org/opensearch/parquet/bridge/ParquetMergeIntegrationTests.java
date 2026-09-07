@@ -125,7 +125,7 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
      */
     private String createSortedFile(Path dir, String name, long[] timestamps, String[] messages) throws Exception {
         String filePath = dir.resolve(name).toString();
-        ParquetSortConfig sortConfig = new ParquetSortConfig(List.of("timestamp"), List.of(false), List.of(false));
+        ParquetSortConfig sortConfig = new ParquetSortConfig(List.of("timestamp"), List.of(false), List.of(false), List.of(false));
 
         try (ArrowExport schemaExport = exportSchema()) {
             NativeParquetWriter writer = new NativeParquetWriter(filePath);

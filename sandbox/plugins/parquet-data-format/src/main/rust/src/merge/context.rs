@@ -15,7 +15,6 @@ use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowRowGroupWriterFactory};
 use parquet::file::writer::SerializedFileWriter;
-use parquet::schema::types::SchemaDescriptor;
 use rayon::prelude::*;
 use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 
@@ -105,7 +104,6 @@ impl MergeContext {
     /// writer, and spawns the background IO task.
     pub fn new(
         arrow_schemas: Vec<ArrowSchema>,
-        _parquet_descriptors: &[SchemaDescriptor],
         output_path: &str,
         index_name: &str,
         output_flush_rows: usize,

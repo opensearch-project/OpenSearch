@@ -141,39 +141,120 @@ fn null_sort_key(null_first: bool) -> SortKey {
     }
 }
 
-fn get_min_value(
+/// Compares two non-null elements without allocating byte buffers for string or
+/// binary values. Other scalar types reuse the existing `SortKey` conversion,
+/// which preserves their established ordering without heap allocation.
+#[inline]
+fn compare_elements(
+    values: &dyn Array,
+    a: usize,
+    b: usize,
+    dtype: &ArrowDataType,
+) -> MergeResult<Ordering> {
+    let ordering = match dtype {
+        ArrowDataType::Utf8 => values
+            .as_string::<i32>()
+            .value(a)
+            .as_bytes()
+            .cmp(values.as_string::<i32>().value(b).as_bytes()),
+        ArrowDataType::LargeUtf8 => values
+            .as_string::<i64>()
+            .value(a)
+            .as_bytes()
+            .cmp(values.as_string::<i64>().value(b).as_bytes()),
+        ArrowDataType::Binary => values
+            .as_binary::<i32>()
+            .value(a)
+            .cmp(values.as_binary::<i32>().value(b)),
+        ArrowDataType::LargeBinary => values
+            .as_binary::<i64>()
+            .value(a)
+            .cmp(values.as_binary::<i64>().value(b)),
+        _ => {
+            let left = get_array_sort_value(values, a, dtype, false, false)?;
+            let right = get_array_sort_value(values, b, dtype, false, false)?;
+            left.cmp(&right)
+        }
+    };
+    Ok(ordering)
+}
+
+/// Scans `values[start..end]` and returns the index of the winning non-null
+/// element for the requested reduction mode: the minimum element when
+/// `max == false`, the maximum element when `max == true`. Returns `None` when
+/// every element in the range is null (or the range is empty).
+///
+/// Comparison happens fully in place via [`compare_elements`] — no `SortKey`
+/// (and therefore no `Vec<u8>` for string/binary) is materialized during the
+/// scan. This is the shared winner-selection helper used by both the k-way
+/// merge sort-value extraction and the per-row list reduction.
+fn winning_index(
+    values: &dyn Array,
+    start: usize,
+    end: usize,
+    dtype: &ArrowDataType,
+    max: bool,
+) -> MergeResult<Option<usize>> {
+    let mut winner: Option<usize> = None;
+    for index in start..end {
+        if values.is_null(index) {
+            continue;
+        }
+        match winner {
+            None => winner = Some(index),
+            Some(current) => {
+                let ord = compare_elements(values, index, current, dtype)?;
+                // For MIN keep the smaller element, for MAX keep the larger.
+                let replace = if max {
+                    ord == Ordering::Greater
+                } else {
+                    ord == Ordering::Less
+                };
+                if replace {
+                    winner = Some(index);
+                }
+            }
+        }
+    }
+    Ok(winner)
+}
+
+/// Reduces the non-null elements of `values[start..end]` to a single
+/// [`SortKey`] using the given reduction `mode` (MIN when `max == false`, MAX
+/// when `max == true`). Exactly one `SortKey` is materialized — for the winning
+/// element — after the allocation-free [`winning_index`] scan. An all-null or
+/// empty range yields the null sentinel.
+fn get_reduced_value(
     values: &dyn Array,
     start: usize,
     end: usize,
     dtype: &ArrowDataType,
     null_first: bool,
+    max: bool,
 ) -> MergeResult<SortKey> {
-    let mut minimum = None;
-    for index in start..end {
-        if values.is_null(index) {
-            continue;
-        }
-        let candidate = get_array_sort_value(values, index, dtype, false)?;
-        if minimum.as_ref().is_none_or(|current| candidate < *current) {
-            minimum = Some(candidate);
-        }
+    match winning_index(values, start, end, dtype, max)? {
+        // The winner is a scalar leaf element; `max` is irrelevant when
+        // materializing a single scalar, so pass `false`.
+        Some(index) => get_array_sort_value(values, index, dtype, false, false),
+        None => Ok(null_sort_key(null_first)),
     }
-    Ok(minimum.unwrap_or_else(|| null_sort_key(null_first)))
 }
 
-fn get_list_min<O: OffsetSizeTrait>(
+fn get_list_reduced<O: OffsetSizeTrait>(
     list: &GenericListArray<O>,
     row: usize,
     child_type: &ArrowDataType,
     null_first: bool,
+    max: bool,
 ) -> MergeResult<SortKey> {
     let offsets = list.value_offsets();
-    get_min_value(
+    get_reduced_value(
         list.values().as_ref(),
         offsets[row].as_usize(),
         offsets[row + 1].as_usize(),
         child_type,
         null_first,
+        max,
     )
 }
 
@@ -183,10 +264,13 @@ fn get_array_sort_value(
     row: usize,
     dtype: &ArrowDataType,
     null_first: bool,
+    max: bool,
 ) -> MergeResult<SortKey> {
     if col.is_null(row) {
         return Ok(null_sort_key(null_first));
     }
+    // `max` only affects LIST/FixedSizeList reduction (MIN vs MAX element). For
+    // scalar columns the value at `row` is the sort key regardless of mode.
     let key = match dtype {
         ArrowDataType::Int64 => SortKey::Int(col.as_primitive::<Int64Type>().value(row)),
         ArrowDataType::Int32 => SortKey::Int(col.as_primitive::<Int32Type>().value(row) as i64),
@@ -242,20 +326,29 @@ fn get_array_sort_value(
         }
         ArrowDataType::Binary => SortKey::Bytes(col.as_binary::<i32>().value(row).to_vec()),
         ArrowDataType::LargeBinary => SortKey::Bytes(col.as_binary::<i64>().value(row).to_vec()),
-        ArrowDataType::List(field) => {
-            get_list_min(col.as_list::<i32>(), row, field.data_type(), null_first)?
-        }
-        ArrowDataType::LargeList(field) => {
-            get_list_min(col.as_list::<i64>(), row, field.data_type(), null_first)?
-        }
+        ArrowDataType::List(field) => get_list_reduced(
+            col.as_list::<i32>(),
+            row,
+            field.data_type(),
+            null_first,
+            max,
+        )?,
+        ArrowDataType::LargeList(field) => get_list_reduced(
+            col.as_list::<i64>(),
+            row,
+            field.data_type(),
+            null_first,
+            max,
+        )?,
         ArrowDataType::FixedSizeList(field, size) => {
             let start = row * *size as usize;
-            get_min_value(
+            get_reduced_value(
                 col.as_fixed_size_list().values().as_ref(),
                 start,
                 start + *size as usize,
                 field.data_type(),
                 null_first,
+                max,
             )?
         }
         other => {
@@ -275,35 +368,15 @@ pub fn get_sort_value(
     col_idx: usize,
     dtype: &ArrowDataType,
     null_first: bool,
+    max: bool,
 ) -> MergeResult<SortKey> {
-    get_array_sort_value(batch.column(col_idx).as_ref(), row, dtype, null_first)
-}
-
-fn min_value_index(
-    values: &dyn Array,
-    start: usize,
-    end: usize,
-    dtype: &ArrowDataType,
-) -> MergeResult<Option<u64>> {
-    let mut minimum = None;
-    for index in start..end {
-        if values.is_null(index) {
-            continue;
-        }
-        let candidate = get_array_sort_value(values, index, dtype, false)?;
-        if minimum
-            .as_ref()
-            .is_none_or(|(_, current): &(u64, SortKey)| candidate < *current)
-        {
-            minimum = Some((index as u64, candidate));
-        }
-    }
-    Ok(minimum.map(|(index, _)| index))
+    get_array_sort_value(batch.column(col_idx).as_ref(), row, dtype, null_first, max)
 }
 
 fn reduce_list_array<O: OffsetSizeTrait>(
     list: &GenericListArray<O>,
     child_type: &ArrowDataType,
+    max: bool,
 ) -> MergeResult<ArrayRef> {
     let values = list.values();
     let offsets = list.value_offsets();
@@ -312,22 +385,24 @@ fn reduce_list_array<O: OffsetSizeTrait>(
             if list.is_null(row) {
                 Ok(None)
             } else {
-                min_value_index(
+                Ok(winning_index(
                     values.as_ref(),
                     offsets[row].as_usize(),
                     offsets[row + 1].as_usize(),
                     child_type,
-                )
+                    max,
+                )?
+                .map(|i| i as u64))
             }
         })
         .collect::<MergeResult<Vec<_>>>()?;
     Ok(take(values.as_ref(), &UInt64Array::from(indices), None)?)
 }
 
-/// Returns the scalar type used as the physical sort key. LIST columns always
-/// reduce to the natural minimum non-null element; no customer-selectable mode
-/// is exposed by the Parquet writer.
-pub(crate) fn min_reduced_sort_type(dtype: &ArrowDataType) -> ArrowDataType {
+/// Returns the scalar type used as the physical sort key. LIST columns reduce
+/// to the winning (MIN or MAX, per the resolved sort mode) non-null element;
+/// scalar columns keep their own type.
+pub(crate) fn reduced_sort_type(dtype: &ArrowDataType) -> ArrowDataType {
     match dtype {
         ArrowDataType::List(field)
         | ArrowDataType::LargeList(field)
@@ -336,13 +411,18 @@ pub(crate) fn min_reduced_sort_type(dtype: &ArrowDataType) -> ArrowDataType {
     }
 }
 
-/// Materializes one temporary scalar MIN key per row for Arrow's RowConverter.
-/// The returned array is used only while sorting and is never written to Parquet.
-pub(crate) fn min_reduced_sort_array(array: &ArrayRef) -> MergeResult<ArrayRef> {
+/// Materializes one temporary scalar reduced key per row for Arrow's
+/// RowConverter, using the resolved reduction mode (`max == true` selects the
+/// MAX element, otherwise MIN). Scalar fields ignore the reduction mode and are
+/// returned unchanged. The returned array is used only while sorting and is
+/// never written to Parquet.
+pub(crate) fn reduced_sort_array(array: &ArrayRef, max: bool) -> MergeResult<ArrayRef> {
     match array.data_type() {
-        ArrowDataType::List(field) => reduce_list_array(array.as_list::<i32>(), field.data_type()),
+        ArrowDataType::List(field) => {
+            reduce_list_array(array.as_list::<i32>(), field.data_type(), max)
+        }
         ArrowDataType::LargeList(field) => {
-            reduce_list_array(array.as_list::<i64>(), field.data_type())
+            reduce_list_array(array.as_list::<i64>(), field.data_type(), max)
         }
         ArrowDataType::FixedSizeList(field, size) => {
             let list = array.as_fixed_size_list();
@@ -353,17 +433,20 @@ pub(crate) fn min_reduced_sort_array(array: &ArrayRef) -> MergeResult<ArrayRef> 
                         Ok(None)
                     } else {
                         let start = row * *size as usize;
-                        min_value_index(
+                        Ok(winning_index(
                             values.as_ref(),
                             start,
                             start + *size as usize,
                             field.data_type(),
-                        )
+                            max,
+                        )?
+                        .map(|i| i as u64))
                     }
                 })
                 .collect::<MergeResult<Vec<_>>>()?;
             Ok(take(values.as_ref(), &UInt64Array::from(indices), None)?)
         }
+        // Scalar fields ignore the reduction mode.
         _ => Ok(array.clone()),
     }
 }
@@ -375,11 +458,239 @@ pub fn get_sort_values(
     col_indices: &[usize],
     dtypes: &[ArrowDataType],
     nulls_first: &[bool],
+    max_sort_modes: &[bool],
 ) -> MergeResult<Vec<SortKey>> {
     let mut values = Vec::with_capacity(col_indices.len());
     for (i, (col_idx, dtype)) in col_indices.iter().zip(dtypes.iter()).enumerate() {
         let nf = nulls_first.get(i).copied().unwrap_or(false);
-        values.push(get_sort_value(batch, row, *col_idx, dtype, nf)?);
+        let max = max_sort_modes.get(i).copied().unwrap_or(false);
+        values.push(get_sort_value(batch, row, *col_idx, dtype, nf, max)?);
     }
     Ok(values)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Int64Array, Int64Builder, ListBuilder, RecordBatch, StringBuilder};
+    use arrow::datatypes::{Field, Schema};
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    /// Builds a `List<Int64>` from rows. `None` row => null list; empty inner
+    /// vec => empty (non-null) list; inner `None` => null element.
+    fn int_list(rows: &[Option<Vec<Option<i64>>>]) -> ArrayRef {
+        let mut b = ListBuilder::new(Int64Builder::new());
+        for row in rows {
+            match row {
+                None => b.append(false),
+                Some(elems) => {
+                    for e in elems {
+                        match e {
+                            Some(v) => b.values().append_value(*v),
+                            None => b.values().append_null(),
+                        }
+                    }
+                    b.append(true);
+                }
+            }
+        }
+        Arc::new(b.finish())
+    }
+
+    /// Builds a `List<Utf8>` from rows (same null conventions as `int_list`).
+    fn str_list(rows: &[Option<Vec<Option<&str>>>]) -> ArrayRef {
+        let mut b = ListBuilder::new(StringBuilder::new());
+        for row in rows {
+            match row {
+                None => b.append(false),
+                Some(elems) => {
+                    for e in elems {
+                        match e {
+                            Some(v) => b.values().append_value(*v),
+                            None => b.values().append_null(),
+                        }
+                    }
+                    b.append(true);
+                }
+            }
+        }
+        Arc::new(b.finish())
+    }
+
+    fn reduced_ints(array: &ArrayRef, max: bool) -> Vec<Option<i64>> {
+        let reduced = reduced_sort_array(array, max).unwrap();
+        let arr = reduced.as_primitive::<Int64Type>();
+        (0..arr.len())
+            .map(|i| {
+                if arr.is_null(i) {
+                    None
+                } else {
+                    Some(arr.value(i))
+                }
+            })
+            .collect()
+    }
+
+    fn reduced_strs(array: &ArrayRef, max: bool) -> Vec<Option<String>> {
+        let reduced = reduced_sort_array(array, max).unwrap();
+        let arr = reduced.as_string::<i32>();
+        (0..arr.len())
+            .map(|i| {
+                if arr.is_null(i) {
+                    None
+                } else {
+                    Some(arr.value(i).to_string())
+                }
+            })
+            .collect()
+    }
+
+    // ── LIST reduction: MIN vs MAX for numeric values ────────────────────
+
+    #[test]
+    fn test_reduce_int_list_min() {
+        let list = int_list(&[
+            Some(vec![Some(3), Some(1), Some(2)]),
+            Some(vec![Some(10), Some(-5)]),
+        ]);
+        // MIN reduction picks the smallest element of each row.
+        assert_eq!(reduced_ints(&list, false), vec![Some(1), Some(-5)]);
+    }
+
+    #[test]
+    fn test_reduce_int_list_max() {
+        let list = int_list(&[
+            Some(vec![Some(3), Some(1), Some(2)]),
+            Some(vec![Some(10), Some(-5)]),
+        ]);
+        // MAX reduction picks the largest element of each row.
+        assert_eq!(reduced_ints(&list, true), vec![Some(3), Some(10)]);
+    }
+
+    // ── LIST reduction: MIN vs MAX for Utf8 values ───────────────────────
+
+    #[test]
+    fn test_reduce_utf8_list_min_and_max() {
+        let list = str_list(&[
+            Some(vec![Some("banana"), Some("apple"), Some("cherry")]),
+            Some(vec![Some("x"), Some("m")]),
+        ]);
+        assert_eq!(
+            reduced_strs(&list, false),
+            vec![Some("apple".to_string()), Some("m".to_string())]
+        );
+        assert_eq!(
+            reduced_strs(&list, true),
+            vec![Some("cherry".to_string()), Some("x".to_string())]
+        );
+    }
+
+    // ── Null / empty / all-null semantics ────────────────────────────────
+
+    #[test]
+    fn test_reduce_null_empty_and_all_null_rows() {
+        let list = int_list(&[
+            None,                               // null list => null key
+            Some(vec![]),                       // empty list => null key
+            Some(vec![None, None]),             // all-null elements => null key
+            Some(vec![None, Some(7), Some(4)]), // mixed => ignores null element
+        ]);
+        // Both MIN and MAX yield null for null/empty/all-null rows.
+        assert_eq!(reduced_ints(&list, false), vec![None, None, None, Some(4)]);
+        assert_eq!(reduced_ints(&list, true), vec![None, None, None, Some(7)]);
+    }
+
+    // ── winning_index directly ───────────────────────────────────────────
+
+    #[test]
+    fn test_winning_index_min_max_and_empty() {
+        let values = Int64Array::from(vec![5i64, 1, 9, 3]);
+        let arr: &dyn Array = &values;
+        assert_eq!(
+            winning_index(arr, 0, 4, &ArrowDataType::Int64, false).unwrap(),
+            Some(1)
+        );
+        assert_eq!(
+            winning_index(arr, 0, 4, &ArrowDataType::Int64, true).unwrap(),
+            Some(2)
+        );
+        // Empty range yields None regardless of mode.
+        assert_eq!(
+            winning_index(arr, 2, 2, &ArrowDataType::Int64, false).unwrap(),
+            None
+        );
+    }
+
+    // ── get_sort_values: scalar ignores mode; list honors mode ───────────
+
+    fn scalar_key_i64(sk: &SortKey) -> i64 {
+        match sk {
+            SortKey::Int(v) => *v,
+            other => panic!("expected Int key, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_get_sort_values_scalar_ignores_mode() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "v",
+            ArrowDataType::Int64,
+            true,
+        )]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int64Array::from(vec![42i64]))]).unwrap();
+        // Scalar field: MIN vs MAX must produce the same key.
+        let min =
+            get_sort_values(&batch, 0, &[0], &[ArrowDataType::Int64], &[false], &[false]).unwrap();
+        let max =
+            get_sort_values(&batch, 0, &[0], &[ArrowDataType::Int64], &[false], &[true]).unwrap();
+        assert_eq!(scalar_key_i64(&min[0]), 42);
+        assert_eq!(scalar_key_i64(&max[0]), 42);
+    }
+
+    #[test]
+    fn test_get_sort_values_list_honors_mode() {
+        let list = int_list(&[Some(vec![Some(3), Some(1), Some(8)])]);
+        let list_type = list.data_type().clone();
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            list_type.clone(),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![list]).unwrap();
+
+        let min =
+            get_sort_values(&batch, 0, &[0], &[list_type.clone()], &[false], &[false]).unwrap();
+        let max = get_sort_values(&batch, 0, &[0], &[list_type], &[false], &[true]).unwrap();
+        assert_eq!(scalar_key_i64(&min[0]), 1); // MIN element
+        assert_eq!(scalar_key_i64(&max[0]), 8); // MAX element
+    }
+
+    #[test]
+    fn test_get_sort_values_list_null_row_uses_null_sentinel() {
+        let list = int_list(&[None]);
+        let list_type = list.data_type().clone();
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            list_type.clone(),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(schema, vec![list]).unwrap();
+
+        // null_first => NullFirst sentinel; null_last => NullLast sentinel.
+        let nf = get_sort_values(&batch, 0, &[0], &[list_type.clone()], &[true], &[false]).unwrap();
+        let nl = get_sort_values(&batch, 0, &[0], &[list_type], &[false], &[false]).unwrap();
+        assert!(matches!(nf[0], SortKey::NullFirst));
+        assert!(matches!(nl[0], SortKey::NullLast));
+    }
+
+    #[test]
+    fn test_reduce_str_list_min_used_by_string_array() {
+        // Guards against accidental regression to per-element Vec<u8> allocation:
+        // the reducer must still select the correct winner for strings.
+        let list = str_list(&[Some(vec![Some("delta"), Some("alpha"), Some("charlie")])]);
+        assert_eq!(reduced_strs(&list, false), vec![Some("alpha".to_string())]);
+        assert_eq!(reduced_strs(&list, true), vec![Some("delta".to_string())]);
+    }
 }

@@ -78,6 +78,8 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // nulls_first (vals, count)
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // max_sort_modes (vals, count)
                 ValueLayout.JAVA_LONG    // writer_generation
             )
         );
@@ -306,6 +308,7 @@ public class RustBridge {
             var sorts = call.strArray(sortConfig.sortColumns().toArray(new String[0]));
             var reverseArray = marshalBoolList(call, sortConfig.reverseSorts());
             var nullsFirstArray = marshalBoolList(call, sortConfig.nullsFirst());
+            var maxSortModesArray = marshalBoolList(call, sortConfig.maxSortModes());
             call.invokeIO(
                 CREATE_WRITER,
                 f.segment(),
@@ -320,6 +323,8 @@ public class RustBridge {
                 (long) sortConfig.reverseSorts().size(),
                 nullsFirstArray,
                 (long) sortConfig.nullsFirst().size(),
+                maxSortModesArray,
+                (long) sortConfig.maxSortModes().size(),
                 writerGeneration
             );
         }

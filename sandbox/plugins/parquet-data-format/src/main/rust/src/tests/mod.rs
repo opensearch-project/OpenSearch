@@ -39,6 +39,7 @@ fn test_create_writer_invalid_path() {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
     assert!(result.is_err());
@@ -52,6 +53,7 @@ fn test_create_writer_invalid_schema_pointer() {
         filename,
         "test-index".to_string(),
         0,
+        vec![],
         vec![],
         vec![],
         vec![],
@@ -76,6 +78,7 @@ fn test_create_writer_same_file_removes_stale_and_succeeds() {
         filename.clone(),
         "test-index".to_string(),
         schema_ptr2,
+        vec![],
         vec![],
         vec![],
         vec![],
@@ -391,6 +394,7 @@ fn test_ipc_staging_same_file_removes_stale_and_succeeds() {
         vec!["id".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     );
     assert!(result.is_ok());
@@ -535,6 +539,7 @@ fn test_ipc_staging_concurrent_sorted_writers() {
                 vec!["id".to_string()],
                 vec![false],
                 vec![false],
+                vec![],
                 0,
             )
             .is_ok()
@@ -700,6 +705,7 @@ fn test_concurrent_writer_creation() {
                 vec![],
                 vec![],
                 vec![],
+                vec![],
                 0,
             )
             .is_ok()
@@ -855,6 +861,7 @@ fn test_bloom_filter_false_propagates_through_settings_store() {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
     assert!(result.is_ok());
@@ -883,6 +890,7 @@ fn test_bloom_filter_default_when_no_settings() {
         filename.clone(),
         index_name.to_string(),
         schema_ptr,
+        vec![],
         vec![],
         vec![],
         vec![],
@@ -993,8 +1001,14 @@ fn test_sort_batch_uses_minimum_list_element() {
     )
     .unwrap();
 
-    let ascending =
-        NativeParquetWriter::sort_batch(&batch, &["tags".to_string()], &[false], &[false]).unwrap();
+    let ascending = NativeParquetWriter::sort_batch(
+        &batch,
+        &["tags".to_string()],
+        &[false],
+        &[false],
+        &[false],
+    )
+    .unwrap();
     let ascending_ids = ascending
         .column(0)
         .as_primitive::<arrow::datatypes::Int64Type>();
@@ -1011,7 +1025,8 @@ fn test_sort_batch_uses_minimum_list_element() {
     assert_eq!(ascending_missing, vec![30, 40, 60]);
 
     let descending =
-        NativeParquetWriter::sort_batch(&batch, &["tags".to_string()], &[true], &[false]).unwrap();
+        NativeParquetWriter::sort_batch(&batch, &["tags".to_string()], &[true], &[false], &[false])
+            .unwrap();
     let descending_ids = descending
         .column(0)
         .as_primitive::<arrow::datatypes::Int64Type>();
@@ -1026,6 +1041,61 @@ fn test_sort_batch_uses_minimum_list_element() {
         .collect::<Vec<_>>();
     descending_missing.sort_unstable();
     assert_eq!(descending_missing, vec![30, 40, 60]);
+}
+
+#[test]
+fn test_sort_batch_uses_maximum_list_element_when_mode_max() {
+    use arrow::array::{ArrayRef, AsArray, Int64Array, ListArray, RecordBatch, StringArray};
+    use arrow::buffer::{NullBuffer, OffsetBuffer};
+    use arrow::datatypes::{DataType, Field, Schema};
+
+    // Three non-null rows whose MAX element orders them differently than MIN would:
+    //   id=10 tags=["a","z"] -> MAX="z"
+    //   id=20 tags=["m","n"] -> MAX="n"
+    //   id=30 tags=["b"]     -> MAX="b"
+    // Plus a null-list row (id=40) which must sort last (nulls-last).
+    let list = ListArray::new(
+        Arc::new(Field::new("element", DataType::Utf8, true)),
+        OffsetBuffer::new(vec![0_i32, 2, 4, 5, 5].into()),
+        Arc::new(StringArray::from(vec![
+            Some("a"),
+            Some("z"),
+            Some("m"),
+            Some("n"),
+            Some("b"),
+        ])),
+        Some(NullBuffer::from(vec![true, true, true, false])),
+    );
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new(
+            "tags",
+            DataType::List(Arc::new(Field::new("element", DataType::Utf8, true))),
+            true,
+        ),
+    ]));
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(Int64Array::from(vec![10, 20, 30, 40])) as ArrayRef,
+            Arc::new(list) as ArrayRef,
+        ],
+    )
+    .unwrap();
+
+    // MAX reduction, ascending, nulls last => order by MAX element:
+    //   b(30) < n(20) < z(10), then null(40).
+    let sorted =
+        NativeParquetWriter::sort_batch(&batch, &["tags".to_string()], &[false], &[false], &[true])
+            .unwrap();
+    let ids = sorted
+        .column(0)
+        .as_primitive::<arrow::datatypes::Int64Type>();
+    assert_eq!(
+        (0..3).map(|row| ids.value(row)).collect::<Vec<_>>(),
+        vec![30, 20, 10]
+    );
+    assert_eq!(ids.value(3), 40, "null-list row sorts last with nulls-last");
 }
 
 #[test]
@@ -1057,9 +1127,14 @@ fn test_sort_batch_uses_minimum_numeric_list_element() {
     )
     .unwrap();
 
-    let sorted =
-        NativeParquetWriter::sort_batch(&batch, &["values".to_string()], &[false], &[false])
-            .unwrap();
+    let sorted = NativeParquetWriter::sort_batch(
+        &batch,
+        &["values".to_string()],
+        &[false],
+        &[false],
+        &[false],
+    )
+    .unwrap();
     let ids = sorted
         .column(0)
         .as_primitive::<arrow::datatypes::Int64Type>();
@@ -1172,6 +1247,7 @@ fn test_list_sort_null_placement_for_both_directions() {
             &["tags".to_string()],
             &[descending],
             &[nulls_first],
+            &[false],
         )
         .unwrap();
         let ids = sorted
@@ -1225,6 +1301,7 @@ fn test_chunked_writer_sorts_by_list_min_and_preserves_original_lists() {
         vec!["tags".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1420,6 +1497,7 @@ fn test_chunked_writer_single_chunk_row_ids_sequential() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     );
     assert!(result.is_ok(), "create_writer failed: {:?}", result.err());
@@ -1492,6 +1570,7 @@ fn test_chunked_writer_multi_chunk_row_ids_sequential() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     );
     assert!(result.is_ok(), "create_writer failed: {:?}", result.err());
@@ -1579,6 +1658,7 @@ fn test_chunked_writer_multi_chunk_descending_sort() {
         vec!["age".to_string()],
         vec![true],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1645,6 +1725,7 @@ fn test_chunked_writer_multiple_write_calls() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1726,6 +1807,7 @@ fn test_chunked_writer_empty_finalize() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1773,6 +1855,7 @@ fn test_chunked_writer_permutation_is_invertible() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1840,6 +1923,7 @@ fn test_chunked_writer_large_dataset_multi_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -1934,6 +2018,7 @@ fn test_chunked_writer_generation_in_metadata_single_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -1981,6 +2066,7 @@ fn test_chunked_writer_generation_in_metadata_multi_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -2045,6 +2131,7 @@ fn test_chunked_writer_generation_zero() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2086,6 +2173,7 @@ fn test_chunked_writer_generation_large_value() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -2160,6 +2248,7 @@ fn test_unsorted_writer_generation_in_metadata() {
         vec![],
         vec![],
         vec![],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -2209,6 +2298,7 @@ fn test_chunked_writer_crc32_single_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2261,6 +2351,7 @@ fn test_chunked_writer_crc32_multi_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2323,6 +2414,7 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2345,6 +2437,7 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2397,6 +2490,7 @@ fn test_chunked_writer_batch_slicing_large_batch() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2482,6 +2576,7 @@ fn test_chunked_writer_batch_slicing_two_rows_per_slice() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2567,6 +2662,7 @@ fn test_chunked_writer_batch_slicing_descending() {
         vec!["age".to_string()],
         vec![true],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2626,6 +2722,7 @@ fn test_chunked_writer_batch_slicing_multiple_writes() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2735,6 +2832,7 @@ fn test_chunked_writer_no_row_id_single_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2788,6 +2886,7 @@ fn test_chunked_writer_no_row_id_multi_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2850,6 +2949,7 @@ fn test_chunked_writer_no_row_id_batch_slicing() {
         vec!["age".to_string()],
         vec![true],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -2986,6 +3086,7 @@ fn test_multi_column_sort_age_asc_score_desc() {
         vec!["age".to_string(), "score".to_string()],
         vec![false, true],
         vec![false, false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3056,6 +3157,7 @@ fn test_multi_column_sort_age_desc_score_asc() {
         vec!["age".to_string(), "score".to_string()],
         vec![true, false],
         vec![false, false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3105,6 +3207,7 @@ fn test_multi_column_sort_multi_chunk() {
         vec!["age".to_string(), "score".to_string()],
         vec![false, false],
         vec![false, false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3182,6 +3285,7 @@ fn test_multi_column_sort_batch_slicing() {
         vec!["age".to_string(), "score".to_string()],
         vec![false, true],
         vec![false, false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3288,6 +3392,7 @@ fn test_nulls_first_true_ascending() {
         vec!["age".to_string()],
         vec![false],
         vec![true],
+        vec![],
         0,
     )
     .unwrap();
@@ -3327,6 +3432,7 @@ fn test_nulls_first_false_ascending() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3410,6 +3516,7 @@ fn test_nulls_first_with_row_id_and_permutation() {
         vec!["age".to_string()],
         vec![false],
         vec![true],
+        vec![],
         0,
     )
     .unwrap();
@@ -3478,6 +3585,7 @@ fn test_nulls_last_with_row_id_and_permutation() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3544,6 +3652,7 @@ fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3598,6 +3707,7 @@ fn test_only_empty_batches_produces_empty_output() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3641,6 +3751,7 @@ fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3724,6 +3835,7 @@ fn test_memory_usage_path_prefix_filtering() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3737,6 +3849,7 @@ fn test_memory_usage_path_prefix_filtering() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3826,6 +3939,7 @@ fn test_sort_all_identical_keys_produces_valid_permutation() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -3945,6 +4059,7 @@ fn test_writer_properties_honored_empty_path() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -3999,6 +4114,7 @@ fn test_writer_properties_honored_single_chunk_snappy_no_bloom() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -4076,6 +4192,7 @@ fn test_writer_properties_honored_single_chunk_zstd_with_bloom() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -4138,6 +4255,7 @@ fn test_writer_properties_honored_multi_chunk_snappy_no_bloom() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -4218,6 +4336,7 @@ fn test_writer_properties_honored_multi_chunk_zstd_with_bloom() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         writer_generation,
     )
     .unwrap();
@@ -4290,6 +4409,7 @@ fn test_writer_properties_honored_single_chunk_uncompressed() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -4342,6 +4462,7 @@ fn test_writer_properties_honored_multi_chunk_uncompressed() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -4409,6 +4530,7 @@ fn test_writer_properties_defaults_single_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
@@ -4463,6 +4585,7 @@ fn test_writer_properties_defaults_multi_chunk() {
         vec!["age".to_string()],
         vec![false],
         vec![false],
+        vec![],
         0,
     )
     .unwrap();
