@@ -37,6 +37,7 @@ public class SearchRequestContext {
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
     private TotalHits totalHits;
+    private int hitsLength;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
     private Set<Index> successfulSearchShardIndices;
 
@@ -100,6 +101,14 @@ public class SearchRequestContext {
 
     public TotalHits totalHits() {
         return totalHits;
+    }
+
+    void setHitsLength(int hitsLength) {
+        this.hitsLength = hitsLength;
+    }
+
+    public int getHitsLength() {
+        return hitsLength;
     }
 
     void setShardStats(int total, int successful, int skipped, int failed) {
