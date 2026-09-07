@@ -473,9 +473,21 @@ public class FunctionScoreQuery extends Query {
                     factorExplanation = functionsExplanations.get(0);
                 } else {
                     FunctionFactorScorer scorer = functionScorer(context);
-                    int actualDoc = scorer.iterator().advance(doc);
-                    assert (actualDoc == doc);
-                    double score = scorer.computeScore(doc, expl.getValue().floatValue());
+                    
+                        if (scorer == null) {
+                            return Explanation.noMatch(
+                                "No matching scorer for segment"
+                            );
+                        }
+                        
+                        int actualDoc = scorer.iterator().advance(doc);
+                        assert actualDoc == doc;
+                        
+                        double score = scorer.computeScore(
+                            doc,
+                            expl.getValue().floatValue()
+                        );
+                    
                     factorExplanation = Explanation.match(
                         (float) score,
                         "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
