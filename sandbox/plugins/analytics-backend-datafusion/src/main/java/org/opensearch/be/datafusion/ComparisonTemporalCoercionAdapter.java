@@ -1,11 +1,4 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
+/* SPDX-License-Identifier: Apache-2.0 */
 package org.opensearch.be.datafusion;
 
 import org.apache.calcite.plan.RelOptCluster;
@@ -16,6 +9,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -24,10 +18,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Coerces a comparison operand to {@code TIMESTAMP} when isthmus has no Substrait sig for the call:
- * char-vs-temporal (decorrelation folded the PPL {@code TIMESTAMP} UDF to a bare string), or
- * TIME-vs-{DATE,TIMESTAMP} (Calcite wraps TIME with {@code to_timestamp(precision_time<P>)} which
- * has no yaml impl). Both shapes route through {@link DatePartAdapters#coerceCharacterOperandToTimestamp}.
+ * Coerces comparison operands to types that isthmus can bind to Substrait signatures:
+ *
+ * <ul>
+ *   <li><b>{@link IpType} operands</b> &mdash; cast to plain {@code VARBINARY} so isthmus
+ *       generates the standard Substrait {@code equal} / {@code not_equal} / {@code lt} /
+ *       {@code gt} / {@code lte} / {@code gte} function instead of a UDT-specific function
+ *       name (e.g. {@code EQUALS_IP}) that has no Substrait signature.</li>
+ *   <li><b>Character operands vs temporal</b> &mdash; coerce to {@code TIMESTAMP} when isthmus
+ *       has no Substrait sig for the call: char-vs-temporal (decorrelation folded the PPL
+ *       {@code TIMESTAMP} UDF to a bare string), or TIME-vs-{DATE,TIMESTAMP} (Calcite wraps
+ *       TIME with {@code to_timestamp(precision_time<P>)} which has no yaml impl).</li>
+ * </ul>
  *
  * @opensearch.internal
  */
@@ -42,11 +44,19 @@ class ComparisonTemporalCoercionAdapter implements ScalarFunctionAdapter {
         RexNode left = operands.get(0);
         RexNode right = operands.get(1);
 
-        // TIME vs DATE/TIMESTAMP — rewrite the TIME side to today-anchored TIMESTAMP
-        RexNode newLeft = coerceTimeIfApplicable(left, right, cluster);
-        RexNode newRight = coerceTimeIfApplicable(right, left, cluster);
+        // ── IpType: cast to plain VARBINARY before Substrait conversion ──────
+        RexNode newLeft = castIpTypeToVarbinary(left, cluster);
+        RexNode newRight = castIpTypeToVarbinary(right, cluster);
         if (newLeft != left || newRight != right) {
             return rebuild(original, newLeft, newRight, cluster);
+        }
+
+        // ── Temporal coercion ────────────────────────────────────────────────
+        // TIME vs DATE/TIMESTAMP — rewrite the TIME side to today-anchored TIMESTAMP
+        RexNode timeLeft = coerceTimeIfApplicable(left, right, cluster);
+        RexNode timeRight = coerceTimeIfApplicable(right, left, cluster);
+        if (timeLeft != left || timeRight != right) {
+            return rebuild(original, timeLeft, timeRight, cluster);
         }
 
         boolean leftChar = isCharacter(left);
@@ -64,6 +74,27 @@ class ComparisonTemporalCoercionAdapter implements ScalarFunctionAdapter {
             return original;
         }
         return rebuild(original, newLeft, newRight, cluster);
+    }
+
+    /** Cast an {@link IpType} operand to plain {@code VARBINARY}, or return the operand unchanged. */
+    private static RexNode castIpTypeToVarbinary(RexNode node, RelOptCluster cluster) {
+        // Strip any OperatorAnnotation wrapper so the underlying IpType is visible.
+        RexNode stripped = stripAnnotation(node);
+        if (!(stripped.getType() instanceof IpType)) {
+            return node;
+        }
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RelDataType varbinary = cluster.getTypeFactory()
+            .createTypeWithNullability(
+                cluster.getTypeFactory().createSqlType(SqlTypeName.VARBINARY),
+                stripped.getType().isNullable()
+            );
+        RexNode cast = rexBuilder.makeAbstractCast(varbinary, stripped);
+        // Re-wrap in the original annotation if present.
+        if (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
+            return annotation.withAdaptedOriginal(cast);
+        }
+        return cast;
     }
 
     /** TIME (or wrapped TIME) compared with DATE/TIMESTAMP — rewrite to today-anchored TIMESTAMP, preserving any outer annotation. */
@@ -110,8 +141,6 @@ class ComparisonTemporalCoercionAdapter implements ScalarFunctionAdapter {
         return null;
     }
 
-    // TODO: annotation stripping should be centralised in FragmentConversionDriver; revisit alongside the other adapters that strip
-    // locally.
     private static RexNode stripAnnotation(RexNode node) {
         while (node instanceof OperatorAnnotation annotation && annotation.unwrap() != null) {
             node = annotation.unwrap();
