@@ -43,4 +43,7 @@ grant {
 
   // gcs client set Authenticator for proxy username/password
   permission java.net.NetPermission "setDefaultAuthenticator";
+
+  // Google Cloud SDK resolves a default project from the user's gcloud configuration
+  permission java.io.FilePermission "${user.home}/.config/gcloud/-", "read";
 };
