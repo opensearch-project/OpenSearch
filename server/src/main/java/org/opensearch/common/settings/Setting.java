@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2047,6 +2048,66 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
         return new Setting<>(key, s -> defaultValue, Function.identity(), properties);
+    }
+
+    /**
+     * Creates a string setting whose value must be a relative path that does not escape its base directory.
+     * Empty values are accepted so that optional path settings can retain the same semantics as
+     * {@link #simpleString(String, Property...)}.
+     *
+     * <p>The validation is platform independent: both {@code /} and {@code \\} are treated as path separators,
+     * and Windows drive paths are rejected even when OpenSearch is running on a Unix-like host.</p>
+     *
+     * @param key        the settings key for this setting
+     * @param properties properties for this setting like scope or filtering
+     * @return the relative-path setting
+     */
+    public static Setting<String> relativePathSetting(String key, Property... properties) {
+        return simpleString(key, value -> validateRelativePath(key, value), properties);
+    }
+
+    private static void validateRelativePath(String key, String value) {
+        if (Strings.hasLength(value) == false) {
+            return;
+        }
+
+        final boolean absolute;
+        try {
+            absolute = Path.of(value).isAbsolute();
+        } catch (IllegalArgumentException e) {
+            throw invalidRelativePath(key, value, e);
+        }
+        if (absolute || value.startsWith("/") || value.startsWith("\\") || value.matches("^[A-Za-z]:.*")) {
+            throw invalidRelativePath(key, value);
+        }
+
+        int depth = 0;
+        for (String segment : value.split("[/\\\\]+")) {
+            if (segment.isEmpty() || segment.equals(".")) {
+                continue;
+            }
+            if (segment.equals("..")) {
+                if (depth == 0) {
+                    throw invalidRelativePath(key, value);
+                }
+                depth--;
+            } else {
+                depth++;
+            }
+        }
+    }
+
+    private static IllegalArgumentException invalidRelativePath(String key, String value) {
+        return new IllegalArgumentException(
+            "setting [" + key + "] must be a relative path that does not escape its base directory; got [" + value + "]"
+        );
+    }
+
+    private static IllegalArgumentException invalidRelativePath(String key, String value, Exception cause) {
+        return new IllegalArgumentException(
+            "setting [" + key + "] must be a relative path that does not escape its base directory; got [" + value + "]",
+            cause
+        );
     }
 
     public static TimeValue parseTimeValue(String s, TimeValue minValue, String key) {

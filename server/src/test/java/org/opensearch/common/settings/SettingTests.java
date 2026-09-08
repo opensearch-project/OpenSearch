@@ -1420,6 +1420,45 @@ public class SettingTests extends OpenSearchTestCase {
         assertThat(setting.hasNodeScope(), is(true));
     }
 
+    public void testRelativePathSetting() {
+        Setting<String> setting = Setting.relativePathSetting("path", Property.NodeScope);
+
+        for (String path : List.of("", "dictionary", "nested/dictionary", "./dictionary", "nested/../dictionary", "foo..bar")) {
+            assertThat(setting.get(Settings.builder().put("path", path).build()), equalTo(path));
+        }
+    }
+
+    public void testRelativePathSettingRejectsAbsoluteAndEscapingPaths() {
+        Setting<String> setting = Setting.relativePathSetting("path", Property.NodeScope);
+
+        for (String path : List.of(
+            "/absolute/path",
+            "\\absolute\\path",
+            "C:\\absolute\\path",
+            "C:/absolute/path",
+            "C:drive-relative-path",
+            "..",
+            "../escape",
+            "nested/../../escape",
+            "nested\\..\\..\\escape"
+        )) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> setting.get(Settings.builder().put("path", path).build())
+            );
+            assertThat(exception.getMessage(), containsString("setting [path] must be a relative path"));
+        }
+    }
+
+    public void testRelativePathSettingRejectsInvalidPath() {
+        Setting<String> setting = Setting.relativePathSetting("path", Property.NodeScope);
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("path", "invalid\0path").build())
+        );
+        assertThat(exception.getMessage(), containsString("setting [path] must be a relative path"));
+    }
+
     /**
      * We can't have Null properties
      */
