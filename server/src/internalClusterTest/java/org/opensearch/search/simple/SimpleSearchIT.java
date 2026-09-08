@@ -34,6 +34,7 @@ package org.opensearch.search.simple;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -890,6 +891,108 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             boolean boolValue = (Boolean) source.get("bool_field");
             assertTrue(numValue > 5);
             assertTrue(boolValue);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDerivedSourceSearchWithNestedObjects() throws Exception {
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        }
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "title": {
+                                "type": "keyword"
+                            },
+                            "comments": {
+                                "type": "nested",
+                                "properties": {
+                                    "tag": {
+                                        "type": "keyword"
+                                    },
+                                    "score": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("test_derive_nested").setSource(createIndexSource, MediaTypeRegistry.JSON));
+        ensureGreen();
+
+        indexRandom(
+            true,
+            client().prepareIndex("test_derive_nested")
+                .setId("1")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field("title", "first")
+                        .startArray("comments")
+                        .startObject()
+                        .field("tag", "target")
+                        .field("score", 3)
+                        .endObject()
+                        .startObject()
+                        .field("tag", "other")
+                        .field("score", 1)
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                ),
+            client().prepareIndex("test_derive_nested")
+                .setId("2")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field("title", "second")
+                        .startArray("comments")
+                        .startObject()
+                        .field("tag", "other")
+                        .field("score", 2)
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                )
+        );
+
+        SearchResponse response = client().prepareSearch("test_derive_nested")
+            .setQuery(QueryBuilders.nestedQuery("comments", QueryBuilders.termQuery("comments.tag", "target"), ScoreMode.None))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+        assertEquals("first", source.get("title"));
+        List<Map<String, Object>> comments = (List<Map<String, Object>>) source.get("comments");
+        assertEquals(2, comments.size());
+        assertEquals("target", comments.get(0).get("tag"));
+        assertEquals(3, comments.get(0).get("score"));
+        assertEquals("other", comments.get(1).get("tag"));
+        assertEquals(1, comments.get(1).get("score"));
+
+        response = client().prepareSearch("test_derive_nested")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setFetchSource(new String[] { "comments.tag" }, null)
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> filteredSource = hit.getSourceAsMap();
+            assertEquals(1, filteredSource.size());
+            comments = (List<Map<String, Object>>) filteredSource.get("comments");
+            assertFalse(comments.isEmpty());
+            assertTrue(comments.get(0).containsKey("tag"));
+            assertFalse(comments.get(0).containsKey("score"));
         }
     }
 

@@ -14,21 +14,19 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.store.Directory;
-import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +53,7 @@ public class DerivedSourceDirectoryReaderTests extends OpenSearchTestCase {
         writer.commit();
 
         directoryReader = DirectoryReader.open(writer);
-        reader = DerivedSourceDirectoryReader.wrap(directoryReader, (leafReader, docId) -> new BytesArray(TEST_SOURCE));
+        reader = DerivedSourceDirectoryReader.wrap(directoryReader, leafReaderContext -> docId -> new BytesArray(TEST_SOURCE));
     }
 
     @After
@@ -89,11 +87,13 @@ public class DerivedSourceDirectoryReaderTests extends OpenSearchTestCase {
         AtomicInteger sourceProviderCalls = new AtomicInteger(0);
         Map<String, Integer> leafCalls = new HashMap<>();
 
-        CheckedBiFunction<LeafReader, Integer, BytesReference, IOException> countingSourceProvider = (leafReader, docId) -> {
-            sourceProviderCalls.incrementAndGet();
-            String leafKey = leafReader.toString();
-            leafCalls.merge(leafKey, 1, Integer::sum);
-            return new BytesArray(TEST_SOURCE);
+        DerivedSourceDirectoryReader.LeafSourceProviderFactory countingSourceProvider = leafReaderContext -> {
+            String leafKey = leafReaderContext.reader().toString();
+            return docId -> {
+                sourceProviderCalls.incrementAndGet();
+                leafCalls.merge(leafKey, 1, Integer::sum);
+                return new BytesArray(TEST_SOURCE);
+            };
         };
 
         DerivedSourceDirectoryReader countingReader = DerivedSourceDirectoryReader.wrap(directoryReader, countingSourceProvider);
@@ -113,6 +113,44 @@ public class DerivedSourceDirectoryReaderTests extends OpenSearchTestCase {
 
         assertTrue("Source provider should be called", sourceProviderCalls.get() > 0);
         assertFalse("Should have leaf calls recorded", leafCalls.isEmpty());
+    }
+
+    public void testSourceProviderFactoryReceivesOriginalLeafContextsInOrder() throws IOException {
+        Directory multiDir = newDirectory();
+        IndexWriterConfig config = newIndexWriterConfig(random(), null).setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter multiWriter = new IndexWriter(multiDir, config);
+
+        for (int i = 0; i < 3; i++) {
+            Document doc = new Document();
+            doc.add(new StoredField("_source", TEST_SOURCE));
+            multiWriter.addDocument(doc);
+            multiWriter.flush();
+        }
+
+        DirectoryReader multiReader = null;
+        DerivedSourceDirectoryReader derivedReader = null;
+        try {
+            multiReader = DirectoryReader.open(multiWriter);
+            assertTrue("Should have multiple segments", multiReader.leaves().size() > 1);
+
+            List<LeafReaderContext> receivedContexts = new ArrayList<>();
+            derivedReader = DerivedSourceDirectoryReader.wrap(multiReader, leafReaderContext -> {
+                receivedContexts.add(leafReaderContext);
+                return docId -> new BytesArray(TEST_SOURCE);
+            });
+
+            List<LeafReaderContext> originalContexts = multiReader.leaves();
+            assertEquals(originalContexts.size(), receivedContexts.size());
+            for (int i = 0; i < originalContexts.size(); i++) {
+                assertSame(
+                    "Source provider should receive original leaf context in order",
+                    originalContexts.get(i),
+                    receivedContexts.get(i)
+                );
+            }
+        } finally {
+            IOUtils.close(derivedReader, multiReader, multiWriter, multiDir);
+        }
     }
 
     public void testWithMultipleSegments() throws IOException {
@@ -141,25 +179,10 @@ public class DerivedSourceDirectoryReaderTests extends OpenSearchTestCase {
         DirectoryReader multiReader = DirectoryReader.open(multiWriter);
         assertTrue("Should have multiple segments", multiReader.leaves().size() > 1);
 
-        // Create a map to store segment-based sources
-        Map<String, Map<Integer, byte[]>> segmentSources = new HashMap<>();
-
-        // Initialize segment sources
-        int docBase = 0;
-        for (LeafReaderContext ctx : multiReader.leaves()) {
-            Map<Integer, byte[]> segmentMap = new HashMap<>();
-            for (int i = 0; i < ctx.reader().maxDoc(); i++) {
-                segmentMap.put(i, docIdToSource.get(docBase + i));
-            }
-            segmentSources.put(ctx.reader().toString(), segmentMap);
-            docBase += ctx.reader().maxDoc();
-        }
-
-        DerivedSourceDirectoryReader derivedReader = DerivedSourceDirectoryReader.wrap(multiReader, (leafReader, docId) -> {
-            // Use the segment-specific map to get the correct source
-            Map<Integer, byte[]> segmentMap = segmentSources.get(leafReader.toString());
-            return new BytesArray(segmentMap.get(docId));
-        });
+        DerivedSourceDirectoryReader derivedReader = DerivedSourceDirectoryReader.wrap(
+            multiReader,
+            leafReaderContext -> docId -> new BytesArray(docIdToSource.get(leafReaderContext.docBase + docId))
+        );
 
         int processedDocs = 0;
         // Verify all documents across all segments

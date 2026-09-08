@@ -256,6 +256,75 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
     }
 
+    public void testDerivedSourceWithNestedInnerHits() throws Exception {
+        assertAcked(
+            prepareCreate("derived_articles").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            )
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("comments")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("message")
+                        .field("type", "text")
+                        .field("fielddata", true)
+                        .endObject()
+                        .startObject("tag")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject("title")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+
+        client().prepareIndex("derived_articles")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("title", "quick brown fox")
+                    .startArray("comments")
+                    .startObject()
+                    .field("message", "fox eat quick")
+                    .field("tag", "first")
+                    .endObject()
+                    .startObject()
+                    .field("message", "rabbit got away")
+                    .field("tag", "second")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh();
+        indexRandomForConcurrentSearch("derived_articles");
+
+        SearchResponse response = client().prepareSearch("derived_articles")
+            .setQuery(
+                nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder("comment"))
+            )
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        Map<String, Object> rootSource = response.getHits().getAt(0).getSourceAsMap();
+        assertThat(rootSource.get("title"), equalTo("quick brown fox"));
+        assertThat(((List<?>) rootSource.get("comments")).size(), equalTo(2));
+
+        SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
+        assertThat(innerHits.getAt(0).getSourceAsMap().get("message"), equalTo("fox eat quick"));
+        assertThat(innerHits.getAt(0).getSourceAsMap().get("tag"), equalTo("first"));
+    }
+
     public void testRandomNested() throws Exception {
         assertAcked(prepareCreate("idx").setMapping("field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);
