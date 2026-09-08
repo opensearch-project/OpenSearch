@@ -37,6 +37,8 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
@@ -65,6 +67,7 @@ import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
@@ -946,6 +949,427 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(null, null, null, null, false, null, 1);
         return new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+    }
+
+    public void testSendSearchResponseWithShardInfo() throws InterruptedException {
+        final Index index = new Index("test-idx", UUID.randomUUID().toString());
+        final ShardId shardId0 = new ShardId(index, 0);
+        final ShardId shardId1 = new ShardId(index, 1);
+        final ShardId shardId2 = new ShardId(index, 2);
+        final ShardId shardId3 = new ShardId(index, 3);
+
+        SearchShardIterator it0 = new SearchShardIterator(
+            null,
+            shardId0,
+            List.of(
+                TestShardRouting.newShardRouting(shardId0, "node-a", true, ShardRoutingState.STARTED),
+                TestShardRouting.newShardRouting(shardId0, "node-b", false, ShardRoutingState.STARTED)
+            ),
+            OriginalIndices.NONE,
+            true
+        );
+        SearchShardIterator it1 = new SearchShardIterator(
+            null,
+            shardId1,
+            List.of(TestShardRouting.newShardRouting(shardId1, "node-b", false, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        // targeted through plain node ids (as point-in-time readers are): no routings are retained
+        SearchShardIterator it2 = new SearchShardIterator(null, shardId2, List.of("node-x"), OriginalIndices.NONE, null, null, true);
+        // Excluded by the can-match pre-filter. Its routing deliberately names a node that serves no other shard, and it is
+        // passed to the action FIRST below: shard indices are assigned over the pre-filtered iterators, so resolving one
+        // against the unfiltered list would match this iterator's routings and drop primary/state from the entries below.
+        SearchShardIterator it3 = new SearchShardIterator(
+            null,
+            shardId3,
+            List.of(TestShardRouting.newShardRouting(shardId3, "node-z", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        it3.resetAndSkip();
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).shardInfo(true);
+        searchRequest.setMaxConcurrentShardRequests(1);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            responseRef.set(response);
+            latch.countDown();
+        }, e -> {
+            failureRef.set(e);
+            latch.countDown();
+        });
+
+        createShardInfoAction(searchRequest, listener, () -> {}, it3, it0, it1, it2).run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+
+        SearchResponse response = responseRef.get();
+        SearchShardInfo shardInfo = response.getShardInfo();
+        assertNotNull(shardInfo);
+        assertEquals(3, shardInfo.getSuccessful().size());
+        assertEquals(1, shardInfo.getSkipped().size());
+        assertTrue(shardInfo.getFailed().isEmpty());
+        assertEquals(response.getSuccessfulShards(), shardInfo.getSuccessful().size() + shardInfo.getSkipped().size());
+        assertEquals(response.getFailedShards(), shardInfo.getFailed().size());
+
+        SearchShardInfo.Entry shard0 = entryForShard(shardInfo.getSuccessful(), 0);
+        assertEquals("node-a", shard0.getNodeId());
+        assertEquals(Boolean.TRUE, shard0.getPrimary());
+        assertEquals("STARTED", shard0.getState());
+        assertNull("node name is unresolvable from an empty cluster state", shard0.getNodeName());
+
+        SearchShardInfo.Entry shard1 = entryForShard(shardInfo.getSuccessful(), 1);
+        assertEquals("node-b", shard1.getNodeId());
+        assertEquals(Boolean.FALSE, shard1.getPrimary());
+
+        SearchShardInfo.Entry shard2 = entryForShard(shardInfo.getSuccessful(), 2);
+        assertEquals("node-x", shard2.getNodeId());
+        assertNull("primary is unknown for shards targeted through plain node ids", shard2.getPrimary());
+        assertNull(shard2.getState());
+
+        SearchShardInfo.Entry skipped = shardInfo.getSkipped().get(0);
+        assertEquals(3, skipped.getShard());
+        assertNull("skipped shards were never executed on any node", skipped.getNodeId());
+        assertNull(skipped.getPrimary());
+        assertNull(skipped.getState());
+    }
+
+    public void testShardInfoStampsClusterAliasOnEntries() throws InterruptedException {
+        final Index index = new Index("test-idx", UUID.randomUUID().toString());
+        final ShardId shardId0 = new ShardId(index, 0);
+        final ShardId shardId1 = new ShardId(index, 1);
+        final ShardId shardId2 = new ShardId(index, 2);
+        final ShardId shardId3 = new ShardId(index, 3);
+        final ShardId shardId4 = new ShardId(index, 4);
+
+        // shards of a remote cluster, as resolved when round-trips are not minimized
+        SearchShardIterator remote = new SearchShardIterator(
+            "remote1",
+            shardId0,
+            List.of(TestShardRouting.newShardRouting(shardId0, "node-a", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        // the local half of the same search: the local cluster group key is an empty alias and must not be rendered
+        SearchShardIterator local = new SearchShardIterator(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            shardId1,
+            List.of(TestShardRouting.newShardRouting(shardId1, "node-b", false, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        // a remote shard excluded by the can-match pre-filter still names its cluster
+        SearchShardIterator remoteSkipped = new SearchShardIterator(
+            "remote1",
+            shardId2,
+            List.of(TestShardRouting.newShardRouting(shardId2, "node-a", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        remoteSkipped.resetAndSkip();
+        SearchShardIterator remoteFailing = new SearchShardIterator(
+            "remote1",
+            shardId3,
+            List.of(TestShardRouting.newShardRouting(shardId3, "node-c", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        // a local shard excluded by the pre-filter: the empty alias must be dropped on the skipped path too
+        SearchShardIterator localSkipped = new SearchShardIterator(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            shardId4,
+            List.of(TestShardRouting.newShardRouting(shardId4, "node-b", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        localSkipped.resetAndSkip();
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).shardInfo(true);
+        searchRequest.setMaxConcurrentShardRequests(1);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            responseRef.set(response);
+            latch.countDown();
+        }, e -> {
+            failureRef.set(e);
+            latch.countDown();
+        });
+
+        AtomicReference<AbstractSearchAsyncAction<SearchPhaseResult>> actionRef = new AtomicReference<>();
+        // remoteFailing is the third non-skipped iterator, so it carries shard index 2
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createShardInfoAction(
+            searchRequest,
+            listener,
+            () -> actionRef.get()
+                .onShardFailure(
+                    2,
+                    new SearchShardTarget("node-c", shardId3, "remote1", OriginalIndices.NONE),
+                    new IllegalArgumentException("remote shard failed")
+                ),
+            remote,
+            local,
+            remoteSkipped,
+            remoteFailing,
+            localSkipped
+        );
+        actionRef.set(action);
+        action.run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+
+        SearchShardInfo shardInfo = responseRef.get().getShardInfo();
+        assertNotNull(shardInfo);
+        assertEquals(2, shardInfo.getSuccessful().size());
+        assertEquals(2, shardInfo.getSkipped().size());
+        assertEquals(1, shardInfo.getFailed().size());
+
+        assertEquals("remote1", entryForShard(shardInfo.getSuccessful(), 0).getCluster());
+        assertNull(
+            "the local cluster group key is an empty alias and must not be rendered",
+            entryForShard(shardInfo.getSuccessful(), 1).getCluster()
+        );
+        assertEquals("remote1", entryForShard(shardInfo.getSkipped(), 2).getCluster());
+        assertNull("the empty local alias must be dropped on the skipped path too", entryForShard(shardInfo.getSkipped(), 4).getCluster());
+        assertEquals("remote1", shardInfo.getFailed().get(0).getCluster());
+    }
+
+    public void testShardInfoOmitsShardsThatDoNotParticipate() throws InterruptedException {
+        final Index index = new Index("test-idx", UUID.randomUUID().toString());
+        final ShardId shardId0 = new ShardId(index, 0);
+        final ShardId shardId1 = new ShardId(index, 1);
+        final ShardId shardId2 = new ShardId(index, 2);
+
+        SearchShardIterator local = new SearchShardIterator(
+            null,
+            shardId0,
+            List.of(TestShardRouting.newShardRouting(shardId0, "node-a", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        // shards of a cluster that predates the feature: searched as usual, but never described
+        SearchShardIterator oldRemote = new SearchShardIterator(
+            "old1",
+            shardId1,
+            List.of(TestShardRouting.newShardRouting(shardId1, "node-b", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            false
+        );
+        SearchShardIterator oldRemoteSkipped = new SearchShardIterator(
+            "old1",
+            shardId2,
+            List.of(TestShardRouting.newShardRouting(shardId2, "node-b", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            false
+        );
+        oldRemoteSkipped.resetAndSkip();
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).shardInfo(true);
+        searchRequest.setMaxConcurrentShardRequests(1);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            responseRef.set(response);
+            latch.countDown();
+        }, e -> {
+            failureRef.set(e);
+            latch.countDown();
+        });
+
+        createShardInfoAction(searchRequest, listener, () -> {}, local, oldRemote, oldRemoteSkipped).run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+
+        SearchResponse response = responseRef.get();
+        SearchShardInfo shardInfo = response.getShardInfo();
+        assertNotNull(shardInfo);
+        assertEquals(1, shardInfo.getSuccessful().size());
+        assertEquals(0, shardInfo.getSuccessful().get(0).getShard());
+        assertNull(shardInfo.getSuccessful().get(0).getCluster());
+        assertTrue("a skipped shard of a cluster that predates the feature is not described", shardInfo.getSkipped().isEmpty());
+        assertTrue(shardInfo.getFailed().isEmpty());
+
+        // the omitted shards were still searched, so the counters still include them and the arrays are shorter
+        assertEquals(3, response.getTotalShards());
+        assertEquals(3, response.getSuccessfulShards());
+        assertEquals(1, response.getSkippedShards());
+    }
+
+    public void testSendSearchResponseShardInfoExcludesLaterPhaseFailures() throws InterruptedException {
+        final Index index = new Index("test-idx", UUID.randomUUID().toString());
+        final ShardId shardId0 = new ShardId(index, 0);
+        final ShardId shardId1 = new ShardId(index, 1);
+
+        SearchShardIterator it0 = new SearchShardIterator(
+            null,
+            shardId0,
+            List.of(TestShardRouting.newShardRouting(shardId0, "node-a", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+        SearchShardIterator it1 = new SearchShardIterator(
+            null,
+            shardId1,
+            List.of(TestShardRouting.newShardRouting(shardId1, "node-b", false, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE,
+            true
+        );
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).shardInfo(true);
+        searchRequest.setMaxConcurrentShardRequests(1);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            responseRef.set(response);
+            latch.countDown();
+        }, e -> {
+            failureRef.set(e);
+            latch.countDown();
+        });
+
+        AtomicReference<AbstractSearchAsyncAction<SearchPhaseResult>> actionRef = new AtomicReference<>();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createShardInfoAction(searchRequest, listener, () -> {
+            // shard 1 delivered a query result but fails a later phase (e.g. fetch)
+            actionRef.get()
+                .onShardFailure(
+                    1,
+                    new SearchShardTarget("node-b", shardId1, null, OriginalIndices.NONE),
+                    new IllegalArgumentException("fetch failed")
+                );
+        }, it0, it1);
+        actionRef.set(action);
+        action.run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+
+        SearchResponse response = responseRef.get();
+        assertEquals(1, response.getSuccessfulShards());
+        assertEquals(1, response.getFailedShards());
+        SearchShardInfo shardInfo = response.getShardInfo();
+        assertNotNull(shardInfo);
+        // the shard that failed a later phase is listed under failed only, never under successful
+        assertEquals(1, shardInfo.getSuccessful().size());
+        assertEquals(0, shardInfo.getSuccessful().get(0).getShard());
+        assertEquals(1, shardInfo.getFailed().size());
+        SearchShardInfo.Entry failedEntry = shardInfo.getFailed().get(0);
+        assertEquals(1, failedEntry.getShard());
+        assertEquals("node-b", failedEntry.getNodeId());
+        assertEquals(Boolean.FALSE, failedEntry.getPrimary());
+        assertEquals("STARTED", failedEntry.getState());
+        assertTrue(shardInfo.getSkipped().isEmpty());
+        assertEquals(response.getSuccessfulShards(), shardInfo.getSuccessful().size() + shardInfo.getSkipped().size());
+        assertEquals(response.getFailedShards(), shardInfo.getFailed().size());
+    }
+
+    public void testSendSearchResponseWithoutShardInfoRequested() throws InterruptedException {
+        final Index index = new Index("test-idx", UUID.randomUUID().toString());
+        final ShardId shardId0 = new ShardId(index, 0);
+        SearchShardIterator it0 = new SearchShardIterator(
+            null,
+            shardId0,
+            List.of(TestShardRouting.newShardRouting(shardId0, "node-a", true, ShardRoutingState.STARTED)),
+            OriginalIndices.NONE
+        );
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        if (randomBoolean()) {
+            searchRequest.shardInfo(false);
+        }
+        searchRequest.setMaxConcurrentShardRequests(1);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            responseRef.set(response);
+            latch.countDown();
+        }, e -> {
+            failureRef.set(e);
+            latch.countDown();
+        });
+
+        createShardInfoAction(searchRequest, listener, () -> {}, it0).run();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(failureRef.get());
+        assertNull(responseRef.get().getShardInfo());
+    }
+
+    public void testStartWithNoShardsRendersEmptyShardInfo() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).shardInfo(true);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        createShardInfoAction(searchRequest, ActionListener.wrap(responseRef::set, e -> fail(e.toString())), () -> {}).start();
+        SearchResponse response = responseRef.get();
+        assertNotNull(response);
+        assertNotNull("opted-in zero-shard searches must still carry the shard_info object", response.getShardInfo());
+        assertTrue(response.getShardInfo().isEmpty());
+
+        SearchRequest withoutFlag = new SearchRequest().allowPartialSearchResults(true);
+        AtomicReference<SearchResponse> responseWithoutFlag = new AtomicReference<>();
+        createShardInfoAction(withoutFlag, ActionListener.wrap(responseWithoutFlag::set, e -> fail(e.toString())), () -> {}).start();
+        assertNotNull(responseWithoutFlag.get());
+        assertNull(responseWithoutFlag.get().getShardInfo());
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createShardInfoAction(
+        SearchRequest searchRequest,
+        ActionListener<SearchResponse> listener,
+        Runnable beforeResponse,
+        SearchShardIterator... shards
+    ) {
+        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+            "test",
+            logger,
+            null,
+            (cluster, node) -> null,
+            Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())),
+            Collections.singletonMap("foo", 2.0f),
+            Collections.singletonMap("name", Sets.newHashSet("bar", "baz")),
+            executor,
+            searchRequest,
+            listener,
+            new GroupShardsIterator<>(Arrays.asList(shards)),
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shards.length),
+            searchRequest.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                searchRequest,
+                () -> null
+            ),
+            NoopTracer.INSTANCE
+        ) {
+            @Override
+            protected void executePhaseOnShard(
+                final SearchShardIterator shardIt,
+                final SearchShardTarget shard,
+                final SearchActionListener<SearchPhaseResult> listener
+            ) {
+                listener.onResponse(new QuerySearchResult());
+            }
+
+            @Override
+            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test-response") {
+                    @Override
+                    public void run() {
+                        beforeResponse.run();
+                        sendSearchResponse(InternalSearchResponse.empty(), null);
+                    }
+                };
+            }
+        };
+    }
+
+    private static SearchShardInfo.Entry entryForShard(List<SearchShardInfo.Entry> entries, int shard) {
+        return entries.stream().filter(entry -> entry.getShard() == shard).findFirst().orElseThrow(AssertionError::new);
     }
 
     private static final class PhaseResult extends SearchPhaseResult {

@@ -180,6 +180,49 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(0).getCancelAfterTimeInterval());
     }
 
+    public void testShardInfoMetadataKey() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"shard_info\" : true}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n"
+            + "{\"index\":\"test2\"}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            MediaTypeRegistry.JSON
+        ).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(2));
+        assertEquals(Boolean.TRUE, request.requests().get(0).shardInfo());
+        assertNull("shard_info must stay unset when the metadata line omits it", request.requests().get(1).shardInfo());
+    }
+
+    public void testShardInfoMetadataKeyRejectsMalformedValues() throws IOException {
+        // an explicit null is a client saying nothing rather than a server error
+        MultiSearchRequest parsed = RestMultiSearchAction.parseRequest(
+            msearchRequest("{\"index\":\"test\", \"shard_info\" : null}"),
+            null,
+            true
+        );
+        assertNull("an explicit null must leave shard_info unset", parsed.requests().get(0).shardInfo());
+
+        // anything else that is not a boolean is a client error, not a 500
+        for (String malformed : List.of("\"yes\"", "\"\"", "7")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestMultiSearchAction.parseRequest(
+                    msearchRequest("{\"index\":\"test\", \"shard_info\" : " + malformed + "}"),
+                    null,
+                    true
+                )
+            );
+            assertThat(e.getMessage(), containsString("shard_info"));
+        }
+    }
+
+    private FakeRestRequest msearchRequest(String metadataLine) {
+        final String requestContent = metadataLine + "\r\n{\"query\" : {\"match_all\" :{}}}\r\n";
+        return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(requestContent), MediaTypeRegistry.JSON).build();
+    }
+
     public void testDefaultIndicesOptions() throws IOException {
         final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n"
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
@@ -605,6 +648,10 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
 
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);
+            }
+
+            if (randomBoolean()) {
+                searchRequest.shardInfo(randomBoolean());
             }
 
             // scroll is not supported in the current msearch api, so unset it:

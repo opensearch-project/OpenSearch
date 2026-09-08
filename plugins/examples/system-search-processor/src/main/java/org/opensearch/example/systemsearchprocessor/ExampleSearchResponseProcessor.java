@@ -115,7 +115,8 @@ public class ExampleSearchResponseProcessor implements SearchResponseProcessor, 
             searchResponse.getPhaseTook(),
             searchResponse.getShardFailures(),
             searchResponse.getClusters(),
-            searchResponse.pointInTimeId()
+            searchResponse.pointInTimeId(),
+            searchResponse.getShardInfo()
         );
     }
 

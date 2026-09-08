@@ -316,12 +316,19 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             );
             remoteIndicesByCluster.put("test_cluster_2", new OriginalIndices(new String[] { "x*" }, SearchRequest.DEFAULT_INDICES_OPTIONS));
             Map<String, AliasFilter> remoteAliases = TransportSearchAction.getRemoteAliasFilters(searchShardsResponseMap);
+            // a remote cluster's routings are deserialized from its _search_shards response and would otherwise become
+            // collectable immediately, so they are retained only when the search opted into shard_info
+            final boolean captureRoutings = randomBoolean();
             List<SearchShardIterator> iteratorList = TransportSearchAction.getRemoteShardsIterator(
                 searchShardsResponseMap,
                 remoteIndicesByCluster,
-                remoteAliases
+                remoteAliases,
+                captureRoutings
             );
             assertEquals(4, iteratorList.size());
+            for (SearchShardIterator iterator : iteratorList) {
+                assertEquals(captureRoutings, iterator.getShardRoutings() != null);
+            }
             for (SearchShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {
                     assertArrayEquals(
@@ -440,13 +447,23 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         Map<String, OriginalIndices> remoteIndices,
         Settings.Builder settingsBuilder
     ) {
+        return startTransport(numClusters, nodes, remoteIndices, settingsBuilder, Version.CURRENT);
+    }
+
+    private MockTransportService[] startTransport(
+        int numClusters,
+        DiscoveryNode[] nodes,
+        Map<String, OriginalIndices> remoteIndices,
+        Settings.Builder settingsBuilder,
+        Version remoteVersion
+    ) {
         MockTransportService[] mockTransportServices = new MockTransportService[numClusters];
         for (int i = 0; i < numClusters; i++) {
             List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
             MockTransportService remoteSeedTransport = RemoteClusterConnectionTests.startTransport(
                 "node_remote" + i,
                 knownNodes,
-                Version.CURRENT,
+                remoteVersion,
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
@@ -528,6 +545,180 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             // SearchResponseMerger#getMergedResponse fail unexpectedly and verify that the listener is properly notified with the NPE
             assertThat(failure.get(), instanceOf(NullPointerException.class));
             assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testGetRemoteShardsIteratorSuppressesClustersThatPredateShardInfo() {
+        Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
+        searchShardsResponseMap.put(
+            "current_cluster",
+            new ClusterSearchShardsResponse(
+                new ClusterSearchShardsGroup[] {
+                    new ClusterSearchShardsGroup(
+                        new ShardId("idx", "current_idx_uuid", 0),
+                        new ShardRouting[] { TestShardRouting.newShardRouting("idx", 0, "node_current", true, ShardRoutingState.STARTED) }
+                    ) },
+                new DiscoveryNode[] { new DiscoveryNode("node_current", buildNewFakeTransportAddress(), Version.CURRENT) },
+                null
+            )
+        );
+        searchShardsResponseMap.put(
+            "old_cluster",
+            new ClusterSearchShardsResponse(
+                new ClusterSearchShardsGroup[] {
+                    new ClusterSearchShardsGroup(
+                        new ShardId("idx", "old_idx_uuid", 0),
+                        new ShardRouting[] { TestShardRouting.newShardRouting("idx", 0, "node_old", true, ShardRoutingState.STARTED) }
+                    ) },
+                new DiscoveryNode[] { new DiscoveryNode("node_old", buildNewFakeTransportAddress(), Version.V_3_7_0) },
+                null
+            )
+        );
+
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        remoteIndicesByCluster.put("current_cluster", new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        remoteIndicesByCluster.put("old_cluster", new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS));
+
+        List<SearchShardIterator> iterators = TransportSearchAction.getRemoteShardsIterator(
+            searchShardsResponseMap,
+            remoteIndicesByCluster,
+            TransportSearchAction.getRemoteAliasFilters(searchShardsResponseMap),
+            true
+        );
+
+        // both clusters are searched; only the one that understands the feature is described in shard_info
+        assertEquals(2, iterators.size());
+        for (SearchShardIterator iterator : iterators) {
+            assertEquals(1, iterator.size());
+            if ("current_cluster".equals(iterator.getClusterAlias())) {
+                assertTrue("a remote on a supported version is described", iterator.includeInShardInfo());
+                assertNotNull(iterator.getShardRoutings());
+            } else {
+                assertFalse("a remote older than the feature is searched but never described", iterator.includeInShardInfo());
+                assertNull(iterator.getShardRoutings());
+            }
+        }
+
+        // and nothing is described at all when the caller did not ask
+        for (SearchShardIterator iterator : TransportSearchAction.getRemoteShardsIterator(
+            searchShardsResponseMap,
+            remoteIndicesByCluster,
+            TransportSearchAction.getRemoteAliasFilters(searchShardsResponseMap),
+            false
+        )) {
+            assertFalse(iterator.includeInShardInfo());
+        }
+    }
+
+    public void testCCSRemoteReduceSingleClusterPreservesShardInfo() throws Exception {
+        DiscoveryNode[] nodes = new DiscoveryNode[1];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(1, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.shardInfo(true);
+            final CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            AtomicReference<Exception> failureRef = new AtomicReference<>();
+            LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                ActionListener.wrap(responseRef::set, failureRef::set),
+                latch
+            );
+            TransportSearchAction.ccsRemoteReduce(
+                searchRequest,
+                null,
+                remoteIndicesByCluster,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                remoteClusterService,
+                threadPool,
+                listener,
+                (r, l) -> fail("no local search expected for a single-remote-cluster search"),
+                new SearchRequestContext(
+                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    searchRequest,
+                    () -> null
+                )
+            );
+            awaitLatch(latch, 5, TimeUnit.SECONDS);
+            assertNull(failureRef.get());
+            SearchResponse response = responseRef.get();
+            assertNotNull(response);
+            SearchShardInfo shardInfo = response.getShardInfo();
+            assertNotNull("the single-remote rewrap must preserve shard_info from the remote response", shardInfo);
+            assertEquals(1, shardInfo.getSuccessful().size());
+            SearchShardInfo.Entry entry = shardInfo.getSuccessful().get(0);
+            assertEquals("index", entry.getIndex());
+            assertEquals("remote_node", entry.getNodeId());
+            assertEquals(Boolean.TRUE, entry.getPrimary());
+            // the remote stamped its own attribution and the rewrap carried it through untouched, rather than
+            // overwriting it with the alias this coordinator knows the cluster by
+            assertEquals(RemoteClusterConnectionTests.REMOTE_STAMPED_CLUSTER_ALIAS, entry.getCluster());
+            assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testCCSRemoteReduceSingleClusterOmitsShardInfoWhenRemoteReportsNone() throws Exception {
+        DiscoveryNode[] nodes = new DiscoveryNode[1];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        // a remote that predates the feature: the request flag is version gated on the wire, so it never arrives there
+        MockTransportService[] mockTransportServices = startTransport(1, nodes, remoteIndicesByCluster, builder, Version.V_3_7_0);
+        Settings settings = builder.build();
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.shardInfo(true);
+            final CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+            AtomicReference<Exception> failureRef = new AtomicReference<>();
+            LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                ActionListener.wrap(responseRef::set, failureRef::set),
+                latch
+            );
+            TransportSearchAction.ccsRemoteReduce(
+                searchRequest,
+                null,
+                remoteIndicesByCluster,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                remoteClusterService,
+                threadPool,
+                listener,
+                (r, l) -> fail("no local search expected for a single-remote-cluster search"),
+                new SearchRequestContext(
+                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    searchRequest,
+                    () -> null
+                )
+            );
+            awaitLatch(latch, 5, TimeUnit.SECONDS);
+            assertNull(failureRef.get());
+            SearchResponse response = responseRef.get();
+            assertNotNull(response);
+            // the caller opted in, but a remote that predates the feature reports nothing, so the key is omitted
+            assertNull(response.getShardInfo());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();

@@ -40,8 +40,10 @@ import org.opensearch.Version;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
@@ -68,6 +70,7 @@ import org.opensearch.transport.Transport;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -226,7 +229,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchRequestContext.getPhaseTook(),
                     ShardSearchFailure.EMPTY_ARRAY,
                     clusters,
-                    null
+                    null,
+                    Boolean.TRUE.equals(request.shardInfo()) ? SearchShardInfo.EMPTY : null
                 )
             );
             onRequestEnd(searchRequestContext);
@@ -749,6 +753,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         String scrollId,
         String searchContextId
     ) {
+        return buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId, null);
+    }
+
+    protected final SearchResponse buildSearchResponse(
+        InternalSearchResponse internalSearchResponse,
+        ShardSearchFailure[] failures,
+        String scrollId,
+        String searchContextId,
+        SearchShardInfo shardInfo
+    ) {
         return new SearchResponse(
             internalSearchResponse,
             scrollId,
@@ -759,8 +773,126 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequestContext.getPhaseTook(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            shardInfo
         );
+    }
+
+    /**
+     * Builds the opt-in {@link SearchShardInfo} for this search from data captured while the
+     * request executed, never from after-the-fact cluster-state lookups. Successful entries are
+     * derived from the per-shard first-phase results, excluding shards that failed a later phase
+     * (those are listed under failed only, which keeps the arrays consistent with the
+     * {@code _shards} counters). Skipped entries are derived from the can-match pre-filtered
+     * iterators and carry no node attribution because no node executed anything for them. Failed
+     * entries are derived from the shard failures. Optional fields that cannot be resolved from the
+     * captured data are omitted rather than guessed: the primary flag and shard state for shards
+     * targeted through plain node ids, which is how point-in-time readers are resolved, and the
+     * node name for any shard this node coordinates on a remote cluster's behalf, since node names
+     * are resolved against the local cluster state.
+     */
+    private SearchShardInfo buildShardInfo(ShardSearchFailure[] failures) {
+        final AtomicArray<ShardSearchFailure> failuresArray = shardFailures.get();
+        // shards of a cluster that predates the feature are searched as usual but never described, so they are counted
+        // here to keep the invariant below meaningful rather than silently weakened
+        final int[] excluded = new int[1];
+        final List<SearchShardInfo.Entry> successful = new ArrayList<>();
+        results.getSuccessfulResults().forEach(result -> {
+            if (failuresArray != null && failuresArray.get(result.getShardIndex()) != null) {
+                // the shard delivered a first-phase result but failed a later phase; it is listed under failed only
+                return;
+            }
+            SearchShardIterator iterator = shardsIts.get(result.getShardIndex());
+            if (iterator.includeInShardInfo() == false) {
+                excluded[0]++;
+                return;
+            }
+            successful.add(buildShardInfoEntry(result.getSearchShardTarget(), iterator));
+        });
+        final List<SearchShardInfo.Entry> skipped = new ArrayList<>(toSkipShardsIts.size());
+        for (SearchShardIterator iterator : toSkipShardsIts) {
+            if (iterator.includeInShardInfo() == false) {
+                excluded[0]++;
+                continue;
+            }
+            SearchShardInfo.Entry.Builder entry = new SearchShardInfo.Entry.Builder(
+                iterator.shardId().getIndexName(),
+                iterator.shardId().id()
+            );
+            if (iterator.getClusterAlias() != null && iterator.getClusterAlias().isEmpty() == false) {
+                entry.cluster(iterator.getClusterAlias());
+            }
+            skipped.add(entry.build());
+        }
+        final List<SearchShardInfo.Entry> failed = new ArrayList<>(failures.length);
+        // indexed once so that attributing many failures stays linear in the number of shards overall
+        final Map<ShardIdAndClusterAlias, SearchShardIterator> iteratorsByShard = failures.length == 0
+            ? Collections.emptyMap()
+            : indexShardIterators();
+        for (ShardSearchFailure failure : failures) {
+            SearchShardTarget target = failure.shard();
+            if (target != null) {
+                SearchShardIterator iterator = iteratorsByShard.get(
+                    new ShardIdAndClusterAlias(target.getShardId(), target.getClusterAlias())
+                );
+                // an unresolvable iterator leaves participation unknown, so the failure is reported rather than hidden
+                if (iterator != null && iterator.includeInShardInfo() == false) {
+                    continue;
+                }
+                failed.add(buildShardInfoEntry(target, iterator));
+            } else if (failure.index() != null && failure.shardId() >= 0) {
+                failed.add(new SearchShardInfo.Entry.Builder(failure.index(), failure.shardId()).build());
+            }
+            // a failure without any shard identity cannot be attributed and is only visible in _shards.failures
+        }
+        assert successful.size() + skipped.size() + excluded[0] == successfulOps.get() : "shard_info successful ["
+            + successful.size()
+            + "] + skipped ["
+            + skipped.size()
+            + "] + excluded ["
+            + excluded[0]
+            + "] out of sync with successful shards ["
+            + successfulOps.get()
+            + "]";
+        return new SearchShardInfo(successful, skipped, failed);
+    }
+
+    private SearchShardInfo.Entry buildShardInfoEntry(SearchShardTarget target, @Nullable SearchShardIterator iterator) {
+        SearchShardInfo.Entry.Builder entry = new SearchShardInfo.Entry.Builder(
+            target.getShardId().getIndexName(),
+            target.getShardId().id()
+        ).nodeId(target.getNodeId());
+        if (target.getClusterAlias() != null && target.getClusterAlias().isEmpty() == false) {
+            entry.cluster(target.getClusterAlias());
+        }
+        DiscoveryNode node = clusterState.nodes().get(target.getNodeId());
+        if (node != null) {
+            entry.nodeName(node.getName());
+        }
+        if (iterator != null && iterator.getShardRoutings() != null) {
+            for (ShardRouting routing : iterator.getShardRoutings()) {
+                if (target.getNodeId().equals(routing.currentNodeId())) {
+                    entry.primary(routing.primary()).state(routing.state().name());
+                    break;
+                }
+            }
+        }
+        return entry.build();
+    }
+
+    private Map<ShardIdAndClusterAlias, SearchShardIterator> indexShardIterators() {
+        final Map<ShardIdAndClusterAlias, SearchShardIterator> byShard = new HashMap<>();
+        for (SearchShardIterator iterator : shardsIts) {
+            byShard.putIfAbsent(new ShardIdAndClusterAlias(iterator.shardId(), iterator.getClusterAlias()), iterator);
+        }
+        return byShard;
+    }
+
+    /**
+     * Identifies a shard within a search that may span clusters, where the same shard id can occur
+     * once per cluster alias.
+     */
+    private record ShardIdAndClusterAlias(ShardId shardId, @Nullable String clusterAlias) {
     }
 
     boolean buildPointInTimeFromSearchResults() {
@@ -798,9 +930,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     .map(result -> result.getSearchShardTarget().getShardId().getIndex())
                     .collect(Collectors.toSet())
             );
+            // built before the request-end callbacks so that a failure here cannot report a completed search as failed,
+            // which would deliver onRequestEnd and then onRequestFailure to every listener
+            SearchShardInfo shardInfo = Boolean.TRUE.equals(request.shardInfo()) ? buildShardInfo(failures) : null;
             onPhaseEnd(searchRequestContext);
             onRequestEnd(searchRequestContext);
-            listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
+            listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId, shardInfo));
         }
         setCurrentPhase(null);
     }
