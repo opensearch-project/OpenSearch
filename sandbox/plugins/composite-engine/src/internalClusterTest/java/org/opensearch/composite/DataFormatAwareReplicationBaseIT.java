@@ -33,6 +33,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepository;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -98,7 +99,15 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         }
     }
 
-    /** Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos. */
+    /**
+     * Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos.
+     *
+     * <p>Keeps {@link MockFsRepository} as the implementation rather than a plain {@link FsRepository}:
+     * the mock's blob container is the only one of the two that reports store-enforced conditional
+     * writes, which remote store fencing requires. Substituting {@code FsRepository} here made every
+     * seed that picked {@code asyncUploadMockFsRepo=true}, {@code metadataSupportedType=false} and
+     * fencing-enabled fail shard recovery outright.
+     */
     public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements org.opensearch.plugins.RepositoryPlugin {
 
         private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
@@ -112,7 +121,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         ) {
             return Collections.singletonMap(
                 MockFsRepositoryPlugin.TYPE,
-                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
+                metadata -> new MockFsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
             );
         }
     }
