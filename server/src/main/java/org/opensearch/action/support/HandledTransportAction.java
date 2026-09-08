@@ -32,6 +32,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -41,6 +42,8 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+import java.util.Set;
+
 /**
  * A TransportAction that self registers a handler into the transport service
  *
@@ -49,6 +52,75 @@ import org.opensearch.transport.TransportService;
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<
     Request,
     Response> {
+
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
+        this(action, true, transportService, actionFilters, requestReader);
+    }
+
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
+        this(action, true, null, transportService, actionFilters, requestReader, executor);
+    }
+
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
+        this(action, canTripCircuitBreaker, null, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+    }
+
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
+        this(
+            action,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            transportService,
+            actionFilters,
+            requestReader,
+            ThreadPool.Names.SAME
+        );
+    }
+
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
+        super(action, actionFilters, transportService.getTaskManager());
+        registerRequestHandlers(
+            transportService,
+            action.name(),
+            action.legacyActionNames(),
+            executor,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader
+        );
+    }
 
     protected HandledTransportAction(
         String actionName,
@@ -109,6 +181,26 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
 
+        registerRequestHandlers(
+            transportService,
+            actionName,
+            Set.of(),
+            executor,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader
+        );
+    }
+
+    private void registerRequestHandlers(
+        TransportService transportService,
+        String actionName,
+        Set<String> legacyActionNames,
+        String executor,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        Writeable.Reader<Request> requestReader
+    ) {
         transportService.registerRequestHandler(
             actionName,
             executor,
@@ -116,9 +208,19 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
             canTripCircuitBreaker,
             admissionControlActionType,
             requestReader,
-            new TransportHandler()
+            new TransportHandler(actionName)
         );
-
+        for (String legacyActionName : legacyActionNames) {
+            transportService.registerRequestHandler(
+                legacyActionName,
+                executor,
+                false,
+                canTripCircuitBreaker,
+                admissionControlActionType,
+                requestReader,
+                new TransportHandler(legacyActionName)
+            );
+        }
     }
 
     /**
@@ -127,10 +229,16 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
      * @opensearch.internal
      */
     class TransportHandler implements TransportRequestHandler<Request> {
+        private final String registeredActionName;
+
+        TransportHandler(String registeredActionName) {
+            this.registeredActionName = registeredActionName;
+        }
+
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
+            execute(registeredActionName, task, request, new ChannelActionListener<>(channel, registeredActionName, request));
         }
     }
 

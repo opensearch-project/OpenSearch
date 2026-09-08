@@ -670,6 +670,9 @@ public class ActionModule extends AbstractModule {
 
             public void register(ActionHandler<?, ?> handler) {
                 register(handler.getAction().name(), handler);
+                for (String legacyActionName : handler.getAction().legacyActionNames()) {
+                    register(legacyActionName, handler);
+                }
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
@@ -1160,10 +1163,18 @@ public class ActionModule extends AbstractModule {
             ActionType.class,
             TransportAction.class
         );
-        for (ActionHandler<?, ?> action : actions.values()) {
+        for (Map.Entry<String, ActionHandler<?, ?>> actionEntry : actions.entrySet()) {
+            ActionHandler<?, ?> action = actionEntry.getValue();
+            if (actionEntry.getKey().equals(action.getAction().name()) == false) {
+                continue;
+            }
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
+            for (String legacyActionName : action.getAction().legacyActionNames()) {
+                ActionType<?> legacyAction = new ActionType<>(legacyActionName, action.getAction().getResponseReader());
+                transportActionsBinder.addBinding(legacyAction).to(action.getTransportAction()).asEagerSingleton();
+            }
             for (Class<?> supportAction : action.getSupportTransportActions()) {
                 bind(supportAction).asEagerSingleton();
             }

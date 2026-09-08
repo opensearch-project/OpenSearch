@@ -39,6 +39,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.transport.TransportRequestOptions;
 
+import java.util.Set;
+
 /**
  * A generic action. Should strive to make it a singleton.
  *
@@ -49,14 +51,28 @@ public class ActionType<Response extends ActionResponse> {
 
     private final String name;
     private final Writeable.Reader<Response> responseReader;
+    private final Set<String> legacyActionNames;
 
     /**
      * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type
      */
     public ActionType(String name, Writeable.Reader<Response> responseReader) {
+        this(name, responseReader, Set.of());
+    }
+
+    /**
+     * @param name The name of the action, must be unique across actions.
+     * @param responseReader A reader for the response type
+     * @param legacyActionNames Legacy names that identify the same action
+     */
+    public ActionType(String name, Writeable.Reader<Response> responseReader, Set<String> legacyActionNames) {
+        if (legacyActionNames.contains(name)) {
+            throw new IllegalArgumentException("legacy action names must not contain the canonical action name [" + name + "]");
+        }
         this.name = name;
         this.responseReader = responseReader;
+        this.legacyActionNames = Set.copyOf(legacyActionNames);
     }
 
     /**
@@ -64,6 +80,13 @@ public class ActionType<Response extends ActionResponse> {
      */
     public String name() {
         return this.name;
+    }
+
+    /**
+     * Legacy names that identify the same action.
+     */
+    public Set<String> legacyActionNames() {
+        return legacyActionNames;
     }
 
     /**

@@ -13,6 +13,8 @@ import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.core.action.ActionResponse;
 
+import java.util.Set;
+
 /**
  * This class can be used to provide metadata about action requests to ActionFilter implementations.
  * At the moment, this class provides information about the requested indices of a request, but it can be
@@ -57,5 +59,15 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
         @SuppressWarnings("unchecked")
         TransportIndicesResolvingAction<Request> indicesResolvingAction = (TransportIndicesResolvingAction<Request>) this.transportAction;
         return indicesResolvingAction.resolveIndices(request);
+    }
+
+    /**
+     * Returns legacy names registered for the action handling this request.
+     */
+    public Set<String> legacyActionNames() {
+        if (transportAction == null) {
+            return Set.of();
+        }
+        return transportAction.legacyActionNames();
     }
 }
