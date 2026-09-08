@@ -404,6 +404,41 @@ public final class FilterTreeCallbacks {
     }
 
     /**
+     * {@code getLiveDocs(contextId, writerGeneration, minDoc, maxDoc, outPtr, outWordCap) -> wordsWritten|-1|-2}.
+     * Returns -2 if the segment has no deletions (all docs alive).
+     */
+    public static long getLiveDocs(long contextId, long writerGeneration, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
+        long tid = trackStart(contextId);
+        try {
+            QueryBinding binding = BINDINGS.get(contextId);
+            assertBindingExists(binding, "getLiveDocs", contextId);
+            if (binding == null || binding.handle() == null) {
+                return -1L;
+            }
+            int maxWords = (int) Math.min(outWordCap, (long) Integer.MAX_VALUE);
+            MemorySegment view = outPtr.reinterpret((long) maxWords * Long.BYTES);
+            int result = binding.handle().getLiveDocs(writerGeneration, minDoc, maxDoc, view);
+            return result;
+        } catch (AssertionError e) {
+            throw e;
+        } catch (Throwable throwable) {
+            LOGGER.error(
+                new ParameterizedMessage(
+                    "getLiveDocs(contextId={}, writerGeneration={}, [{}, {})) failed",
+                    contextId,
+                    writerGeneration,
+                    minDoc,
+                    maxDoc
+                ),
+                throwable
+            );
+            return -1L;
+        } finally {
+            trackEnd(contextId, tid);
+        }
+    }
+
+    /**
      * {@code releaseCollector(contextId, collectorKey)}. Never throws.
      */
     public static void releaseCollector(long contextId, int collectorKey) {

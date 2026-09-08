@@ -307,4 +307,13 @@ public interface AnalyticsSearchBackendPlugin {
     default Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
     }
+
+    /**
+     * Returns {@code true} if the reader has segments with deleted documents that need
+     * filtering at query time. Called at the data node before execution to determine
+     * whether a MatchAll delegation injection is required for correctness.
+     */
+    default boolean hasDeletedDocs(CommonExecutionContext ctx) {
+        return false;
+    }
 }

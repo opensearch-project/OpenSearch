@@ -236,6 +236,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         );
     }
 
+    @Override
+    public boolean hasDeletedDocs(CommonExecutionContext ctx) {
+        ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
+        IndexReaderProvider.Reader reader = shardCtx.getReader();
+        LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
+        if (luceneReader == null) {
+            return false;
+        }
+        return luceneReader.directoryReader().hasDeletions();
+    }
+
     // ── Lucene-as-driver execution path (count fast path) ──
 
     @Override

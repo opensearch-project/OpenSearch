@@ -92,4 +92,15 @@ public interface FilterDelegationHandle extends Closeable {
     default boolean isCancelled() {
         return false;
     }
+
+    /**
+     * Fill {@code out} with the live-docs bitset for the segment identified by
+     * {@code writerGeneration} in the range {@code [minDoc, maxDoc)}.
+     *
+     * @return number of words written, {@code -2} if all docs are alive (no filtering needed),
+     *         or {@code -1} on error
+     */
+    default int getLiveDocs(long writerGeneration, int minDoc, int maxDoc, java.lang.foreign.MemorySegment out) {
+        return -2;
+    }
 }

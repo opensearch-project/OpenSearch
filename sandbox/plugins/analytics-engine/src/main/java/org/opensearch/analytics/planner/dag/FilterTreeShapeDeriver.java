@@ -128,4 +128,55 @@ final class FilterTreeShapeDeriver {
 
     private record Result(boolean hasCorrectness, boolean hasPerf, boolean hasDrivingBackend, boolean interleaved) {
     }
+
+    /**
+     * Returns {@code true} if the filter tree does NOT guarantee that every result row passes
+     * through a correctness Collector (which respects liveDocs). When true, the data node must
+     * inject a MatchAll delegation if the shard has deleted documents.
+     *
+     * <p>DFS coverage algorithm: correctness Collector = covered (1), performance/native = 0.
+     * AND → OR of children (any covered child covers the AND). OR → AND of children (all must
+     * be covered). NOT → passes through.
+     *
+     * @param filter           the OpenSearchFilter with annotations intact
+     * @param drivingBackendId the driving backend name
+     * @return true if MatchAll injection is needed when deleted docs are present
+     */
+    static boolean requiresDeletedDocFiltering(OpenSearchFilter filter, String drivingBackendId) {
+        if (filter == null) {
+            return true;
+        }
+        return !isCoveredByLiveDocs(filter.getCondition(), drivingBackendId);
+    }
+
+    private static boolean isCoveredByLiveDocs(RexNode node, String drivingBackendId) {
+        if (node instanceof AnnotatedPredicate predicate) {
+            boolean isCorrectness = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
+            return isCorrectness;
+        }
+        if (node instanceof RexCall call) {
+            boolean isOr = call.getKind() == SqlKind.OR;
+            boolean isNot = call.getKind() == SqlKind.NOT;
+
+            if (isNot) {
+                return isCoveredByLiveDocs(call.getOperands().getFirst(), drivingBackendId);
+            }
+            if (isOr) {
+                for (RexNode operand : call.getOperands()) {
+                    if (!isCoveredByLiveDocs(operand, drivingBackendId)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            // AND: any covered child covers the whole AND
+            for (RexNode operand : call.getOperands()) {
+                if (isCoveredByLiveDocs(operand, drivingBackendId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return false;
+    }
 }
