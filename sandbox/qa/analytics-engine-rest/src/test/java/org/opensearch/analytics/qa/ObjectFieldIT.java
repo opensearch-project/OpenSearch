@@ -432,4 +432,151 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         assertRowsEqual("source=" + index + " | fields attrs.a, attrs.n", row("x", 7));
         assertRowCount("source=" + index + " | stats count() by attrs", 1);
     }
+
+
+    /**
+     * Null semantics with a document that has no object at all, and one where only part of the
+     * object is populated. Pins that the predicate, the aggregate, and the rendered value all agree —
+     * they are computed by three different mechanisms, so they can drift apart:
+     *
+     * <ul>
+     *   <li>rendering: {@code ArrowValues.structToMap} skips null children and returns null when the
+     *       resulting map is empty, recursively for sub-objects;</li>
+     *   <li>{@code isnull} / {@code isnotnull}: {@code ObjectNullPredicateExpander} rewrites the test
+     *       to a conjunction / disjunction over the object's leaves, so it never consults the struct's
+     *       own validity — which {@code named_struct} does not set;</li>
+     *   <li>{@code count(object)}: counts non-null values of the struct column.</li>
+     * </ul>
+     *
+     * <p>The documents are named for their shape: {@code both} populates the object and its sub-object,
+     * {@code neither} omits the object entirely, and {@code owner-only} has the scalar but no
+     * sub-object — the partially-populated case at both levels.
+     */
+    public void testNullSemanticsWithDocumentMissingTheObject() throws IOException {
+        String index = "object_null_semantics_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"id\":{\"type\":\"keyword\"},"
+                + "\"account\":{\"properties\":{\"owner\":{\"type\":\"keyword\"},"
+                + "\"branch\":{\"properties\":{\"code\":{\"type\":\"keyword\"}}}}}}}}"
+        );
+        client().performRequest(create);
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity(
+            "{\"index\":{}}\n{\"id\":\"both\",\"account\":{\"owner\":\"alice\",\"branch\":{\"code\":\"NYC\"}}}\n"
+                + "{\"index\":{}}\n{\"id\":\"neither\"}\n"
+                + "{\"index\":{}}\n{\"id\":\"owner-only\",\"account\":{\"owner\":\"bob\"}}\n"
+        );
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
+
+        // An object with no populated leaf renders as null, not as a struct of nulls.
+        assertRowsEqual(
+            "source=" + index + " | sort id | fields id, account",
+            row("both", Map.of("owner", "alice", "branch", Map.of("code", "NYC"))),
+            row("neither", null),
+            row("owner-only", Map.of("owner", "bob"))
+        );
+        // ...and the same recursively: doc 3's sub-object has no leaves at all.
+        assertRowsEqual(
+            "source=" + index + " | sort id | fields id, account.branch",
+            row("both", Map.of("code", "NYC")),
+            row("neither", null),
+            row("owner-only", null)
+        );
+
+        // The predicate must agree with the rendering rather than with the struct's validity.
+        assertRowsEqual("source=" + index + " | where isnotnull(account) | stats count()", row(2));
+        assertRowsEqual("source=" + index + " | where isnull(account) | stats count()", row(1));
+        assertRowsEqual("source=" + index + " | where isnotnull(account.branch) | stats count()", row(1));
+        assertRowsEqual("source=" + index + " | where isnull(account.branch) | stats count()", row(2));
+
+        // And so must the aggregate: doc 2 has no object, so it is not counted.
+        assertRowsEqual("source=" + index + " | stats count(account)", row(2));
+        assertRowsEqual("source=" + index + " | stats count()", row(3));
+    }
+
+
+    /**
+     * Three levels of sub-object, each populated independently — where a prune-empty-levels rule can
+     * go wrong in either direction: dropping a level that has populated descendants, or keeping one
+     * that has none.
+     *
+     * <p>The shape is {@code company.address.geo}, with a scalar at each level:
+     *
+     * <pre>
+     * company.name           company.address.city           company.address.geo.country
+     * </pre>
+     *
+     * <p>full     — every level populated
+     * <br>geo-only — <em>only</em> the deepest leaf, so {@code address} and {@code geo} must survive
+     *               despite having no scalar of their own
+     * <br>name-only — only the top scalar, so both sub-levels must vanish
+     * <br>empty    — nothing at all
+     */
+    public void testNestedSubObjectsPruneOnlyEmptyLevels() throws IOException {
+        String index = "object_deep_nesting_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"id\":{\"type\":\"keyword\"},"
+                + "\"company\":{\"properties\":{\"name\":{\"type\":\"keyword\"},"
+                + "\"address\":{\"properties\":{\"city\":{\"type\":\"keyword\"},"
+                + "\"geo\":{\"properties\":{\"country\":{\"type\":\"keyword\"}}}}}}}}}}"
+        );
+        client().performRequest(create);
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity(
+            "{\"index\":{}}\n{\"id\":\"full\",\"company\":{\"name\":\"Acme\","
+                + "\"address\":{\"city\":\"Seattle\",\"geo\":{\"country\":\"US\"}}}}\n"
+                + "{\"index\":{}}\n{\"id\":\"geo-only\",\"company\":{\"address\":{\"geo\":{\"country\":\"JP\"}}}}\n"
+                + "{\"index\":{}}\n{\"id\":\"name-only\",\"company\":{\"name\":\"Solo\"}}\n"
+                + "{\"index\":{}}\n{\"id\":\"empty\"}\n"
+        );
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
+
+        // geo-only keeps address and geo though neither has a scalar; name-only loses both.
+        assertRowsEqual(
+            "source=" + index + " | sort id | fields id, company",
+            row("empty", null),
+            row("full", Map.of("name", "Acme", "address", Map.of("city", "Seattle", "geo", Map.of("country", "US")))),
+            row("geo-only", Map.of("address", Map.of("geo", Map.of("country", "JP")))),
+            row("name-only", Map.of("name", "Solo"))
+        );
+        assertRowsEqual(
+            "source=" + index + " | sort id | fields id, company.address",
+            row("empty", null),
+            row("full", Map.of("city", "Seattle", "geo", Map.of("country", "US"))),
+            row("geo-only", Map.of("geo", Map.of("country", "JP"))),
+            row("name-only", null)
+        );
+        assertRowsEqual(
+            "source=" + index + " | sort id | fields id, company.address.geo",
+            row("empty", null),
+            row("full", Map.of("country", "US")),
+            row("geo-only", Map.of("country", "JP")),
+            row("name-only", null)
+        );
+
+        // Predicates and aggregates agree with that rendering at depth.
+        assertRowsEqual("source=" + index + " | where isnotnull(company.address.geo) | stats count()", row(2));
+        assertRowsEqual("source=" + index + " | where isnull(company.address) | stats count()", row(2));
+        assertRowsEqual("source=" + index + " | stats count(company.address)", row(2));
+    }
 }
