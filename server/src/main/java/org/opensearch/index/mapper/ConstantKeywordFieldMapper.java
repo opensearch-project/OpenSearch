@@ -15,15 +15,13 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -204,14 +202,10 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
-            final RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            final Automaton automaton = Operations.determinize(
-                regExp.toAutomaton(RegexpQuery.DEFAULT_PROVIDER),
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-            );
-            ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automaton);
+            CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
+                .getCompiledAutomaton(value, syntaxFlags, matchFlags, maxDeterminizedStates, RegexpQuery.DEFAULT_PROVIDER);
             BytesRef valueBytes = BytesRefs.toBytesRef(this.value);
-            if (byteRunAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length)) {
+            if (compiled.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length)) {
                 return new MatchAllDocsQuery();
             } else {
                 return new MatchNoDocsQuery();

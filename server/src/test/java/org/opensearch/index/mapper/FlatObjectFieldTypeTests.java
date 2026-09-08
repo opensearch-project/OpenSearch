@@ -20,15 +20,17 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -720,21 +722,19 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 true
             );
+            CompiledAutomaton cFoo = RegexpAutomatonCache.getInstance().getCompiledAutomaton("foo", 0, 0, 10);
+            CompiledAutomaton cFieldFoo = RegexpAutomatonCache.getInstance().getCompiledAutomaton("field.foo", 0, 0, 10);
             Query expected = new IndexOrDocValuesQuery(
-                new RegexpQuery(
+                new PrecompiledAutomatonQuery(
                     new Term("field" + VALUE_SUFFIX, new BytesRef("foo")),
-                    0,
-                    0,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    10,
+                    cFoo,
+                    "foo",
                     CONSTANT_SCORE_BLENDED_REWRITE
                 ),
-                new RegexpQuery(
+                new PrecompiledAutomatonQuery(
                     new Term("field" + VALUE_SUFFIX, new BytesRef("field.foo")),
-                    0,
-                    0,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    10,
+                    cFieldFoo,
+                    "field.foo",
                     DOC_VALUES_REWRITE
                 )
             );
@@ -749,21 +749,20 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 true
             );
+            CompiledAutomaton cFieldEqFoo = RegexpAutomatonCache.getInstance().getCompiledAutomaton("field.field1=foo", 0, 0, 10);
+            CompiledAutomaton cFieldFieldEqFoo = RegexpAutomatonCache.getInstance()
+                .getCompiledAutomaton("field.field.field1=foo", 0, 0, 10);
             Query expected = new IndexOrDocValuesQuery(
-                new RegexpQuery(
+                new PrecompiledAutomatonQuery(
                     new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")),
-                    0,
-                    0,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    10,
+                    cFieldEqFoo,
+                    "field.field1=foo",
                     CONSTANT_SCORE_BLENDED_REWRITE
                 ),
-                new RegexpQuery(
+                new PrecompiledAutomatonQuery(
                     new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field.field1=foo")),
-                    0,
-                    0,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    10,
+                    cFieldFieldEqFoo,
+                    "field.field.field1=foo",
                     DOC_VALUES_REWRITE
                 )
             );
@@ -778,12 +777,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new RegexpQuery(
+            CompiledAutomaton cFoo = RegexpAutomatonCache.getInstance().getCompiledAutomaton("foo", 0, 0, 10);
+            Query expected = new PrecompiledAutomatonQuery(
                 new Term("field" + VALUE_SUFFIX, new BytesRef("foo")),
-                0,
-                0,
-                RegexpQuery.DEFAULT_PROVIDER,
-                10,
+                cFoo,
+                "foo",
                 CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -797,12 +795,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new RegexpQuery(
+            CompiledAutomaton c = RegexpAutomatonCache.getInstance().getCompiledAutomaton("field.field1=foo", 0, 0, 10);
+            Query expected = new PrecompiledAutomatonQuery(
                 new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")),
-                0,
-                0,
-                RegexpQuery.DEFAULT_PROVIDER,
-                10,
+                c,
+                "field.field1=foo",
                 CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -816,12 +813,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 false,
                 true
             );
-            Query expected = new RegexpQuery(
+            CompiledAutomaton c = RegexpAutomatonCache.getInstance().getCompiledAutomaton("field.foo", 0, 0, 10);
+            Query expected = new PrecompiledAutomatonQuery(
                 new Term("field" + VALUE_SUFFIX, new BytesRef("field.foo")),
-                0,
-                0,
-                RegexpQuery.DEFAULT_PROVIDER,
-                10,
+                c,
+                "field.foo",
                 DOC_VALUES_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -835,12 +831,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 false,
                 true
             );
-            Query expected = new RegexpQuery(
+            CompiledAutomaton c = RegexpAutomatonCache.getInstance().getCompiledAutomaton("field.field.field1=foo", 0, 0, 10);
+            Query expected = new PrecompiledAutomatonQuery(
                 new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field.field1=foo")),
-                0,
-                0,
-                RegexpQuery.DEFAULT_PROVIDER,
-                10,
+                c,
+                "field.field.field1=foo",
                 DOC_VALUES_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));

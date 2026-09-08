@@ -33,8 +33,8 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -106,11 +106,11 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     @Override
     protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) query;
+        assertThat(query, instanceOf(PrecompiledAutomatonQuery.class));
+        PrecompiledAutomatonQuery precompiledQuery = (PrecompiledAutomatonQuery) query;
 
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-        assertThat(regexpQuery.getField(), equalTo(expectedFieldName));
+        assertThat(precompiledQuery.getField(), equalTo(expectedFieldName));
     }
 
     public void testIllegalArguments() {
@@ -248,7 +248,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         QueryShardContext context = createShardContext();
         Query luceneQuery = query.toQuery(context);
         assertNotNull(luceneQuery);
-        assertThat(luceneQuery, instanceOf(RegexpQuery.class));
+        assertThat(luceneQuery, instanceOf(PrecompiledAutomatonQuery.class));
         assertWarnings(
             "The complement operator (~) for arbitrary patterns in regexp queries is deprecated "
                 + "and will be removed in a future version. Consider rewriting your query to use character class negation [^...] or other query types."
