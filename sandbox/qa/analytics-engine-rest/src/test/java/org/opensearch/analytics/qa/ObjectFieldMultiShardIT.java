@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.qa;
 
+import org.opensearch.client.Request;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -90,5 +92,52 @@ public class ObjectFieldMultiShardIT extends AnalyticsRestTestCase {
         List<List<Object>> rows = (List<List<Object>>) response.get("datarows");
         assertNotNull("Response missing 'datarows' for query: " + ppl, rows);
         return rows;
+    }
+
+    /**
+     * The shapeless-object and object-only cases at two shards. Both are covered at one shard in
+     * {@link ObjectFieldIT}, where the reduce path is unreachable — and both produce a typed NULL or
+     * a zero-column scan, the shape most likely to behave differently once fragments are reduced.
+     */
+    public void testShapelessAndObjectOnlyIndicesAtTwoShards() throws IOException {
+        String shapeless = "shapeless_ms_it";
+        makeTwoShardIndex(shapeless, "\"id\":{\"type\":\"keyword\"},\"attrs\":{\"type\":\"object\"}", false);
+        bulkInto(shapeless, "{\"index\":{}}\n{\"id\":\"1\"}\n{\"index\":{}}\n{\"id\":\"2\"}\n");
+        assertEquals(2, rowsOf("source=" + shapeless + " | fields id, attrs").size());
+        for (List<Object> row : rowsOf("source=" + shapeless + " | fields attrs")) {
+            assertNull("a shapeless object resolves to null on every shard, got: " + row, row.get(0));
+        }
+
+        String objectOnly = "object_only_ms_it";
+        makeTwoShardIndex(objectOnly, "\"meta\":{\"type\":\"object\"}", true);
+        bulkInto(objectOnly, "{\"index\":{}}\n{\"meta\":{\"x\":1}}\n{\"index\":{}}\n{\"meta\":{\"x\":2}}\n");
+        List<List<Object>> counted = rowsOf("source=" + objectOnly + " | stats count()");
+        assertEquals(1, counted.size());
+        assertEquals("both documents counted across shards", 2, ((Number) counted.get(0).get(0)).intValue());
+    }
+
+    private void makeTwoShardIndex(String index, String propsJson, boolean dynamicFalse) throws IOException {
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":2,\"number_of_replicas\":0},"
+                + "\"mappings\":{"
+                + (dynamicFalse ? "\"dynamic\":false," : "")
+                + "\"properties\":{" + propsJson + "}}}"
+        );
+        client().performRequest(create);
+    }
+
+    private void bulkInto(String index, String ndjson) throws IOException {
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity(ndjson);
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
     }
 }

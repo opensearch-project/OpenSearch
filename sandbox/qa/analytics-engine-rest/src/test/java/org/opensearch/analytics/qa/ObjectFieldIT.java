@@ -376,4 +376,60 @@ public class ObjectFieldIT extends AnalyticsRestTestCase {
         // And the rendering that contradicted the old predicate.
         assertRowsEqual("source=" + index + " | where isnull(node) | fields id, node", row("4", null));
     }
+
+    // ── aliasing an object column ─────────────────────────────────────────────────────
+    //
+    // Substrait carries schema names as one depth-first list; the top-level name comes from the
+    // RelRoot field (which may be an alias) while nested names come from the struct type. These pin
+    // that an alias renames the column without disturbing the object's own field names — there is no
+    // alias for those, so any other behaviour would be wrong.
+
+    /** {@code rename} on an object: the column is renamed, the nested value untouched. */
+    public void testRenamedObjectKeepsItsNestedShape() throws IOException {
+        assertRowsEqual(
+            "source=" + DATASET.indexName + " | rename city as c | fields c | head 1",
+            row(Map.of("name", "Seattle", "population", 750000, "location", Map.of("latitude", 47.6062, "longitude", -122.3321)))
+        );
+    }
+
+    /** Same via {@code eval}, which reaches the alias by a different path than rename. */
+    public void testEvalAliasOfObjectKeepsItsNestedShape() throws IOException {
+        assertRowsEqual(
+            "source=" + DATASET.indexName + " | eval c = city | fields c | head 1",
+            row(Map.of("name", "Seattle", "population", 750000, "location", Map.of("latitude", 47.6062, "longitude", -122.3321)))
+        );
+    }
+
+    /**
+     * A bare {@code {"type": "object"}} that gains its leaves from the documents rather than the
+     * mapping. Worth its own test because the leaves are not the types an explicit mapping gives: a
+     * dynamically-mapped string becomes {@code text} with {@code store: true}, not {@code keyword},
+     * so the struct's field types differ from the declared case — and the object is only as wide as
+     * the documents made it.
+     */
+    public void testDynamicallyHydratedObjectIsAddressable() throws IOException {
+        String index = "dyn_hydrated_object_it";
+        try {
+            client().performRequest(new Request("DELETE", "/" + index));
+        } catch (Exception ignored) {}
+        Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(
+            "{\"settings\":{\"index.pluggable.dataformat.enabled\":true,"
+                + "\"index.pluggable.dataformat\":\"composite\","
+                + "\"index.composite.primary_data_format\":\"parquet\","
+                + "\"index.composite.secondary_data_formats\":[\"lucene\"],"
+                + "\"number_of_shards\":1,\"number_of_replicas\":0},"
+                + "\"mappings\":{\"properties\":{\"id\":{\"type\":\"keyword\"},"
+                + "\"attrs\":{\"type\":\"object\"}}}}"
+        );
+        client().performRequest(create);
+        Request bulk = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        bulk.setJsonEntity("{\"index\":{}}\n{\"id\":\"1\",\"attrs\":{\"a\":\"x\",\"n\":7}}\n");
+        bulk.setOptions(bulk.getOptions().toBuilder().addHeader("Content-Type", "application/x-ndjson"));
+        client().performRequest(bulk);
+
+        assertRowsEqual("source=" + index + " | fields attrs", row(Map.of("a", "x", "n", 7)));
+        assertRowsEqual("source=" + index + " | fields attrs.a, attrs.n", row("x", 7));
+        assertRowCount("source=" + index + " | stats count() by attrs", 1);
+    }
 }
