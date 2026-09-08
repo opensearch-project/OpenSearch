@@ -1,0 +1,15 @@
+{
+  "schema" : [
+    {
+      "name" : "s_name",
+      "type" : "string"
+    },
+    {
+      "name" : "numwait",
+      "type" : "bigint"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

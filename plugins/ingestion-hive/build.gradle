@@ -48,6 +48,7 @@ dependencies {
   api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
   api "software.amazon.awssdk:metrics-spi:${versions.aws}"
   api "software.amazon.awssdk:utils:${versions.aws}"
+  api "software.amazon.awssdk:utils-lite:${versions.aws}"
   api "software.amazon.awssdk:annotations:${versions.aws}"
   api "software.amazon.awssdk:profiles:${versions.aws}"
   api "software.amazon.awssdk:retries:${versions.aws}"

@@ -67,6 +67,10 @@ dependencies {
   compileOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+  // The hash-shuffle IPC compression codecs (arrow-compression / commons-compress / lz4-java) moved to
+  // the parent analytics-engine plugin along with ShuffleCompression + FastLz4CompressionCodec. They are
+  // visible here at runtime via the extendedPlugins classloader chain (arrow-base <- analytics-engine <-
+  // this plugin), so this module no longer declares them directly.
   compileOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
 
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -231,5 +235,8 @@ tasks.named('thirdPartyAudit').configure {
         // calcite-core jar; substrait-isthmus references it through reflection in optional code paths.
         'org.apache.calcite.sql.parser.ddl.SqlDdlParserImpl',
         'org.apache.calcite.server.ServerDdlExecutor'
+        // The commons-compress (brotli/xz/asm) + lz4-java (net.jpountz.util.UnsafeUtils) audit ignores
+        // moved to analytics-engine along with the shuffle compression codecs — those jars are now
+        // bundled there, not in this plugin.
     )
 }

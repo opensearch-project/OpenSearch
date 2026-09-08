@@ -221,17 +221,7 @@ public class XContentParserTests extends OpenSearchTestCase {
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                // See please https://github.com/FasterXML/jackson-dataformats-binary/issues/392, support
-                // for CBOR, Smile is coming
-                if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
-                    assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                    assertEquals(field, parser.currentName());
-                    assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-                    assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                    assertNull(parser.nextToken());
-                } else {
-                    assertThrows(StreamConstraintsException.class, () -> parser.nextToken());
-                }
+                assertThrows(StreamConstraintsException.class, () -> parser.nextToken());
             }
         }
     }

@@ -263,8 +263,10 @@ subprojects { Project subProject ->
     final String extension = 'docker.tar'
     final String artifactName = "opensearch${arch}_test"
 
-    final String exportTaskName = taskName("export", architecture, base, "DockerImage")
-    final String buildTaskName = taskName("build", architecture, base, "DockerImage")
+    // Qualify with the owner project: an implicit lookup of a parent project's method is deprecated
+    // and fails in Gradle 10.
+    final String exportTaskName = this.taskName("export", architecture, base, "DockerImage")
+    final String buildTaskName = this.taskName("build", architecture, base, "DockerImage")
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.getOpenSearch()}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {

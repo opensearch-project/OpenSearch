@@ -835,6 +835,38 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDeleteRoutingPreservedInChangesSnapshot() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb")
+            .put("index.soft_deletes.enabled", true)
+            .build();
+        IndexService indexService = createIndexWithSimpleMappings("index", settings);
+
+        String routing = "custom-routing-value";
+        client().prepareIndex("index").setId("1").setRouting(routing).setSource("{}", MediaTypeRegistry.JSON).get();
+        client().prepareDelete("index", "1").setRouting(routing).get();
+
+        IndexShard shard = indexService.getShard(0);
+        try (
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, 1, true, randomBoolean());
+            Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
+        ) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+
+            for (List<Translog.Operation> ops : List.of(opsFromLucene, opsFromTranslog)) {
+                Translog.Operation deleteOp = ops.stream()
+                    .filter(op -> op.opType() == Translog.Operation.Type.DELETE)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected a delete operation"));
+                assertThat(((Translog.Delete) deleteOp).routing(), equalTo(routing));
+            }
+        }
+    }
+
     /**
      * Test that the {@link org.opensearch.index.engine.NoOpEngine} takes precedence over other
      * engine factories if the index is closed.

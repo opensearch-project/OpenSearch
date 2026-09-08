@@ -54,4 +54,15 @@ public class ExistsQueryTranslatorTests extends OpenSearchTestCase {
     public void testReportsCorrectQueryType() {
         assertEquals(ExistsQueryBuilder.class, translator.getQueryType());
     }
+
+    public void testExistsOnScaledFloatFieldConvertsNormally() throws ConversionException {
+        // exists on scaled_float must NOT be guarded — value-less query path is unaffected.
+        RexNode result = translator.convert(QueryBuilders.existsQuery("scaled_price"), ctx);
+
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.IS_NOT_NULL, call.getKind());
+        RexInputRef fieldRef = (RexInputRef) call.getOperands().get(0);
+        // scaled_price is at index 13 in TestUtils schema
+        assertEquals(13, fieldRef.getIndex());
+    }
 }
