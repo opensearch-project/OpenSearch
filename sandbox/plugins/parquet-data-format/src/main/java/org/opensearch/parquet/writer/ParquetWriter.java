@@ -27,6 +27,7 @@ import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.parquet.vsr.SchemaChangeRequiresWriterRotationException;
 import org.opensearch.parquet.vsr.VSRManager;
 import org.opensearch.plugin.stats.StatsRecorder;
 import org.opensearch.threadpool.ThreadPool;
@@ -244,8 +245,18 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
                 schema.getFields().size(),
                 schema.getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
             );
-            boolean updated = vsrManager.reconcileSchema(schema);
-            logger.debug("updateMappingVersion: reconcileSchema returned updated={}", updated);
+            try {
+                boolean updated = vsrManager.reconcileSchema(schema);
+                logger.debug("updateMappingVersion: reconcileSchema returned updated={}", updated);
+            } catch (SchemaChangeRequiresWriterRotationException e) {
+                state = WriterState.RETIRED_FLUSHABLE;
+                logger.debug(
+                    "[Gen: {}] mapping version {} requires a new Parquet writer: {}",
+                    writerGeneration,
+                    newVersion,
+                    e.getMessage()
+                );
+            }
         } else {
             logger.trace(
                 "[Gen: {}] updateMappingVersion: no-op, newVersion={} <= current mappingVersion={}",

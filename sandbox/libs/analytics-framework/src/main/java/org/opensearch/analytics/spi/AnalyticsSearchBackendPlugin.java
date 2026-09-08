@@ -220,6 +220,8 @@ public interface AnalyticsSearchBackendPlugin {
      * @param rowIdVector Arrow BigIntVector containing global row IDs
      * @param columns column names to read
      * @param allocator Arrow buffer allocator for result import
+     * @param importStagingAllocator node-scoped allocator to stage Arrow C Data imports on; see
+     *        {@link org.opensearch.analytics.backend.ShardScanExecutionContext#getImportStagingAllocator()}
      * @return a result stream containing the requested rows
      */
     default EngineResultStream fetchByRowIds(
@@ -227,7 +229,8 @@ public interface AnalyticsSearchBackendPlugin {
         BigIntVector rowIdVector,
         String[] columns,
         BufferAllocator allocator,
-        long contextId
+        long contextId,
+        BufferAllocator importStagingAllocator
     ) {
         throw new UnsupportedOperationException("fetchByRowIds not implemented for [" + name() + "]");
     }

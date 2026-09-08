@@ -304,6 +304,52 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
             physicalPlan.contains("QueryShardExec"));
     }
 
+    /**
+     * Verifies that the physical_plan surfaced by profile=true does NOT leak storage locations.
+     * DataFusion's file-scan Display embeds the real parquet file path(s) in {@code file_groups={...}};
+     * QueryProfileBuilder redacts that path list to {@code <redacted>} while preserving the group
+     * count. This guards against re-introducing the leak (local filesystem paths, or object-store
+     * URIs/keys on S3/GCS/Azure-backed indices) into an API any query-authorized caller can hit.
+     */
+    @SuppressWarnings("unchecked")
+    public void testProfilePhysicalPlanRedactsStoragePaths() throws IOException {
+        ensureClickBenchProvisioned();
+        Map<String, Object> result = executeWithProfile(
+            "source=" + CLICKBENCH.indexName + " | stats avg(AdvEngineID) by RegionID"
+        );
+
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        assertNotNull("profile present", profile);
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+
+        // Collect every physical_plan string across all stages/tasks — redaction must hold everywhere,
+        // not just on the one stage the happy-path test happens to inspect.
+        boolean sawFileGroups = false;
+        for (Map<String, Object> stage : stages) {
+            List<Map<String, Object>> tasks = (List<Map<String, Object>>) stage.get("tasks");
+            if (tasks == null) {
+                continue;
+            }
+            for (Map<String, Object> task : tasks) {
+                Object plan = task.get("physical_plan");
+                if (plan instanceof String s && s.isEmpty() == false) {
+                    // No absolute filesystem path or object-store URI should survive redaction.
+                    assertFalse("physical_plan must not leak a filesystem path, got: " + s, s.contains(".parquet"));
+                    assertFalse("physical_plan must not leak a data dir path, got: " + s, s.contains("/nodes/"));
+                    assertFalse("physical_plan must not leak an object-store URI, got: " + s, s.contains("s3://"));
+                    if (s.contains("file_groups=")) {
+                        sawFileGroups = true;
+                        // The redaction marker replaces the path list but keeps the group count.
+                        assertTrue("file_groups must be redacted, got: " + s, s.contains("<redacted>"));
+                    }
+                }
+            }
+        }
+        // Sanity: this query scans parquet, so at least one scan node with file_groups must exist —
+        // otherwise the assertions above would vacuously pass without exercising redaction.
+        assertTrue("expected at least one file_groups scan node in the profile", sawFileGroups);
+    }
+
 
     @SuppressWarnings("unchecked")
     public void testProfileCoordinatorReduceHasMetrics() throws IOException {

@@ -490,6 +490,18 @@ pub fn wrap_stream_as_handle(
     runtime: &DataFusionRuntime,
     context_id: i64,
 ) -> i64 {
+    wrap_stream_as_handle_with_plan(df_stream, cpu_executor, runtime, context_id, None)
+}
+
+/// Like [`wrap_stream_as_handle`] but attaches a physical plan so that execution metrics
+/// can be extracted from the plan tree after the stream is exhausted.
+pub fn wrap_stream_as_handle_with_plan(
+    df_stream: datafusion::execution::SendableRecordBatchStream,
+    cpu_executor: DedicatedExecutor,
+    runtime: &DataFusionRuntime,
+    context_id: i64,
+    physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+) -> i64 {
     // Create the tracking context first so its cancellation token is registered before the task starts.
     let query_context = crate::query_tracker::QueryTrackingContext::new(
         context_id,
@@ -510,6 +522,11 @@ pub fn wrap_stream_as_handle(
         cross_rt_stream.schema(),
         cross_rt_stream,
     );
-    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
+    let handle = match physical_plan {
+        Some(plan) => {
+            crate::api::QueryStreamHandle::new_with_plan(wrapped, query_context, None, plan)
+        }
+        None => crate::api::QueryStreamHandle::new(wrapped, query_context, None),
+    };
     Box::into_raw(Box::new(handle)) as i64
 }

@@ -33,6 +33,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private final Task task;
     private byte[] fragmentBytes;
     private BufferAllocator allocator;
+    private BufferAllocator importStagingAllocator;
     private MapperService mapperService;
     private IndexSettings indexSettings;
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -87,6 +88,31 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the caller-provided allocator. The caller owns its lifecycle; the engine must not close it. */
     public void setAllocator(BufferAllocator allocator) {
         this.allocator = allocator;
+    }
+
+    /**
+     * Returns the allocator Arrow C Data Interface imports are staged on, or null if the caller did not
+     * set one. Distinct from {@link #getAllocator()} on two properties a batch import depends on:
+     * <ul>
+     *   <li><b>Unbounded, parented at the root.</b> {@code Data#importIntoVectorSchemaRoot} charges each
+     *       buffer as it walks the array; a target that fills part-way through throws, and arrow-java
+     *       (&le; 18.1.0) retains the imported array before the throwing {@code wrapForeignAllocation}
+     *       without rolling back, so the C Data release callback never fires and the whole batch leaks in
+     *       the producer's native allocator — invisible to the JVM heap and to Java Arrow accounting.</li>
+     *   <li><b>Node-scoped, never closed per request.</b> The Flight transport builds its reused stream
+     *       root on the FIRST emitted batch's vector allocator and charges that same allocator for every
+     *       later batch ({@code FlightServerChannel#transferIntoStreamRoot}: "The producer's allocator must
+     *       be long-lived (not closed per-request)"), and frees it asynchronously with its own channel.</li>
+     * </ul>
+     * Caller-owned: the engine imports onto it and must never close it.
+     */
+    public BufferAllocator getImportStagingAllocator() {
+        return importStagingAllocator;
+    }
+
+    /** Sets the node-scoped import staging allocator. The caller owns its lifecycle. */
+    public void setImportStagingAllocator(BufferAllocator importStagingAllocator) {
+        this.importStagingAllocator = importStagingAllocator;
     }
 
     /** Returns the shard's mapper service for field type resolution. */

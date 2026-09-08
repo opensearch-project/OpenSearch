@@ -229,9 +229,17 @@ public class DocumentMapper implements ToXContentFragment {
         // Assign capabilities for dynamically merged mappers that bypass the Builder path.
         final DataFormatRegistry registry = mapperService.documentMapperParser().getDataFormatRegistry();
         if (indexSettings.isPluggableDataFormatEnabled() && registry != null) {
-            assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
+            try {
+                assignCapabilitiesRecursive(mapping.root(), registry, indexSettings);
+                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                    registry.assignCapabilities(metadataMapper.fieldType(), indexSettings);
+                }
+            } catch (UnsupportedOperationException e) {
+                // A field type that declares no search capability (e.g. geo_point) cannot be backed by a
+                // pluggable data format. Surface this as a MapperParsingException (400) rather than letting a
+                // raw UnsupportedOperationException escape as a NotSerializableExceptionWrapper (500) on the
+                // put-mapping path, which parses directly and bypasses the merge path's exception wrapping.
+                throw new MapperParsingException(e.getMessage(), e);
             }
         }
 

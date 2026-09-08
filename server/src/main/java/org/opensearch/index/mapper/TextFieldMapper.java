@@ -483,8 +483,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             applyPluginParameterEffects();
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
-            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
-                || context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)) {
+            if (context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+                || (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                    && context.isMultiField() == false)) {
                 fieldType.setStored(true);
             }
             return new TextFieldMapper(

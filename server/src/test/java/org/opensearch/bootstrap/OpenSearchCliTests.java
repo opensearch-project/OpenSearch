@@ -226,4 +226,18 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
         );
     }
 
+    public void testStartupExceptionExitsWithCodeError() throws Exception {
+        // StartupException is caught in the 3-arg main(), which prints it via its custom formatter
+        // and returns CODE_ERROR so that the 1-arg main() calls exit(CODE_ERROR).
+        final RuntimeException cause = new RuntimeException("dummy startup failure");
+        runTest(
+            ExitCodes.CODE_ERROR,
+            true,
+            (output, error) -> assertThat(error, containsString(cause.getMessage())),
+            (foreground, pidFile, quiet, env) -> {
+                throw new StartupException(cause);
+            }
+        );
+    }
+
 }

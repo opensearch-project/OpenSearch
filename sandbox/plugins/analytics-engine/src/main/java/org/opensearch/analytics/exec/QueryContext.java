@@ -53,6 +53,8 @@ public class QueryContext {
     private final List<AnalyticsOperationListener> operationListeners;
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
+    /** Caller-owned; see {@link #importStagingAllocator()}. Never closed by this context. */
+    private BufferAllocator importStagingAllocator;
     /** Whether profiling is enabled for this query (data nodes should collect and return metrics). */
     private final boolean profile;
     /**
@@ -309,6 +311,25 @@ public class QueryContext {
 
     public BufferAllocator bufferAllocator() {
         return allocator;
+    }
+
+    /**
+     * Returns the node-scoped allocator coordinator-side Arrow C Data imports are staged on — unbounded
+     * and parented at the root so an import cannot fail part-way through an array (which strands the whole
+     * native batch, see {@code ShardScanExecutionContext#getImportStagingAllocator}), and long-lived
+     * because the Flight transport keeps charging it after the importing stream closes.
+     *
+     * <p>Falls back to {@link #bufferAllocator()} when unset — that is the pre-staging behaviour, correct
+     * but without the mid-import-OOM mitigation, and it keeps test contexts (whose allocators are unbounded
+     * roots anyway) working without wiring one.
+     */
+    public BufferAllocator importStagingAllocator() {
+        return importStagingAllocator != null ? importStagingAllocator : allocator;
+    }
+
+    /** Set once by {@code DefaultPlanExecutor} after construction. The caller owns the allocator. */
+    public void setImportStagingAllocator(BufferAllocator importStagingAllocator) {
+        this.importStagingAllocator = importStagingAllocator;
     }
 
     /** Lazy per-query virtual-thread executor for LOCAL tasks. Shared across phased contexts. */

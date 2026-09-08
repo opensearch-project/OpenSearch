@@ -50,7 +50,8 @@ public final class LocalComputeStageExecutionFactory implements StageExecutionFa
             chosenBytes(stage),
             config.bufferAllocator(),
             List.of(),
-            sink
+            sink,
+            config.importStagingAllocator()
         );
         ExchangeSink backendSink = provider.createSink(context, null);
         if (backendSink instanceof ReducingExchangeSink reducing) {
