@@ -357,7 +357,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
         refresh();
         indexRandomForConcurrentSearch("bulk-test-explain");
 
-        // The bulk scorer produces score = (docId + 1) * boost, but explain always uses the per-doc
+        // The bulk scorer produces score = 1.0 * boost, but explain always uses the per-doc
         // path (newInstance → execute() returns 2.0). Verify explain returns the per-doc score.
         Script script = new Script(ScriptType.INLINE, BulkScoringScriptEngine.NAME, "bulk_score", Collections.emptyMap());
         SearchResponse resp = client().prepareSearch("bulk-test-explain")
@@ -382,7 +382,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
     /**
      * A minimal script engine that produces a {@link ScoreScript.BulkScoringLeafFactory}.
      * <p>
-     * Source "bulk_score": bulk scorer assigns score = (segment-local docId + 1) * boost.
+     * Source "bulk_score": bulk scorer assigns score = 1.0 * boost (docId-independent).
      * Source "fallback_score": bulkScorer() returns null, falling back to per-doc scoring with score = 2.0.
      */
     public static class BulkScoringScriptEngine implements ScriptEngine {
@@ -455,9 +455,16 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
     /**
      * A simple bulk scorer that drives the sub-query's bulk scorer to discover matched docs,
-     * then assigns each document a score of (docId + 1) * boost.
+     * then assigns each document a score of BASE_SCORE * boost.
+     * <p>
+     * The base score is intentionally independent of the (segment-local) docId. With concurrent
+     * segment search, the bogus docs indexed by {@code indexRandomForConcurrentSearch} shift the
+     * segment-local docId of the real doc non-deterministically, so a docId-derived score would
+     * make assertions on absolute score values flaky.
      */
     private static class SimpleBulkScorer extends BulkScorer {
+
+        private static final float BASE_SCORE = 1.0f;
 
         private final BulkScorer subQueryBulkScorer;
         private final float boost;
@@ -484,7 +491,7 @@ public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchInt
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    currentScore[0] = (doc + 1) * boost;
+                    currentScore[0] = BASE_SCORE * boost;
                     collector.collect(doc);
                 }
             }, acceptDocs, min, max);

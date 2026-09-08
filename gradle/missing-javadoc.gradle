@@ -93,8 +93,6 @@ configure([
   project(":benchmarks"),
   project(":build-tools"),
   project(":build-tools:reaper"),
-  project(":client:benchmark"),
-  project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
   project(":libs:opensearch-cli"),

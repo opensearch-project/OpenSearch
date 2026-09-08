@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongLongHash;
 import org.opensearch.common.util.ReorganizingLongHash;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -106,6 +107,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public interface BucketOrdsEnum {
         /**
          * Advance to the next value.
+         *
          * @return {@code true} if there *is* a next value,
          *         {@code false} if there isn't
          */
@@ -156,7 +158,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long add(long owningBucketOrd, long value) {
-            // This is in the critical path for collecting most aggs. Be careful of performance.
+            // This is in the critical path for collecting most aggs. Be careful of
+            // performance.
             assert owningBucketOrd == 0;
             return ords.add(value);
         }
@@ -229,16 +232,30 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * @opensearch.internal
      */
     public static class FromMany extends LongKeyedBucketOrds {
+        private final BigArrays bigArrays;
         private final LongLongHash ords;
+        private long maxOwningBucketOrd = -1;
+        private LongArray bucketOrdsCounts;
 
         public FromMany(BigArrays bigArrays) {
+            this.bigArrays = bigArrays;
             ords = new LongLongHash(2, bigArrays);
+            bucketOrdsCounts = bigArrays.newLongArray(1, true);
         }
 
         @Override
         public long add(long owningBucketOrd, long value) {
-            // This is in the critical path for collecting most aggs. Be careful of performance.
-            return ords.add(owningBucketOrd, value);
+            // This is in the critical path for collecting most aggs. Be careful of
+            // performance.
+            long ord = ords.add(owningBucketOrd, value);
+            if (ord >= 0) {
+                if (owningBucketOrd > maxOwningBucketOrd) {
+                    maxOwningBucketOrd = owningBucketOrd;
+                    bucketOrdsCounts = bigArrays.grow(bucketOrdsCounts, owningBucketOrd + 1);
+                }
+                bucketOrdsCounts.increment(owningBucketOrd, 1);
+            }
+            return ord;
         }
 
         @Override
@@ -253,14 +270,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long bucketsInOrd(long owningBucketOrd) {
-            // TODO it'd be faster to count the number of buckets in a list of these ords rather than one at a time
-            long count = 0;
-            for (long i = 0; i < ords.size(); i++) {
-                if (ords.getKey1(i) == owningBucketOrd) {
-                    count++;
-                }
+            if (owningBucketOrd >= bucketOrdsCounts.size()) {
+                return 0;
             }
-            return count;
+            return bucketOrdsCounts.get(owningBucketOrd);
         }
 
         @Override
@@ -270,12 +283,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public long maxOwningBucketOrd() {
-            // TODO this is fairly expensive to compute. Can we avoid needing it?
-            long max = -1;
-            for (long i = 0; i < ords.size(); i++) {
-                max = Math.max(max, ords.getKey1(i));
-            }
-            return max;
+            return maxOwningBucketOrd;
         }
 
         @Override
@@ -314,6 +322,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public void close() {
             ords.close();
+            bucketOrdsCounts.close();
         }
     }
 }

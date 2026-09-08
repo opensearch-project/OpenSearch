@@ -43,6 +43,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -128,6 +129,7 @@ public final class EngineConfig {
     private final DataFormatRegistry dataFormatRegistry;
     private final MapperService mapperService;
     private final CommitterFactory committerFactory;
+    private final PrimaryOperationPolicy primaryOperationPolicy;
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
     @Nullable
     private final DocumentLookupProvider documentLookupProvider;
@@ -326,6 +328,9 @@ public final class EngineConfig {
         this.dataFormatRegistry = builder.dataFormatRegistry;
         this.mapperService = builder.mapperService;
         this.committerFactory = builder.committerFactory;
+        this.primaryOperationPolicy = builder.primaryOperationPolicy != null
+            ? builder.primaryOperationPolicy
+            : DefaultPrimaryOperationPolicy.INSTANCE;
         this.checksumStrategies = builder.checksumStrategies;
         this.documentLookupProvider = builder.documentLookupProvider;
         this.documentMetadataResolver = builder.documentMetadataResolver;
@@ -378,8 +383,13 @@ public final class EngineConfig {
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
             .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
+            .dataFormatRegistry(this.dataFormatRegistry)
+            .mapperService(this.mapperService)
+            .committerFactory(this.committerFactory)
+            .checksumStrategies(this.checksumStrategies)
             .documentLookupProvider(this.documentLookupProvider)
-            .documentMetadataResolver(this.documentMetadataResolver);
+            .documentMetadataResolver(this.documentMetadataResolver)
+            .primaryOperationPolicy(this.primaryOperationPolicy);
     }
 
     /**
@@ -617,6 +627,14 @@ public final class EngineConfig {
         ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
+         * Creates a tombstone document for a delete operation with routing.
+         * Default ignores routing for backward compatibility; override to preserve it.
+         */
+        default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+            return newDeleteTombstoneDoc(id);
+        }
+
+        /**
          * Creates a tombstone document for a noop operation.
          * @param reason the reason of an a noop
          */
@@ -668,6 +686,16 @@ public final class EngineConfig {
 
     public CommitterFactory getCommitterFactory() {
         return this.committerFactory;
+    }
+
+    /**
+     * Returns the policy describing how a writable primary sources sequence numbers and plans
+     * operations. Never {@code null}; defaults to {@link DefaultPrimaryOperationPolicy}, which
+     * reproduces the standard primary behavior.
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return this.primaryOperationPolicy;
     }
 
     public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
@@ -727,6 +755,7 @@ public final class EngineConfig {
         private DataFormatRegistry dataFormatRegistry;
         private MapperService mapperService;
         private CommitterFactory committerFactory;
+        private PrimaryOperationPolicy primaryOperationPolicy;
         private Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
         @Nullable
         private DocumentLookupProvider documentLookupProvider;
@@ -900,6 +929,16 @@ public final class EngineConfig {
 
         public Builder committerFactory(CommitterFactory committerFactory) {
             this.committerFactory = committerFactory;
+            return this;
+        }
+
+        /**
+         * Sets the indexing/sequence-number policy for a writable primary. A {@code null} value
+         * selects {@link DefaultPrimaryOperationPolicy}, which reproduces the standard behavior.
+         */
+        @ExperimentalApi
+        public Builder primaryOperationPolicy(@Nullable PrimaryOperationPolicy primaryOperationPolicy) {
+            this.primaryOperationPolicy = primaryOperationPolicy;
             return this;
         }
 

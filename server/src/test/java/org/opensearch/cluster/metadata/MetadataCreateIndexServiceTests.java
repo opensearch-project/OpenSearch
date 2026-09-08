@@ -4580,4 +4580,198 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
+
+    /**
+     * Template A (lower priority) defines @fields as a dynamic object.
+     * Template B (higher priority) defines a specific sub-field @fields.userstate as keyword.
+     * After merging, @fields should retain both the dynamic:true/type:object settings AND
+     * the specific userstate mapping. The regression in PR#19958 caused the dynamic/object
+     * settings to be dropped, breaking index creation for dynamic fields under @fields.
+     */
+    public void testV1TemplateMergingPreservesDynamicObjectWithSubFieldMapping() throws Exception {
+        // Template A (lower priority / later in list): defines @fields as dynamic object
+        CompressedXContent templateA = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true",
+                    "properties": {
+                      "status": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B (higher priority / earlier in list): defines specific sub-field @fields.userstate
+        CompressedXContent templateB = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B is higher priority (first in list), Template A is lower priority (second in list)
+        List<CompressedXContent> templates = Arrays.asList(templateB, templateA);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" },
+                                  "status": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Merged V1 template result should preserve dynamic object with all sub-fields", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Tests that V1 template merging correctly handles request mapping overriding template
+     * while still inheriting non-conflicting object-level settings from templates.
+     * This ensures that a request mapping defining only sub-fields of an object still
+     * inherits the object's type/dynamic settings from templates.
+     */
+    public void testV1RequestMappingInheritsObjectSettingsFromTemplate() throws Exception {
+        // Template defines @fields as dynamic object
+        CompressedXContent template = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true"
+                  }
+                }
+              }
+            }
+            """);
+
+        // Request mapping defines a specific sub-field under @fields
+        String requestMapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        List<CompressedXContent> templates = Collections.singletonList(template);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Request mapping should inherit object settings from template", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Stamping the fencing default must not validate the settings it is handed. {@code index.remote_store.enabled}
+     * carries a validator cross-checking {@code index.replication.type}, and this code also runs from snapshot
+     * restore's override-settings step, where restoring a remote-store snapshot onto a document-replication index is a
+     * combination the restore path itself has to reject with a {@code SnapshotRestoreException}. Reading the setting
+     * through {@code Setting#get} pre-empted that with an {@code IllegalArgumentException}, breaking
+     * {@code SearchReplicaRestoreIT}. The stamp only ever needed a boolean, so it reads the raw value.
+     */
+    public void testFencingDefaultStampDoesNotValidateReplicationTypeCompatibility() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        // The invalid pairing on purpose: remote store on, document replication.
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        // No exception, and the cluster default is still baked in - rejecting the pairing belongs to the caller.
+        assertTrue(
+            "fencing default should still be stamped for a remote-store index",
+            settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)
+        );
+    }
+
 }

@@ -76,9 +76,13 @@ public class SystemFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowString(oneRow("key00") + "| eval t = typeof(datetime0) | fields t", "TIMESTAMP");
     }
 
-    /** {@code typeof} on an arithmetic expression. {@code int0 * 2} stays INT. */
+    /**
+     * {@code typeof} on an integer arithmetic expression. Narrow integer operands are widened
+     * before {@code +}/{@code -}/{@code *} so the result cannot overflow the inferred type (see
+     * opensearch-project/sql#5603), so {@code int0 * 2} is BIGINT rather than INT.
+     */
     public void testTypeofArithmetic() throws IOException {
-        assertFirstRowString(oneRow("key00") + "| eval t = typeof(int0 * 2) | fields t", "INT");
+        assertFirstRowString(oneRow("key00") + "| eval t = typeof(int0 * 2) | fields t", "BIGINT");
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

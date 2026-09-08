@@ -40,7 +40,10 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
+import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -272,4 +275,90 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         }
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }
+
+    /**
+     * Reducing an {@link InternalScriptedMetric} together with an {@link InternalAvg} for the same
+     * aggregation name must not throw a {@code ClassCastException}. The {@link InternalAvg} is converted
+     * to a {@link ScriptedAvg} and blended into the final average.
+     */
+    public void testReduceAvgWithScriptedMetricDoesNotThrowAndBlends() {
+        Script reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, Collections.emptyMap());
+
+        // one input is an InternalScriptedMetric wrapping ScriptedAvg(sum, count)
+        InternalScriptedMetric scriptedMetric1 = new InternalScriptedMetric(
+            "avg_temp",
+            singletonList(new ScriptedAvg(41.0, 2)),
+            reduceScript,
+            null
+        );
+        InternalScriptedMetric scriptedMetric2 = new InternalScriptedMetric(
+            "avg_temp",
+            singletonList(new ScriptedAvg(241.0, 2)),
+            reduceScript,
+            null
+        );
+        // another input is a plain InternalAvg for the same aggregation name
+        InternalAvg internalAvg = new InternalAvg("avg_temp", 441.0, 2, DocValueFormat.RAW, null);
+
+        List<InternalAggregation> shards = new ArrayList<>();
+        shards.add(scriptedMetric1);
+        shards.add(scriptedMetric2);
+        shards.add(internalAvg);
+
+        InternalAggregation reduced = scriptedMetric1.reduce(
+            shards,
+            ReduceContext.forFinalReduction(null, avgBlendScriptService(), null, PipelineTree.EMPTY)
+        );
+
+        assertTrue(reduced instanceof InternalScriptedMetric);
+        // (41 + 241 + 441) / (2 + 2 + 2) = 723 / 6 = 120.5
+        assertEquals(120.5, (double) ((InternalScriptedMetric) reduced).aggregation(), 0.0);
+    }
+
+    /**
+     * Reducing an {@link InternalScriptedMetric} together with an unsupported aggregation type must fail
+     * fast with a clear error instead of silently dropping the aggregation from the result.
+     */
+    public void testReduceWithUnsupportedAggregationTypeThrows() {
+        Script reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, Collections.emptyMap());
+        InternalScriptedMetric scriptedMetric = new InternalScriptedMetric(
+            "agg",
+            singletonList(new ScriptedAvg(41.0, 2)),
+            reduceScript,
+            null
+        );
+        InternalMax max = new InternalMax("agg", 42.0, DocValueFormat.RAW, null);
+
+        List<InternalAggregation> shards = new ArrayList<>();
+        shards.add(scriptedMetric);
+        shards.add(max);
+
+        AggregationExecutionException e = expectThrows(
+            AggregationExecutionException.class,
+            () -> scriptedMetric.reduce(shards, ReduceContext.forFinalReduction(null, avgBlendScriptService(), null, PipelineTree.EMPTY))
+        );
+        assertTrue(e.getMessage().contains("[agg]"));
+        assertTrue(e.getMessage().contains("cannot be reduced together with a scripted metric aggregation"));
+    }
+
+    /**
+     * Script service whose reduce script blends {@link ScriptedAvg} states into a single average.
+     */
+    @SuppressWarnings("unchecked")
+    private ScriptService avgBlendScriptService() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> {
+            List<Object> states = (List<Object>) script.get("states");
+            double sum = 0;
+            long count = 0;
+            for (Object state : states) {
+                ScriptedAvg avg = (ScriptedAvg) state;
+                sum += avg.getSum();
+                count += avg.getCount();
+            }
+            return count == 0 ? 0.0 : sum / count;
+        }), Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
 }

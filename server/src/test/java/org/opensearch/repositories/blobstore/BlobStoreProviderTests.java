@@ -8,10 +8,13 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -115,6 +118,42 @@ public class BlobStoreProviderTests extends OpenSearchTestCase {
         assertSame(firstResult, secondResult);
         // Verify createServerSideEncryptedBlobStore is called only once
         verify(mockRepository, times(1)).createBlobStore();
+    }
+
+    public void testInitBlobStoreLogsTimeTaken() throws Exception {
+        when(mockLifecycle.started()).thenReturn(true);
+        when(mockMetadata.type()).thenReturn("test-type");
+        when(mockRepository.createBlobStore()).thenReturn(mockBlobStore);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(BlobStoreProvider.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "blob store init timing",
+                    BlobStoreProvider.class.getCanonicalName(),
+                    Level.INFO,
+                    "initialized blob store for repository [test-type][test-repository] in [*]"
+                )
+            );
+            provider.blobStore(false);
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testInitBlobStoreLogsTimeTakenOnFailure() throws Exception {
+        when(mockLifecycle.started()).thenReturn(true);
+        when(mockMetadata.type()).thenReturn("test-type");
+        when(mockRepository.createBlobStore()).thenThrow(new RuntimeException("blob store creation failed"));
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(BlobStoreProvider.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "blob store init timing",
+                    BlobStoreProvider.class.getCanonicalName(),
+                    Level.INFO,
+                    "initialized blob store for repository [test-type][test-repository] in [*]"
+                )
+            );
+            expectThrows(RepositoryException.class, () -> provider.blobStore(false));
+            appender.assertAllExpectationsMatched();
+        }
     }
 
     public void testInitBlobStoreWhenLifecycleNotStarted() {

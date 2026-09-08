@@ -32,6 +32,10 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -64,6 +68,7 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
@@ -77,7 +82,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
@@ -88,6 +95,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -125,6 +133,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+@ThreadLeakFilters(filters = ResponseInputStreamTimeoutThreadFilter.class)
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
@@ -219,6 +228,312 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertThrows(BlobStoreException.class, () -> blobContainer.blobExists(blobName));
         verify(client, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testConditionalWriteSupported() {
+        assertTrue(new S3BlobContainer(new BlobPath(), mock(S3BlobStore.class)).isConditionalWriteSupported());
+    }
+
+    public void testReadBlobWithVersionReturnsETagAsVersionToken() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final String eTag = "\"" + UUID.randomUUID() + "\"";
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+
+        final S3Client client = mock(S3Client.class);
+        final ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        when(client.getObjectAsBytes(captor.capture())).thenReturn(
+            ResponseBytes.fromByteArray(GetObjectResponse.builder().eTag(eTag).build(), payload)
+        );
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final VersionedBlob blob = new S3BlobContainer(new BlobPath(), blobStore).readBlobWithVersion(blobName);
+        assertArrayEquals(payload, blob.content());
+        assertEquals(eTag, blob.versionToken());
+        // The transfer is bounded by a ranged GET so an oversized object at this key cannot be buffered whole
+        assertEquals("bytes=0-" + ByteSizeUnit.MB.toBytes(1), captor.getValue().range());
+    }
+
+    public void testReadBlobWithVersionRejectsOversizedBlob() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+        final long sizeBound = randomIntBetween(1, 512);
+        when(blobStore.bufferSizeInBytes()).thenReturn(sizeBound);
+
+        final S3Client client = mock(S3Client.class);
+        when(client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(
+            ResponseBytes.fromByteArray(GetObjectResponse.builder().eTag("\"etag\"").build(), randomByteArrayOfLength((int) sizeBound + 1))
+        );
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+        final IOException e = expectThrows(IOException.class, () -> blobContainer.readBlobWithVersion("oversized"));
+        assertTrue(e.getMessage(), e.getMessage().contains("too large"));
+    }
+
+    /**
+     * The other half of {@link #testReadBlobWithVersionRejectsOversizedBlob}: an object of exactly the bound is
+     * accepted. HTTP byte ranges are inclusive, so {@code bytes=0-N} asks for N+1 bytes - one more than the limit,
+     * deliberately. That extra byte is what makes "too large" detectable without buffering the whole object: an object
+     * at the bound comes back whole and passes, one over comes back truncated to bound+1 and trips the check. The pair
+     * pins both sides so neither a truncation nor an escape can be introduced silently.
+     */
+    public void testReadBlobWithVersionAcceptsBlobExactlyAtSizeBound() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+        final long sizeBound = randomIntBetween(1, 512);
+        when(blobStore.bufferSizeInBytes()).thenReturn(sizeBound);
+
+        final byte[] exactlyAtBound = randomByteArrayOfLength((int) sizeBound);
+        final S3Client client = mock(S3Client.class);
+        final ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        when(client.getObjectAsBytes(captor.capture())).thenReturn(
+            ResponseBytes.fromByteArray(GetObjectResponse.builder().eTag("\"etag\"").build(), exactlyAtBound)
+        );
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final VersionedBlob blob = new S3BlobContainer(new BlobPath(), blobStore).readBlobWithVersion("at-bound");
+        assertArrayEquals("an object of exactly the size bound must not be rejected", exactlyAtBound, blob.content());
+        // Matches the write side, which rejects only blobSize > bufferSizeInBytes.
+        assertEquals("bytes=0-" + sizeBound, captor.getValue().range());
+    }
+
+    public void testReadBlobWithVersionOnMissingBlobThrowsNoSuchFile() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+
+        final S3Client client = mock(S3Client.class);
+        when(client.getObjectAsBytes(any(GetObjectRequest.class))).thenThrow(NoSuchKeyException.builder().build());
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+        expectThrows(NoSuchFileException.class, () -> blobContainer.readBlobWithVersion("missing"));
+    }
+
+    /** Transport-level SDK failures (no HTTP response at all) surface as plain retryable IOExceptions on both paths. */
+    public void testConditionalPathsTranslateSdkTransportFailuresToIOException() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+
+        final S3Client client = mock(S3Client.class);
+        when(client.getObjectAsBytes(any(GetObjectRequest.class))).thenThrow(SdkException.builder().message("no route").build());
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(
+            SdkException.builder().message("no route").build()
+        );
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+        final IOException read = expectThrows(IOException.class, () -> blobContainer.readBlobWithVersion("fence"));
+        assertFalse(read instanceof BlobVersionConflictException);
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 64));
+        final IOException write = expectThrows(
+            IOException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, null)
+        );
+        assertFalse(write instanceof BlobVersionConflictException);
+    }
+
+    public void testWriteBlobConditionallyCreateIfAbsentSetsIfNoneMatch() throws IOException {
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final String eTag = "\"" + UUID.randomUUID() + "\"";
+        final ArgumentCaptor<PutObjectRequest> captor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final S3BlobContainer blobContainer = conditionalWriteContainer(captor, PutObjectResponse.builder().eTag(eTag).build(), null);
+
+        final String token = blobContainer.writeBlobConditionally(
+            "fence",
+            new ByteArrayInputStream(payload),
+            payload.length,
+            null // create-if-absent
+        );
+
+        assertEquals(eTag, token);
+        assertEquals("*", captor.getValue().ifNoneMatch());
+        assertNull(captor.getValue().ifMatch());
+    }
+
+    public void testWriteBlobConditionallyWithTokenSetsIfMatch() throws IOException {
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final String expectedToken = "\"" + UUID.randomUUID() + "\"";
+        final String newETag = "\"" + UUID.randomUUID() + "\"";
+        final ArgumentCaptor<PutObjectRequest> captor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final S3BlobContainer blobContainer = conditionalWriteContainer(captor, PutObjectResponse.builder().eTag(newETag).build(), null);
+
+        final String token = blobContainer.writeBlobConditionally(
+            "fence",
+            new ByteArrayInputStream(payload),
+            payload.length,
+            expectedToken
+        );
+
+        assertEquals(newETag, token);
+        assertEquals(expectedToken, captor.getValue().ifMatch());
+        assertNull(captor.getValue().ifNoneMatch());
+    }
+
+    public void testWriteBlobConditionallyTranslatesPreconditionFailures() {
+        final S3Exception[] conflicts = new S3Exception[] {
+            // 412 is unambiguous, with or without an error code
+            (S3Exception) S3Exception.builder().statusCode(412).message("precondition failed").build(),
+            s3Exception(412, "PreconditionFailed"),
+            s3Exception(409, "PreconditionFailed") };
+        for (S3Exception conflict : conflicts) {
+            final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+            final S3BlobContainer blobContainer = conditionalWriteContainer(
+                ArgumentCaptor.forClass(PutObjectRequest.class),
+                null,
+                conflict
+            );
+            expectThrows(
+                BlobVersionConflictException.class,
+                () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"stale\"")
+            );
+        }
+    }
+
+    /**
+     * A lost CAS is fatal for a fenced writer, so retryable 409s such as {@code OperationAborted} must not be
+     * mistaken for one.
+     */
+    public void testWriteBlobConditionallyDoesNotTreatRetryableConflictsAsLostCas() {
+        final S3Exception[] retryable = new S3Exception[] {
+            s3Exception(409, "OperationAborted"),
+            // a conflicting conditional write IN PROGRESS: the outcome of this request's precondition is unknown,
+            // so it must be retried - the retry answers definitively (412 = genuinely lost, success = not lost)
+            s3Exception(409, "ConditionalRequestConflict"),
+            // an unlabelled 409 is not evidence that the precondition failed
+            (S3Exception) S3Exception.builder().statusCode(409).message("conflict").build() };
+        for (S3Exception error : retryable) {
+            final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+            final S3BlobContainer blobContainer = conditionalWriteContainer(ArgumentCaptor.forClass(PutObjectRequest.class), null, error);
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+            );
+            assertFalse("[" + error + "] must not be reported as a lost CAS", e instanceof BlobVersionConflictException);
+        }
+    }
+
+    /**
+     * S3 fails an {@code If-Match} write with 404 {@code NoSuchKey} rather than 412 when the key has no current
+     * version at all - deleted, or a delete marker. The version the caller presented provably no longer exists, so
+     * this is a definitively lost CAS, not a retryable error: it is exactly what a swept acknowledgement path looks
+     * like to a superseded writer, which must fence terminally instead of retrying forever. Matches
+     * {@code FsBlobContainer}, which also reports a conflict for a missing blob.
+     */
+    public void testWriteBlobConditionallyTreatsIfMatchOnDeletedKeyAsLostCas() {
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final S3BlobContainer blobContainer = conditionalWriteContainer(
+            ArgumentCaptor.forClass(PutObjectRequest.class),
+            null,
+            s3Exception(404, "NoSuchKey")
+        );
+        expectThrows(
+            BlobVersionConflictException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+        );
+    }
+
+    /**
+     * The 404 classification is scoped tightly: only {@code NoSuchKey} on an {@code If-Match} write is evidence about
+     * the precondition. A 404 without that code (e.g. {@code NoSuchBucket}, or an unlabelled response) is an
+     * infrastructure error and stays retryable, and a create-if-absent ({@code If-None-Match: *}) never 404s on the
+     * object itself, so a 404 there is never a lost CAS.
+     */
+    public void testWriteBlobConditionallyDoesNotTreatOtherNotFoundAsLostCas() {
+        // If-Match, but the 404 does not prove the key is gone
+        final S3Exception[] retryable = new S3Exception[] {
+            s3Exception(404, "NoSuchBucket"),
+            (S3Exception) S3Exception.builder().statusCode(404).message("not found").build() };
+        for (S3Exception error : retryable) {
+            final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+            final S3BlobContainer blobContainer = conditionalWriteContainer(ArgumentCaptor.forClass(PutObjectRequest.class), null, error);
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+            );
+            assertFalse("[" + error + "] must not be reported as a lost CAS", e instanceof BlobVersionConflictException);
+        }
+
+        // create-if-absent: even NoSuchKey is not a precondition verdict
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final S3BlobContainer blobContainer = conditionalWriteContainer(
+            ArgumentCaptor.forClass(PutObjectRequest.class),
+            null,
+            s3Exception(404, "NoSuchKey")
+        );
+        final IOException e = expectThrows(
+            IOException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, null)
+        );
+        assertFalse(e instanceof BlobVersionConflictException);
+    }
+
+    public void testWriteBlobConditionallyPropagatesOtherS3Errors() {
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final S3BlobContainer blobContainer = conditionalWriteContainer(
+            ArgumentCaptor.forClass(PutObjectRequest.class),
+            null,
+            S3Exception.builder().statusCode(500).message("boom").build()
+        );
+        final IOException e = expectThrows(
+            IOException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(payload), payload.length, "\"token\"")
+        );
+        assertFalse(e instanceof BlobVersionConflictException);
+    }
+
+    private static S3Exception s3Exception(int statusCode, String errorCode) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(statusCode)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+            .message(errorCode)
+            .build();
+    }
+
+    public void testWriteBlobConditionallyRejectsOversizedPayload() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+        final long blobSize = ByteSizeUnit.MB.toBytes(2);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.writeBlobConditionally("fence", new ByteArrayInputStream(new byte[0]), blobSize, null)
+        );
+        assertEquals("Conditional write request size [" + blobSize + "] can't be larger than buffer size", e.getMessage());
+    }
+
+    private S3BlobContainer conditionalWriteContainer(
+        ArgumentCaptor<PutObjectRequest> captor,
+        PutObjectResponse response,
+        RuntimeException failure
+    ) {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(randomAlphaOfLengthBetween(1, 10));
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
+        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+
+        final S3Client client = mock(S3Client.class);
+        if (failure != null) {
+            when(client.putObject(captor.capture(), any(RequestBody.class))).thenThrow(failure);
+        } else {
+            when(client.putObject(captor.capture(), any(RequestBody.class))).thenReturn(response);
+        }
+        when(blobStore.clientReference()).thenReturn(new AmazonS3Reference(client));
+        return new S3BlobContainer(new BlobPath(), blobStore);
     }
 
     private static class MockListObjectsV2ResponseIterator implements Iterator<ListObjectsV2Response> {

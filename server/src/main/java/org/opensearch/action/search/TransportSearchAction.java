@@ -494,7 +494,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
             try {
-                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, indexNameExpressionResolver);
+                final Task parentTask = extractParentTask(originalSearchRequest);
+                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
                 listener = searchRequest.transformResponseListener(updatedListener);
             } catch (Exception e) {
                 updatedListener.onFailure(e);
@@ -523,6 +524,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }, listener::onFailure);
             searchRequest.transformRequest(requestTransformListener);
         }
+    }
+
+    private Task extractParentTask(final SearchRequest searchRequest) {
+        TaskId taskId = searchRequest.getParentTask();
+        if (taskId != null && taskId != TaskId.EMPTY_TASK_ID) {
+            return taskManager.getTask(taskId.getId());
+        }
+        return null;
     }
 
     private ActionListener<SearchSourceBuilder> buildRewriteListener(

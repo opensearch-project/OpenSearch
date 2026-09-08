@@ -446,7 +446,7 @@ A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libra
 
 There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client.
 
-Use [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Use [Gradle Shadow plugin](https://gradleup.com/shadow/).
 Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
 
 ```
@@ -460,7 +460,7 @@ Run the `shadowJar` command using:
 
 This will generate a fat-JAR in the `build/distributions` folder of the module, e.g. .`/client/rest-high-level/build/distributions/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar`.
 
-You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
+You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://gradleup.com/shadow/).
 
 To use the generated JAR, install the JAR locally, e.g.
 ```

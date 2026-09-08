@@ -390,6 +390,22 @@ impl NativeParquetWriter {
         let temp_filename = Self::temp_filename(filename);
         WRITERS.contains_key(&temp_filename)
     }
+
+    /// Removes the writer entry for `filename` from the registry without finalizing it, dropping the
+    /// underlying writer (which closes its file handle and releases its memory reservation).
+    ///
+    /// Idempotent: returns `Ok(())` whether or not an entry existed. Called by the shard
+    /// close / going-red flow so that a writer left behind by a failed operation (e.g. an Arrow OOM
+    /// that failed the shard before finalize could run) does not survive as a stale entry and block
+    /// the next `create_writer` — which is what recovery does when it re-creates a writer for the
+    /// same generation/file.
+    pub fn cleanup_writer(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let temp_filename = Self::temp_filename(filename);
+        if WRITERS.remove(&temp_filename).is_some() {
+            log_info!("Cleaned up writer entry for {}", temp_filename);
+        }
+        Ok(())
+    }
     /// Build the temp filename by prepending "temp-" to the basename.
     fn temp_filename(filename: &str) -> String {
         let path = Path::new(filename);
@@ -428,8 +444,16 @@ impl NativeParquetWriter {
         let temp_filename = Self::temp_filename(&filename);
 
         if WRITERS.contains_key(&temp_filename) {
-            log_error!("ERROR: Writer already exists for file: {}", temp_filename);
-            return Err("Writer already exists for this file".into());
+            // A stale entry survived a prior failure (e.g. an Arrow OOM that failed the shard before
+            // the writer could be finalized). Rather than reject — which permanently blocks shard
+            // recovery, since recovery re-creates a writer for the same generation/file — remove the
+            // stale entry (dropping the old writer, closing its file handle and releasing its
+            // reservation) and proceed to create a fresh writer.
+            log_error!(
+                "Stale writer entry already exists for file: {} — removing it before re-create (likely a prior failed shard / Arrow OOM)",
+                temp_filename
+            );
+            WRITERS.remove(&temp_filename);
         }
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };

@@ -15,6 +15,7 @@ import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rex.RexLiteral;
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -24,11 +25,17 @@ public class SortConverterTests extends OpenSearchTestCase {
     private final SortConverter converter = new SortConverter();
     private final LogicalTableScan scan = TestUtils.createTestRelNode();
 
-    public void testSkipsWhenDefaultPagination() throws ConversionException {
+    /** Even default pagination must emit fetch: without it no LIMIT reaches the engine. */
+    public void testDefaultPaginationEmitsDefaultFetch() throws ConversionException {
         ConversionContext ctx = TestUtils.createContext(new SearchSourceBuilder());
         RelNode result = converter.convert(scan, ctx);
 
-        assertSame(scan, result);
+        assertTrue(result instanceof LogicalSort);
+        LogicalSort sort = (LogicalSort) result;
+        assertTrue(sort.getCollation().getFieldCollations().isEmpty());
+        assertNull(sort.offset);
+        assertNotNull(sort.fetch);
+        assertEquals(SearchService.DEFAULT_SIZE, RexLiteral.intValue(sort.fetch));
     }
 
     public void testSortDescending() throws ConversionException {
