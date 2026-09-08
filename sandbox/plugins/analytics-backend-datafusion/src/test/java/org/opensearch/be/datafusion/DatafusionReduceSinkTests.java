@@ -35,7 +35,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -63,7 +62,7 @@ import io.substrait.extension.SimpleExtension;
  * </ul>
  */
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class DatafusionReduceSinkTests extends OpenSearchTestCase {
+public class DatafusionReduceSinkTests extends NativeSpillDirTestCase {
 
     public void testArrowSchemaIpcEncodesSchema() {
         Schema schema = new Schema(List.of(new Field("message", FieldType.notNullable(new ArrowType.Int(64, true)), null)));
@@ -106,7 +105,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testFeedDrainsSumToDownstream() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
@@ -235,7 +234,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testReduceWithLimitProducesLimitedOutput() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -280,7 +279,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testDrainTaskKeepsUpWithProducer() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -334,7 +333,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testReduceProducesOutputIncrementallyForPipelinedPlan() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -410,7 +409,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testCloseWhileFeederParkedOnFullChannelDoesNotDeadlock() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -481,7 +480,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testCancelBeforeFirstBatchUnwindsDrain() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -530,7 +529,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testCancelAfterFirstBatchUnwindsDrain() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
@@ -577,7 +576,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      */
     public void testDoubleCloseIsIdempotent() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
-        Path spillDir = createTempDir("datafusion-spill");
+        Path spillDir = newSpillDir();
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
 
