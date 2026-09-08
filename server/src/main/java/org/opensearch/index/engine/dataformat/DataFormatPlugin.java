@@ -13,10 +13,12 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -54,6 +56,26 @@ public interface DataFormatPlugin {
      * instantiated per shard.
      */
     IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
+
+    /**
+     * Returns the mapping parameters this plugin contributes to the core field mapper of the given content type
+     * (e.g. {@code keyword}, {@code text}), as {@link ParametrizedFieldMapper.Parameter} instances; empty by default.
+     *
+     * <p>Contribution is scoped to the format(s) the index actually uses: the registry resolves the index's active
+     * data format from {@code indexSettings} and only calls the applicable plugin. Composite plugins override this to
+     * fan out to their primary and secondary formats via {@code dataFormatRegistry}.
+     *
+     * @param contentType        the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings      the index settings, used to resolve the active data format(s)
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     */
+    default List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        return List.of();
+    }
 
     /**
      * Returns format descriptor suppliers for this plugin, filtered by the

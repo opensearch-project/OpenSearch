@@ -86,10 +86,12 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -132,6 +134,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -227,6 +230,79 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Returns a {@link Setting.Validator} that rejects updates when the snapshot resilience feature flag is disabled.
+     */
+    private static <T> Setting.Validator<T> snapshotResilienceValidator(String settingKey) {
+        return new Setting.Validator<T>() {
+            @Override
+            public void validate(T value) {
+                if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING) == false) {
+                    throw new IllegalArgumentException(
+                        "setting ["
+                            + settingKey
+                            + "] cannot be modified while feature flag ["
+                            + FeatureFlags.SNAPSHOT_RESILIENCE
+                            + "] is disabled"
+                    );
+                }
+            }
+        };
+    }
+
+    private static final String IO_TIMEOUT_KEY = "snapshot.repository.io_timeout";
+    private static final String MAX_OUTSTANDING_OPS_KEY = "snapshot.repository.max_outstanding_ops";
+    private static final String CLEANUP_STALE_BLOBS_KEY = "snapshot.delete.cleanup_stale_blobs";
+
+    /**
+     * Setting that specifies the time budget for snapshot repository I/O operations on the cluster-manager node
+     * (finalization, deletion). Operations exceeding this budget are treated as failures.
+     * Only modifiable when the snapshot resilience feature flag is enabled.
+     */
+    public static final Setting<TimeValue> SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING = new Setting<>(
+        IO_TIMEOUT_KEY,
+        TimeValue.timeValueMinutes(30).getStringRep(),
+        (s) -> {
+            TimeValue value = TimeValue.parseTimeValue(s, IO_TIMEOUT_KEY);
+            if (value.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
+                throw new IllegalArgumentException("setting [" + IO_TIMEOUT_KEY + "] must be at least [1s], got [" + value + "]");
+            }
+            return value;
+        },
+        snapshotResilienceValidator(IO_TIMEOUT_KEY),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting that specifies the maximum number of outstanding (dispatched but uncompleted) cluster-manager-side
+     * repository blob operations per repository. Past this limit, further operations fail fast with a
+     * "repository unreachable" error instead of parking another thread.
+     * Only modifiable when the snapshot resilience feature flag is enabled.
+     */
+    public static final Setting<Integer> SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING = Setting.intSetting(
+        MAX_OUTSTANDING_OPS_KEY,
+        4,
+        1,
+        snapshotResilienceValidator(MAX_OUTSTANDING_OPS_KEY),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting that controls whether a successful snapshot delete should opportunistically reclaim storage
+     * orphaned by previously interrupted deletes.
+     * Only modifiable when the snapshot resilience feature flag is enabled.
+     */
+    public static final Setting<Boolean> SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING = Setting.boolSetting(
+        CLEANUP_STALE_BLOBS_KEY,
+        true,
+        snapshotResilienceValidator(CLEANUP_STALE_BLOBS_KEY),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -272,6 +348,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
+            maxRetries = SNAPSHOT_CLEANUP_RETRIES_SETTING.get(settings);
+            retryBackoff = SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING.get(settings);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRIES_SETTING, i -> maxRetries = i);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING, t -> retryBackoff = t);
         }
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
@@ -2242,14 +2322,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void handleFinalizationFailure(Exception e, SnapshotsInProgress.Entry entry, RepositoryData repositoryData) {
         Snapshot snapshot = entry.snapshot();
         if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class, FailedToCommitClusterStateException.class) != null) {
-            // Failure due to not being cluster-manager any more, don't try to remove snapshot from cluster state the next cluster-manager
-            // will try ending this snapshot again
             logger.debug(() -> new ParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
-            failSnapshotCompletionListeners(
-                snapshot,
-                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
-            );
-            failAllListenersOnMasterFailOver(e);
+            if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)
+                && ExceptionsHelper.unwrap(e, FailedToCommitClusterStateException.class) != null) {
+                removeFailedSnapshotFromClusterState(snapshot, e, repositoryData, null);
+            } else {
+                failSnapshotCompletionListeners(
+                    snapshot,
+                    new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
+                );
+                failAllListenersOnMasterFailOver(e);
+            }
         } else {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
             removeFailedSnapshotFromClusterState(snapshot, e, repositoryData, null);
@@ -2412,44 +2495,54 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         if (changed) {
             logger.info("Cleaning up in progress v2 snapshots now");
-            clusterService.submitStateUpdateTask(
-                "remove in progress snapshot v2 after cluster manager switch",
-                new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                        boolean changed = false;
-                        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-                        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                            if (entry.remoteStoreIndexShallowCopyV2()) {
-                                changed = true;
-                            } else {
-                                entries.add(entry);
-                            }
-                        }
-                        if (changed) {
-                            return ClusterState.builder(currentState)
-                                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries)))
-                                .build();
-                        } else {
-                            return currentState;
-                        }
-                    }
+            final String source = "remove in progress snapshot v2 after cluster manager switch";
+            final int attempt = 0;
+            clusterService.submitStateUpdateTask(source, createStateWithoutSnapshotV2Task(source, attempt));
+        }
+    }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        // execute never fails , so we should never hit this.
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to remove in progress snapshot v2 state after cluster manager switch {}",
-                                e
-                            ),
-                            e
-                        );
+    ClusterStateUpdateTask createStateWithoutSnapshotV2Task(String source, int attempt) {
+        return new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                boolean changed = false;
+                ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+                for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+                    if (entry.remoteStoreIndexShallowCopyV2()) {
+                        changed = true;
+                    } else {
+                        entries.add(entry);
                     }
                 }
-            );
-        }
+                if (changed) {
+                    return ClusterState.builder(currentState)
+                        .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries)))
+                        .build();
+                } else {
+                    return currentState;
+                }
+            }
+
+            @Override
+            public void onFailure(String src, Exception e) {
+                logger.warn(
+                    () -> new ParameterizedMessage("failed to remove in progress snapshot v2 state after cluster manager switch {}", e),
+                    e
+                );
+                if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)) {
+                    retryOrFailOnClusterManagerFailOver(
+                        e,
+                        attempt,
+                        source,
+                        () -> createStateWithoutSnapshotV2Task(source, attempt + 1),
+                        () -> {
+                            logger.error("Giving up on removing v2 snapshot state after {} attempts", attempt + 1);
+                        }
+                    );
+                }
+            }
+        };
     }
 
     /**
@@ -2470,12 +2563,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Nullable CleanupAfterErrorListener listener
     ) {
         assert failure != null : "Failure must be supplied";
-        clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
+        final String source = "remove snapshot metadata";
+        final int attempt = 0;
+        clusterService.submitStateUpdateTask(
+            source,
+            createRemoveFailedSnapshotTask(source, attempt, snapshot, failure, repositoryData, listener)
+        );
+    }
+
+    ClusterStateUpdateTask createRemoveFailedSnapshotTask(
+        String source,
+        int attempt,
+        Snapshot snapshot,
+        Exception failure,
+        @Nullable RepositoryData repositoryData,
+        @Nullable CleanupAfterErrorListener listener
+    ) {
+        return new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot);
-                // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return updateWithSnapshots(
                     updatedState,
                     null,
@@ -2488,30 +2596,43 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(String src, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
-                failSnapshotCompletionListeners(
-                    snapshot,
-                    new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
-                );
-                failAllListenersOnMasterFailOver(e);
-                if (listener != null) {
-                    listener.onFailure(e);
+                final Runnable fallback = () -> {
+                    failSnapshotCompletionListeners(
+                        snapshot,
+                        new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
+                    );
+                    failAllListenersOnMasterFailOver(e);
+                    if (listener != null) {
+                        listener.onFailure(e);
+                    }
+                };
+                if (FeatureFlags.isEnabled(FeatureFlags.SNAPSHOT_RESILIENCE_SETTING)) {
+                    retryOrFailOnClusterManagerFailOver(
+                        e,
+                        attempt,
+                        source,
+                        () -> createRemoveFailedSnapshotTask(source, attempt + 1, snapshot, failure, repositoryData, listener),
+                        fallback
+                    );
+                } else {
+                    fallback.run();
                 }
             }
 
             @Override
-            public void onNoLongerClusterManager(String source) {
+            public void onNoLongerClusterManager(String src) {
                 failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
-                failAllListenersOnMasterFailOver(new NotClusterManagerException(source));
+                failAllListenersOnMasterFailOver(new NotClusterManagerException(src));
                 if (listener != null) {
                     listener.onNoLongerClusterManager();
                 }
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(String src, ClusterState oldState, ClusterState newState) {
                 failSnapshotCompletionListeners(snapshot, failure);
                 if (listener == null) {
                     if (repositoryData != null) {
@@ -2521,7 +2642,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     listener.onFailure(null);
                 }
             }
-        });
+        };
     }
 
     /**
@@ -3179,6 +3300,84 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             currentlyFinalizing.clear();
         }
+    }
+
+    /**
+     * Maximum number of retries for a cluster state publish failure while the node is still cluster-manager.
+     */
+    public static final Setting<Integer> SNAPSHOT_CLEANUP_RETRIES_SETTING = Setting.intSetting(
+        "snapshot.cleanup.retries",
+        3,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Initial backoff duration for cleanup retries. Each subsequent retry doubles this value.
+     */
+    public static final Setting<TimeValue> SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING = Setting.timeSetting(
+        "snapshot.cleanup.retry_backoff",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private volatile int maxRetries;
+    private volatile TimeValue retryBackoff;
+
+    /**
+     * Handles a cluster-state-update onFailure by either retrying (if the publish failed but this node is still the
+     * cluster-manager) or falling back to the existing failover behavior. Without this, a publish failure on a stable
+     * cluster-manager strands the in-progress snapshot marker forever, blocking index deletion and close.
+     *
+     * @param e               the exception from onFailure
+     * @param attempt         current attempt number (0-based)
+     * @param source          the cluster state update source string
+     * @param taskFactory     supplier that creates a NEW task instance per retry (TaskBatcher rejects same-identity resubmit)
+     * @param failoverFallback the existing fallback behavior to run when retries are exhausted or not applicable
+     */
+    void retryOrFailOnClusterManagerFailOver(
+        Exception e,
+        int attempt,
+        String source,
+        Supplier<ClusterStateUpdateTask> taskFactory,
+        Runnable failoverFallback
+    ) {
+        if (ExceptionsHelper.unwrap(e, NotClusterManagerException.class) != null) {
+            failoverFallback.run();
+            return;
+        }
+        if (ExceptionsHelper.unwrap(e, FailedToCommitClusterStateException.class) == null) {
+            logger.error("Unexpected failure during cluster state update", e);
+            failoverFallback.run();
+            assert false : new AssertionError("Unexpected failure during cluster state update", e);
+            return;
+        }
+        if (attempt >= maxRetries) {
+            logger.warn("Exhausted {} retries for [{}], falling back to failover handling", maxRetries, source);
+            failoverFallback.run();
+            return;
+        }
+        final int nextAttempt = attempt + 1;
+        final TimeValue delay = computeBackoff(retryBackoff, attempt);
+        logger.info("Publish failed for [{}] (attempt {}), scheduling retry in [{}]", source, nextAttempt, delay);
+        try {
+            threadPool.schedule(() -> clusterService.submitStateUpdateTask(source, taskFactory.get()), delay, ThreadPool.Names.GENERIC);
+        } catch (OpenSearchRejectedExecutionException ex) {
+            logger.warn("Retry scheduling rejected for [{}], falling back to failover handling", source);
+            failoverFallback.run();
+        }
+    }
+
+    /**
+     * Computes the exponential backoff for a given attempt. The shift is capped to avoid overflow and the resulting
+     * delay is clamped to a sane maximum in case maxRetries/retryBackoff are configured to large values.
+     */
+    static TimeValue computeBackoff(TimeValue base, int attempt) {
+        final long delayMillis = Math.max(0L, Math.min(base.millis() * (1L << Math.min(attempt, 30)), TimeValue.timeValueDays(1).millis()));
+        return TimeValue.timeValueMillis(delayMillis);
     }
 
     /**

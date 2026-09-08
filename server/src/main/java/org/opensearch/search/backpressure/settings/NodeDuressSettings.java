@@ -10,8 +10,10 @@ package org.opensearch.search.backpressure.settings;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 
 /**
  * Defines the settings for a node to be considered in duress.
@@ -89,19 +91,47 @@ public class NodeDuressSettings {
     );
 
     /**
-     * Absolute native-memory budget for this node, in bytes, scoped to the search-backpressure
-     * duress probe. Independent from the node-level resource-tracker's
-     * {@code node.native_memory.limit} so the two features can be tuned separately. When this
-     * value is {@link ByteSizeValue#ZERO} (default), the duress probe treats the budget as
-     * unconfigured and stays inert.
+     * @deprecated Use {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}
+     *             ({@code node.native_memory.limit}) instead. This key is retained solely for
+     *             BWC upgrade migration via {@link #NATIVE_MEMORY_LIMIT_UPGRADER}; it is no
+     *             longer read at runtime.
      */
-    private volatile ByteSizeValue nodeNativeMemory;
-    public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
+    @Deprecated
+    public static final Setting<ByteSizeValue> SETTING_NATIVE_MEMORY_LIMIT_LEGACY = Setting.byteSizeSetting(
         "search_backpressure.node_duress.native_memory_limit",
         ByteSizeValue.ZERO,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
+
+    /**
+     * Upgrades the legacy {@code search_backpressure.node_duress.native_memory_limit} key
+     * to the unified {@code node.native_memory.limit} key during cluster-state recovery.
+     * Wired into {@link org.opensearch.common.settings.ClusterSettings#BUILT_IN_SETTING_UPGRADERS}
+     * so the migration happens automatically on the first node startup after upgrade.
+     */
+    public static final SettingUpgrader<ByteSizeValue> NATIVE_MEMORY_LIMIT_UPGRADER = new SettingUpgrader<ByteSizeValue>() {
+        @Override
+        public Setting<ByteSizeValue> getSetting() {
+            return SETTING_NATIVE_MEMORY_LIMIT_LEGACY;
+        }
+
+        @Override
+        public String getKey(final String key) {
+            return ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey();
+        }
+    };
+
+    /**
+     * Absolute native-memory budget for this node in bytes, used by the search-backpressure
+     * duress probe. Reads from the shared node-level setting
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING} ({@code node.native_memory.limit})
+     * so that a single cluster-level configuration drives both Admission Control and Search
+     * Back Pressure. When the shared setting is {@link ByteSizeValue#ZERO} (unconfigured), the
+     * duress probe stays inert.
+     */
+    private volatile ByteSizeValue nodeNativeMemory;
 
     public NodeDuressSettings(Settings settings, ClusterSettings clusterSettings) {
         numSuccessiveBreaches = SETTING_NUM_SUCCESSIVE_BREACHES.get(settings);
@@ -116,8 +146,8 @@ public class NodeDuressSettings {
         nativeMemoryThreshold = SETTING_NATIVE_MEMORY_THRESHOLD.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_THRESHOLD, this::setNativeMemoryThreshold);
 
-        nodeNativeMemory = NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNodeNativeMemory);
+        nodeNativeMemory = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNodeNativeMemory);
     }
 
     public int getNumSuccessiveBreaches() {

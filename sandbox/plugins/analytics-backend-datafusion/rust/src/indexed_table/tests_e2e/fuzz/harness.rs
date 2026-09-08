@@ -29,6 +29,7 @@ use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
 use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{RowGroupBitsetSource, TreeBitsetSource};
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::stream::{FilterStrategy, RowGroupInfo};
@@ -46,7 +47,11 @@ struct MockCollector {
 }
 
 impl RowGroupDocsCollector for MockCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -55,7 +60,7 @@ impl RowGroupDocsCollector for MockCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -105,6 +110,7 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
             parquet_size: size,
             row_groups: rgs,
             metadata: Arc::clone(&parquet_meta),
+            arrow_schema: meta.schema().clone(),
             global_base: 0,
             sort_min: None,
             sort_max: None,
@@ -244,7 +250,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
         let pruning_predicates = Arc::clone(&pruning_predicates);
         Arc::new(move |segment, chunk, stream_metrics, stats_prune_tree| {
             let resolved = tree.resolve(&per_leaf)?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let rg_index_to_pos: HashMap<usize, usize> = chunk
                 .row_group_indices
                 .iter()
@@ -254,9 +264,9 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_with_plan_pushdown
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(CollectorLeafBitmaps {
-                    ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
-                }),
+                leaves: Arc::new(CollectorLeafBitmaps::new(
+                    stream_metrics.ffm_collector_calls.clone(),
+                )),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,
@@ -413,7 +423,11 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         let residual_pp = residual_pp.clone();
         let residual_physical = residual_physical.clone();
         Arc::new(move |segment, _chunk, stream_metrics, _stats_prune_tree| {
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
                 Some(Arc::clone(&collector)),
                 pruner,

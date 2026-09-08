@@ -44,6 +44,7 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
@@ -746,6 +747,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
         });
 
         assertThat(e.getDetailedMessage(), containsString("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
 
         // increase clause count by 2
         assertAcked(

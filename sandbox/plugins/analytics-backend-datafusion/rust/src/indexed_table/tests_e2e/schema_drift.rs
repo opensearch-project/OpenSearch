@@ -96,6 +96,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: schema.clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -107,7 +108,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         let schema = schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
@@ -286,7 +291,7 @@ fn page_pruner_prunes_existing_column_despite_missing_column() {
         ArrowReaderMetadata::load(&file, ArrowReaderOptions::new().with_page_index(true)).unwrap();
     // Schema handed to the pruner includes the missing column.
     let drift_schema = schema_with_missing();
-    let pruner = PagePruner::new(&drift_schema, meta.metadata().clone());
+    let pruner = PagePruner::new(&drift_schema, meta.metadata().clone(), drift_schema.clone());
 
     // Existing-column predicate: score < 100 (fixture has score = i % 1000
     // so ~10% of rows match, concentrated at the start of every 1000-row
@@ -408,6 +413,7 @@ async fn query_with_mismatched_schema(
         parquet_size: size,
         row_groups: rgs,
         metadata: Arc::clone(&parquet_meta),
+        arrow_schema: meta.schema().clone(),
         global_base: 0,
         sort_min: None,
         sort_max: None,
@@ -418,7 +424,11 @@ async fn query_with_mismatched_schema(
         let schema = table_schema.clone();
         Arc::new(move |segment, _chunk, _stream_metrics, _stats_prune_tree| {
             let resolved = tree.resolve(&[])?;
-            let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
+            let pruner = Arc::new(PagePruner::new(
+                &schema,
+                Arc::clone(&segment.metadata),
+                schema.clone(),
+            ));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),

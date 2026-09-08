@@ -151,6 +151,73 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
+     * Regression test for the late-materialization ~5s stall: {@code close()} arriving while
+     * {@code reduce()} is mid-drain (state=REDUCING) must (a) return promptly and (b) NOT lose
+     * rows the native plan has yet to emit.
+     *
+     * <p>The SUM plan is pipeline-breaking: the aggregate emits nothing until its input reaches
+     * end-of-input. Closing the sink from outside while the drain is parked used to fire
+     * {@code cancel_query} and wait on {@code reduceDone} for a hard-coded 5s — but the input
+     * senders were only closed AFTER that wait, so the aggregate could not emit, the drain could
+     * not finish, and every such close burned the full timeout (observed as a constant ~5s on
+     * every LM query, one WARN per query). Worse, once cancellation actually worked, the cancel
+     * aborted the aggregate BEFORE EOF and the result was 0 rows.
+     *
+     * <p>The fix closes the input senders first (tryClose → EOF → aggregate emits → drain ends
+     * naturally). This test feeds rows, calls {@code close()} WITHOUT signalling per-child EOF
+     * (simulating the Stitcher's early close), and asserts the SUM still arrives and close()
+     * returns in far less than the old 5s timeout.
+     */
+    public void testCloseWhileReducingSignalsEofAndPreservesRows() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+
+            CapturingSink downstream = new CapturingSink();
+            // Non-zero taskId so the cancel fallback path is wired if the test regresses.
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-close-eof",
+                0,
+                4242L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
+
+            sink.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
+            sink.feed(makeBatch(alloc, inputSchema, new long[] { 4L, 5L, 6L }));
+            // Give the drain time to actually park in stream_next waiting for more input,
+            // so close() observes state=REDUCING (the stalling branch).
+            Thread.sleep(200);
+
+            // Close WITHOUT sinkForChild(0).close() — this is the Stitcher-style early close.
+            long closeStartNanos = System.nanoTime();
+            sink.close();
+            long closeMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - closeStartNanos);
+
+            drainDone.actionGet(10, TimeUnit.SECONDS);
+
+            assertEquals("EOF-on-close must let the aggregate emit: SUM(1..6)", 21L, downstream.total);
+            assertTrue("downstream should have received the aggregate row", downstream.totalRows >= 1);
+            // The old behavior burned the full 5s await; EOF-first should finish in millis.
+            // Generous bound to stay unflaky on slow CI hosts while still catching a 5s burn.
+            assertTrue("close() should not burn the teardown timeout, took " + closeMillis + "ms", closeMillis < 4000);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
      * Coordinator reduce running {@code SELECT x FROM "input-0" LIMIT 3} produces exactly the
      * limited output and tears down cleanly. Feeds far more rows than the limit through a real
      * native reduce; the {@code LimitExec} emits 3 rows and the drain ends.
@@ -386,37 +453,31 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             assertTrue("drain should produce a first batch", downstream.firstBatchLatch.await(10, TimeUnit.SECONDS));
             Thread.sleep(300);
 
-            // close() from this thread must not deadlock against the parked feeder. This is the
-            // crux of the regression: with the old teardown ordering close() would block forever
-            // on the sender write lock held by the parked feeder.
+            // Request graceful termination from another thread. It must close the partition
+            // receiver even while the feeder owns the sender read lock, releasing the feeder
+            // without globally cancelling the query.
             Thread closer = new Thread(sink::close, "deadlock-closer");
             closer.setDaemon(true);
             closer.start();
-            closer.join(15_000);
-            assertFalse("close() deadlocked against a feeder parked on the full channel", closer.isAlive());
-
-            // reduce() is in flight (state=REDUCING), so close() fires cancel and DEFERS teardown to
-            // reduce()'s finally — torndown is set only after the drain unwinds. Release the drain,
-            // wait for reduce to settle, then assert teardown ran exactly once.
-            downstream.release.countDown();
-            try {
-                reduceDone.actionGet(10, TimeUnit.SECONDS);
-            } catch (Exception expected) {
-                // reduce may complete or fail depending on cancel timing — either is fine here.
-            }
             feeder.join(10_000);
-            assertFalse("feeder thread should have unparked and exited", feeder.isAlive());
-            assertTrue("teardown must have run after reduce unwound", sink.torndown.get());
+            assertFalse("graceful termination must unpark the feeder", feeder.isAlive());
+
+            // Allow the drain to consume buffered batches and finish naturally, then close must
+            // return without using the timeout-and-cancel fallback.
+            downstream.release.countDown();
+            reduceDone.actionGet(10, TimeUnit.SECONDS);
+            closer.join(10_000);
+            assertFalse("close() deadlocked against a feeder parked on the full channel", closer.isAlive());
+            assertTrue("teardown must run after reduce unwound", sink.torndown.get());
         } finally {
             runtimeHandle.close();
         }
     }
 
     /**
-     * Cancel-before-first-batch: drain is parked in stream_next waiting for input.
-     * {@code close()} fires {@code cancel_query} on the registered taskId — the cancellation
-     * token wakes the {@code cancellable_or}'s select, drain returns sentinel, reduce()
-     * unwinds cleanly. No leak.
+     * Cancel-before-first-batch: drain is parked in stream_next waiting for input. Explicit
+     * {@code cancel()} must wake it and surface a failure; {@code close()} remains the separate
+     * graceful-EOF path. No leak.
      */
     public void testCancelBeforeFirstBatchUnwindsDrain() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
@@ -450,16 +511,13 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             // "sink closed before reduce" instead of the cancel-during-drain path we want.
             assertTrue(reduceEntered.await(5, TimeUnit.SECONDS));
             Thread.sleep(50);
-            // Drain is parked waiting for first batch. Fire cancel via close().
-            // close() sees state=REDUCING, calls cancelQuery(4242L), returns immediately.
+            // Drain is parked waiting for first batch. Explicit cancellation must surface as a
+            // reduce failure; normal sink.close() is reserved for graceful EOF.
+            sink.cancel();
+            expectThrows(RuntimeException.class, () -> reduceDone.actionGet(5, TimeUnit.SECONDS));
             sink.close();
-            reduceDone.actionGet(5, TimeUnit.SECONDS);
 
             assertEquals("no rows should be delivered (cancel before any feed)", 0, downstream.totalRows);
-            // Regression: the cancel-during-REDUCING path used to leak outStream/session
-            // because close() set the base's `closed` flag, then reduce()'s finally called
-            // super.close() which short-circuited on that flag — closeImpl never ran a
-            // second time and teardown never happened. reduce() now calls closeImpl directly.
             assertTrue("teardown must run on the cancel-during-REDUCING path", sink.torndown.get());
         } finally {
             runtimeHandle.close();
@@ -467,8 +525,8 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     }
 
     /**
-     * Cancel-after-first-batch: drain has consumed at least one row, then {@code close()}
-     * fires {@code cancel_query}. The drain returns partial output and unwinds cleanly.
+     * Cancel-after-first-batch: drain has consumed at least one row, then explicit
+     * {@code cancel()} surfaces a failure while preserving output delivered before the abort.
      */
     public void testCancelAfterFirstBatchUnwindsDrain() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
@@ -498,8 +556,9 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 // Wait until the drain produced the first batch to downstream — proves
                 // we're past the empty-stream-park state and in the steady-pull state.
                 assertTrue("first batch did not reach downstream within 5s", downstream.firstBatchLatch.await(5, TimeUnit.SECONDS));
-                sink.close();  // cancel mid-stream
-                reduceDone.actionGet(5, TimeUnit.SECONDS);
+                sink.cancel();
+                expectThrows(RuntimeException.class, () -> reduceDone.actionGet(5, TimeUnit.SECONDS));
+                sink.close();
             } finally {
                 sink.close();  // idempotent
             }

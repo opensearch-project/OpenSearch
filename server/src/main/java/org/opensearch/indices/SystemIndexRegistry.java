@@ -39,7 +39,10 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  */
 @ExperimentalApi
 public class SystemIndexRegistry {
-    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
+    private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new UnrestrictedSystemIndexDescriptor(
+        TASK_INDEX + "*",
+        "Task Result Index"
+    );
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(TASK_INDEX_DESCRIPTOR)

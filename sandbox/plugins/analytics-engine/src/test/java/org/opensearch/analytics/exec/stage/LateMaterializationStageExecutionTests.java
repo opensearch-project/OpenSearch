@@ -30,6 +30,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -141,14 +142,14 @@ public class LateMaterializationStageExecutionTests extends OpenSearchTestCase {
     }
 
     private static void scheduleAndDispatch(LateMaterializationStageExecution exec) {
-        exec.start();
+        exec.start(ActionListener.wrap(v -> {}, e -> {}));
         @SuppressWarnings("unchecked")
         org.opensearch.analytics.exec.task.TaskRunner<StageTask> dispatcher = (org.opensearch.analytics.exec.task.TaskRunner<
             StageTask>) exec.taskRunner();
         if (dispatcher == null) return;
         for (StageTask task : exec.tasks()) {
             task.transitionTo(StageTaskState.RUNNING);
-            dispatcher.run(task, new org.opensearch.core.action.ActionListener<>() {
+            dispatcher.run(task, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     task.transitionTo(StageTaskState.FINISHED);

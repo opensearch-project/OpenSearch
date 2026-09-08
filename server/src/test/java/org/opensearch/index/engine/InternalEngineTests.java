@@ -155,6 +155,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -2284,7 +2285,8 @@ public class InternalEngineTests extends EngineTestCase {
                     delete.origin(),
                     delete.startTime(),
                     UNASSIGNED_SEQ_NO,
-                    0
+                    0,
+                    delete.routing()
                 );
             }
         };
@@ -2387,7 +2389,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             UNASSIGNED_SEQ_NO,
-            0
+            0,
+            delete.routing()
         );
         TriFunction<Long, Long, Engine.Index, Engine.Index> indexWithSeq = (seqNo, term, index) -> new Engine.Index(
             index.uid(),
@@ -2413,7 +2416,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             seqNo,
-            term
+            term,
+            delete.routing()
         );
         Function<Engine.Index, Engine.Index> indexWithCurrentTerm = index -> new Engine.Index(
             index.uid(),
@@ -2439,7 +2443,8 @@ public class InternalEngineTests extends EngineTestCase {
             delete.origin(),
             delete.startTime(),
             delete.getIfSeqNo(),
-            delete.getIfPrimaryTerm()
+            delete.getIfPrimaryTerm(),
+            delete.routing()
         );
         for (Engine.Operation op : ops) {
             final boolean versionConflict = rarely();
@@ -6807,6 +6812,125 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
+    /**
+     * Verifies the engine flush condition on uncommitted segment bytes published by the remote segment upload path:
+     * nothing triggers before a publication, nothing triggers when the published bytes are below the published
+     * threshold, they do once the threshold published with them is low enough, and a stale commit-generation stamp
+     * after a flush can never re-trigger a flush (no flush loop).
+     */
+    public void testShouldPeriodicallyFlushOnUncommittedSegmentBytes() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+        ParsedDocument doc = testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.refresh("test");
+        assertThat("Nothing published yet", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, Long.MAX_VALUE);
+        assertThat("Uncommitted bytes below the published threshold", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Uncommitted bytes breach the published threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.flush();
+        assertThat("Stale commit generation stamp is ignored after flush", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("All published files are committed now", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    /**
+     * Verifies that discarding the published accounting disarms the condition, which is how the publisher stops flushes
+     * when {@code cluster.remote_store.flush_on_uncommitted_segments.enabled} is turned off, instead of leaving an
+     * already-armed value to trigger a flush later.
+     */
+    public void testClearUncommittedSegmentBytesDisarmsFlushCondition() throws Exception {
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                localSegmentsSizeMap.put(file, engine.store.directory().fileLength(file));
+            }
+        }
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("Published bytes breach the threshold", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Discarding the accounting disarms the condition", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // and it stays disarmed without a commit having happened, i.e. no flush is needed to make it stick
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+        // the publisher calls this on every sync while disabled, so repeating it must be a harmless no-op
+        engine.clearUncommittedSegmentBytes();
+        engine.clearUncommittedSegmentBytes();
+        assertThat("Repeated discards remain a no-op", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, 1L);
+        assertThat("A fresh publication re-arms it", engine.shouldPeriodicallyFlush(), equalTo(true));
+    }
+
+    /**
+     * Verifies the accounting inside {@code updateUncommittedSegmentBytes}: only segment files absent from the last
+     * commit point are summed, while committed files and {@code segments_N} entries are excluded. The total is
+     * asserted exactly by probing thresholds of the uncommitted size and one byte above it, and a publication
+     * holding only committed files computes zero bytes and can never trigger a flush.
+     */
+    public void testUncommittedSegmentBytesExcludeCommittedAndSegmentsNFiles() throws Exception {
+        // establish a commit point holding the first segment
+        engine.index(indexForDoc(testParsedDocument("0", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.flush();
+        engine.refresh("test");
+        final Set<String> committedFiles;
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            committedFiles = new HashSet<>(snapshot.get().files(false));
+        }
+
+        // write a second, uncommitted segment
+        engine.index(indexForDoc(testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null)));
+        engine.refresh("test");
+
+        final Map<String, Long> localSegmentsSizeMap = new HashMap<>();
+        long uncommittedBytes = 0;
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            for (String file : snapshot.get().files(false)) {
+                final long length = engine.store.directory().fileLength(file);
+                localSegmentsSizeMap.put(file, length);
+                if (committedFiles.contains(file) == false) {
+                    uncommittedBytes += length;
+                }
+            }
+        }
+        localSegmentsSizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
+        assertThat("The workload must produce uncommitted segment files", uncommittedBytes, greaterThan(0L));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes);
+        assertThat("Exactly the uncommitted segment bytes are counted", engine.shouldPeriodicallyFlush(), equalTo(true));
+
+        engine.updateUncommittedSegmentBytes(localSegmentsSizeMap, uncommittedBytes + 1);
+        assertThat("Committed files and segments_N never contribute to the accounting", engine.shouldPeriodicallyFlush(), equalTo(false));
+
+        final Map<String, Long> committedOnlySizeMap = new HashMap<>();
+        for (String file : committedFiles) {
+            committedOnlySizeMap.put(file, engine.store.directory().fileLength(file));
+        }
+        committedOnlySizeMap.put(IndexFileNames.SEGMENTS + "_99", Long.MAX_VALUE / 2);
+        engine.updateUncommittedSegmentBytes(committedOnlySizeMap, 1L);
+        assertThat("Zero uncommitted bytes never trigger a flush", engine.shouldPeriodicallyFlush(), equalTo(false));
+    }
+
+    private static void updateIndexSettings(IndexSettings indexSettings, Settings.Builder settingsBuilder) {
+        indexSettings.updateIndexMetadata(
+            IndexMetadata.builder(indexSettings.getIndexMetadata())
+                .settings(Settings.builder().put(indexSettings.getSettings()).put(settingsBuilder.build()))
+                .build()
+        );
+    }
+
     public void testStressShouldPeriodicallyFlush() throws Exception {
         final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
@@ -9512,6 +9636,82 @@ public class InternalEngineTests extends EngineTestCase {
             );
             assertEquals("NRT SegmentInfos userData should match committed userData in full", committedUserData, nrtUserData);
         }
+    }
+
+    @SuppressWarnings("removal")
+    public void testDeleteRoutingPreservedThroughPrepareDelete() throws IOException {
+        Engine.Delete withRouting = engine.prepareDelete(
+            "1",
+            "my-routing",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertEquals("my-routing", withRouting.routing());
+
+        Engine.Delete withoutRouting = engine.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(withoutRouting.routing());
+
+        // Exercise the 10-param Engine.Delete constructor (delegates to 11-param with null routing)
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1"));
+        Engine.Delete directDelete = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(directDelete.routing());
+
+        Engine.Delete directDeleteWithRouting = new Engine.Delete(
+            "1",
+            uid,
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            UNASSIGNED_SEQ_NO,
+            0,
+            "my-routing"
+        );
+        assertEquals("my-routing", directDeleteWithRouting.routing());
+
+        // Exercise the Delete(Delete template, VersionType) copy constructor
+        Engine.Delete copiedDelete = new Engine.Delete(directDeleteWithRouting, VersionType.EXTERNAL);
+        assertEquals("my-routing", copiedDelete.routing());
+
+        // Exercise the deprecated static IndexShard.prepareDelete (no routing) overload
+        Engine.Delete fromShardDeprecated = IndexShard.prepareDelete(
+            "1",
+            1,
+            1,
+            1,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+        assertNull(fromShardDeprecated.routing());
     }
 
 }

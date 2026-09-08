@@ -769,8 +769,31 @@ fn send_outcome_to_code(outcome: crate::partition_stream::SendOutcome) -> i64 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn df_sender_terminate_early(sender_ptr: i64) {
+    api::sender_terminate_early(sender_ptr);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
+}
+
+/// Fails a partition stream: pushes an error into the channel (so the consumer's stream yields an
+/// ERROR rather than a clean EOF), then drops the sender. Used by the Java shuffle drain thread when a
+/// mid-stream failure (e.g. a spill-read error) truncates the partition — turning a silent
+/// wrong-result into a loud query failure. The reason string is included in the surfaced error.
+/// Returns 0 on success, a non-empty error string (via `ffm_wrap`) only on argument-decode failure.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_fail(
+    sender_ptr: i64,
+    reason_ptr: *const u8,
+    reason_len: i64,
+) -> i64 {
+    let reason = str_from_raw(reason_ptr, reason_len)
+        .map_err(|e| format!("df_sender_fail: reason: {}", e))?;
+    api::sender_fail(sender_ptr, reason);
+    Ok(0)
 }
 
 /// Memtable variant of `df_register_partition_stream`: instead of returning a
@@ -825,6 +848,162 @@ pub unsafe extern "C" fn df_register_memtable(
         out_cap,
         out_len,
         "register_memtable schema IPC",
+    )?;
+    Ok(0)
+}
+
+/// Variant of `df_register_memtable` for the shard-scan side. Takes a
+/// `SessionContextHandle` pointer (returned by `df_create_session_context`) instead of a
+/// `LocalSession` pointer (returned by `df_create_local_session`) — the M1 broadcast
+/// injection runs on the same shard-scan session that has the listing-table-backed
+/// probe scan registered, so the memtable lives alongside that table.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+    array_ptrs: *const i64,
+    schema_ptrs: *const i64,
+    n_batches: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_memtable_on_session_context: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let n = n_batches as usize;
+    let array_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(array_ptrs, n)
+    };
+    let schema_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(schema_ptrs, n)
+    };
+    api::register_memtable_on_session_context(
+        session_ctx_handle_ptr,
+        input_id,
+        schema_ipc,
+        array_slice,
+        schema_slice,
+    )
+    .map(|_| 0)
+    .map_err(|e| e.to_string())
+}
+
+/// Streaming sibling of `df_register_memtable_on_session_context`. Registers a partitioned
+/// streaming input on the shard-scan session under `input_id` and returns the producer-side
+/// channel sender pointer. M2 hash-shuffle workers register left/right partition inputs via
+/// this entry; the per-batch feed reuses the existing `df_sender_send` / `df_sender_close`
+/// FFM exports because `PartitionStreamSender` is the same type whether the session was
+/// created via `df_create_local_session` or `df_create_session_context`.
+///
+/// On success the function returns the sender pointer cast to `i64`. On error it returns
+/// the FFM error sentinel; the bridge layer converts that to a Java exception.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context: input_id: {}",
+            e
+        )
+    })?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
+        .map_err(|e| e.to_string())
+}
+
+/// M3 hash-shuffle AGGREGATE worker variant of `df_register_partition_stream_on_session_context`.
+///
+/// Identical wiring (channel + `SingleReceiverPartition` + `StreamingTable` registered on the
+/// `SessionContextHandle`, returning the `PartitionStreamSender` pointer), but the table schema
+/// is derived from the producer's PARTIAL substrait plan (the SAME derivation the
+/// coordinator-reduce `df_register_partition_stream` uses) instead of the raw producer IPC
+/// header. This registers the streaming table under the FINAL fragment's logical column names
+/// (e.g. `sum_qty`) rather than the producer's physical state names (e.g. `sum_qty[sum]`), so
+/// the worker FINAL's by-name `base_schema` binding resolves. See
+/// `api::register_partition_stream_on_session_context_from_partial_plan` for the full rationale.
+///
+/// On success returns the sender pointer cast to `i64`; on error returns the FFM error sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}",
+            e
+        )
+    })?;
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
+    api::register_partition_stream_on_session_context_from_partial_plan(
+        session_ctx_handle_ptr,
+        input_id,
+        partial_plan,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Hash-partitions one Arrow C Data batch into N output batches using DataFusion's
+/// `BatchPartitioner` (matches `RepartitionExec` and `HashJoinExec` row-to-partition
+/// mapping). Writes the resulting N (array_ptr, schema_ptr) pairs as 16N bytes into the
+/// caller-provided output buffer (8 bytes for array_ptr, 8 bytes for schema_ptr, repeated).
+/// The output FFI structs are heap-allocated by Rust; ownership transfers to Java which
+/// must close them via Arrow C Data Interface.
+///
+/// On success returns 0 and writes 16N to `out_len`. On error returns the FFM sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices_ptr: *const i32,
+    hash_key_indices_len: i64,
+    partition_count: i32,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let n = hash_key_indices_len as usize;
+    let key_slice: &[i32] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(hash_key_indices_ptr, n)
+    };
+    let pairs = api::partition_batch_by_hash(
+        input_array_ptr,
+        input_schema_ptr,
+        key_slice,
+        partition_count,
+    )
+    .map_err(|e| e.to_string())?;
+    // Pack as parallel little-endian i64 pairs: [array_ptr_0, schema_ptr_0, array_ptr_1, ...]
+    let mut bytes = Vec::with_capacity(pairs.len() * 16);
+    for (a, s) in &pairs {
+        bytes.extend_from_slice(&a.to_le_bytes());
+        bytes.extend_from_slice(&s.to_le_bytes());
+    }
+    write_out_buffer(
+        &bytes,
+        out_ptr,
+        out_cap,
+        out_len,
+        "partition_batch_by_hash output ptrs",
     )?;
     Ok(0)
 }
@@ -1057,6 +1236,27 @@ pub unsafe extern "C" fn df_create_session_context(
                 has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
+            ),
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config_ptr: i64,
+) -> i64 {
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_worker_session_context(
+                runtime_ptr,
+                context_id,
+                query_config,
             ),
         ))
         .map_err(|e| e.to_string())
@@ -1603,6 +1803,259 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// Shard provably holds no matching row — the only status that prunes.
+pub const CAN_MATCH_NO: i64 = 0;
+/// Shard may hold a matching row.
+pub const CAN_MATCH_YES: i64 = 1;
+/// Could not tell (no statistics, unreadable footer, unsupported stats type) — keep the shard.
+///
+/// Deliberately 2, not -1: `#[ffm_safe]` returns `Err` as a *negated error pointer*, so Java's
+/// `NativeLibraryLoader.checkResult` treats every negative return as an address to read a message
+/// from. A negative status here is dereferenced as that address and segfaults the node. Every
+/// status crossing this boundary must be non-negative.
+pub const CAN_MATCH_UNKNOWN: i64 = 2;
+
+/// Can-match evaluation via FFM. Iterates ALL parquet files in the shard view
+/// and checks row-group statistics against the range [filter_min, filter_max]
+/// on the named column.
+///
+/// For each file: tries the metadata cache first (zero I/O), falls back to
+/// reading the footer via the shard's ObjectStore (local disk or S3).
+///
+/// Returns one of the `CAN_MATCH_*` statuses below.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Try cache first, then ObjectStore fallback
+        let result =
+            try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
+                .unwrap_or_else(|| {
+                    try_store_can_match(
+                        shard_view_ptr,
+                        file_path,
+                        column_name,
+                        filter_min,
+                        filter_max,
+                        file_size,
+                    )
+                    .unwrap_or(crate::can_match::CanMatchResult::Unknown)
+                });
+
+        match result {
+            crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
+            crate::can_match::CanMatchResult::Unknown => return Ok(CAN_MATCH_UNKNOWN),
+            crate::can_match::CanMatchResult::No => continue,
+        }
+    }
+    Ok(CAN_MATCH_NO)
+}
+
+/// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
+/// Layout: [min, max, has_nulls, value_kind]. Mirrored by `NativeBridge.SORT_BOUNDS_SLOTS`.
+const SORT_BOUNDS_SLOTS: usize = 4;
+
+/// Shard-wide min/max of one column, for coordinator-side shard ordering.
+///
+/// Separate from `df_can_match` on purpose: that function short-circuits at both the
+/// file and row-group level, which is right for a boolean "could anything match" but
+/// would give a min/max covering only the part it visited. A too-narrow range lets the
+/// coordinator skip a shard that really holds a top-N row, so this walks everything.
+///
+/// Writes `[min, max, has_nulls, value_kind]` into `out_ptr` (4 caller-allocated i64 slots)
+/// and returns 1. Returns 0 with `out_ptr` untouched when no shard-wide bound exists —
+/// column absent, unsupported type, statistics missing, or files disagreeing on type.
+///
+/// # Safety
+/// `shard_view_ptr` must be 0 or a valid `api::ShardView` pointer; `out_ptr` must point
+/// to at least `SORT_BOUNDS_SLOTS` writable i64 slots.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_shard_sort_bounds(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    out_ptr: *mut i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 || out_ptr.is_null() {
+        return Ok(0);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(0);
+    }
+
+    let mut folded: Option<crate::can_match::Bounds> = None;
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Same cache-then-ObjectStore fallback as df_can_match.
+        let file_bounds = try_cached_sort_bounds(runtime_ptr, file_path, column_name)
+            .or_else(|| try_store_sort_bounds(shard_view_ptr, file_path, column_name, file_size));
+
+        // One unreadable file means the shard-wide range is unknown — the other files'
+        // range would understate it.
+        let Some(file_bounds) = file_bounds else {
+            return Ok(0);
+        };
+
+        // merge widens the range and ORs has_nulls. None means the files disagree on value
+        // domain, so there is no shard-wide range.
+        folded = Some(match folded {
+            None => file_bounds,
+            Some(acc) => match acc.merge(file_bounds) {
+                Some(merged) => merged,
+                None => return Ok(0),
+            },
+        });
+    }
+
+    match folded {
+        Some(b) => {
+            let out = std::slice::from_raw_parts_mut(out_ptr, SORT_BOUNDS_SLOTS);
+            out[0] = b.min;
+            out[1] = b.max;
+            out[2] = if b.has_nulls { 1 } else { 0 };
+            out[3] = b.value_kind as i64;
+            Ok(1)
+        }
+        None => Ok(0),
+    }
+}
+
+/// Cache-miss fallback: read the footer via the shard's ObjectStore.
+unsafe fn try_store_sort_bounds(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    file_size: usize,
+) -> Option<crate::can_match::Bounds> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    rt_manager.io_runtime.block_on(async {
+        crate::can_match::sort_bounds_via_store(store, &path, file_size, column_name).await
+    })
+}
+
+/// Fold bounds from the metadata cache if the file is present there.
+unsafe fn try_cached_sort_bounds(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+) -> Option<crate::can_match::Bounds> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    crate::can_match::sort_bounds_with_metadata(&metadata, column_name)
+}
+
+/// Cache-miss fallback: read footer via the shard's ObjectStore.
+unsafe fn try_store_can_match(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+    file_size: usize,
+) -> Option<crate::can_match::CanMatchResult> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    Some(rt_manager.io_runtime.block_on(async {
+        crate::can_match::can_match_range_via_store(
+            store,
+            &path,
+            file_size,
+            column_name,
+            filter_min,
+            filter_max,
+        )
+        .await
+    }))
+}
+
+/// Probe the metadata cache for the file. If present, evaluate can-match in memory.
+unsafe fn try_cached_can_match(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    Some(crate::can_match::can_match_range_with_metadata(
+        &metadata,
+        column_name,
+        filter_min,
+        filter_max,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1715,5 +2168,21 @@ mod tests {
 
         // ── Cleanup ──
         shutdown_test_runtime();
+    }
+
+    /// `#[ffm_safe]` reserves negative returns for negated error pointers, so every status
+    /// `df_can_match` reports has to be non-negative. A negative one is read by Java as an
+    /// error address and dereferenced, which segfaults the whole node rather than failing
+    /// the query. A null shard view is the cheapest way to reach a non-match status without
+    /// a runtime or any parquet on disk.
+    #[test]
+    fn can_match_status_codes_are_non_negative() {
+        let column = "@timestamp";
+        let rc = unsafe { df_can_match(0, 0, column.as_ptr(), column.len() as i64, 0, 100) };
+        assert!(
+            rc >= 0,
+            "df_can_match returned {rc}; negative values are error pointers to Java, not statuses"
+        );
+        assert_eq!(rc, CAN_MATCH_UNKNOWN);
     }
 }

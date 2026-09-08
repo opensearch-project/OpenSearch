@@ -162,16 +162,16 @@ public class ServerConfig {
     );
 
     /**
-     * Per-stream outbound buffered-bytes threshold passed to gRPC's
-     * {@code setOnReadyThreshold}. {@code isReady()} flips false once the per-stream
-     * outbound buffer crosses this size; the producer parks on that signal. Set this
-     * strictly below {@code native.allocator.pool.flight.max} so the gate engages
-     * before the allocator runs out.
+     * Per-stream outbound buffered-bytes watermark passed to gRPC's {@code setOnReadyThreshold}.
+     * {@code isReady()} flips false once a stream's outbound buffer crosses this size, parking the producer.
+     * It bounds pipelining depth, not a single batch: gRPC accepts an over-watermark write in full, so a
+     * batch larger than this still passes and the producer parks afterward. Must stay strictly below
+     * {@code native.allocator.pool.flight.max} so the gate engages before the allocator runs out.
      */
     public static final Setting<ByteSizeValue> FLIGHT_OUTBOUND_BUFFER_THRESHOLD = Setting.byteSizeSetting(
         "arrow.flight.channel.outbound_buffer_threshold",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
-        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(512, ByteSizeUnit.KB),
+        new ByteSizeValue(256, ByteSizeUnit.KB),
         new ByteSizeValue(2, ByteSizeUnit.GB),
         Setting.Property.NodeScope
     );

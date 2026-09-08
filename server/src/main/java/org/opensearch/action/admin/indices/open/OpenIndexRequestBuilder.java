@@ -39,7 +39,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.transport.client.OpenSearchClient;
 
 /**
- * Builder for for open index request
+ * Builder for open index request
  *
  * @opensearch.api
  */

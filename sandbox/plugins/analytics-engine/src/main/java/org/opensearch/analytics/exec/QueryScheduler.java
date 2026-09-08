@@ -102,18 +102,34 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Materialises {@code stage}'s tasks via {@link StageExecution#start()}, then hands the
+     * Materialises {@code stage}'s tasks via {@link StageExecution#start}, then hands the
      * scheduler-owned per-task listener factory to {@link StageExecution#dispatchTasks} —
      * the stage decides whether to dispatch eagerly (default for-loop) or incrementally
      * (shard fan-outs that want to bound the outbound-throttle queue depth). Skips dispatch
      * when {@code start()} transitions straight to a terminal (empty target resolution →
      * SUCCEEDED; concurrent cancel → CANCELLED).
+     *
+     * <p>Public for the MPP dispatcher ({@code UnifiedDispatch}) which needs to run
+     * a single stage in isolation with a caller-supplied output sink, outside the normal
+     * {@link QueryExecution} graph traversal. Those callers reuse this method rather than
+     * inlining the dispatch loop so future scheduler enhancements (in-flight caps, retry-aware
+     * task pacing) automatically apply to phased dispatch as well.
      */
-    void scheduleStage(StageExecution stage) {
-        stage.start();
-        if (stage.getState() != StageExecution.State.RUNNING) return;
-        logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
-        stage.dispatchTasks(this::handleFor);
+    public void scheduleStage(StageExecution stage) {
+        // Dispatch after materialisation completes, not by polling state right after start().
+        // start(onStarted) may be asynchronous — ShardFragmentStageExecution defers publication
+        // behind a can-match round-trip, so the stage can still be CREATED when start() returns
+        // and only transitions later, on the response thread. onStarted fires once the stage has
+        // transitioned: dispatch only if it landed in RUNNING (empty-target stages go straight to
+        // SUCCEEDED and have nothing to dispatch). Synchronous stages run this inline inside
+        // start(); deferred stages run it on the async completion. onFailure needs no handling —
+        // the stage is already FAILED and propagates through the normal terminal path.
+        stage.start(ActionListener.wrap(v -> {
+            if (stage.getState() == StageExecution.State.RUNNING) {
+                logger.debug("[QueryScheduler] dispatching stage {} ({} tasks)", stage.getStageId(), stage.tasks().size());
+                stage.dispatchTasks(this::handleFor);
+            }
+        }, e -> {}));
     }
 
     /**
@@ -189,11 +205,20 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
-     * custom {@link org.opensearch.analytics.exec.stage.StageExecutionFactory} for a stage
-     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
-     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
-     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * Returns the underlying {@link StageExecutionBuilder}.
+     *
+     * <p>Used by:
+     * <ul>
+     *   <li>join-strategy dispatchers (e.g. M1 broadcast) that need to run a single stage in
+     *       isolation with a caller-supplied output sink, bypassing the parent-sink resolution
+     *       chain;</li>
+     *   <li>resilience integration tests that register a custom
+     *       {@link org.opensearch.analytics.exec.stage.StageExecutionFactory} for a stage type
+     *       (e.g. fault-injecting scheduler).</li>
+     * </ul>
+     *
+     * <p>Resolving via the singleton scheduler avoids a Guice JIT lookup that would
+     * re-instantiate {@link AnalyticsSearchTransportService} (whose ctor registers transport
      * handlers, only legal once per node).
      */
     public StageExecutionBuilder getStageExecutionBuilder() {

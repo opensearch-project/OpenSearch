@@ -23,6 +23,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -44,11 +45,16 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MissingHistoryOperationsException;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.RemoteStoreFence;
+import org.opensearch.index.translog.transfer.TranslogFencedException;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
@@ -110,6 +116,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -237,6 +244,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
+        return getTranslogConfig(path, settings, "");
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, final Settings settings, final String nodeId) {
         final ByteSizeValue bufferSize = randomFrom(
             TranslogConfig.DEFAULT_BUFFER_SIZE,
             new ByteSizeValue(8, ByteSizeUnit.KB),
@@ -245,7 +256,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // To simulate that the node is remote backed
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "", false);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, nodeId, allocationIdOf(nodeId), false);
+    }
+
+    /** Allocation ids in these tests are derived from the node id so both identities stay legible in assertions. */
+    private static String allocationIdOf(String nodeId) {
+        return nodeId.isEmpty() ? "" : nodeId + "-alloc";
     }
 
     private BlobStoreRepository createRepository() {
@@ -1885,6 +1901,288 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
     }
 
+    /**
+     * Creates a repository that is isolated from the one backing {@link #translog}, so that a second translog
+     * instance for the same shard id does not collide with it on remote paths.
+     */
+    private BlobStoreRepository createIsolatedRepository() {
+        // createRepository() rebinds the shared fail/slowDown switches; keep the ones the setUp translog observes.
+        final TestTranslog.FailSwitch currentFail = fail;
+        final TestTranslog.SlowDownWriteSwitch currentSlowDown = slowDown;
+        try {
+            return createRepository();
+        } finally {
+            fail = currentFail;
+            slowDown = currentSlowDown;
+        }
+    }
+
+    /**
+     * Creates a second translog instance for the same shard, on its own repository, with remote store fencing
+     * enabled. The caller owns closing it.
+     */
+    private RemoteFsTranslog createFencedTranslog(String nodeId, BlobStoreRepository fencedRepository) throws IOException {
+        Path path = createTempDir();
+        String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            .build();
+        TranslogConfig config = getTranslogConfig(path, settings, nodeId);
+        return new RemoteFsTranslog(
+            config,
+            translogUUID,
+            createTranslogDeletionPolicy(config.getIndexSettings()),
+            () -> globalCheckpoint.get(),
+            primaryTerm::get,
+            getPersistedSeqNoConsumer(),
+            fencedRepository,
+            threadPool,
+            primaryMode::get,
+            new RemoteTranslogTransferTracker(shardId, 10),
+            DefaultRemoteStoreSettings.INSTANCE,
+            TranslogOperationHelper.DEFAULT,
+            null,
+            false
+        );
+    }
+
+    private BlobPath fenceDirectory(BlobStoreRepository fencedRepository) {
+        return fencedRepository.basePath()
+            .add(shardId.getIndex().getUUID())
+            .add(String.valueOf(shardId.id()))
+            .add(TRANSLOG.getName())
+            .add(METADATA_DIR);
+    }
+
+    public void testFencingEnabledTranslogUploadCreatesAndAdvancesFence() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        BlobPath fenceDirectory = fenceDirectory(fencedRepository);
+        try (RemoteFsTranslog fenced = createFencedTranslog("node-1", fencedRepository)) {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory);
+            assertTrue(fenceContainer.listBlobs().containsKey(RemoteStoreFence.fenceBlobName(primaryTerm.get())));
+            VersionedBlob afterFirst = fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get()));
+            String afterFirstContent = new String(afterFirst.content(), StandardCharsets.UTF_8);
+            assertTrue(
+                afterFirstContent,
+                afterFirstContent.contains("|" + primaryTerm.get() + "|" + allocationIdOf("node-1") + "|node-1|")
+            );
+
+            fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+            VersionedBlob afterSecond = fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get()));
+            // The CAS chain advanced: a new version token over new content
+            assertNotEquals(afterFirst.versionToken(), afterSecond.versionToken());
+            assertNotEquals(afterFirstContent, new String(afterSecond.content(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testFencingEnabledUploadIsFencedByASecondWriter() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        RemoteFsTranslog fenced = createFencedTranslog("node-old", fencedRepository);
+        try {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            // A new primary at a higher term seals the fence out of band
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
+
+            fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            expectThrows(TranslogFencedException.class, fenced::sync);
+            // Fencing is fatal for the shard copy: the translog is marked with a tragic event
+            assertTrue(fenced.getTragicException() instanceof TranslogFencedException);
+        } finally {
+            try {
+                fenced.close();
+            } catch (Exception e) {
+                // closing a tragically-failed translog is expected to rethrow
+            }
+        }
+    }
+
+    /**
+     * A superseded copy must not delete remote generations: the trim's remote phase is gated fail-closed on fence
+     * ownership (see FenceSegmentFlow.tla). The call itself stays safe - it skips, it does not throw.
+     */
+    public void testTrimUnreferencedReadersSkipsRemoteDeletionWhenSuperseded() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog fenced = createFencedTranslog("node-old", fencedRepository)) {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            // A higher term takes the fence out of band.
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
+
+            assertTrue(fenced.isRemoteStoreFenceSuperseded());
+            fenced.trimUnreferencedReaders(); // gated: skips the remote deletion, does not throw
+        }
+    }
+
+    /**
+     * A copy that begins a fresh lineage - a resize (shrink/split/clone) target, or a snapshot restore into a new
+     * index UUID - seals against a repository holding no fence for its shard. The seal is then simply the fresh
+     * chain's create-if-absent bootstrap: nothing beyond the shard's own identity and the repository is required.
+     */
+    public void testSealFenceOnAFreshShardCreatesTheChain() throws Exception {
+        BlobStoreRepository freshRepository = createIsolatedRepository();
+        RemoteFsTranslog.sealFence(
+            freshRepository,
+            shardId,
+            new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+            DefaultRemoteStoreSettings.INSTANCE,
+            false,
+            allocationIdOf("node-new"),
+            "node-new",
+            1
+        );
+        BlobContainer fenceContainer = freshRepository.blobStore().blobContainer(fenceDirectory(freshRepository));
+        String created = new String(
+            fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content(),
+            StandardCharsets.UTF_8
+        );
+        assertTrue(created, created.contains("|1|" + allocationIdOf("node-new") + "|node-new|"));
+    }
+
+    /**
+     * The recovery seal: a copy taking over claims the chain before it reads its restore point, which invalidates the
+     * incumbent's token immediately - without the new copy having uploaded anything. This is what stops a previous
+     * primary that is still alive from acknowledging writes landing after the new copy's restore point.
+     */
+    public void testSealFenceClaimsChainAndFencesTheIncumbent() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        RemoteFsTranslog incumbent = createFencedTranslog("node-old", fencedRepository);
+        try {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            // A copy recovering at a higher term seals before reading its restore point
+            RemoteFsTranslog.sealFence(
+                fencedRepository,
+                shardId,
+                new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                DefaultRemoteStoreSettings.INSTANCE,
+                false,
+                allocationIdOf("node-new"),
+                "node-new",
+                primaryTerm.get() + 1
+            );
+
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            String sealed = new String(
+                fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get() + 1)).content(),
+                StandardCharsets.UTF_8
+            );
+            assertTrue(sealed, sealed.contains("|" + (primaryTerm.get() + 1) + "|" + allocationIdOf("node-new") + "|node-new|"));
+
+            // The incumbent now holds a stale token and cannot acknowledge another write
+            incumbent.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            expectThrows(TranslogFencedException.class, incumbent::sync);
+        } finally {
+            try {
+                incumbent.close();
+            } catch (Exception e) {
+                // closing a tragically-failed translog is expected to rethrow
+            }
+        }
+    }
+
+    /** Sealing at a term below the fence's must be refused: that copy has already been superseded. */
+    public void testSealFenceIsRefusedForAStaleTerm() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog incumbent = createFencedTranslog("node-current", fencedRepository)) {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            expectThrows(
+                TranslogFencedException.class,
+                () -> RemoteFsTranslog.sealFence(
+                    fencedRepository,
+                    shardId,
+                    new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false,
+                    allocationIdOf("node-stale"),
+                    "node-stale",
+                    primaryTerm.get() - 1
+                )
+            );
+        }
+    }
+
+    public void testBuildTranslogTransferManagerRejectsRepositoryWithoutConditionalWrites() {
+        BlobContainer container = mock(BlobContainer.class);
+        assertFalse(container.isConditionalWriteSupported());
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(container);
+        BlobStoreRepository unsupportedRepository = mock(BlobStoreRepository.class);
+        when(unsupportedRepository.basePath()).thenReturn(BlobPath.cleanPath());
+        when(unsupportedRepository.blobStore(anyBoolean())).thenReturn(blobStore);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RemoteFsTranslog.buildTranslogTransferManager(
+                unsupportedRepository,
+                threadPool,
+                shardId,
+                new FileTransferTracker(shardId, new RemoteTranslogTransferTracker(shardId, 10)),
+                new RemoteTranslogTransferTracker(shardId, 10),
+                new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                DefaultRemoteStoreSettings.INSTANCE,
+                false,
+                false,
+                true,
+                allocationIdOf("node-1"),
+                "node-1"
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("does not support store-enforced conditional writes"));
+    }
+
+    /**
+     * The local-filesystem container <em>implements</em> conditional writes, but only emulates the precondition within a
+     * single JVM, so it must be refused: two nodes sharing a filesystem would both believe they held the fence, which is
+     * worse than running unfenced because each shard would report itself protected. Uses a real {@link FsBlobStore}
+     * rather than a mock, so the test fails if that container ever starts advertising support again.
+     */
+    public void testBuildTranslogTransferManagerRejectsEmulatedConditionalWrites() throws IOException {
+        try (FsBlobStore fsBlobStore = new FsBlobStore(1024, createTempDir(), false)) {
+            BlobContainer fsContainer = fsBlobStore.blobContainer(BlobPath.cleanPath());
+            assertFalse("emulated conditional writes must not be advertised as supported", fsContainer.isConditionalWriteSupported());
+
+            BlobStore blobStore = mock(BlobStore.class);
+            when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(fsContainer);
+            BlobStoreRepository emulatedRepository = mock(BlobStoreRepository.class);
+            when(emulatedRepository.basePath()).thenReturn(BlobPath.cleanPath());
+            when(emulatedRepository.blobStore(anyBoolean())).thenReturn(blobStore);
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RemoteFsTranslog.buildTranslogTransferManager(
+                    emulatedRepository,
+                    threadPool,
+                    shardId,
+                    new FileTransferTracker(shardId, new RemoteTranslogTransferTracker(shardId, 10)),
+                    new RemoteTranslogTransferTracker(shardId, 10),
+                    new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false,
+                    false,
+                    true,
+                    allocationIdOf("node-1"),
+                    "node-1"
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("does not support store-enforced conditional writes"));
+        }
+    }
+
     public class ThrowingBlobRepository extends FsRepository {
 
         private final Environment environment;
@@ -1956,6 +2254,19 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             super(blobStore, blobPath, path);
             this.fail = fail;
             this.slowDown = slowDown;
+        }
+
+        /**
+         * Test support only. {@link FsBlobContainer} reports {@code false} because its conditional write is emulated per
+         * JVM, which is no fencing primitive between hosts, and remote store fencing correctly refuses it. These tests
+         * run entirely in one JVM and so share that emulation, making the precondition genuinely exclusive here.
+         * Overriding lets the fence be exercised without weakening the production guard - see
+         * {@link #testBuildTranslogTransferManagerRejectsEmulatedConditionalWrites}, which asserts an unmodified
+         * {@code FsBlobContainer} is still rejected.
+         */
+        @Override
+        public boolean isConditionalWriteSupported() {
+            return true;
         }
 
         @Override

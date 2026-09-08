@@ -124,6 +124,21 @@ pub unsafe extern "C" fn parquet_write(
         .map_err(|e| e.to_string())
 }
 
+/// Removes the writer registry entry for `file` without finalizing it (idempotent).
+///
+/// Used by the Java shard close / going-red flow to guarantee a writer left behind by a failed
+/// operation does not survive as a stale entry and block recovery's re-`create_writer`.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_cleanup_writer(file_ptr: *const u8, file_len: i64) -> i64 {
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_cleanup_writer: {}", e))?
+        .to_string();
+    NativeParquetWriter::cleanup_writer(&filename)
+        .map(|_| 0)
+        .map_err(|e| e.to_string())
+}
+
 /// Returns 0 with metadata in out-pointers, 1 if no writer found.
 #[ffm_safe]
 #[no_mangle]

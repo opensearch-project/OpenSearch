@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -32,9 +33,11 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private final Task task;
     private byte[] fragmentBytes;
     private BufferAllocator allocator;
+    private BufferAllocator importStagingAllocator;
     private MapperService mapperService;
     private IndexSettings indexSettings;
     private NamedWriteableRegistry namedWriteableRegistry;
+    private ShuffleBufferRegistry shuffleBufferRegistry;
     private QueryCache queryCache;
     private QueryCachingPolicy queryCachingPolicy;
     private ShardId shardId;
@@ -87,6 +90,31 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
         this.allocator = allocator;
     }
 
+    /**
+     * Returns the allocator Arrow C Data Interface imports are staged on, or null if the caller did not
+     * set one. Distinct from {@link #getAllocator()} on two properties a batch import depends on:
+     * <ul>
+     *   <li><b>Unbounded, parented at the root.</b> {@code Data#importIntoVectorSchemaRoot} charges each
+     *       buffer as it walks the array; a target that fills part-way through throws, and arrow-java
+     *       (&le; 18.1.0) retains the imported array before the throwing {@code wrapForeignAllocation}
+     *       without rolling back, so the C Data release callback never fires and the whole batch leaks in
+     *       the producer's native allocator — invisible to the JVM heap and to Java Arrow accounting.</li>
+     *   <li><b>Node-scoped, never closed per request.</b> The Flight transport builds its reused stream
+     *       root on the FIRST emitted batch's vector allocator and charges that same allocator for every
+     *       later batch ({@code FlightServerChannel#transferIntoStreamRoot}: "The producer's allocator must
+     *       be long-lived (not closed per-request)"), and frees it asynchronously with its own channel.</li>
+     * </ul>
+     * Caller-owned: the engine imports onto it and must never close it.
+     */
+    public BufferAllocator getImportStagingAllocator() {
+        return importStagingAllocator;
+    }
+
+    /** Sets the node-scoped import staging allocator. The caller owns its lifecycle. */
+    public void setImportStagingAllocator(BufferAllocator importStagingAllocator) {
+        this.importStagingAllocator = importStagingAllocator;
+    }
+
     /** Returns the shard's mapper service for field type resolution. */
     public MapperService getMapperService() {
         return mapperService;
@@ -115,6 +143,23 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     /** Sets the NamedWriteableRegistry. */
     public void setNamedWriteableRegistry(NamedWriteableRegistry namedWriteableRegistry) {
         this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    /**
+     * Returns the per-node shuffle buffer registry. Non-null when the data node hosts
+     * hash-shuffle workers (analytics-engine binds {@code ShuffleBufferManager} as singleton);
+     * null when no such backend is registered. Hash-shuffle scan handlers consult this to
+     * locate the buffer for the {@code (queryId, stageId, partitionIndex)} bucket the producers
+     * are filling. Other handlers (broadcast, scan, partial-aggregate) ignore it.
+     */
+    public ShuffleBufferRegistry getShuffleBufferRegistry() {
+        return shuffleBufferRegistry;
+    }
+
+    /** Sets the per-node shuffle buffer registry. Called once per fragment by
+     *  {@code AnalyticsSearchService} when building the context. */
+    public void setShuffleBufferRegistry(ShuffleBufferRegistry shuffleBufferRegistry) {
+        this.shuffleBufferRegistry = shuffleBufferRegistry;
     }
 
     /** Returns the node-level query cache for Lucene filter delegation. */

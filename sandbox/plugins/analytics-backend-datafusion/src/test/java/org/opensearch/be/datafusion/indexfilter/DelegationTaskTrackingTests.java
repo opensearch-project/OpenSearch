@@ -101,11 +101,10 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
 
     /**
      * Lifecycle assertion: invoking an upcall on a contextId that has no registered
-     * binding throws AssertionError when -ea is on. This catches premature unregister
-     * or stale Rust handles outliving their query.
-     *
-     * In production (no -ea), this same path silently returns -1 — the upcall's null
-     * check is the production safety net.
+     * binding throws AssertionError when -ea is on. Under the refcounted lifecycle
+     * this is a genuine bug signal (bindings survive until the last native handle
+     * releases), so it should fail loudly in tests; production (no -ea) silently
+     * returns -1 — the upcall's null check is the production safety net.
      */
     public void testUnregisteredContextIdAssertsInTests() throws Exception {
         long unregisteredCtx = 9999L;
@@ -324,7 +323,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
+        public long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out) {
             int n = Math.min(words.length, (int) (out.byteSize() / Long.BYTES));
             for (int i = 0; i < n; i++)
                 out.setAtIndex(ValueLayout.JAVA_LONG, i, words[i]);

@@ -209,7 +209,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         lenient = in.readOptionalBoolean();
         timeZone = in.readOptionalZoneId();
         escape = in.readBoolean();
-        maxDeterminizedStates = in.readVInt();
+        // Route through the setter so the CVE-2026-63136 bound is enforced on the transport
+        // deserialization path too, not just REST/XContent. Protects a patched data node from an
+        // unbounded value sent by an unpatched coordinating node in a mixed-version cluster.
+        maxDeterminizedStates(in.readVInt());
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
     }
@@ -377,6 +380,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Protects against too-difficult regular expression queries.
      */
     public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {
+        if (maxDeterminizedStates < 0) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] max_determinized_states cannot be negative but was [" + maxDeterminizedStates + "]"
+            );
+        }
+        if (maxDeterminizedStates > RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT) {
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] max_determinized_states cannot exceed ["
+                    + RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT
+                    + "] but was ["
+                    + maxDeterminizedStates
+                    + "]"
+            );
+        }
         this.maxDeterminizedStates = maxDeterminizedStates;
         return this;
     }

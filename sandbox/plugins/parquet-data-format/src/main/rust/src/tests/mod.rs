@@ -65,10 +65,13 @@ fn test_create_writer_invalid_schema_pointer() {
 }
 
 #[test]
-fn test_create_writer_multiple_times_same_file() {
+fn test_create_writer_same_file_removes_stale_and_succeeds() {
     let (_temp_dir, filename) = get_temp_file_path("duplicate.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     let (_, schema_ptr2) = create_test_ffi_schema();
+    // Creating a second writer for the same file must NOT error: the stale entry is removed and a
+    // fresh writer is created in its place. (This is what unblocks shard recovery after a failure
+    // left the previous writer un-finalized.)
     let result2 = NativeParquetWriter::create_writer(
         filename.clone(),
         "test-index".to_string(),
@@ -78,13 +81,28 @@ fn test_create_writer_multiple_times_same_file() {
         vec![],
         0,
     );
-    assert!(result2.is_err());
-    assert!(result2
-        .unwrap_err()
-        .to_string()
-        .contains("Writer already exists"));
+    assert!(result2.is_ok());
+    assert!(NativeParquetWriter::has_writer(&filename));
+    // schema_ptr2's FFI struct was consumed by the successful create; free its heap slot.
     cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
+}
+
+#[test]
+fn test_cleanup_writer_removes_entry_and_is_idempotent() {
+    let (_temp_dir, filename) = get_temp_file_path("cleanup.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+    assert!(NativeParquetWriter::has_writer(&filename));
+
+    // cleanup removes the registry entry (dropping the writer) ...
+    assert!(NativeParquetWriter::cleanup_writer(&filename).is_ok());
+    assert!(!NativeParquetWriter::has_writer(&filename));
+
+    // ... and is idempotent: a second cleanup on a missing entry is still Ok.
+    assert!(NativeParquetWriter::cleanup_writer(&filename).is_ok());
+    assert!(!NativeParquetWriter::has_writer(&filename));
+
+    cleanup_ffi_schema(schema_ptr);
 }
 
 #[test]
@@ -360,11 +378,12 @@ fn test_ipc_staging_has_writer_returns_true() {
 }
 
 #[test]
-fn test_ipc_staging_duplicate_writer_rejected() {
+fn test_ipc_staging_same_file_removes_stale_and_succeeds() {
     let (_temp_dir, filename) = get_temp_file_path("ipc_dup.parquet");
     let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
 
     let (_, schema_ptr2) = create_test_ffi_schema();
+    // A second (sorted/IPC) writer for the same file removes the stale entry and succeeds.
     let result = NativeParquetWriter::create_writer(
         filename.clone(),
         "test-index".to_string(),
@@ -374,11 +393,8 @@ fn test_ipc_staging_duplicate_writer_rejected() {
         vec![false],
         0,
     );
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Writer already exists"));
+    assert!(result.is_ok());
+    assert!(NativeParquetWriter::has_writer(&filename));
 
     cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
