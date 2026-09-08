@@ -52,6 +52,7 @@ import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -1607,6 +1608,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        private void canonicalizeMappingsInPlace() {
+            final Map<CompressedXContent, MappingMetadata> pool = new HashMap<>();
+
+            for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
+                final IndexMetadata indexMetadata = entry.getValue();
+                final MappingMetadata mapping = indexMetadata.mapping();
+                if (mapping == null) {
+                    continue;
+                }
+
+                final MappingMetadata canonicalMapping = pool.putIfAbsent(mapping.source(), mapping);
+                if (canonicalMapping != null && canonicalMapping != mapping) {
+                    entry.setValue(IndexMetadata.builder(indexMetadata).putMapping(canonicalMapping).build());
+                }
+            }
+        }
+
         public Metadata build() {
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             DataStreamMetadata previousDataStreamMetadata = (previousMetadata != null)
@@ -1614,6 +1632,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 : null;
 
             buildSystemTemplatesLookup();
+
+            canonicalizeMappingsInPlace();
 
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
