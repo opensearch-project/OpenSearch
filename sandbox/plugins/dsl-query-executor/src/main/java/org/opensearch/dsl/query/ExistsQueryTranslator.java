@@ -36,6 +36,10 @@ public class ExistsQueryTranslator implements QueryTranslator {
             throw new ConversionException("boost is unsupported for Exists query type");
         }
 
+        if (existsQuery.queryName() != null) {
+            throw new ConversionException("Exists query parameter '_name' is not supported");
+        }
+
         RexNode fieldRef = ctx.makeFieldRef(fieldName);
         return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);
     }
