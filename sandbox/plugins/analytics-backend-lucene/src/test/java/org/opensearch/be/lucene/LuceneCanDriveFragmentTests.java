@@ -34,9 +34,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Pins {@link LuceneFragmentConvertor#isCountFastPath}: drivable iff top is an Aggregate
- * with empty group-set and every call is {@code SqlKind.COUNT}. Read by
- * {@link LuceneShardPreference} to score this fragment for the count-fast-path. Guards
+ * Pins {@link LuceneFragmentPlanner#isCountFastPath}: drivable iff top is an Aggregate
+ * with empty group-set and every call is {@code COUNT(*)}. Read by
+ * {@link LuceneShardPreference} to score this fragment for the count fast path. Guards
  * capability-declaration drift — PlanForker already narrows by declared caps, this is the
  * second line.
  */
@@ -55,11 +55,10 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
     public void testCountStarOverEmptyGroupSet_drivable() {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         RelNode agg = aggregate(scan, ImmutableBitSet.of(), countStar(scan));
-        assertTrue("COUNT(*) with empty group-set is the canonical Lucene-driver shape", LuceneFragmentConvertor.isCountFastPath(agg));
+        assertTrue("COUNT(*) with empty group-set is the canonical Lucene-driver shape", LuceneFragmentPlanner.isCountFastPath(agg));
     }
 
-    public void testCountFieldOverEmptyGroupSet_drivable() {
-        // count(field) — same SqlKind.COUNT, just with a field arg.
+    public void testCountFieldOverEmptyGroupSet_notFastPath() {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         AggregateCall countField = AggregateCall.create(
             SqlStdOperatorTable.COUNT,
@@ -70,9 +69,9 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
             typeFactory.createSqlType(SqlTypeName.BIGINT),
             "cnt_status"
         );
-        assertTrue(
-            "count(field) is also drivable — same SqlKind.COUNT",
-            LuceneFragmentConvertor.isCountFastPath(aggregate(scan, ImmutableBitSet.of(), countField))
+        assertFalse(
+            "COUNT(field) needs doc values to preserve null semantics",
+            LuceneFragmentPlanner.isCountFastPath(aggregate(scan, ImmutableBitSet.of(), countField))
         );
     }
 
@@ -80,7 +79,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "SUM needs column values Lucene can't materialise — must be rejected",
-            LuceneFragmentConvertor.isCountFastPath(
+            LuceneFragmentPlanner.isCountFastPath(
                 aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.SUM, scan, "total_size"))
             )
         );
@@ -90,7 +89,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "MIN must be rejected",
-            LuceneFragmentConvertor.isCountFastPath(
+            LuceneFragmentPlanner.isCountFastPath(
                 aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MIN, scan, "min_size"))
             )
         );
@@ -100,7 +99,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         assertFalse(
             "MAX must be rejected",
-            LuceneFragmentConvertor.isCountFastPath(
+            LuceneFragmentPlanner.isCountFastPath(
                 aggregate(scan, ImmutableBitSet.of(), nullableNumeric(SqlStdOperatorTable.MAX, scan, "max_size"))
             )
         );
@@ -110,7 +109,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         // Even one non-COUNT call disqualifies the whole aggregate — every call must be COUNT.
         TableScan scan = stubScan("size", SqlTypeName.INTEGER);
         RelNode agg = aggregate(scan, ImmutableBitSet.of(), countStar(scan), nullableNumeric(SqlStdOperatorTable.SUM, scan, "total_size"));
-        assertFalse("COUNT(*) + SUM mixed must be rejected", LuceneFragmentConvertor.isCountFastPath(agg));
+        assertFalse("COUNT(*) + SUM mixed must be rejected", LuceneFragmentPlanner.isCountFastPath(agg));
     }
 
     public void testCountWithGroupBy_notDrivable() {
@@ -118,7 +117,7 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
         TableScan scan = stubScan("status", SqlTypeName.VARCHAR);
         assertFalse(
             "COUNT(*) GROUP BY status must be rejected — Lucene has no per-group count",
-            LuceneFragmentConvertor.isCountFastPath(aggregate(scan, ImmutableBitSet.of(0), countStar(scan)))
+            LuceneFragmentPlanner.isCountFastPath(aggregate(scan, ImmutableBitSet.of(0), countStar(scan)))
         );
     }
 
@@ -130,8 +129,8 @@ public class LuceneCanDriveFragmentTests extends OpenSearchTestCase {
             List.of(new RexBuilder(typeFactory).makeInputRef(scan, 0)),
             List.of("status")
         );
-        assertFalse("Project (no aggregate above) must be rejected", LuceneFragmentConvertor.isCountFastPath(project));
-        assertFalse("Bare TableScan must be rejected", LuceneFragmentConvertor.isCountFastPath(scan));
+        assertFalse("Project (no aggregate above) must be rejected", LuceneFragmentPlanner.isCountFastPath(project));
+        assertFalse("Bare TableScan must be rejected", LuceneFragmentPlanner.isCountFastPath(scan));
     }
 
     // ---- Helpers ----

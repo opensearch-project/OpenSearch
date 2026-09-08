@@ -25,6 +25,12 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
@@ -65,6 +71,7 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -72,8 +79,14 @@ import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -83,6 +96,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -121,6 +135,72 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         typeFactory = new JavaTypeFactoryImpl();
         rexBuilder = new RexBuilder(typeFactory);
         cluster = RelOptCluster.create(new HepPlanner(new HepProgramBuilder().build()), rexBuilder);
+    }
+
+    public void testStandardEngineReaderAdapterClosesSearcherAndSnapshot() throws Exception {
+        try (
+            ByteBuffersDirectory directory = new ByteBuffersDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()));
+            DirectoryReader directoryReader = DirectoryReader.open(writer)
+        ) {
+            AtomicInteger searcherCloses = new AtomicInteger();
+            AtomicInteger snapshotCloses = new AtomicInteger();
+            Engine.Searcher searcher = new Engine.Searcher(
+                "analytics-lucene-test",
+                directoryReader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                searcherCloses::incrementAndGet
+            );
+            CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
+            GatedCloseable<CatalogSnapshot> snapshotRef = new GatedCloseable<>(snapshot, snapshotCloses::incrementAndGet);
+            EngineBackedIndexer indexer = mock(EngineBackedIndexer.class);
+            when(indexer.acquireSnapshot()).thenReturn(snapshotRef);
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.getReaderProvider()).thenReturn(indexer);
+            when(shard.acquireSearcher("analytics-lucene")).thenReturn(searcher);
+            DataFormat format = mock(DataFormat.class);
+            when(format.name()).thenReturn("lucene");
+            LucenePlugin plugin = mock(LucenePlugin.class);
+            when(plugin.getDataFormat()).thenReturn(format);
+
+            GatedCloseable<IndexReaderProvider.Reader> acquired = new LuceneAnalyticsBackendPlugin(plugin).acquireReader(shard);
+            assertSame(snapshot, acquired.get().catalogSnapshot());
+            assertNotNull(acquired.get().getReader(format, LuceneReader.class));
+            acquired.close();
+            acquired.close();
+
+            assertEquals(1, searcherCloses.get());
+            assertEquals(1, snapshotCloses.get());
+        }
+    }
+
+    public void testStandardEngineReaderAdapterClosesSearcherWhenSnapshotSetupFails() throws Exception {
+        try (
+            ByteBuffersDirectory directory = new ByteBuffersDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()));
+            DirectoryReader directoryReader = DirectoryReader.open(writer)
+        ) {
+            AtomicInteger searcherCloses = new AtomicInteger();
+            Engine.Searcher searcher = new Engine.Searcher(
+                "analytics-lucene-test",
+                directoryReader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                searcherCloses::incrementAndGet
+            );
+            EngineBackedIndexer indexer = mock(EngineBackedIndexer.class);
+            when(indexer.acquireSnapshot()).thenThrow(new IllegalStateException("snapshot setup failed"));
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.getReaderProvider()).thenReturn(indexer);
+            when(shard.acquireSearcher("analytics-lucene")).thenReturn(searcher);
+            LucenePlugin plugin = mock(LucenePlugin.class);
+
+            expectThrows(IllegalStateException.class, () -> new LuceneAnalyticsBackendPlugin(plugin).acquireReader(shard));
+            assertEquals(1, searcherCloses.get());
+        }
     }
 
     /**

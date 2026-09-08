@@ -25,6 +25,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.DistributedAggregateRewriter.FinalAggCallBuilder;
@@ -215,6 +216,14 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSet().isEmpty()
         );
 
+        // The PARTIAL reads storage and therefore retains the source backend. FINAL consumes
+        // exchanged Arrow batches, so it must run on a sink-capable reduce backend. This can be a
+        // sibling backend (Lucene PARTIAL -> DataFusion FINAL) because no storage scan crosses the
+        // exchange boundary.
+        List<String> finalViableBackends = CapabilityResolutionUtils.filterByReduceCapability(
+            context.getCapabilityRegistry(),
+            aggregate.getViableBackends()
+        );
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
@@ -223,7 +232,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             finalAggCalls,
             AggregateMode.FINAL,
-            aggregate.getViableBackends(),
+            finalViableBackends,
             aggregate.getCallAnnotations(),
             finalExtraLiterals,
             intermediateFields

@@ -22,6 +22,7 @@ pub const ROW_ID_COLUMN_NAME: &str = "__row_id__";
 
 pub(crate) mod agg_mode;
 pub mod api;
+pub mod arrow_batch_source;
 pub mod cache;
 pub mod can_match;
 pub mod cancellation;

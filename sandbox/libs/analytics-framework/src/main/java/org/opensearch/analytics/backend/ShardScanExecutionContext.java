@@ -12,6 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.opensearch.analytics.spi.CommonExecutionContext;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
@@ -42,6 +43,7 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
     private QueryCachingPolicy queryCachingPolicy;
     private ShardId shardId;
     private boolean hasPartialAggregate;
+    private DelegationThreadTracker delegationThreadTracker;
 
     /**
      * Constructs an execution context.
@@ -197,5 +199,15 @@ public class ShardScanExecutionContext implements CommonExecutionContext {
 
     public void setHasPartialAggregate(boolean hasPartialAggregate) {
         this.hasPartialAggregate = hasPartialAggregate;
+    }
+
+    /** Returns the tracker used to attribute callback work to the owning task. */
+    public DelegationThreadTracker getDelegationThreadTracker() {
+        return delegationThreadTracker;
+    }
+
+    /** Sets the tracker used to attribute callback work to the owning task. */
+    public void setDelegationThreadTracker(DelegationThreadTracker delegationThreadTracker) {
+        this.delegationThreadTracker = delegationThreadTracker;
     }
 }

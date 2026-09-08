@@ -10,11 +10,15 @@ package org.opensearch.analytics.spi;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.tasks.Task;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +46,38 @@ public interface AnalyticsSearchBackendPlugin {
 
     /** Unique backend name (e.g., "datafusion", "lucene"). */
     String name();
+
+    /** Supplies the complete backend registry after all extensions have loaded. */
+    default void bindBackends(Map<String, AnalyticsSearchBackendPlugin> backends) {}
+
+    /** Whether this backend can execute plans over a caller-provided Arrow batch source. */
+    default boolean supportsArrowBatchSourceExecution() {
+        return false;
+    }
+
+    /** Compiles a fragment over a named Arrow input. */
+    default byte[] compileArrowBatchSourcePlan(RelNode fragment, boolean partialAggregate) {
+        throw new UnsupportedOperationException("Arrow batch source compilation not implemented for [" + name() + "]");
+    }
+
+    /** Attaches a coordinator-local fragment to an already compiled Arrow source plan. */
+    default byte[] attachArrowBatchSourcePlan(RelNode fragment, byte[] innerPlanBytes) {
+        throw new UnsupportedOperationException("Arrow batch source composition not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Executes a backend-native plan over a caller-provided Arrow batch source.
+     * Ownership of {@code sourceFactory} transfers to this method, including on failure.
+     */
+    default EngineResultStream executeArrowBatchSource(
+        BufferAllocator resultAllocator,
+        ArrowBatchSourcePlan plan,
+        ArrowBatchSourceFactory sourceFactory,
+        Task task,
+        DelegationThreadTracker threadTracker
+    ) {
+        throw new UnsupportedOperationException("Arrow batch source execution not implemented for [" + name() + "]");
+    }
 
     /**
      * Returns the capability provider for this backend.
@@ -91,6 +127,23 @@ public interface AnalyticsSearchBackendPlugin {
      */
     default FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         throw new UnsupportedOperationException("getInstructionHandlerFactory not implemented for [" + name() + "]");
+    }
+
+    /**
+     * Acquires the point-in-time shard reader used by this backend. Pluggable-format backends use
+     * the shard's {@link org.opensearch.index.engine.exec.IndexReaderProvider} directly. A backend
+     * that also supports a standard engine can override this method to adapt that engine's native
+     * searcher into the shared {@link Reader} contract.
+     */
+    default GatedCloseable<Reader> acquireReader(IndexShard shard) throws IOException {
+        try {
+            return shard.getReaderProvider().acquireReader();
+        } catch (UnsupportedOperationException e) {
+            throw new UnsupportedOperationException(
+                "Backend [" + name() + "] cannot acquire a reader from " + shard.getReaderProvider().getClass().getName(),
+                e
+            );
+        }
     }
 
     /**

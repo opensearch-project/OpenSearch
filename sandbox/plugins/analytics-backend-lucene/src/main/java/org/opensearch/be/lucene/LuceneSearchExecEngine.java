@@ -24,6 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.ArrowBatchSourcePlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,12 +37,10 @@ import java.util.List;
  * instruction handler, executes the operation, and returns an {@link EngineResultStream}
  * the framework drains into the Flight transport.
  *
- * <p>Today's only operation is the count fast path —
- * {@link org.apache.lucene.search.IndexSearcher#count(org.apache.lucene.search.Query)} —
- * exported through the Arrow C-Data interface so the result VSR has the same
- * foreign-allocation-managed buffer layout DataFusion's result stream produces. Pure-Java
- * {@code setSafe}-built VSRs don't survive Flight's {@code VectorTransfer.transferRoot};
- * see {@link LuceneResultStream} for the detailed comparison.
+ * <p>Count-only states use the metadata fast path through
+ * {@link org.apache.lucene.search.IndexSearcher#count(org.apache.lucene.search.Query)}.
+ * States carrying an {@link ArrowBatchSourcePlan} create one doc-values source factory and
+ * transfer it to the bound Arrow source execution backend.
  *
  * <p>No deletes gate. {@code IndexSearcher.count} is self-healing: per-leaf
  * {@code Weight.count(leaf)} returns -1 on dirty leaves and falls back to full iteration —
@@ -54,9 +54,15 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
     private static final Logger LOGGER = LogManager.getLogger(LuceneSearchExecEngine.class);
 
     private final LuceneSearcherState state;
+    private final AnalyticsSearchBackendPlugin arrowSourceBackend;
 
     LuceneSearchExecEngine(LuceneSearcherState state) {
+        this(state, null);
+    }
+
+    LuceneSearchExecEngine(LuceneSearcherState state, AnalyticsSearchBackendPlugin arrowSourceBackend) {
         this.state = state;
+        this.arrowSourceBackend = arrowSourceBackend;
     }
 
     @Override
@@ -68,6 +74,31 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
 
     @Override
     public EngineResultStream execute(ShardScanExecutionContext context) throws IOException {
+        ArrowBatchSourcePlan sourcePlan = state.arrowBatchSourcePlan();
+        if (sourcePlan != null) {
+            BufferAllocator allocator = context.getAllocator();
+            if (allocator == null) {
+                throw new IllegalStateException("ShardScanExecutionContext allocator is required for Arrow batch source execution");
+            }
+            if (arrowSourceBackend == null) {
+                throw new IllegalStateException("No Arrow batch source execution backend is available");
+            }
+            DocValuesBatchSourceFactory sourceFactory = new DocValuesBatchSourceFactory(
+                state.searcher(),
+                state.filterQuery(),
+                sourcePlan.inputColumns(),
+                allocator,
+                context.getTask()
+            );
+            return arrowSourceBackend.executeArrowBatchSource(
+                allocator,
+                sourcePlan,
+                sourceFactory,
+                context.getTask(),
+                context.getDelegationThreadTracker()
+            );
+        }
+
         long count = state.searcher().count(state.filterQuery());
         LOGGER.debug(
             "[lucene-count] shardId={} query={} count={} columns={}",

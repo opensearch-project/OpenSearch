@@ -13,6 +13,7 @@ import org.opensearch.analytics.spi.BackendShardPreference;
 import org.opensearch.analytics.spi.ShardPreferenceContext;
 
 import java.util.OptionalInt;
+import java.util.function.BooleanSupplier;
 
 /**
  * Lucene's per-shard preference: opt in to drive count-fast-path fragments when the user has
@@ -26,6 +27,16 @@ import java.util.OptionalInt;
  */
 final class LuceneShardPreference implements BackendShardPreference {
 
+    private final BooleanSupplier arrowSourceAvailable;
+
+    LuceneShardPreference() {
+        this(() -> true);
+    }
+
+    LuceneShardPreference(BooleanSupplier arrowSourceAvailable) {
+        this.arrowSourceAvailable = arrowSourceAvailable;
+    }
+
     /** Wants-to-drive score — beats generic alternatives (score 0). */
     private static final int COUNT_FAST_PATH_SCORE = 100;
 
@@ -34,12 +45,19 @@ final class LuceneShardPreference implements BackendShardPreference {
      *  Lucene alternative just because it appeared first in PlanForker order. */
     private static final int NOT_DRIVABLE_SCORE = -1;
 
+    /** Prefer supported doc-values plans over generic storage alternatives. */
+    private static final int ARROW_SOURCE_SCORE = 50;
+
     @Override
     public OptionalInt scoreFor(RelNode fragment, ShardPreferenceContext ctx) {
         if (ctx.preferMetadataDriver() == false) return OptionalInt.empty();
-        if (LuceneFragmentConvertor.isCountFastPath(fragment) == false) {
-            return OptionalInt.of(NOT_DRIVABLE_SCORE);
+        LuceneFragmentPlanner.Shape shape = LuceneFragmentPlanner.classify(fragment);
+        if (shape instanceof LuceneFragmentPlanner.CountShape) {
+            return OptionalInt.of(COUNT_FAST_PATH_SCORE);
         }
-        return OptionalInt.of(COUNT_FAST_PATH_SCORE);
+        if (shape instanceof LuceneFragmentPlanner.ArrowSourceShape && arrowSourceAvailable.getAsBoolean()) {
+            return OptionalInt.of(ARROW_SOURCE_SCORE);
+        }
+        return OptionalInt.of(NOT_DRIVABLE_SCORE);
     }
 }

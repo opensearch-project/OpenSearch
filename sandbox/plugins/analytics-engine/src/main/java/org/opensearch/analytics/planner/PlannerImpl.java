@@ -148,7 +148,11 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         RelNodeUtils.logPlan(LOGGER, "After CBO", modifiedRelNode);
-        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        // Lucene's Arrow source path does not implement the QTF fetch-by-row-id phase.
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(
+            modifiedRelNode,
+            scan -> scan.getViableBackends().size() != 1 || scan.getViableBackends().contains("lucene") == false
+        );
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
             RelNodeUtils.logPlan(LOGGER, "After late-materialization", modifiedRelNode);

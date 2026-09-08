@@ -93,7 +93,12 @@ public class DAGBuilder {
                 registry,
                 ((OpenSearchRelNode) cboOutput).getViableBackends()
             );
-            sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+            String reduceBackend = reduceViable.getFirst();
+            sinkProvider = registry.getBackend(reduceBackend).getExchangeSinkProvider();
+            // The sink backend executes this entire coordinator fragment. Bind wrappers above the
+            // exchange as well as the reduce operator itself; their original viability was derived
+            // from shard storage and can otherwise conflict with a cross-backend reduce.
+            rootFragment = PlanForker.bindToBackend(rootFragment, reduceBackend);
         }
 
         // Root needs a shard target only if its fragment actually contains a TableScan.
