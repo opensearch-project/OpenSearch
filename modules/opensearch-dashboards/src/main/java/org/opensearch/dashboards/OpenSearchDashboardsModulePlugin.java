@@ -32,6 +32,7 @@
 
 package org.opensearch.dashboards;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -40,6 +41,13 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.dashboards.action.GetAdvancedSettingsAction;
+import org.opensearch.dashboards.action.TransportGetAdvancedSettingsAction;
+import org.opensearch.dashboards.action.TransportWriteAdvancedSettingsAction;
+import org.opensearch.dashboards.action.WriteAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestGetAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestWriteAdvancedSettingsAction;
 import org.opensearch.index.reindex.RestDeleteByQueryAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.Plugin;
@@ -142,10 +150,20 @@ public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIn
                 new OpenSearchDashboardsWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestUpdateAction()),
                 new OpenSearchDashboardsWrappedRestHandler(new RestSearchScrollAction()),
-                new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction())
+                new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction()),
+                new RestGetAdvancedSettingsAction(),
+                new RestWriteAdvancedSettingsAction()
             )
         );
 
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(
+            new ActionHandler<>(GetAdvancedSettingsAction.INSTANCE, TransportGetAdvancedSettingsAction.class),
+            new ActionHandler<>(WriteAdvancedSettingsAction.INSTANCE, TransportWriteAdvancedSettingsAction.class)
+        );
     }
 
     @Override
