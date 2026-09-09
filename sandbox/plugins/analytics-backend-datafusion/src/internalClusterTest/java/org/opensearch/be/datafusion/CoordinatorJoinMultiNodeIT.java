@@ -340,10 +340,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
     /** One document per key in {@code [keyLo, keyHi]}. Sequential — fine for small N. */
     private void indexUnique(String indexName, String payloadField, int keyLo, int keyHi, IntUnaryOperator keyToPayload) {
         for (int key = keyLo; key <= keyHi; key++) {
-            client().prepareIndex(indexName)
-                .setId(indexName + "_" + key)
-                .setSource("k", key, payloadField, keyToPayload.applyAsInt(key))
-                .get();
+            client().prepareIndex(indexName).setSource("k", key, payloadField, keyToPayload.applyAsInt(key)).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();
@@ -356,11 +353,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
             int batchEnd = Math.min(batchStart + batchSize - 1, keyHi);
             org.opensearch.action.bulk.BulkRequestBuilder bulk = client().prepareBulk();
             for (int key = batchStart; key <= batchEnd; key++) {
-                bulk.add(
-                    client().prepareIndex(indexName)
-                        .setId(indexName + "_" + key)
-                        .setSource("k", key, payloadField, keyToPayload.applyAsInt(key))
-                );
+                bulk.add(client().prepareIndex(indexName).setSource("k", key, payloadField, keyToPayload.applyAsInt(key)));
             }
             org.opensearch.action.bulk.BulkResponse response = bulk.get();
             assertFalse(
@@ -377,7 +370,7 @@ public class CoordinatorJoinMultiNodeIT extends OpenSearchIntegTestCase {
         for (int key = keyLo; key <= keyHi; key++) {
             for (int d = 0; d < dupes; d++) {
                 int payload = key * 1000 + d;
-                client().prepareIndex(indexName).setId(indexName + "_" + key + "_" + d).setSource("k", key, payloadField, payload).get();
+                client().prepareIndex(indexName).setSource("k", key, payloadField, payload).get();
             }
         }
         client().admin().indices().prepareRefresh(indexName).get();

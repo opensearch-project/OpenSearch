@@ -32,9 +32,11 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
@@ -271,6 +273,57 @@ public abstract class ScoreScript {
         boolean needs_score();
 
         ScoreScript newInstance(LeafReaderContext ctx) throws IOException;
+    }
+
+    /**
+     * Extension of {@link LeafFactory} that allows a script engine to provide a custom
+     * {@link BulkScorer} for batch scoring. When implemented, {@code ScriptScoreQuery} will
+     * delegate to the returned bulk scorer instead of scoring documents one at a time.
+     * This enables optimizations such as batched I/O prefetch and vectorized distance computation.
+     *
+     * <p><b>Score mode contract:</b> The returned {@link BulkScorer} fully replaces the default
+     * {@code ScriptScoreBulkScorer}. It is responsible for honoring all scoring semantics including
+     * score validation (non-negative, non-NaN) and applying the boost factor. The caller does not
+     * apply any additional score transformations on top of the returned scorer's output.
+     *
+     * <p><b>Explain contract:</b> The {@code explain()} path in {@code ScriptScoreQuery} always uses
+     * the per-document scoring path via {@link #newInstance(LeafReaderContext)}. Implementations must
+     * ensure that the per-doc scorer and the bulk scorer produce consistent scores for the same
+     * document, so that explain output accurately reflects actual query scores.
+     *
+     * @opensearch.internal
+     */
+    public interface BulkScoringLeafFactory extends LeafFactory {
+
+        /**
+         * Create a BulkScorer that scores documents in batches for improved I/O efficiency.
+         *
+         * <p><b>Contract:</b>
+         * <ul>
+         *   <li>{@code subQueryBulkScorer} is guaranteed non-null by the caller.</li>
+         *   <li>If this method returns {@code null}, the caller falls back to the default per-document
+         *       scoring path. The {@code subQueryBulkScorer} remains unconsumed and will be used by
+         *       the fallback scorer.</li>
+         *   <li>If this method returns a non-null {@link BulkScorer}, the caller uses it exclusively
+         *       for this segment. The implementation takes ownership of {@code subQueryBulkScorer}
+         *       and is responsible for driving or discarding it.</li>
+         *   <li>The returned scorer must produce valid scores: non-negative, non-NaN, with the
+         *       provided {@code boost} applied.</li>
+         * </ul>
+         *
+         * @param context            the leaf reader context for this segment
+         * @param subQueryBulkScorer the sub-query's BulkScorer that drives document iteration (never null)
+         * @param subQueryScoreMode  the score mode of the sub-query
+         * @param boost              the boost factor to apply to scores
+         * @return a BulkScorer, or null to fall back to default per-document scoring
+         * @throws IOException if an I/O error occurs
+         */
+        BulkScorer bulkScorer(
+            final LeafReaderContext context,
+            final BulkScorer subQueryBulkScorer,
+            final ScoreMode subQueryScoreMode,
+            float boost
+        ) throws IOException;
     }
 
     /**

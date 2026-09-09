@@ -35,9 +35,7 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, Float64Array, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, Float64Array, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::plan_err;
 use datafusion::error::{DataFusionError, Result};
@@ -84,7 +82,10 @@ impl ScalarUDFImpl for MinspanBucketUdf {
     }
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         if arg_types.len() != 4 {
-            return plan_err!("minspan_bucket expects 4 arguments, got {}", arg_types.len());
+            return plan_err!(
+                "minspan_bucket expects 4 arguments, got {}",
+                arg_types.len()
+            );
         }
         Ok(DataType::Utf8)
     }
@@ -102,7 +103,10 @@ impl ScalarUDFImpl for MinspanBucketUdf {
     }
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 4 {
-            return plan_err!("minspan_bucket expects 4 arguments, got {}", args.args.len());
+            return plan_err!(
+                "minspan_bucket expects 4 arguments, got {}",
+                args.args.len()
+            );
         }
         let n = args.number_rows;
         let value = args.args[0].clone().into_array(n)?;
@@ -121,8 +125,12 @@ impl ScalarUDFImpl for MinspanBucketUdf {
                 builder.append_null();
                 continue;
             }
-            match calculate(value.value(i), min_span.value(i), range.value(i), max_value.value(i))
-            {
+            match calculate(
+                value.value(i),
+                min_span.value(i),
+                range.value(i),
+                max_value.value(i),
+            ) {
                 Some(s) => builder.append_value(&s),
                 None => builder.append_null(),
             }
@@ -159,7 +167,11 @@ fn calculate(value: f64, min_span: f64, range: f64, _max_value: f64) -> Option<S
     // Java: `useDefault = defaultWidth >= minSpan`, i.e. data's natural order-
     // of-magnitude width is already at least minSpan, so use it; otherwise
     // use minspan_width so every bin is at least minSpan wide.
-    let width = if default_width >= min_span { default_width } else { minspan_width };
+    let width = if default_width >= min_span {
+        default_width
+    } else {
+        minspan_width
+    };
     if !width.is_finite() || width <= 0.0 {
         return None;
     }
@@ -233,10 +245,7 @@ mod tests {
         // range=1.0 → defaultWidth=10^floor(0)=10^0=1
         // 1 >= 0.05 → width=1 (integer)
         // value=0.7 → binStart=0, binEnd=1 → "0-1"
-        assert_eq!(
-            calculate(0.7, 0.05, 1.0, 1.0),
-            Some("0-1".to_string())
-        );
+        assert_eq!(calculate(0.7, 0.05, 1.0, 1.0), Some("0-1".to_string()));
     }
 
     // ── `defaultWidth < minSpan` branch (user floor wins) ──────────────────
@@ -247,10 +256,7 @@ mod tests {
         // range=5 → defaultWidth=10^0=1
         // 1 >= 3 false → width=10
         // value=15 → binStart=10, binEnd=20 → "10-20"
-        assert_eq!(
-            calculate(15.0, 3.0, 5.0, 5.0),
-            Some("10-20".to_string())
-        );
+        assert_eq!(calculate(15.0, 3.0, 5.0, 5.0), Some("10-20".to_string()));
     }
 
     #[test]
@@ -260,10 +266,7 @@ mod tests {
         // range=0.3 → defaultWidth=10^-1=0.1
         // 0.1 >= 0.5 false → width=1
         // value=42 → binStart=42, binEnd=43 → "42-43"
-        assert_eq!(
-            calculate(42.0, 0.5, 0.3, 0.3),
-            Some("42-43".to_string())
-        );
+        assert_eq!(calculate(42.0, 0.5, 0.3, 0.3), Some("42-43".to_string()));
     }
 
     // ── min_span guards ────────────────────────────────────────────────────
@@ -367,10 +370,18 @@ mod tests {
             config_options: Arc::new(Default::default()),
         };
         let out = udf.invoke_with_args(args).unwrap();
-        let ColumnarValue::Array(a) = out else { panic!("expected array") };
+        let ColumnarValue::Array(a) = out else {
+            panic!("expected array")
+        };
         let s = a.as_string::<i32>();
         (0..n)
-            .map(|i| if s.is_null(i) { None } else { Some(s.value(i).to_string()) })
+            .map(|i| {
+                if s.is_null(i) {
+                    None
+                } else {
+                    Some(s.value(i).to_string())
+                }
+            })
             .collect()
     }
 
@@ -413,7 +424,12 @@ mod tests {
     fn coerce_types_rejects_non_numeric() {
         let udf = MinspanBucketUdf::new();
         assert!(udf
-            .coerce_types(&[DataType::Utf8, DataType::Float64, DataType::Float64, DataType::Float64])
+            .coerce_types(&[
+                DataType::Utf8,
+                DataType::Float64,
+                DataType::Float64,
+                DataType::Float64
+            ])
             .is_err());
     }
 

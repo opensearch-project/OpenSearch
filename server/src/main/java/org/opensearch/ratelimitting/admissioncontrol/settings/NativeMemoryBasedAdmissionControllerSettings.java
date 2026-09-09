@@ -26,12 +26,14 @@ public class NativeMemoryBasedAdmissionControllerSettings {
     public static class Defaults {
         public static final long NATIVE_MEMORY_USAGE_LIMIT = 95;
         public static final long CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT = 95;
+        public static final long INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT = 90;
     }
 
     private AdmissionControlMode transportLayerMode;
     private Long searchNativeMemoryUsageLimit;
     private Long indexingNativeMemoryUsageLimit;
     private Long clusterAdminNativeMemoryUsageLimit;
+    private Long indexingNativeMemoryPoolUsageLimit;
 
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
@@ -78,6 +80,20 @@ public class NativeMemoryBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * This setting is used to reject indexing requests based on the utilization of the indexing native
+     * memory pool (the {@code PoolGroup.INDEXING} group of the native allocator pools), as opposed to the
+     * node-wide native memory utilization governed by {@link #INDEXING_NATIVE_MEMORY_USAGE_LIMIT}.
+     * The value is a percentage (0-100) of the pool's allocated bytes over its limit bytes.
+     */
+    public static final Setting<Long> INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.indexing.native_memory_pool_usage.limit",
+        Defaults.INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public NativeMemoryBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
@@ -87,9 +103,11 @@ public class NativeMemoryBasedAdmissionControllerSettings {
         this.searchNativeMemoryUsageLimit = SEARCH_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
         this.indexingNativeMemoryUsageLimit = INDEXING_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
         this.clusterAdminNativeMemoryUsageLimit = CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.get(settings);
+        this.indexingNativeMemoryPoolUsageLimit = INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_NATIVE_MEMORY_USAGE_LIMIT, this::setSearchNativeMemoryUsageLimit);
         clusterSettings.addSettingsUpdateConsumer(INDEXING_NATIVE_MEMORY_USAGE_LIMIT, this::setIndexingNativeMemoryUsageLimit);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT, this::setClusterAdminNativeMemoryUsageLimit);
+        clusterSettings.addSettingsUpdateConsumer(INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT, this::setIndexingNativeMemoryPoolUsageLimit);
     }
 
     public void setTransportLayerMode(AdmissionControlMode transportLayerMode) {
@@ -122,5 +140,13 @@ public class NativeMemoryBasedAdmissionControllerSettings {
 
     public void setClusterAdminNativeMemoryUsageLimit(Long clusterAdminNativeMemoryUsageLimit) {
         this.clusterAdminNativeMemoryUsageLimit = clusterAdminNativeMemoryUsageLimit;
+    }
+
+    public Long getIndexingNativeMemoryPoolUsageLimit() {
+        return indexingNativeMemoryPoolUsageLimit;
+    }
+
+    public void setIndexingNativeMemoryPoolUsageLimit(Long indexingNativeMemoryPoolUsageLimit) {
+        this.indexingNativeMemoryPoolUsageLimit = indexingNativeMemoryPoolUsageLimit;
     }
 }

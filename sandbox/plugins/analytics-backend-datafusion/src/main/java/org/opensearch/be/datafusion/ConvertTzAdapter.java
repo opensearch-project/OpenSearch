@@ -60,8 +60,12 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
         SqlFunctionCategory.TIMEDATE
     );
 
-    /** Matches {@code ±H:MM} / {@code ±HH:MM} with hours [0,14] and minutes [0,59]. */
+    /** Matches {@code ±H:MM} / {@code ±HH:MM}. Band enforcement lives in {@link #isWithinMySqlOffsetBand}. */
     private static final Pattern OFFSET_PATTERN = Pattern.compile("^([+-])(\\d{1,2}):(\\d{2})$");
+
+    /** MySQL accepts {@code [-13:59, +14:00]}. Outside this band {@code CONVERT_TZ} returns NULL. */
+    private static final int MAX_POSITIVE_OFFSET_MINUTES = 14 * 60;
+    private static final int MAX_NEGATIVE_OFFSET_MINUTES = 13 * 60 + 59;
 
     /** invalid timestamp literal -> typed NULL (peels CAST wrapping that PPL adds for non-TIMESTAMP args). */
     private static RexNode foldInvalidTimestampLiteralToNull(
@@ -132,20 +136,25 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
 
     /**
      * True when the canonicalized literal is something the runtime UDF will accept
-     * (in-range ±HH:MM offset or recognized IANA zone). Out-of-range offsets that
-     * canonicalize to themselves return false here so the identity short-circuit
-     * defers to the UDF's runtime NULL behavior.
+     * (in-range ±HH:MM offset or recognized IANA zone). After the boundary
+     * tightening in {@link #canonicalizeTz(String)}, out-of-range offsets are
+     * rejected at plan time, so reaching this method means the literal is valid.
      */
     private static boolean isInRangeTz(String canonical) {
         Matcher offset = OFFSET_PATTERN.matcher(canonical);
         if (offset.matches()) {
-            int hours = Integer.parseInt(offset.group(2));
-            int minutes = Integer.parseInt(offset.group(3));
-            return hours <= 14 && minutes <= 59;
+            return isWithinMySqlOffsetBand(offset.group(1), Integer.parseInt(offset.group(2)), Integer.parseInt(offset.group(3)));
         }
         // Non-offset canonical forms reach here only via ZoneId.of() success path
         // in canonicalizeTz, so they're already valid IANA ids.
         return true;
+    }
+
+    /** MySQL CONVERT_TZ band: {@code +00:00..+14:00} and {@code -00:00..-13:59}. */
+    private static boolean isWithinMySqlOffsetBand(String sign, int hours, int minutes) {
+        if (minutes > 59) return false;
+        int totalMinutes = hours * 60 + minutes;
+        return "-".equals(sign) ? totalMinutes <= MAX_NEGATIVE_OFFSET_MINUTES : totalMinutes <= MAX_POSITIVE_OFFSET_MINUTES;
     }
 
     /** String value of a canonicalized tz literal, or null for non-literal/non-string operands. */
@@ -185,9 +194,12 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
     }
 
     /**
-     * Canonicalize a tz string: {@code ±H:MM}/{@code ±HH:MM} (hours 0-14, minutes 0-59,
-     * matches Rust {@code parse_offset_seconds}) or an IANA id resolvable by {@link ZoneId#of}.
-     * Throws {@link IllegalArgumentException} for unrecognized inputs.
+     * Canonicalize a tz string: {@code ±H:MM}/{@code ±HH:MM} within MySQL's
+     * {@code CONVERT_TZ} band ({@code -13:59..+14:00}, matching legacy
+     * {@code DateTimeUtils.isValidMySqlTimeZoneId}) or an IANA id resolvable by
+     * {@link ZoneId#of}. Throws {@link IllegalArgumentException} for offsets
+     * outside the band or unrecognized strings; the caller folds the
+     * exception into a typed NULL.
      */
     static String canonicalizeTz(String raw) {
         Matcher offset = OFFSET_PATTERN.matcher(raw);
@@ -195,13 +207,8 @@ class ConvertTzAdapter implements ScalarFunctionAdapter {
             String sign = offset.group(1);
             int hours = Integer.parseInt(offset.group(2));
             int minutes = Integer.parseInt(offset.group(3));
-            // Out-of-range but syntactically-valid offsets pass through unchanged so the
-            // runtime UDF (rust/src/udf/convert_tz.rs::parse_offset_seconds) sees the
-            // raw string, returns None, and the row surfaces as NULL — matching legacy
-            // PPL semantics (DateTimeFunctionIT#testConvertTZ expects NULL rows for
-            // '-17:00' / '+15:00').
-            if (hours > 14 || minutes > 59) {
-                return raw;
+            if (!isWithinMySqlOffsetBand(sign, hours, minutes)) {
+                throw new IllegalArgumentException("convert_tz: offset [" + raw + "] outside MySQL band [-13:59, +14:00]");
             }
             return String.format(Locale.ROOT, "%s%02d:%02d", sign, hours, minutes);
         }

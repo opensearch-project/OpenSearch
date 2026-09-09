@@ -78,6 +78,46 @@ public class NativeAllocatorBoundaryIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * Verifies that the Arrow classes used by the plugin are running from the unnamed module.
+     */
+    public void testArrowRuntimeClassesAreUnnamedModules() {
+        ArrowNativeAllocator allocator = internalCluster().getInstance(ArrowNativeAllocator.class);
+        BufferAllocator queryPool = allocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
+
+        Module arrowApiModule = BufferAllocator.class.getModule();
+        Module runtimeAllocatorModule = queryPool.getClass().getModule();
+        Module pluginAllocatorModule = allocator.getClass().getModule();
+
+        assertNotNull("Arrow API module should not be null", arrowApiModule);
+        assertNotNull("Arrow runtime allocator module should not be null", runtimeAllocatorModule);
+        assertNotNull("arrow-base plugin allocator module should not be null", pluginAllocatorModule);
+
+        logger.info(
+            "Arrow module probe: BufferAllocator module[name={}, named={}, loader={}], "
+                + "runtime allocator class={} module[name={}, named={}, loader={}], "
+                + "plugin allocator module[name={}, named={}, loader={}]",
+            arrowApiModule.getName(),
+            arrowApiModule.isNamed(),
+            BufferAllocator.class.getClassLoader(),
+            queryPool.getClass().getName(),
+            runtimeAllocatorModule.getName(),
+            runtimeAllocatorModule.isNamed(),
+            queryPool.getClass().getClassLoader(),
+            pluginAllocatorModule.getName(),
+            pluginAllocatorModule.isNamed(),
+            allocator.getClass().getClassLoader()
+        );
+
+        assertFalse("Arrow API should be loaded as an unnamed module", arrowApiModule.isNamed());
+        assertFalse("Arrow runtime allocator should be loaded as an unnamed module", runtimeAllocatorModule.isNamed());
+        assertFalse("arrow-base plugin allocator should be loaded as an unnamed module", pluginAllocatorModule.isNamed());
+
+        try (var buffer = queryPool.buffer(1024)) {
+            assertThat(buffer.capacity(), is(1024L));
+        }
+    }
+
+    /**
      * Verifies that per-pool limits cap allocations: when one pool is full,
      * allocations through it fail even if other pools have headroom.
      */

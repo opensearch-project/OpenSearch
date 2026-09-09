@@ -23,6 +23,7 @@ import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -37,10 +38,6 @@ import java.util.concurrent.Executor;
  * forks the actual reduce computation to the SEARCH pool. This prevents deadlocking SEARCH
  * (where fragment execution runs) while keeping reduce compute off the scheduler threads.
  *
- * <p>Releasing the Java buffers DataFusion borrows for its reduce working set is handled natively:
- * {@code backendSink.close()} → {@code df_stream_close} joins the plan-driving CPU task before
- * returning, so every borrowed batch is dropped before the terminal transition closes the allocator.
- *
  * @opensearch.internal
  */
 public final class ReduceStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
@@ -51,6 +48,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     private final ExchangeSink downstream;
     private final Executor reduceExecutor;
     private final BufferAllocator allocator;
+    private final boolean profile;
 
     public ReduceStageExecution(Stage stage, QueryContext config, ReducingExchangeSink backendSink, ExchangeSink downstream) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
@@ -59,6 +57,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
         this.reduceExecutor = config.reduceExecutor();
         this.allocator = config.bufferAllocator();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
+        this.profile = config.profile();
     }
 
     @Override
@@ -100,19 +99,32 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     @Override
     protected List<StageTask> materializeTasks() {
-        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> reduceExecutor.execute(() -> {
-            try {
-                backendSink.reduce(listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        })));
+        final StageTask[] holder = new StageTask[1];
+        holder[0] = new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> {
+            reduceExecutor.execute(() -> {
+                try {
+                    backendSink.reduce(ActionListener.wrap(v -> {
+                        if (profile) {
+                            byte[] metrics = backendSink.getExecutionMetrics();
+                            if (metrics != null) {
+                                holder[0].setDataNodeMetrics(metrics);
+                            }
+                        }
+                        listener.onResponse(v);
+                    }, listener::onFailure));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        });
+        return List.of(holder[0]);
     }
 
     @Override
     protected void onTerminalTransition(State terminal) {
         if (terminal == State.CANCELLED || terminal == State.FAILED) {
             if (backendSink instanceof CancellableExchangeSink cancellable) {
+                logger.warn("[ReduceStageExecution] stage {} terminal={}, firing cancellable.cancel()", getStageId(), terminal);
                 try {
                     cancellable.cancel();
                 } catch (Exception e) {
@@ -120,7 +132,6 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
                 }
             }
         }
-        // Joins the native plan-driving task, releasing borrowed buffers before the allocator closes.
         try {
             backendSink.close();
         } catch (Exception ignore) {}

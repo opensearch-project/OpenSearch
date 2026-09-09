@@ -484,12 +484,14 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** date_format with %c %U %u %V %v emits month-no-leading-zero + correct week numbering. */
+    /** date_format with %c %U %u %V %v emits zero-padded month + correct week numbering. */
     public void testDateFormatPercentTokens() throws IOException {
         // 2024-01-28 — Sunday. Mode 0 (Sun-first): U=4, V=4. Mode 1 (Mon-first): u=4, v=4.
+        // %c on the PPL/AE route maps to "MM" (zero-padded) per DateTimeFormatterUtil.DATE_HANDLERS,
+        // unlike stock MySQL's no-leading-zero %c, so January → "01".
         assertFirstRowString(
             oneRow() + "| eval f = date_format(date('2024-01-28'), '%c %U %u %V %v') | fields f",
-            "1 04 04 04 04"
+            "01 04 04 04 04"
         );
     }
 
@@ -527,7 +529,7 @@ public class DatetimeCoverageIT extends AnalyticsRestTestCase {
         assertFirstRowString(
             oneRow()
                 + "| eval f = date_format(timestamp('1998-01-31 13:14:15'), '%a %b %c %D %d %H %i %M %m %S') | fields f",
-            "Sat Jan 1 31st 31 13 14 January 01 15"
+            "Sat Jan 01 31st 31 13 14 January 01 15"
         );
     }
 

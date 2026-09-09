@@ -71,8 +71,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
         Path hyphenationPatternsFile = Analysis.resolveAnalyzerPath(env, hyphenationPatternsPath);
 
-        try {
-            InputStream in = Files.newInputStream(hyphenationPatternsFile);
+        try (InputStream in = Files.newInputStream(hyphenationPatternsFile)) {
             hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(in));
         } catch (Exception e) {
             LogManager.getLogger(HyphenationCompoundWordTokenFilterFactory.class)

@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 /**
  * Converter for Terms queries.
@@ -18,11 +19,18 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
  */
 public class TermsQueryBuilderProtoConverter implements QueryBuilderProtoConverter {
 
+    private QueryBuilderProtoConverterRegistry registry;
+
     /**
      * Constructs a new TermsQueryBuilderProtoConverter.
      */
     public TermsQueryBuilderProtoConverter() {
         // Default constructor
+    }
+
+    @Override
+    public void setRegistry(QueryBuilderProtoConverterRegistry registry) {
+        this.registry = registry;
     }
 
     @Override
@@ -36,6 +44,6 @@ public class TermsQueryBuilderProtoConverter implements QueryBuilderProtoConvert
             throw new IllegalArgumentException("QueryContainer does not contain a Terms query");
         }
 
-        return TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms());
+        return TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms(), registry);
     }
 }

@@ -40,6 +40,8 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
     private final long nativeWriteTotal;
     private final long nativeWriteTimeMillis;
     private final long nativeWriteFailures;
+    // Writes rejected by the parquet_native_write pool when its bounded queue is full.
+    private final long nativeWriteRejections;
     private final long nativeFinalizeTotal;
     private final long nativeFinalizeTimeMillis;
     private final long nativeFinalizeFailures;
@@ -66,12 +68,16 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
     @Nullable
     private final ParquetNativeRuntimeStats nativeRuntime;
 
+    // Ingest thread-pool snapshot (node-level only, null on shard trackers and cross-node aggregation)
+    @Nullable
+    private final ParquetIngestPoolStats ingestPool;
+
     /**
      * Returns an empty ParquetShardStats snapshot with all zero counters.
      * Used by transport actions when a shard does not have a Parquet primary delegate.
      */
     public static ParquetShardStats empty() {
-        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new ParquetShardStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     /**
@@ -84,6 +90,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long nativeWriteTotal,
         long nativeWriteTimeMillis,
         long nativeWriteFailures,
+        long nativeWriteRejections,
         long nativeFinalizeTotal,
         long nativeFinalizeTimeMillis,
         long nativeFinalizeFailures,
@@ -107,6 +114,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             nativeWriteTotal,
             nativeWriteTimeMillis,
             nativeWriteFailures,
+            nativeWriteRejections,
             nativeFinalizeTotal,
             nativeFinalizeTimeMillis,
             nativeFinalizeFailures,
@@ -122,6 +130,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             backgroundWriteWaitMillis,
             backgroundWriteTimeouts,
             backgroundWriteFailures,
+            null,
             null
         );
     }
@@ -136,6 +145,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long nativeWriteTotal,
         long nativeWriteTimeMillis,
         long nativeWriteFailures,
+        long nativeWriteRejections,
         long nativeFinalizeTotal,
         long nativeFinalizeTimeMillis,
         long nativeFinalizeFailures,
@@ -151,7 +161,8 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         long backgroundWriteWaitMillis,
         long backgroundWriteTimeouts,
         long backgroundWriteFailures,
-        @Nullable ParquetNativeRuntimeStats nativeRuntime
+        @Nullable ParquetNativeRuntimeStats nativeRuntime,
+        @Nullable ParquetIngestPoolStats ingestPool
     ) {
         this.docsIndexedTotal = docsIndexedTotal;
         this.indexTimeMillis = indexTimeMillis;
@@ -159,6 +170,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.nativeWriteTotal = nativeWriteTotal;
         this.nativeWriteTimeMillis = nativeWriteTimeMillis;
         this.nativeWriteFailures = nativeWriteFailures;
+        this.nativeWriteRejections = nativeWriteRejections;
         this.nativeFinalizeTotal = nativeFinalizeTotal;
         this.nativeFinalizeTimeMillis = nativeFinalizeTimeMillis;
         this.nativeFinalizeFailures = nativeFinalizeFailures;
@@ -175,6 +187,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.backgroundWriteTimeouts = backgroundWriteTimeouts;
         this.backgroundWriteFailures = backgroundWriteFailures;
         this.nativeRuntime = nativeRuntime;
+        this.ingestPool = ingestPool;
     }
 
     public ParquetShardStats(StreamInput in) throws IOException {
@@ -189,6 +202,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         this.nativeWriteTotal = in.readVLong();
         this.nativeWriteTimeMillis = in.readVLong();
         this.nativeWriteFailures = in.readVLong();
+        this.nativeWriteRejections = in.readVLong();
         this.nativeFinalizeTotal = in.readVLong();
         this.nativeFinalizeTimeMillis = in.readVLong();
         this.nativeFinalizeFailures = in.readVLong();
@@ -211,6 +225,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
 
         // Native Runtime
         this.nativeRuntime = in.readOptionalWriteable(ParquetNativeRuntimeStats::new);
+        this.ingestPool = in.readOptionalWriteable(ParquetIngestPoolStats::new);
     }
 
     @Override
@@ -226,6 +241,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         out.writeVLong(nativeWriteTotal);
         out.writeVLong(nativeWriteTimeMillis);
         out.writeVLong(nativeWriteFailures);
+        out.writeVLong(nativeWriteRejections);
         out.writeVLong(nativeFinalizeTotal);
         out.writeVLong(nativeFinalizeTimeMillis);
         out.writeVLong(nativeFinalizeFailures);
@@ -248,6 +264,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
 
         // Native Runtime
         out.writeOptionalWriteable(nativeRuntime);
+        out.writeOptionalWriteable(ingestPool);
     }
 
     @Override
@@ -268,6 +285,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
         builder.field("native_write_total", nativeWriteTotal);
         builder.field("native_write_time_millis", nativeWriteTimeMillis);
         builder.field("native_write_failures", nativeWriteFailures);
+        builder.field("native_write_rejections", nativeWriteRejections);
         builder.field("native_finalize_total", nativeFinalizeTotal);
         builder.field("native_finalize_time_millis", nativeFinalizeTimeMillis);
         builder.field("native_finalize_failures", nativeFinalizeFailures);
@@ -298,6 +316,11 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             nativeRuntime.toXContent(builder, params);
         }
 
+        // Ingest thread-pool (only present at node-level aggregate)
+        if (ingestPool != null) {
+            ingestPool.toXContent(builder, params);
+        }
+
         return builder;
     }
 
@@ -314,6 +337,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             this.nativeWriteTotal + other.nativeWriteTotal,
             this.nativeWriteTimeMillis + other.nativeWriteTimeMillis,
             this.nativeWriteFailures + other.nativeWriteFailures,
+            this.nativeWriteRejections + other.nativeWriteRejections,
             this.nativeFinalizeTotal + other.nativeFinalizeTotal,
             this.nativeFinalizeTimeMillis + other.nativeFinalizeTimeMillis,
             this.nativeFinalizeFailures + other.nativeFinalizeFailures,
@@ -330,15 +354,16 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             this.backgroundWriteWaitMillis + other.backgroundWriteWaitMillis,
             this.backgroundWriteTimeouts + other.backgroundWriteTimeouts,
             this.backgroundWriteFailures + other.backgroundWriteFailures,
-            null  // drop nativeRuntime on cross-node aggregation
+            null,  // drop nativeRuntime on cross-node aggregation
+            null   // drop ingestPool on cross-node aggregation
         );
     }
 
     /**
-     * Returns a copy of this with the given native runtime stats attached. Used by
-     * {@link ParquetStatsProvider} to attach per-node runtime stats to the aggregated value.
+     * Returns a copy of this with the node-level runtime and ingest-pool stats attached. Used by
+     * {@link ParquetStatsProvider} to decorate the per-node aggregate; either argument may be null.
      */
-    public ParquetShardStats withNativeRuntime(ParquetNativeRuntimeStats runtime) {
+    public ParquetShardStats withNodeStats(ParquetNativeRuntimeStats runtime, ParquetIngestPoolStats pool) {
         return new ParquetShardStats(
             docsIndexedTotal,
             indexTimeMillis,
@@ -346,6 +371,7 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             nativeWriteTotal,
             nativeWriteTimeMillis,
             nativeWriteFailures,
+            nativeWriteRejections,
             nativeFinalizeTotal,
             nativeFinalizeTimeMillis,
             nativeFinalizeFailures,
@@ -361,7 +387,8 @@ public class ParquetShardStats implements DataFormatShardStats<ParquetShardStats
             backgroundWriteWaitMillis,
             backgroundWriteTimeouts,
             backgroundWriteFailures,
-            runtime
+            runtime,
+            pool
         );
     }
 }

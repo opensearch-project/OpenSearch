@@ -272,6 +272,11 @@ project(':test:external-modules').subprojects.each { Project testModule ->
   copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
 
+// Captured here, where the version-catalog accessor is in scope. Referencing `libs` inside the
+// configure {} block below would resolve it by implicit lookup in the parent project, which is
+// deprecated in Gradle 9.6 and an error in Gradle 10.
+def bouncycastleBundle = libs.bundles.bouncycastle
+
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'opensearch.jdk-download'
@@ -342,7 +347,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
     libsHeapProfCli project(path: ':distribution:tools:heap-prof-cli')
 
-    bcFips libs.bundles.bouncycastle
+    bcFips bouncycastleBundle
 
     agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }

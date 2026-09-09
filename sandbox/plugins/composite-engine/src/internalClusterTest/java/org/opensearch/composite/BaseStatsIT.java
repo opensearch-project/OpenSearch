@@ -35,6 +35,14 @@ public abstract class BaseStatsIT extends AbstractCompositeEngineIT {
         return StatsITHelpers.luceneIndexStats(getRestClient(), index, queryParams);
     }
 
+    protected Map<String, Object> compositeIndexStats(String index, String... queryParams) throws IOException {
+        return StatsITHelpers.compositeIndexStats(getRestClient(), index, queryParams);
+    }
+
+    protected Map<String, Object> compositeNodeStats(String nodeIdOrEmpty, String... queryParams) throws IOException {
+        return StatsITHelpers.compositeNodeStats(getRestClient(), nodeIdOrEmpty, queryParams);
+    }
+
     protected Map<String, Object> parquetNodeStats(String nodeIdOrEmpty, String... queryParams) throws IOException {
         return StatsITHelpers.parquetNodeStats(getRestClient(), nodeIdOrEmpty, queryParams);
     }

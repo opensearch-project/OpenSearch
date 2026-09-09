@@ -9,6 +9,8 @@
 package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -28,11 +30,15 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
+import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.parquet.fields.core.data.number.IntegerParquetField;
+import org.opensearch.parquet.fields.core.data.text.KeywordParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -151,6 +157,89 @@ public class VSRManagerTests extends ParquetBaseTests {
         manager.maybeRotateActiveVSR();
         assertSame(original, manager.getActiveManagedVSR());
         manager.flush();
+    }
+
+    /**
+     * Regression for the ingest-pool leak: when {@code close()} fails to drain a background write
+     * (awaitPendingWrite throws {@code IOException("Background VSR write failed...")}), it must still
+     * release the VSR pool. The pre-fix close() called {@code vsrPool.close()} only after
+     * awaitPendingWrite/flush, so a background-write failure skipped it and stranded the per-VSR
+     * child allocators' off-heap buffers on the ingest pool for the node's lifetime ("Memory was
+     * leaked by query"). Here we buffer data into the active VSR, inject an already-failed
+     * pendingWrite so close() takes the throwing path, and assert the pool drains to zero.
+     */
+    public void testCloseReleasesPoolWhenBackgroundWriteFailed() throws Exception {
+        String filePath = createTempDir().resolve("bgwrite-fail.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+
+        // Materialize buffers on the active VSR's child allocator so the pool holds bytes.
+        ManagedVSR active = manager.getActiveManagedVSR();
+        IntVector vec = (IntVector) active.getVector("val");
+        for (int i = 0; i < 1000; i++) {
+            vec.setSafe(i, i);
+        }
+        active.setRowCount(1000);
+        assertTrue("pool holds buffers before close", bufferPool.getTotalAllocatedBytes() > 0);
+
+        // Inject an already-failed background write so close()'s awaitPendingWrite throws — the exact
+        // condition (Background VSR write failed) that used to skip vsrPool.close().
+        java.util.concurrent.CompletableFuture<Object> failed = new java.util.concurrent.CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("simulated native write failure"));
+        manager.setPendingWrite(failed);
+
+        RuntimeException thrown = expectThrows(RuntimeException.class, manager::close);
+        assertTrue(
+            "close still surfaces the background-write failure",
+            thrown.getMessage() != null && thrown.getMessage().contains("Failed to close VSRManager")
+        );
+
+        assertEquals("VSR pool must be released even when the background write failed", 0, bufferPool.getTotalAllocatedBytes());
+    }
+
+    /**
+     * A new VSRManager can be created for a file that a previous VSRManager already opened and
+     * closed, ingest the same data, and flush successfully.
+     */
+    public void testReinitializeForSameFileAfterClose() throws Exception {
+        String filePath = createTempDir().resolve("recovery-reinit.parquet").toString();
+
+        // First writer: ingesting rotates (maxRowsPerVSR=1) and initializes the native writer.
+        VSRManager manager1 = new VSRManager(filePath, indexSettings, schema, bufferPool, 1, threadPool, 0L);
+        ingest(manager1);
+        assertBusy(() -> {
+            Future<?> f = manager1.getPendingWrite();
+            assertTrue(f == null || f.isDone());
+        });
+        // Close via the failing background-write path so flush() is skipped and cleanup() runs in the finally.
+        java.util.concurrent.CompletableFuture<Object> failed = new java.util.concurrent.CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("simulated native write failure"));
+        manager1.setPendingWrite(failed);
+        expectThrows(RuntimeException.class, manager1::close);
+
+        // Second writer for the same file, same schema, same data: must initialize and flush cleanly.
+        VSRManager manager2 = new VSRManager(filePath, indexSettings, schema, bufferPool, 1, threadPool, 0L);
+        try {
+            ingest(manager2);
+            ParquetFileMetadata metadata = manager2.flush();
+            assertNotNull(metadata);
+            assertEquals(2, metadata.numRows());
+        } finally {
+            manager2.close();
+        }
+    }
+
+    /** Reconciles the metadata fields and ingests two documents via {@link VSRManager#addDocument}. */
+    private void ingest(VSRManager manager) throws Exception {
+        reconcileMetadata(manager);
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(valField, PARQUET_FORMAT);
+        for (int i = 0; i < 2; i++) {
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.addField(valField, i);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, i);
+            manager.addDocument(doc);
+        }
     }
 
     public void testMaybeRotateAtThreshold() throws Exception {
@@ -489,6 +578,168 @@ public class VSRManagerTests extends ParquetBaseTests {
         }
     }
 
+    public void testMultiValueFieldWritesListColumn() throws Exception {
+        String filePath = createTempDir().resolve("multi-value.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            // Mapping update introduces a keyword field declared multi-valued, so it arrives as a
+            // LIST<Utf8> rather than a flat Utf8 column.
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+
+            KeywordFieldMapper.KeywordFieldType tags = new KeywordFieldMapper.KeywordFieldType("tags");
+            tags.setMultiValued(true);
+            assignTestCapabilities(tags, PARQUET_FORMAT);
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // Row 0: three values including a duplicate. Row 1: field absent entirely.
+            // Row 2: a single value. Covers the three cardinalities in one file.
+            ParquetDocumentInput doc0 = new ParquetDocumentInput();
+            populateMetadataFields(doc0);
+            doc0.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc0.addField(valField, 1);
+            doc0.addField(tags, "b");
+            doc0.addField(tags, "a");
+            doc0.addField(tags, "b");
+            manager.addDocument(doc0);
+
+            ParquetDocumentInput doc1 = new ParquetDocumentInput();
+            populateMetadataFields(doc1);
+            doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+            doc1.addField(valField, 2);
+            manager.addDocument(doc1);
+
+            ParquetDocumentInput doc2 = new ParquetDocumentInput();
+            populateMetadataFields(doc2);
+            doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2);
+            doc2.addField(valField, 3);
+            doc2.addField(tags, "solo");
+            manager.addDocument(doc2);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertEquals(List.of("b", "a", "b"), listElements(listVector, 0));
+            assertTrue("absent field must read back as a null list", listVector.isNull(1));
+            assertEquals(List.of("solo"), listElements(listVector, 2));
+
+            ParquetFileMetadata metadata = manager.flush();
+            assertNotNull(metadata);
+            assertEquals(3, metadata.numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testMultiValueNumericFieldIsRejected() {
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IntegerParquetField().toArrowField("numbers", true)
+        );
+        assertEquals(
+            "Field [numbers] cannot be stored as multi-valued: type [IntegerParquetField] does not support list storage",
+            error.getMessage()
+        );
+    }
+
+    public void testMultiValueFieldWritesEmptyListDistinctFromAbsent() throws Exception {
+        String filePath = createTempDir().resolve("multi-value-empty.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            manager.reconcileSchema(schemaWithMultiValue("tags"));
+            NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+            assignTestCapabilities(valField, PARQUET_FORMAT);
+
+            // An explicit "tags": [] parses to zero addField calls, so the writer never sees the
+            // field and the row is null — same as absent. Documented here so the distinction
+            // between [] and absent is a deliberate, tested choice rather than an accident.
+            ParquetDocumentInput doc = new ParquetDocumentInput();
+            populateMetadataFields(doc);
+            doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+            doc.addField(valField, 1);
+            manager.addDocument(doc);
+
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertTrue(listVector.isNull(0));
+            assertEquals(1, manager.flush().numRows());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testReconcileSchemaPreservesListChildren() throws Exception {
+        String filePath = createTempDir().resolve("reconcile-children.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            assertTrue(manager.reconcileSchema(schemaWithMultiValue("tags")));
+
+            // reconcileSchema used to rebuild each Field from name + FieldType, dropping children
+            // and leaving a ListVector with no element vector to write into.
+            ListVector listVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+            assertNotNull(listVector);
+            // A dropped child would leave the data vector as an uninitialized ZeroVector.
+            assertTrue(
+                "list vector must have a typed element vector, got " + listVector.getDataVector().getClass().getSimpleName(),
+                listVector.getDataVector() instanceof VarCharVector
+            );
+
+            // Assert on the VSR *schema* rather than the vector's own field: Arrow Java renames a
+            // list vector's child to "$data$" internally, but the schema — which is what
+            // exportSchema hands to the native writer, and therefore what determines the Parquet
+            // leaf path "tags.list.element" — keeps the declared name.
+            Field tagsField = manager.getActiveManagedVSR()
+                .getSchema()
+                .getFields()
+                .stream()
+                .filter(f -> f.getName().equals("tags"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals(ArrowType.List.INSTANCE, tagsField.getType());
+            assertEquals(1, tagsField.getChildren().size());
+            assertEquals(ParquetField.LIST_ELEMENT_NAME, tagsField.getChildren().get(0).getName());
+            assertEquals(new ArrowType.Utf8(), tagsField.getChildren().get(0).getType());
+        } finally {
+            manager.close();
+        }
+    }
+
+    public void testReconcileSchemaReusesUnchangedListVectorWhenAddingField() throws Exception {
+        String filePath = createTempDir().resolve("reconcile-list-idempotent.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 100, threadPool, 0L);
+        try {
+            Schema listSchema = schemaWithMultiValue("tags");
+            assertTrue(manager.reconcileSchema(listSchema));
+            ListVector existingListVector = (ListVector) manager.getActiveManagedVSR().getVector("tags");
+
+            List<Field> expandedFields = new ArrayList<>(listSchema.getFields());
+            expandedFields.add(new Field("new_field", FieldType.nullable(new ArrowType.Utf8()), null));
+
+            assertTrue(manager.reconcileSchema(new Schema(expandedFields)));
+            assertSame(existingListVector, manager.getActiveManagedVSR().getVector("tags"));
+            assertNotNull(manager.getActiveManagedVSR().getVector("new_field"));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /** Reads back the elements of one row of a list vector. */
+    private static List<String> listElements(ListVector listVector, int row) {
+        int start = listVector.getOffsetBuffer().getInt((long) row * 4);
+        int end = listVector.getOffsetBuffer().getInt((long) (row + 1) * 4);
+        VarCharVector data = (VarCharVector) listVector.getDataVector();
+        List<String> values = new ArrayList<>(end - start);
+        for (int i = start; i < end; i++) {
+            values.add(new String(data.get(i), StandardCharsets.UTF_8));
+        }
+        return values;
+    }
+
+    /** Test schema plus metadata fields plus a keyword field declared multi-valued. */
+    private Schema schemaWithMultiValue(String name) {
+        List<Field> fields = new ArrayList<>(schema.getFields());
+        fields.addAll(metadataFields());
+        fields.add(new KeywordParquetField().toArrowField(name, true));
+        return new Schema(fields);
+    }
+
     /** Returns a copy of the test schema with one extra field appended (alongside metadata fields). */
     private Schema schemaWith(String name, ArrowType type) {
         List<Field> fields = new ArrayList<>(schema.getFields());
@@ -582,6 +833,32 @@ public class VSRManagerTests extends ParquetBaseTests {
         ParquetFileMetadata metadata = manager.flush();
         assertNotNull(metadata);
         assertEquals(totalDocs, metadata.numRows());
+    }
+
+    public void testAllowsDistinctFieldsInSingleDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("price", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        fields.add(new Field("qty", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
+        String filePath = createTempDir().resolve("distinct.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
+
+        NumberFieldMapper.NumberFieldType priceField = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
+        NumberFieldMapper.NumberFieldType qtyField = new NumberFieldMapper.NumberFieldType("qty", NumberFieldMapper.NumberType.INTEGER);
+        assignTestCapabilities(priceField, PARQUET_FORMAT);
+        assignTestCapabilities(qtyField, PARQUET_FORMAT);
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.addField(priceField, 10);
+        doc.addField(qtyField, 5);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 0);
+
+        manager.addDocument(doc);
+        assertEquals(1, manager.getActiveManagedVSR().getRowCount());
+        manager.flush();
     }
 
 }

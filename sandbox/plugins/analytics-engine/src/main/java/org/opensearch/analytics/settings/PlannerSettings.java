@@ -33,10 +33,12 @@ import org.opensearch.common.settings.Settings;
 public final class PlannerSettings {
 
     private volatile double oversamplingFactor;
+    private volatile int maxFilterPredicateCount;
     private final DelegationBlockList delegationBlockList;
 
-    private PlannerSettings(double oversamplingFactor, DelegationBlockList delegationBlockList) {
+    private PlannerSettings(double oversamplingFactor, int maxFilterPredicateCount, DelegationBlockList delegationBlockList) {
         this.oversamplingFactor = oversamplingFactor;
+        this.maxFilterPredicateCount = maxFilterPredicateCount;
         this.delegationBlockList = delegationBlockList;
     }
 
@@ -49,27 +51,36 @@ public final class PlannerSettings {
         DelegationBlockList blockList = DelegationBlockList.create(clusterSettings, initialSettings, registry);
         PlannerSettings settings = new PlannerSettings(
             AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR.get(initialSettings),
+            AnalyticsQuerySettings.MAX_FILTER_PREDICATE_COUNT.get(initialSettings),
             blockList
         );
         clusterSettings.addSettingsUpdateConsumer(
             AnalyticsApproximationSettings.SHARD_BUCKET_OVERSAMPLING_FACTOR,
             v -> settings.oversamplingFactor = v
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            AnalyticsQuerySettings.MAX_FILTER_PREDICATE_COUNT,
+            v -> settings.maxFilterPredicateCount = v
+        );
         return settings;
     }
 
     /** Planner defaults for unit tests: no oversampling, nothing blocked. */
     public static PlannerSettings defaults() {
-        return new PlannerSettings(0.0, DelegationBlockList.empty());
+        return new PlannerSettings(0.0, 500, DelegationBlockList.empty());
     }
 
     /** Explicit values for tests that exercise a specific setting. */
     public static PlannerSettings of(double oversamplingFactor, DelegationBlockList delegationBlockList) {
-        return new PlannerSettings(oversamplingFactor, delegationBlockList);
+        return new PlannerSettings(oversamplingFactor, 500, delegationBlockList);
     }
 
     public double getOversamplingFactor() {
         return oversamplingFactor;
+    }
+
+    public int getMaxFilterPredicateCount() {
+        return maxFilterPredicateCount;
     }
 
     /** Per-backend delegation block-list consulted at marking time. Never null (defaults to empty). */

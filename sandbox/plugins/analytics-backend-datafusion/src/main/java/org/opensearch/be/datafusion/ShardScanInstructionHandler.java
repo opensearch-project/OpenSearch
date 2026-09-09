@@ -55,7 +55,10 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
         long readerPtr = dfReader.getReaderHandle().getPointer();
         long runtimePtr = dataFusionService.getNativeRuntime().get();
         long contextId = context.getTask() != null ? context.getTask().getId() : 0L;
-        String tableName = context.getTableName();
+        // The coordinator captured the logical table name (alias / index pattern / index the query
+        // referenced) from the plan's table-scan leaf. Register the shard's table under it so the
+        // Substrait plan's NamedTable binds. Fall back to the concrete shard index name when absent.
+        String tableName = node.getLogicalTableName() != null ? node.getLogicalTableName() : context.getTableName();
 
         WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
         try (Arena arena = Arena.ofConfined()) {
@@ -75,6 +78,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     FilterTreeShape.NO_DELEGATION.ordinal(),
                     0,
                     true,
+                    context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );
@@ -85,6 +89,7 @@ public class ShardScanInstructionHandler implements FragmentInstructionHandler<S
                     runtimePtr,
                     tableName,
                     contextId,
+                    context.hasPartialAggregate(),
                     segment.address(),
                     context.getFragmentBytes()
                 );

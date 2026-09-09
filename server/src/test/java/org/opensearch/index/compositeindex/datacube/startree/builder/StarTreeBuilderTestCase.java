@@ -166,7 +166,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         }
         writeState = getWriteState(5, UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8));
 
-        mergeState = new MergeState(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+        mergeState = new MergeState(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, null);
 
         dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,

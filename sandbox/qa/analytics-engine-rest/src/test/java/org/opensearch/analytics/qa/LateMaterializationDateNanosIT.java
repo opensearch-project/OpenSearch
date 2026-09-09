@@ -85,17 +85,17 @@ public class LateMaterializationDateNanosIT extends AnalyticsRestTestCase {
 
     private void indexDocs() throws Exception {
         String bulk =
-            "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"1\"}}\n"
+            "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:01:01.123456Z\",\"service\":\"checkout\",\"severity\":\"ERROR\",\"body\":\"failed order: payment declined\"}\n"
-                + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"2\"}}\n"
+                + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:02:01.234567Z\",\"service\":\"checkout\",\"severity\":\"ERROR\",\"body\":\"failed order due to expired session\"}\n"
-                + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"3\"}}\n"
+                + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:03:01.345678Z\",\"service\":\"checkout\",\"severity\":\"WARN\",\"body\":\"failed order: inventory check\"}\n"
-                + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"4\"}}\n"
+                + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:04:01.456789Z\",\"service\":\"checkout\",\"severity\":\"ERROR\",\"body\":\"failed gateway\"}\n"
-                + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"5\"}}\n"
+                + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:05:00.000000Z\",\"service\":\"frontend\",\"severity\":\"INFO\",\"body\":\"ok\"}\n"
-                + "{\"index\":{\"_index\":\"" + INDEX + "\",\"_id\":\"6\"}}\n"
+                + "{\"index\":{\"_index\":\"" + INDEX + "\"}}\n"
                 + "{\"ts\":\"2025-09-23T00:06:00.000000Z\",\"service\":\"checkout\",\"severity\":\"INFO\",\"body\":\"successful\"}\n";
         Request bulkReq = new Request("POST", "/_bulk");
         bulkReq.addParameter("refresh", "true");

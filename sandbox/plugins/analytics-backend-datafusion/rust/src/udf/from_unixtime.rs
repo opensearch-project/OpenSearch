@@ -67,10 +67,7 @@ impl ScalarUDFImpl for FromUnixtimeUdf {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.len() != 1 {
-            return exec_err!(
-                "from_unixtime expects 1 argument, got {}",
-                args.args.len()
-            );
+            return exec_err!("from_unixtime expects 1 argument, got {}", args.args.len());
         }
         let n = args.number_rows;
 
@@ -112,7 +109,13 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_and_non_finite() {
-        for v in [-0.1, MAX_UNIX_SECONDS_EXCLUSIVE, MAX_UNIX_SECONDS_EXCLUSIVE + 1.0, f64::NAN, f64::INFINITY] {
+        for v in [
+            -0.1,
+            MAX_UNIX_SECONDS_EXCLUSIVE,
+            MAX_UNIX_SECONDS_EXCLUSIVE + 1.0,
+            f64::NAN,
+            f64::INFINITY,
+        ] {
             assert_eq!(to_micros(v), None, "v={v}");
         }
     }

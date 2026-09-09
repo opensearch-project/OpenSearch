@@ -367,7 +367,7 @@ public class StatsLifecycleIT extends BaseStatsIT {
                     start.await();
                     for (int i = 0; i < docsPerThread; i++) {
                         int docId = threadId * docsPerThread + i;
-                        client().prepareIndex(idx).setId(String.valueOf(docId)).setSource("name", "doc_" + docId, "value", docId).get();
+                        client().prepareIndex(idx).setSource("name", "doc_" + docId, "value", docId).get();
                     }
                 } catch (Exception e) {
                     throw new RuntimeException("thread " + threadId + " failed", e);
@@ -453,7 +453,7 @@ public class StatsLifecycleIT extends BaseStatsIT {
 
         // Index some docs — these go to plain Lucene, not DFA.
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("plain-idx").setId(String.valueOf(i)).setSource("name", "doc_" + i).get();
+            client().prepareIndex("plain-idx").setSource("name", "doc_" + i).get();
         }
         refreshIndex("plain-idx");
 

@@ -41,6 +41,17 @@ final class StatsITHelpers {
         return fetchStats(rest, "/_plugins/lucene/" + index + "/_stats", queryParams);
     }
 
+    static Map<String, Object> compositeIndexStats(RestClient rest, String index, String... queryParams) throws IOException {
+        return fetchStats(rest, "/_plugins/composite/" + index + "/_stats", queryParams);
+    }
+
+    static Map<String, Object> compositeNodeStats(RestClient rest, String nodeIdOrEmpty, String... queryParams) throws IOException {
+        String path = nodeIdOrEmpty.isEmpty()
+            ? "/_plugins/composite/_nodes/_stats"
+            : "/_plugins/composite/_nodes/" + nodeIdOrEmpty + "/_stats";
+        return fetchStats(rest, path, queryParams);
+    }
+
     static Map<String, Object> parquetNodeStats(RestClient rest, String nodeIdOrEmpty, String... queryParams) throws IOException {
         String path = nodeIdOrEmpty.isEmpty() ? "/_plugins/parquet/_nodes/_stats" : "/_plugins/parquet/_nodes/" + nodeIdOrEmpty + "/_stats";
         return fetchStats(rest, path, queryParams);

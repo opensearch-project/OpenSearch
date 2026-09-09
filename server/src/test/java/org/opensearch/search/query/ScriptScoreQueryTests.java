@@ -39,18 +39,22 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
@@ -64,7 +68,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -274,6 +280,287 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
                 }
             };
         }
+    }
+
+    public void testBulkScoringLeafFactoryIsUsed() throws IOException {
+        Script script = new Script("bulk scoring script");
+        List<Integer> collectedDocs = new ArrayList<>();
+
+        ScoreScript.BulkScoringLeafFactory factory = newBulkFactory(
+            script,
+            false,
+            explanation -> 2.0,
+            (context, subQueryBulkScorer, subQueryScoreMode, boost) -> {
+                return new BulkScorer() {
+                    @Override
+                    public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                        Scorable scorable = new Scorable() {
+                            float score = 5.0f;
+
+                            @Override
+                            public float score() {
+                                return score;
+                            }
+                        };
+                        collector.setScorer(scorable);
+                        collector.collect(0);
+                        collectedDocs.add(0);
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return 1;
+                    }
+                };
+            }
+        );
+
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(leafReaderContext);
+        BulkScorer bulkScorer = scorerSupplier.bulkScorer();
+
+        List<Integer> searchCollectedDocs = new ArrayList<>();
+        LeafCollector collector = new LeafCollector() {
+            Scorable scorer;
+
+            @Override
+            public void setScorer(Scorable scorer) {
+                this.scorer = scorer;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                searchCollectedDocs.add(doc);
+            }
+        };
+        bulkScorer.score(collector, null, 0, DocIdSetIterator.NO_MORE_DOCS);
+
+        assertThat(collectedDocs.size(), equalTo(1));
+        assertThat(searchCollectedDocs.size(), equalTo(1));
+        assertThat(searchCollectedDocs.get(0), equalTo(0));
+    }
+
+    public void testBulkScoringLeafFactoryReturnsNullFallsBackToDefault() throws IOException {
+        Script script = new Script("bulk scoring returns null");
+
+        ScoreScript.BulkScoringLeafFactory factory = newBulkFactory(
+            script,
+            false,
+            explanation -> 3.0,
+            (context, subQueryBulkScorer, subQueryScoreMode, boost) -> null
+        );
+
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(leafReaderContext);
+        BulkScorer bulkScorer = scorerSupplier.bulkScorer();
+
+        List<Float> scores = new ArrayList<>();
+        LeafCollector collector = new LeafCollector() {
+            Scorable scorer;
+
+            @Override
+            public void setScorer(Scorable scorer) {
+                this.scorer = scorer;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                scores.add(scorer.score());
+            }
+        };
+        bulkScorer.score(collector, null, 0, DocIdSetIterator.NO_MORE_DOCS);
+
+        assertThat(scores.size(), equalTo(1));
+        assertThat(scores.get(0), equalTo(3.0f));
+    }
+
+    public void testBulkScoringLeafFactorySkippedWhenMinScoreSet() throws IOException {
+        Script script = new Script("bulk scoring with minScore");
+        boolean[] bulkScorerCalled = new boolean[] { false };
+
+        ScoreScript.BulkScoringLeafFactory factory = newBulkFactory(
+            script,
+            false,
+            explanation -> 5.0,
+            (context, subQueryBulkScorer, subQueryScoreMode, boost) -> {
+                bulkScorerCalled[0] = true;
+                return new BulkScorer() {
+                    @Override
+                    public int score(LeafCollector collector, Bits acceptDocs, int min, int max) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return 0;
+                    }
+                };
+            }
+        );
+
+        float minScore = 1.0f;
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, minScore, "index", 0, Version.CURRENT);
+
+        searcher.search(query, 10);
+        assertFalse("BulkScoringLeafFactory.bulkScorer() should not be called when minScore is set", bulkScorerCalled[0]);
+    }
+
+    public void testBulkScoringLeafFactoryWithBoost() throws IOException {
+        Script script = new Script("bulk scoring with boost");
+        float queryBoost = 2.5f;
+        float[] receivedBoost = new float[] { 0f };
+
+        ScoreScript.BulkScoringLeafFactory factory = newBulkFactory(
+            script,
+            false,
+            explanation -> 1.0,
+            (context, subQueryBulkScorer, subQueryScoreMode, boost) -> {
+                receivedBoost[0] = boost;
+                return null;
+            }
+        );
+
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, queryBoost);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(leafReaderContext);
+        scorerSupplier.bulkScorer();
+
+        assertThat(receivedBoost[0], equalTo(queryBoost));
+    }
+
+    public void testBulkScoringReturnsNullWhenSubQueryBulkScorerIsNull() throws IOException {
+        Script script = new Script("bulk scoring with null sub-query bulk scorer");
+        boolean[] bulkScorerCalled = new boolean[] { false };
+
+        ScoreScript.BulkScoringLeafFactory factory = newBulkFactory(
+            script,
+            false,
+            explanation -> 1.0,
+            (context, subQueryBulkScorer, subQueryScoreMode, boost) -> {
+                bulkScorerCalled[0] = true;
+                return new BulkScorer() {
+                    @Override
+                    public int score(LeafCollector collector, Bits acceptDocs, int min, int max) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return 0;
+                    }
+                };
+            }
+        );
+
+        ScriptScoreQuery query = new ScriptScoreQuery(new NullBulkScorerQuery(), script, factory, null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(leafReaderContext);
+        BulkScorer bulkScorer = scorerSupplier.bulkScorer();
+
+        assertNull("BulkScorer should be null when sub-query's bulkScorer() returns null", bulkScorer);
+        assertFalse("BulkScoringLeafFactory.bulkScorer() should not be called when sub-query bulk scorer is null", bulkScorerCalled[0]);
+    }
+
+    private static class NullBulkScorerQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return null;
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            return null;
+                        }
+
+                        @Override
+                        public long cost() {
+                            return 0;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+    }
+
+    @FunctionalInterface
+    interface BulkScorerProvider {
+        BulkScorer provide(LeafReaderContext context, BulkScorer subQueryBulkScorer, ScoreMode subQueryScoreMode, float boost)
+            throws IOException;
+    }
+
+    private ScoreScript.BulkScoringLeafFactory newBulkFactory(
+        Script script,
+        boolean needsScore,
+        Function<ScoreScript.ExplanationHolder, Double> function,
+        BulkScorerProvider bulkScorerProvider
+    ) {
+        SearchLookup lookup = mock(SearchLookup.class);
+        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        IndexSearcher indexSearcher = mock(IndexSearcher.class);
+        when(lookup.getLeafSearchLookup(any())).thenReturn(leafLookup);
+        return new ScoreScript.BulkScoringLeafFactory() {
+            @Override
+            public BulkScorer bulkScorer(LeafReaderContext context, BulkScorer subQueryBulkScorer, ScoreMode subQueryScoreMode, float boost)
+                throws IOException {
+                return bulkScorerProvider.provide(context, subQueryBulkScorer, subQueryScoreMode, boost);
+            }
+
+            @Override
+            public boolean needs_score() {
+                return needsScore;
+            }
+
+            @Override
+            public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                return new ScoreScript(script.getParams(), lookup, indexSearcher, leafReaderContext) {
+                    @Override
+                    public double execute(ExplanationHolder explanation) {
+                        return function.apply(explanation);
+                    }
+                };
+            }
+        };
     }
 
     private ScoreScript.LeafFactory newFactory(

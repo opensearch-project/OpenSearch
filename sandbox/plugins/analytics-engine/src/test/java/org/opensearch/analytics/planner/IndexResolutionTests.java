@@ -57,7 +57,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         IndexMetadata.Builder b = indexBuilder("bank_b", keywordField("age")).putAlias(AliasMetadata.builder("bank_all").build());
         ClusterState state = clusterStateOf(a, b);
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("bank_all", state));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> IndexResolution.resolve("bank_all", state));
         assertTrue("error must mention the conflicting field: " + ex.getMessage(), ex.getMessage().contains("age"));
         assertTrue(
             "error must mention both indices: " + ex.getMessage(),
@@ -103,7 +103,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
         IndexMetadata.Builder a = indexBuilder("bank_a", longField("age")).putAlias(filterAlias);
         ClusterState state = clusterStateOf(a);
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("active_only", state));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> IndexResolution.resolve("active_only", state));
         assertTrue("error must mention the alias name: " + ex.getMessage(), ex.getMessage().contains("active_only"));
         assertTrue("error must mention 'filter': " + ex.getMessage(), ex.getMessage().toLowerCase(Locale.ROOT).contains("filter"));
     }
@@ -142,7 +142,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
     public void testWildcardRejectsIncompatibleSchemasAcrossMatches() {
         ClusterState state = clusterStateOf(indexBuilder("test", longField("age")), indexBuilder("test1", keywordField("age")));
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("test*", state, RESOLVER));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> IndexResolution.resolve("test*", state, RESOLVER));
         assertTrue("error must mention the conflicting field: " + ex.getMessage(), ex.getMessage().contains("age"));
     }
 
@@ -268,7 +268,7 @@ public class IndexResolutionTests extends OpenSearchTestCase {
             )
             .build();
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> IndexResolution.resolve("logs", state, RESOLVER));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> IndexResolution.resolve("logs", state, RESOLVER));
         assertTrue("error must mention the conflicting field: " + ex.getMessage(), ex.getMessage().contains("age"));
     }
 

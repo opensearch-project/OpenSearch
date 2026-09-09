@@ -50,7 +50,7 @@ import java.util.function.ToLongFunction;
  * <p>
  * MemoryManager attempts to increase of decrease the shard limits in case the shard utilization goes below operating_factor.lower or
  * goes above operating_factor.upper of current shard limits. MemoryManager attempts to update the new shard limit such that the new value
- * remains withing the operating_factor.optimal range of current shard utilization.
+ * remains within the operating_factor.optimal range of current shard utilization.
  *
  * @opensearch.internal
  */

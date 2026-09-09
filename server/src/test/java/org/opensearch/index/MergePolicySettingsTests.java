@@ -34,6 +34,7 @@ package org.opensearch.index;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
@@ -106,20 +107,19 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
 
     public void testMergePolicyPrecedence() throws IOException {
         // 1. INDEX_MERGE_POLICY is not set
-        // assert defaults
+        // assert defaults to tiered for non-composite-engine indexes
         IndexSettings indexSettings = indexSettings(EMPTY_SETTINGS);
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
 
         // 1.1 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as log_byte_size
-        // assert index policy is tiered whereas time series index policy is log_byte_size
+        // assert index policy is tiered (default, non-composite-engine) and time series index policy is log_byte_size
         Settings nodeSettings = Settings.builder()
             .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.LOG_BYTE_SIZE.getValue())
             .build();
         indexSettings = new IndexSettings(newIndexMeta("test", Settings.EMPTY), nodeSettings);
         assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof LogByteSizeMergePolicy);
-
         // 1.2 node setting TIME_SERIES_INDEX_MERGE_POLICY is set as tiered
         // assert both index and time series index policy is tiered
         nodeSettings = Settings.builder()
@@ -179,6 +179,53 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         assertTrue(indexSettings.getMergePolicy(false) instanceof LogByteSizeMergePolicy);
         assertTrue(indexSettings.getMergePolicy(true) instanceof LogByteSizeMergePolicy);
 
+    }
+
+    /**
+     * When the pluggable data format (composite engine) is enabled on an index, the default merge policy
+     * should be LogByteSizeMergePolicy for both regular and time-series indexes.
+     */
+    @OpenSearchTestCase.LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testDefaultMergePolicyForCompositeEngineIndex() throws IOException {
+        Settings compositeEngineSettings = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        // no index-level merge policy set — should default to LBS for composite engine indexes
+        IndexSettings indexSettings = indexSettings(compositeEngineSettings);
+        assertTrue(indexSettings.isPluggableDataFormatEnabled());
+        assertTrue(indexSettings.getMergePolicy(false) instanceof LogByteSizeMergePolicy);
+        assertTrue(indexSettings.getMergePolicy(true) instanceof LogByteSizeMergePolicy);
+    }
+
+    @OpenSearchTestCase.LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testExplicitTieredPolicyOverridesDefaultForCompositeEngineIndex() throws IOException {
+        Settings compositeEngineTieredSettings = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
+            .build();
+
+        // explicit tiered setting must be honored even for composite engine indexes
+        IndexSettings indexSettings = indexSettings(compositeEngineTieredSettings);
+        assertTrue(indexSettings.isPluggableDataFormatEnabled());
+        assertTrue(indexSettings.getMergePolicy(false) instanceof OpenSearchTieredMergePolicy);
+        assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
+    }
+
+    @OpenSearchTestCase.LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testTimeSeriesNodeSettingTieredOverridesDefaultForCompositeEngineIndex() throws IOException {
+        Settings compositeEngineSettings = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .build();
+        Settings nodeSettings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY.getKey(), IndexSettings.IndexMergePolicy.TIERED.getValue())
+            .build();
+
+        // node sets tiered for time-series — must be honored even for composite engine indexes
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", compositeEngineSettings), nodeSettings);
+        assertTrue(indexSettings.isPluggableDataFormatEnabled());
+        assertTrue(indexSettings.getMergePolicy(false) instanceof LogByteSizeMergePolicy);
+        assertTrue(indexSettings.getMergePolicy(true) instanceof OpenSearchTieredMergePolicy);
     }
 
     public void testInvalidMergePolicy() throws IOException {

@@ -166,7 +166,7 @@ public class ShardFailoverIT extends RemoteStoreBaseIntegTestCase {
         }
 
         for (int i = 0; i < DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();

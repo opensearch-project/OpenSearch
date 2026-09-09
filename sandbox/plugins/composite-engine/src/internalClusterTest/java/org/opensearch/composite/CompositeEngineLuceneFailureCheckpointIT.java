@@ -154,7 +154,7 @@ public class CompositeEngineLuceneFailureCheckpointIT extends RemoteStoreBaseInt
     }
 
     private BulkItemResponse indexOne(String id, String value) {
-        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setId(id).setSource("field", value)).get();
+        BulkResponse bulk = client().prepareBulk().add(client().prepareIndex(INDEX_NAME).setSource("field", value)).get();
         assertEquals(1, bulk.getItems().length);
         return bulk.getItems()[0];
     }

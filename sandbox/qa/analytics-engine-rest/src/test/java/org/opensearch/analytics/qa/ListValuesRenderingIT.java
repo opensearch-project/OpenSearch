@@ -120,13 +120,13 @@ public class ListValuesRenderingIT extends AnalyticsRestTestCase {
 
         // num: 2, 10, 2, null   → list drops null (10,2,2); values distinct+sorted ("10","2")
         // flag: true, false, true, (absent) → list (true,false,true); values ("false","true")
-        String bulk = "{\"index\":{\"_id\":\"1\"}}\n"
+        String bulk = "{\"index\":{}}\n"
             + "{\"num\":2,\"flag\":true}\n"
-            + "{\"index\":{\"_id\":\"2\"}}\n"
+            + "{\"index\":{}}\n"
             + "{\"num\":10,\"flag\":false}\n"
-            + "{\"index\":{\"_id\":\"3\"}}\n"
+            + "{\"index\":{}}\n"
             + "{\"num\":2,\"flag\":true}\n"
-            + "{\"index\":{\"_id\":\"4\"}}\n"
+            + "{\"index\":{}}\n"
             + "{}\n";
         Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");
         bulkRequest.setJsonEntity(bulk);

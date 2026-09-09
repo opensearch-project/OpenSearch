@@ -68,7 +68,7 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
      */
     public void testErrorSentinelValuesContract() {
         // Directly construct the error state that fetch() would return on failure
-        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
         assertEquals("Error sentinel for allocatedBytes should be -1", -1L, errorStats.getAllocatedBytes());
         assertEquals("Error sentinel for residentBytes should be -1", -1L, errorStats.getResidentBytes());
     }
@@ -80,8 +80,8 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
      * - FFM downcall returning a negative value
      */
     public void testErrorStateIsDistinguishableFromValidStats() {
-        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1);
-        AnalyticsBackendNativeMemoryStats validStats = new AnalyticsBackendNativeMemoryStats(1024, 2048);
+        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1, 0);
+        AnalyticsBackendNativeMemoryStats validStats = new AnalyticsBackendNativeMemoryStats(1024, 2048, 0);
 
         // Error state has -1 for both fields
         assertTrue("Error state allocatedBytes should be negative", errorStats.getAllocatedBytes() < 0);
@@ -97,7 +97,7 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
      * valid and error states). Zero is a valid value (no memory allocated yet).
      */
     public void testZeroValuesAreValid() {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0, 0);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0, 0, 0);
         assertEquals("Zero should be a valid allocatedBytes value", 0L, stats.getAllocatedBytes());
         assertEquals("Zero should be a valid residentBytes value", 0L, stats.getResidentBytes());
     }

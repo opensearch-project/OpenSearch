@@ -32,8 +32,11 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
-import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchSort;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
@@ -58,8 +61,47 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return aggregate.getMode() == AggregateMode.SINGLE;
     }
 
-    /** Skip the PARTIAL/FINAL split when it would emit a row type that fails Volcano's typeMatchesInferred. */
-    private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
+    /**
+     * True when PARTIAL/FINAL split would yield a malformed row type or invalid aggregate
+     * semantics. In those cases {@link #onMatch} still produces the SINGLE+SINGLETON
+     * alternative (so the planner can route shard input through a coordinator gather), but
+     * skips the PARTIAL+ER+FINAL alternative.
+     *
+     * <p>Two cases are unsafe today:
+     * <ul>
+     *   <li><b>percentile_approx</b> is a 2-arg aggregate (field, percent) whose FINAL phase
+     *       needs (tdigest_state, percent_literal). {@code AggregateDecompositionResolver}'s
+     *       single-field rewrite paths only produce a single-arg FINAL call, yielding
+     *       {@code "Type mismatch: rel rowtype: RecordType(BIGINT p50, BIGINT p50_0) NOT NULL,
+     *       equiv rowtype: RecordType(INTEGER bucket, BIGINT p50)"}. Other aggCalls in the
+     *       same Aggregate (SUM, AVG, etc.) inherit the single-stage execution.</li>
+     *   <li><b>Cross-family non-prefix groupSet</b>: PARTIAL's output places group keys at
+     *       positions {@code [0..groupCount)}. FINAL reuses ORIGINAL's groupSet against
+     *       PARTIAL's output. When an input column at index {@code k >= groupCount} is a group
+     *       key (e.g. {@code groupSet={2}, groupCount=1}), PARTIAL's output at index {@code k}
+     *       is an agg-result instead, and Calcite's row-type equivalence check fires only if
+     *       that agg-result's {@link SqlTypeFamily} differs from the ORIGINAL input column's
+     *       family. PPL {@code timechart}'s no-{@code by} form trips this: the Project below
+     *       the Aggregate keeps the raw {@code @timestamp} (DATETIME family) at position 0
+     *       and materializes {@code SPAN(@timestamp)} at a later position; the agg result at
+     *       that later position is {@code DOUBLE} (NUMERIC family) → cross-family mismatch
+     *       ({@code "Type mismatch ... DOUBLE -> TIMESTAMP(0)"}). Same-family non-prefix
+     *       cases (e.g. {@code group={1}} with both columns INTEGER + a NUMERIC agg) pass
+     *       Calcite's relaxed numeric type check and don't need the skip — see
+     *       {@code PlanShapeTests.testJoinWithDifferentGroupKeys_multiShard}.</li>
+     * </ul>
+     *
+     * <p>Until {@code AggregateDecompositionResolver} gains engine-native merge support
+     * (percentile_approx) and ORIGINAL→FINAL groupSet remapping (cross-family non-prefix),
+     * the split is conservative in those shapes — distributed parallelism is traded for
+     * correctness.
+     *
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * shares the same correctness gates as this coord-centric split — both use an identical PARTIAL/FINAL
+     * safety check, so STATE_EXPANDING / DISTINCT / cross-family-non-prefix shapes stay coordinator-centric
+     * in every path.
+     */
+    public static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
             // STATE_EXPANDING aggregates (TAKE/FIRST/LAST/LIST/VALUES/PERCENTILE_APPROX/PATTERN)
             // can't decompose into per-shard partials reduced additively. APPROXIMATE goes through
@@ -135,8 +177,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         // perturbs the global cost model for unrelated query shapes). For unpartitioned input
         // (1 shard / already gathered) or a non-splittable aggregate, the single-stage plan is the
         // correct and only choice.
+        // Split into PARTIAL/FINAL only when the input is genuinely partitioned AND no operator
+        // below forces a gather (a gather-forced input is already singleton — a PARTIAL over it
+        // would be invalid). Otherwise emit the single coordinator aggregate.
         boolean partitioned = isPartitioned(child);
-        if (!partitioned || childGatheredByWindow(child) || shouldSkipPartialFinalSplit(aggregate)) {
+        if (!partitioned || childForcesGather(child) || shouldSkipPartialFinalSplit(aggregate)) {
             call.transformTo(singleOnSingleton);
             return;
         }
@@ -210,35 +255,54 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /**
-     * True when a window (a {@code RexOver}-bearing Project) sits between this aggregate and its
-     * scan. A global-frame window has infinite cost unless its input is SINGLETON, so the planner
-     * gathers below it — meaning this aggregate's input is already on one node and splitting it
-     * would add a redundant PARTIAL/FINAL pass.
+     * True when a gather-forcing operator sits between this aggregate and its scan, so the
+     * aggregate's input is already (or will be) gathered to one node — splitting it into
+     * PARTIAL/FINAL is invalid (the PARTIAL would sit over SINGLETON input, and the shard-side
+     * PARTIAL is unsatisfiable). Walks the single-input chain, descending past pass-through
+     * Projects (no {@code RexOver}) and Filters; stops at the first gather-forcing op or a terminal.
      *
-     * <p>This only runs after {@link #isPartitioned} confirmed {@code node} carries the RANDOM
-     * trait, i.e. {@code node} is on the shard-side (pre-gather) segment of the plan. The
-     * window's gather is a not-yet-materialized converter and the FINAL aggregate of any
-     * lower split outputs SINGLETON (which {@code isPartitioned} would have screened out), so
-     * there is no {@link OpenSearchExchangeReducer} between {@code node} and its scan to walk
-     * past — the descent stays within this one RANDOM segment. The walk simply looks for a
-     * window over the single-input chain down to the scan; a multi-input op (join/union) ends it.
+     * <p>Gather-forcing operators (each returns infinite cost over non-SINGLETON input in its own
+     * {@code computeSelfCost}, so Volcano gathers below them):
+     * <ul>
+     *   <li>collated or limited {@link OpenSearchSort} (global order/limit can't run per-shard);</li>
+     *   <li>a {@code RexOver}-bearing {@link OpenSearchProject} (window needs gathered input);</li>
+     *   <li>{@link OpenSearchJoin} and {@link OpenSearchUnion} (coordinator-gathered today);</li>
+     *   <li>a nested {@link OpenSearchAggregate} (its FINAL/SINGLE output is gathered).</li>
+     * </ul>
+     * Pass-through Project / Filter are walked past; scans/values and anything else end the walk
+     * as not-gather-forcing (split allowed).
      */
-    private static boolean childGatheredByWindow(RelNode node) {
+    private static boolean childForcesGather(RelNode node) {
         RelNode cur = unwrapForWalk(node);
         while (cur != null) {
-            if (cur instanceof OpenSearchProject project && project.containsOver()) {
-                return true; // window forces a gather above its input → our input is already singleton
+            // Gather-forcing operators: each returns infinite cost over non-SINGLETON input in its
+            // own computeSelfCost (verified: Sort-collated/limited, RexOver-Project, Join, Union,
+            // nested Aggregate), so Volcano gathers below them → our input is already singleton.
+            if (cur instanceof OpenSearchSort sort) {
+                return !sort.getCollation().getFieldCollations().isEmpty() || sort.fetch != null || sort.offset != null;
             }
-            if (cur.getInputs().size() != 1) {
-                return false; // scan (no inputs) or a multi-input op (join/union) — no single window gather
+            if (cur instanceof OpenSearchJoin || cur instanceof OpenSearchUnion || cur instanceof OpenSearchAggregate) {
+                return true;
             }
-            cur = unwrapForWalk(cur.getInput(0));
+            if (cur instanceof OpenSearchProject project) {
+                if (project.containsOver()) return true;      // window → gathered input
+                cur = unwrapForWalk(cur.getInput(0));          // pass-through project → keep walking
+                continue;
+            }
+            // Pass-through, non-gathering: Filter (q37's split must still happen) → keep walking.
+            if (cur instanceof OpenSearchFilter) {
+                cur = unwrapForWalk(cur.getInput(0));
+                continue;
+            }
+            // Terminals that do not force a gather: TableScan / StageInputScan / Values, or any
+            // other shape we don't explicitly treat as gather-forcing. Conservative: allow split.
+            return false;
         }
         return false;
     }
 
     /**
-     * Resolves a node to its concrete rel for the {@link #childGatheredByWindow} walk. During
+     * Resolves a node to its concrete rel for the {@link #childForcesGather} walk. During
      * Volcano, {@code getInput(0)} returns a {@link RelSubset}, not a concrete rel — its
      * {@code getInputs()} is empty, which would end the walk one hop below the aggregate and miss a
      * window sitting behind an intermediate op (e.g. a {@code where} Filter). Unwrap the HEP vertex,
@@ -250,7 +314,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
-    private static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
+    public static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
         RelDataType actualType = finalAggregate.getRowType();
         RelDataType expectedType = expected.getRowType();
         RexBuilder rexBuilder = finalAggregate.getCluster().getRexBuilder();
@@ -280,8 +344,16 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         );
     }
 
-    /** Re-declare LIST/VALUES return type as {@code ARRAY<arg0>} (PPL lowers it to {@code ARRAY<VARCHAR>}). */
-    private static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
+    /**
+     * Rebuild any LIST/VALUES aggCall to declare {@code ARRAY<actual-arg0>} instead of
+     * PPL's lossy {@code ARRAY<VARCHAR>}. Pass-through for every other call. Used on the
+     * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
+     * row-type check on transformTo passes.
+     *
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * can call it.
+     */
+    public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
         for (int i = 0; i < aggCalls.size(); i++) {
             AggregateCall call = aggCalls.get(i);
@@ -312,7 +384,13 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return rebuilt != null ? rebuilt : aggCalls;
     }
 
-    private static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
+    /**
+     * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
+     * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
+     * pass ({@code DistributionEnforcementPass}) shares the exact capture the coord-centric split uses
+     * (keeps PARTIAL/FINAL literal handling identical).
+     */
+    public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
             return Map.of();
         }

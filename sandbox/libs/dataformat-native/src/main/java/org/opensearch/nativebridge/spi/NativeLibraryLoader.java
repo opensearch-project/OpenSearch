@@ -63,8 +63,10 @@ public final class NativeLibraryLoader {
                 LOOKUP.find("native_error_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
             );
-            // Register the Rust→Java log callback
+            // Register the Rust→Java log callback, then push the active log level
+            // so the logging macros short-circuit `format!` for suppressed levels.
             LOOKUP.find("native_logger_init").ifPresent(sym -> RustLoggerBridge.register(linker, sym));
+            LOOKUP.find("native_logger_set_level").ifPresent(sym -> RustLoggerBridge.registerSetLevel(linker, sym));
         }
     }
 

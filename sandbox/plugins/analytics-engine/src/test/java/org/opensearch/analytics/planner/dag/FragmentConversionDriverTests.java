@@ -20,8 +20,10 @@ import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalUnion;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
@@ -36,6 +38,7 @@ import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.MockLuceneBackend;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -245,6 +248,53 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     }
 
     /**
+     * PARTIAL aggregate stages must emit SETUP_PARTIAL_AGGREGATE so the shard executor
+     * strips the DF Final layer. Without this, slice_count > 1 causes FinalPartitioned
+     * to hash-repartition groups within the shard, producing incorrect cross-shard merges.
+     */
+    public void testPartialAggregateInstruction_emittedForCountGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(countStarCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "COUNT");
+    }
+
+    public void testPartialAggregateInstruction_emittedForSumGroupBy() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, makeAggregate(sumCall()), convertor);
+        assertShardHasPartialAggInstruction(dag, "SUM");
+    }
+
+    public void testPartialAggregateInstruction_emittedForFilteredAggregate() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(
+            2,
+            makeAggregate(
+                makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
+                countStarCall()
+            ),
+            convertor
+        );
+        assertShardHasPartialAggInstruction(dag, "COUNT with filter (delegation path)");
+    }
+
+    public void testPartialAggregateInstruction_emittedForApproxCountDistinct() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        RelOptTable table = mockTable("test_index", "status", "size");
+        RelNode scan = stubScan(table);
+        QueryDAG dag = buildAndConvert(2, makeAggregate(approxCountDistinctCall(scan)), convertor);
+        assertShardHasPartialAggInstruction(dag, "APPROX_COUNT_DISTINCT (engine-native)");
+    }
+
+    private void assertShardHasPartialAggInstruction(QueryDAG dag, String label) {
+        Stage shardStage = dag.rootStage().getChildStages().getFirst();
+        StagePlan plan = shardStage.getPlanAlternatives().getFirst();
+        assertTrue(
+            label + ": PARTIAL aggregate shard stage must emit SETUP_PARTIAL_AGGREGATE",
+            plan.instructions().stream().anyMatch(node -> node.type() == InstructionType.SETUP_PARTIAL_AGGREGATE)
+        );
+    }
+
+    /**
      * Multi-shard Sort(Aggregate(Filter(Scan))) with limit — full OLAP pipeline, two stages.
      */
     public void testTwoStageSortOnAggregateOnFilteredScan() {
@@ -415,6 +465,158 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             "cnt"
         );
         return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(), null, List.of(countCall));
+    }
+
+    // ---- Join conversion tests (Gap #1 — M0 coordinator-centric) ----
+
+    /**
+     * INNER equi-join on column 0 of both sides. Two single-column {@code LogicalTableScan}s →
+     * {@code LogicalJoin} → planner marks as {@code OpenSearchJoin} over two
+     * {@code OpenSearchExchangeReducer} legs, each reducing a separate scan subtree.
+     */
+    private LogicalJoin makeInnerEquiJoin() {
+        RelNode leftScan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode rightScan = stubScan(mockTable("test_index", "status", "size"));
+        int leftCols = leftScan.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        return LogicalJoin.create(leftScan, rightScan, List.of(), condition, Set.of(), JoinRelType.INNER);
+    }
+
+    /**
+     * Drives a coordinator-centric equi-join all the way through {@link FragmentConversionDriver}
+     * and asserts the recording convertor sees:
+     * <ul>
+     *   <li>{@code convertShardScanFragment("test_index", LogicalTableScan)} called once per side
+     *       (two child stages).</li>
+     *   <li>{@code convertFinalAggFragment(LogicalJoin(StageInputScan, StageInputScan))} called
+     *       once on the root stage — the OpenSearchJoin wrapper and the two ExchangeReducers
+     *       were stripped by {@code FragmentConversionDriver.convertReduceNode}, leaving a plain
+     *       {@code LogicalJoin} Isthmus can walk natively.</li>
+     * </ul>
+     *
+     * <p>This is Gap #1's end-to-end coverage anchor: if something in the planner/DAG stack
+     * emits a shape that doesn't reduce cleanly to {@code LogicalJoin(SIS, SIS)} here, the test
+     * catches it before it reaches the DataFusion runtime.
+     */
+    public void testCoordinatorCentricJoinConversion() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        // Multi-shard so PR #21639's split rule demands COORDINATOR+SINGLETON on each input,
+        // producing OpenSearchJoin(ER(scan), ER(scan)) with two child stages — the coord-centric
+        // shape this test was designed to verify. Single-shard same-table joins go SHARD-local
+        // under PR's design (one stage, no ERs) and don't exercise the coord-centric path.
+        QueryDAG dag = buildAndConvert(3, makeInnerEquiJoin(), convertor);
+
+        assertEquals("Binary join → exactly two child stages", 2, dag.rootStage().getChildStages().size());
+
+        // Both child stages converted as shard scans.
+        for (Stage child : dag.rootStage().getChildStages()) {
+            assertNotNull(child.getPlanAlternatives().getFirst().convertedBytes());
+        }
+        assertTrue("convertShardScanFragment must be called for the scan side(s)", convertor.shardScanCalled);
+        assertEquals("test_index", convertor.shardScanTableName);
+
+        // Root stage: convertFinalAggFragment called on the stripped join fragment.
+        assertTrue("convertFinalAggFragment must be called on the coordinator join fragment", convertor.finalAggCalled);
+        assertNotNull(convertor.reduceFragment);
+
+        // The recorded fragment must be a plain LogicalJoin (OpenSearch* wrappers stripped) whose
+        // two inputs are StageInputScan leaves — that's the shape Isthmus consumes natively.
+        String recorded = RelOptUtil.toString(convertor.reduceFragment);
+        LOGGER.info("Recorded reduce fragment:\n{}", recorded);
+        assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
+        assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
+        assertTrue("Recorded reduce fragment must be rooted at a LogicalJoin (got:\n" + recorded + ")", recorded.contains("LogicalJoin"));
+        assertTrue(
+            "Recorded reduce fragment must carry two OpenSearchStageInputScan leaves (got:\n" + recorded + ")",
+            recorded.split("OpenSearchStageInputScan", -1).length - 1 == 2
+        );
+    }
+
+    /**
+     * Multi-shard variant: each join side scans a 5-shard index. Conversion shape is identical;
+     * the number of shards only affects target resolution at dispatch time, not the conversion
+     * pipeline. This pins the invariant so future shard-count-dependent changes don't silently
+     * alter the coordinator-side conversion path.
+     */
+    public void testCoordinatorCentricJoinConversionMultiShard() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(5, makeInnerEquiJoin(), convertor);
+
+        assertEquals(2, dag.rootStage().getChildStages().size());
+        assertTrue(convertor.shardScanCalled);
+        assertTrue(convertor.finalAggCalled);
+        String recorded = RelOptUtil.toString(convertor.reduceFragment);
+        assertTrue(recorded.contains("LogicalJoin"));
+        assertEquals(
+            "Recorded reduce fragment must carry two StageInputScan leaves (one per reducer side)",
+            2,
+            recorded.split("OpenSearchStageInputScan", -1).length - 1
+        );
+    }
+
+    // ---- Left-build broadcast conversion ----
+
+    /**
+     * Regression: probe-side fragment with shape {@code Join(OpenSearchBroadcastScan, OpenSearchTableScan)}
+     * (build = LEFT) must classify as a shard-scan stage, not throw "Unknown leaf type" on
+     * conversion. Earlier {@code findLeaf} returned the broadcast placeholder for the left
+     * input, leaving {@code convert()} unable to route the fragment.
+     */
+    public void testLeftBuildProbeFragmentRoutesToShardScanConversion() {
+        // Construct probe-stage fragment manually: Join(BroadcastScan, TableScan).
+        // We use a minimal cluster + scan to avoid driving the full advisor/rewriter chain —
+        // the goal is to exercise FragmentConversionDriver.convert against the new shape.
+        // The harness only knows test_index; reuse it for both probe and a placeholder
+        // build-side row type (any OpenSearchTableScan would do).
+        org.opensearch.analytics.planner.rel.OpenSearchTableScan probeScan =
+            (org.opensearch.analytics.planner.rel.OpenSearchTableScan) markScan(stubScan(mockTable("test_index", "status", "size")));
+        org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan broadcastScan =
+            new org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan(
+                probeScan.getCluster(),
+                probeScan.getTraitSet(),
+                /* buildStageId */ 0,
+                probeScan.getRowType(),
+                probeScan.getViableBackends()
+            );
+        int leftCols = broadcastScan.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchJoin probeJoin = new org.opensearch.analytics.planner.rel.OpenSearchJoin(
+            probeScan.getCluster(),
+            probeScan.getTraitSet(),
+            broadcastScan,                  // build = LEFT input
+            probeScan,                      // probe scan = RIGHT input
+            condition,
+            JoinRelType.INNER,
+            probeScan.getViableBackends()
+        );
+
+        RecordingConvertor convertor = new RecordingConvertor();
+        FragmentConversionDriver.IntraOperatorDelegationBytes delegationBytes = new FragmentConversionDriver.IntraOperatorDelegationBytes(
+            buildContext("parquet", 1, intFields(), List.of(dfWithConvertor(convertor))).getCapabilityRegistry()
+        );
+
+        // Must not throw "Unknown leaf type" — findLeaf must skip the broadcast placeholder
+        // and recurse into the right input (the probe scan).
+        byte[] bytes = FragmentConversionDriver.convert(probeJoin, convertor, delegationBytes);
+        assertNotNull(bytes);
+        assertTrue(convertor.shardScanCalled);
+        assertEquals("table name from probe scan, not broadcast placeholder", "test_index", convertor.shardScanTableName);
+    }
+
+    /** Mark a logical scan via the planner so it becomes OpenSearchTableScan. */
+    private RelNode markScan(RelNode logicalScan) {
+        org.opensearch.analytics.planner.PlannerContext ctx = buildContext("parquet", 1, intFields());
+        return runPlanner(logicalScan, ctx);
     }
 
     // ---- Delegation tagging tests ----
@@ -1229,6 +1431,82 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             .orElseThrow()).getTreeShape();
     }
 
+    // ---- HAVING regression: delegated WHERE under an Aggregate with a HAVING filter above ----
+
+    /**
+     * HAVING produces two stacked filters that don't merge across the Aggregate: a native HAVING
+     * (count=1) above and the delegated WHERE (match_phrase) below. The derived FilterTreeShape
+     * (which the data node reads as its classification) must reflect the WHERE's delegation
+     * (CONJUNCTIVE), not the topmost HAVING (NO_DELEGATION). Regression: picking the topmost filter
+     * yielded NO_DELEGATION → data node skipped the Lucene collector → full scan / over-count.
+     */
+    public void testHavingFilterAboveDelegatedWhere_derivesConjunctive() {
+        StagePlan plan = runHaving(matchPhrase("hello"));
+        assertEquals("delegated WHERE under HAVING must still ship one expression", 1, plan.delegatedExpressions().size());
+        assertEquals(
+            "treeShape must come from the WHERE (CONJUNCTIVE), not the HAVING (NO_DELEGATION)",
+            FilterTreeShape.CONJUNCTIVE,
+            treeShapeOf(plan)
+        );
+    }
+
+    /** Builds Filter(count=1)[HAVING] over Aggregate(group=message, count(*)) over Filter(where)[scan]. */
+    private StagePlan runHaving(RexNode whereCondition) {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return dfConvertor;
+            }
+        };
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
+
+            @Override
+            public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
+                Map<ScalarFunction, DelegatedPredicateSerializer> map = new HashMap<>(super.delegatedPredicateSerializers());
+                map.put(ScalarFunction.MATCH_PHRASE, serializer);
+                return map;
+            }
+        };
+        List<AnalyticsSearchBackendPlugin> backends = List.of(df, lucene);
+        Map<String, Map<String, Object>> fields = Map.of(
+            "message",
+            Map.of("type", "keyword", "index", true),
+            "amount",
+            Map.of("type", "integer", "index", false),
+            "count",
+            Map.of("type", "integer", "index", false)
+        );
+        // Single shard: no exchange split, so HAVING + Aggregate + WHERE stay in ONE fragment — the
+        // shape the bug needs (multi-shard forks HAVING into a separate reduce stage, hiding it).
+        PlannerContext context = buildContext("parquet", 1, fields, backends);
+        RelNode scan = stubScan(
+            mockTable(
+                "test_index",
+                new String[] { "message", "amount", "count" },
+                new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER, SqlTypeName.INTEGER }
+            )
+        );
+        LogicalFilter where = LogicalFilter.create(scan, whereCondition);
+        LogicalAggregate aggregate = makeAggregate(where, ImmutableBitSet.of(0), countStarCall(where));
+        LogicalFilter having = LogicalFilter.create(aggregate, makeEquals(1, SqlTypeName.BIGINT, 1));
+        RelNode cboOutput = runPlanner(having, context);
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+        return leafStage(dag).getPlanAlternatives().getFirst();
+    }
+
     // ---- Combining tests (OR/NOT/mixed) ----
 
     /** match_phrase AND fuzzy OR amount=200 → OR(AND(lucene,lucene), native) — combined, INTERLEAVED. */
@@ -1319,6 +1597,68 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         var r = runCombining(makeAnd(or(matchPhrase("hello"), fuzzy("wrld")), or(wildcard("h*"), amountEquals(200))));
         assertEquals(2, r.plan.delegatedExpressions().size());
         assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, treeShapeOf(r.plan));
+    }
+
+    /**
+     * Regression for the RexUtil.isFlat AssertionError. After predicate delegation strips the
+     * annotation wrappers in FragmentConversionDriver.strip(), an {@code IN (1,2,3)} expands to
+     * a bare OR(=,=,=) nested directly inside another OR — e.g.
+     * {@code AND(OR(delegated_predicate(0), >), OR(delegated_predicate(2), OR(=,=,=)), =)}.
+     * Calcite's shallow RexUtil.flatten does not descend into the inner OR, so
+     * LogicalFilter.create's recursive isFlat assertion fires. RelNodeUtils.deepFlatten walks the
+     * tree bottom-up and removes the nesting. This builds that exact tree and asserts it.
+     */
+    public void testDeepFlatten_removesNestedSameOpOr() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eq1 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eq2 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        RexNode eq3 = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(3, intType, true));
+        RexNode innerOr = or(eq1, eq2, eq3);
+        // Mirror production: the OR(=,=,=) is nested one level DOWN inside an AND, not at the
+        // root — so a shallow root-only flatten never visits it. AND(OR(eq2, OR(=,=,=)), eq3).
+        RexNode nested = makeAnd(or(eq2, innerOr), eq3);
+        assertFalse("precondition: tree is not flat", RexUtil.isFlat(nested));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, nested);
+        assertTrue("deepFlatten must produce a flat tree", RexUtil.isFlat(flat));
+        // Pure flatten: the inner OR's 3 operands splice into the middle OR (eq2 + 3 = 4), none deduped.
+        RexCall andCall = (RexCall) flat;
+        assertEquals(SqlKind.AND, andCall.getKind());
+        RexNode middleOr = andCall.getOperands().get(0);
+        assertEquals(SqlKind.OR, middleOr.getKind());
+        assertEquals(4, ((RexCall) middleOr).getOperands().size());
+    }
+
+    /** Same-op nesting hidden under a NOT — NOT(OR(eqA, OR(eqB, eqC))) AND eqD. */
+    public void testDeepFlatten_removesNestedOrUnderNot() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eqA = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eqB = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        RexNode eqC = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(3, intType, true));
+        RexNode eqD = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(4, intType, true));
+        RexNode nested = makeAnd(not(or(eqA, or(eqB, eqC))), eqD);
+        assertFalse("precondition: tree is not flat", RexUtil.isFlat(nested));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, nested);
+        // The OR nested under NOT must also be flattened (shuttle recurses through NOT).
+        assertTrue("deepFlatten must produce a flat tree", RexUtil.isFlat(flat));
+    }
+
+    /** An already-flat tree is returned unchanged (and stays flat). */
+    public void testDeepFlatten_alreadyFlatUnchanged() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode ref = rexBuilder.makeInputRef(intType, 0);
+        RexNode eqA = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(1, intType, true));
+        RexNode eqB = rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, ref, rexBuilder.makeLiteral(2, intType, true));
+        // AND(eqA, OR(eqA, eqB)) — mixed operators, no same-op nesting → already flat.
+        RexNode flatInput = makeAnd(eqA, or(eqA, eqB));
+        assertTrue("precondition: input already flat", RexUtil.isFlat(flatInput));
+
+        RexNode flat = RelNodeUtils.deepFlatten(rexBuilder, flatInput);
+        assertTrue(RexUtil.isFlat(flat));
+        assertEquals(2, ((RexCall) flat).getOperands().size());
     }
 
     // ---- OR conditions ----

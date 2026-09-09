@@ -24,23 +24,42 @@ import org.apache.arrow.memory.BufferAllocator;
  *
  * <p>The plugin owns the lifetime; consumers ({@code DefaultPlanExecutor}) only
  * read the underlying allocator via {@link #getAllocator()}.
+ *
+ * <p>Also carries the node-scoped Arrow import staging allocator so the coordinator-reduce path can
+ * reach it. That one is <b>borrowed, not owned</b>: {@code AnalyticsSearchService} creates and closes
+ * it, so a node has exactly one whatever the execution path.
  */
 public final class CoordinatorAllocatorHandle implements AutoCloseable {
 
     private final BufferAllocator allocator;
+    private final BufferAllocator importStagingAllocator;
 
     /**
      * Wraps an already-constructed coordinator allocator (typically a child of
      * {@code POOL_QUERY}). The caller (the plugin) retains responsibility for
      * having created the allocator under the right parent.
+     *
+     * @param importStagingAllocator the node-scoped import staging allocator owned by
+     *        {@code AnalyticsSearchService}; borrowed here, never closed by this handle
      */
-    public CoordinatorAllocatorHandle(BufferAllocator allocator) {
+    public CoordinatorAllocatorHandle(BufferAllocator allocator, BufferAllocator importStagingAllocator) {
         this.allocator = allocator;
+        this.importStagingAllocator = importStagingAllocator;
     }
 
     /** Returns the wrapped allocator. Consumers must not close it directly. */
     public BufferAllocator getAllocator() {
         return allocator;
+    }
+
+    /**
+     * Returns the node-scoped allocator Arrow C Data imports are staged on — unbounded and parented at
+     * the root so an import cannot fail part-way through an array, and long-lived because the Flight
+     * transport keeps charging it after the importing stream closes. Owned by
+     * {@code AnalyticsSearchService}; consumers must not close it.
+     */
+    public BufferAllocator getImportStagingAllocator() {
+        return importStagingAllocator;
     }
 
     @Override

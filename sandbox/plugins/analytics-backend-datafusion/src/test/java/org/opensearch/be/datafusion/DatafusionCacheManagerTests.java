@@ -36,11 +36,17 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
 
         Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_ENABLED);
-        clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(CacheSettings.METADATA_CACHE_EVICTION_TYPE);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_ENABLED);
-        clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(CacheSettings.COLUMN_INDEX_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(CacheSettings.OFFSET_INDEX_CACHE_EVICTION_TYPE);
+        clusterSettingsToAdd.add(DataFusionPlugin.SCOPED_PAGE_INDEX_ENABLED);
+        clusterSettingsToAdd.add(CacheSettings.METADATA_INDEX_CACHE_TOTAL_SIZE);
+        clusterSettingsToAdd.add(CacheSettings.FOOTER_METADATA_CACHE_PERCENT);
+        clusterSettingsToAdd.add(CacheSettings.OFFSET_INDEX_CACHE_PERCENT);
+        clusterSettingsToAdd.add(CacheSettings.COLUMN_INDEX_CACHE_PERCENT);
+        clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_PERCENT);
         clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
         clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
 

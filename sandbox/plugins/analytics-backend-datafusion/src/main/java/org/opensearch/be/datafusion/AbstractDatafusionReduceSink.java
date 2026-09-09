@@ -51,6 +51,8 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
     protected final ExchangeSinkContext ctx;
     protected final NativeRuntimeHandle runtimeHandle;
     protected final DatafusionLocalSession session;
+    /** Execution metrics + physical plan JSON, populated after reduce drains. */
+    protected volatile byte[] executionMetrics;
 
     /**
      * Non-null when constructed from a pre-prepared plan (FinalAggregateInstructionHandler):
@@ -146,6 +148,11 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
      */
     protected abstract void feedBatchUnderLock(VectorSchemaRoot batch);
 
+    /** Returns execution metrics JSON (including physical_plan) captured after reduce, or null. */
+    public byte[] getExecutionMetrics() {
+        return executionMetrics;
+    }
+
     /**
      * Subclass shutdown. Despite the historical name, this is NOT called under {@link #feedLock} —
      * the lock is released after {@link #closed} is flipped. Subclasses own the full teardown
@@ -161,7 +168,15 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
     protected final void drainOutputIntoDownstream(StreamHandle outStream) {
         BufferAllocator alloc = ctx.allocator();
         try (CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()) {
-            DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(outStream, alloc, dictProvider);
+            // Imports go onto the caller-owned, node-scoped staging allocator — never a child minted here:
+            // downstream may hand the batch to the Flight transport, which keeps charging that allocator
+            // long after this drain returns.
+            DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(
+                outStream,
+                alloc,
+                ctx.importStagingAllocator(),
+                dictProvider
+            );
             while (it.hasNext()) {
                 // next() transfers ownership of the imported VSR to us. feed() takes ownership only
                 // on success; if it throws (e.g. the downstream sink was torn down on a concurrent

@@ -204,6 +204,7 @@ import org.opensearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MultiValueDocCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
@@ -677,6 +678,14 @@ public class SearchModule {
             new AggregationSpec(MultiTermsAggregationBuilder.NAME, MultiTermsAggregationBuilder::new, MultiTermsAggregationBuilder.PARSER)
                 .addResultReader(InternalMultiTerms::new)
                 .setAggregatorRegistrar(MultiTermsAggregationFactory::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(
+                MultiValueDocCountAggregationBuilder.NAME,
+                MultiValueDocCountAggregationBuilder::new,
+                MultiValueDocCountAggregationBuilder.PARSER
+            ).addResultReader(InternalValueCount::new).setAggregatorRegistrar(MultiValueDocCountAggregationBuilder::registerAggregators),
             builder
         );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));

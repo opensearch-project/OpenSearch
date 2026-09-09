@@ -99,7 +99,19 @@ class Sha2FunctionAdapter implements ScalarFunctionAdapter {
             return original;
         }
         if (!SUPPORTED_BIT_LENGTHS.contains(bitLen)) {
-            return original;
+            // The bit length is a concrete, unsupported literal (e.g. SHA2(x, 100)). Fail here
+            // with a clear message rather than returning the original call — otherwise the raw
+            // SHA2(string, i32) reaches Substrait conversion and surfaces the cryptic
+            // "Unable to convert call SHA2(string, i32)" instead of a user-actionable error.
+            //
+            // TODO: move concrete SHA2 bit-length validation into the SQL/PPL analysis layer, so
+            // unsupported literals are rejected at the frontend before backend plan adaptation. That
+            // needs the frontend→analytics-engine handoff (currently schema-only) to also carry
+            // function-level validation/capability metadata. Keep this backend-side fail-clear guard
+            // until then.
+            throw new IllegalArgumentException(
+                "Unsupported SHA2 algorithm [" + bitLen + "]. Supported bit lengths are [224, 256, 384, 512]"
+            );
         }
 
         RexBuilder rexBuilder = cluster.getRexBuilder();

@@ -170,7 +170,7 @@ public class CoordinatorJoinIT extends OpenSearchIntegTestCase {
     private void indexKeyedDocs(String indexName, String payloadField) {
         for (int key = 1; key <= NUM_KEYS; key++) {
             int payload = payloadField.equals("v") ? expectedV(key) : expectedW(key);
-            client().prepareIndex(indexName).setId(indexName + "_" + key).setSource("k", key, payloadField, payload).get();
+            client().prepareIndex(indexName).setSource("k", key, payloadField, payload).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
         client().admin().indices().prepareFlush(indexName).get();

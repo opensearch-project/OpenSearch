@@ -86,7 +86,11 @@ impl Drop for RuntimeGuard {
 // ---------------------------------------------------------------------------
 
 fn utf8view_schema() -> SchemaRef {
-    Arc::new(Schema::new(vec![Field::new("s", DataType::Utf8View, false)]))
+    Arc::new(Schema::new(vec![Field::new(
+        "s",
+        DataType::Utf8View,
+        false,
+    )]))
 }
 
 /// Build a substrait plan for `SELECT * FROM "input-0"` with the given schema.
@@ -200,7 +204,11 @@ fn test_stringview_gc_on_sliced_batch() {
         );
 
         let batch = RecordBatch::try_new(
-            Arc::new(Schema::new(vec![Field::new("s", DataType::Utf8View, false)])),
+            Arc::new(Schema::new(vec![Field::new(
+                "s",
+                DataType::Utf8View,
+                false,
+            )])),
             vec![Arc::new(sliced)],
         )
         .expect("batch from sliced array");

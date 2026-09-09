@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.avatica.util.TimeUnit;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexLiteral;
@@ -83,6 +84,10 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
         // ADDDATE/SUBDATE accept INTEGER days; rebuild as INTERVAL n DAY so the interval path runs.
         RexLiteral intervalLiteral = asIntervalLiteral(rawSecond, rexBuilder);
         if (intervalLiteral == null) {
+            // Non-literal integer days (e.g. `bin span=Nday`): see adaptNonLiteralIntegerDays.
+            if (rawSecond != null && SqlTypeName.INT_TYPES.contains(rawSecond.getType().getSqlTypeName())) {
+                return adaptNonLiteralIntegerDays(original, base, rawSecond, cluster);
+            }
             return original;
         }
         SqlIntervalQualifier qualifier = intervalLiteral.getType().getIntervalQualifier();
@@ -162,6 +167,77 @@ class DateAddSubAdapter implements ScalarFunctionAdapter {
             return shifted;
         }
         return rexBuilder.makeAbstractCast(original.getType(), shifted);
+    }
+
+    /**
+     * Non-literal integer-days form (e.g. {@code bin span=Nday}). DataFusion can't evaluate
+     * {@code Int64 * Interval(DayTime)} at runtime, so lower to
+     * {@code from_unixtime(baseEpochSec + daysExpr * 86400.0)}; base must be a foldable literal.
+     */
+    private RexNode adaptNonLiteralIntegerDays(RexCall original, RexNode base, RexNode daysExpr, RelOptCluster cluster) {
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        Long baseEpochSeconds = tryFoldBaseToEpochSeconds(base);
+        if (baseEpochSeconds == null) {
+            // Non-literal base — leave the call unchanged so the UDF path raises a
+            // clearer error than a downstream DF planner failure.
+            return original;
+        }
+        RelDataTypeFactory typeFactory = rexBuilder.getTypeFactory();
+        // daysExpr * 86400.0 → DOUBLE epoch-seconds delta.
+        RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
+        RexNode daysAsDouble = rexBuilder.makeAbstractCast(
+            typeFactory.createTypeWithNullability(doubleType, daysExpr.getType().isNullable()),
+            daysExpr
+        );
+        long signedSecPerDay = isAdd ? 86_400L : -86_400L;
+        RexNode secPerDayLit = rexBuilder.makeApproxLiteral(BigDecimal.valueOf(signedSecPerDay), doubleType);
+        RexNode deltaSec = rexBuilder.makeCall(SqlStdOperatorTable.MULTIPLY, daysAsDouble, secPerDayLit);
+        RexNode baseSec = rexBuilder.makeApproxLiteral(BigDecimal.valueOf(baseEpochSeconds), doubleType);
+        RexNode totalSec = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, baseSec, deltaSec);
+        RexNode ts = rexBuilder.makeCall(
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), daysExpr.getType().isNullable()),
+            RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP,
+            List.of(totalSec)
+        );
+        if (ts.getType().equals(original.getType())) {
+            return ts;
+        }
+        return rexBuilder.makeAbstractCast(original.getType(), ts);
+    }
+
+    /**
+     * Folds a CHAR ({@code YYYY-MM-DD}) / DATE / TIMESTAMP literal to epoch-seconds at midnight UTC.
+     * Returns null when {@code base} is not such a literal.
+     */
+    private static Long tryFoldBaseToEpochSeconds(RexNode base) {
+        if (!(base instanceof RexLiteral lit)) {
+            return null;
+        }
+        Object value = lit.getValue2();
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (SqlTypeFamily.CHARACTER.contains(lit.getType())) {
+                String s = value.toString().trim();
+                if (s.length() == 10) {
+                    return LocalDate.parse(s).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+                }
+                return null;
+            }
+            SqlTypeName tn = lit.getType().getSqlTypeName();
+            if (tn == SqlTypeName.DATE) {
+                int days = ((Number) value).intValue();
+                return days * 86_400L;
+            }
+            if (tn == SqlTypeName.TIMESTAMP || tn == SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+                long millis = ((Number) value).longValue();
+                return millis / 1_000L;
+            }
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        return null;
     }
 
     /** Lift the base to the call's TIMESTAMP type. TIME prepends today-UTC; character base passes through. */

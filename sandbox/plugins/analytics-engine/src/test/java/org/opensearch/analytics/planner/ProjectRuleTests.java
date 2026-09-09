@@ -118,8 +118,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(ceilExpr), List.of("ceil_v"));
         PlannerContext context = buildContext("parquet", nameValueFields(), List.of(new MockDataFusionBackend(), LUCENE));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("No backend supports scalar function"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Scalar functions ----
@@ -154,8 +154,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(ceilExpr), List.of("casted"));
         PlannerContext context = buildContext("parquet", nameValueFields());
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("No backend supports scalar function"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     /**
@@ -218,8 +218,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(DATAFUSION, luceneWithPainless)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testMixedFieldAndPainlessWithDelegation() {
@@ -384,10 +384,10 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of("name", "rn")
         );
         PlannerContext context = buildContext("parquet", nameValueFields(), List.of(dfNoWindow, LUCENE));
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
         assertTrue(
             "Expected planner to surface window-function capability gap, got: " + exception.getMessage(),
-            exception.getMessage().contains("No backend supports window functions") && exception.getMessage().contains("ROW_NUMBER")
+            exception.getMessage().contains("ROW_NUMBER") && exception.getMessage().contains("is not currently supported")
         );
     }
 
@@ -599,8 +599,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(dfWithDelegation, luceneAccepting, thirdBackend)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     public void testDelegationFailsWhenAcceptorRejectsDelegationType() {
@@ -627,8 +627,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             List.of(dfWithDelegation, luceneWithPainlessNoAccept)
         );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        UnsupportedFunctionException exception = expectThrows(UnsupportedFunctionException.class, () -> runPlanner(project, context));
+        assertTrue(exception.getMessage().contains("is not currently supported"));
     }
 
     // ---- Composed pipeline shapes ----

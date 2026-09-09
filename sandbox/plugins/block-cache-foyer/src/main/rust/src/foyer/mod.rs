@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-pub mod foyer_cache;
 pub mod ffm;
+pub mod foyer_cache;

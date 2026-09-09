@@ -1,0 +1,59 @@
+{
+  "testName": "bool_must_not_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "bool": {
+        "must_not": [
+          {"term": {"brand": "BrandX"}}
+        ]
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[IS NOT TRUE(=($2, CAST('BrandX':VARCHAR):VARCHAR))])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultRows": [
+    ["laptop", 999, "BrandA", 4.5],
+    ["tablet", 499, null, 3.0]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 2,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          }
+        },
+        {
+          "_score": null,
+          "_source": {
+            "name": "tablet",
+            "price": 499,
+            "rating": 3.0
+          }
+        }
+      ]
+    }
+  }
+}

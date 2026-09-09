@@ -90,7 +90,7 @@ public class CoordinatorReduceMemtableIT extends AnalyticsRestTestCase {
         int total = NUM_SHARDS * DOCS_PER_SHARD;
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < total; i++) {
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
+            bulk.append("{\"index\": {}}\n");
             bulk.append("{\"value\": ").append(VALUE).append("}\n");
         }
 

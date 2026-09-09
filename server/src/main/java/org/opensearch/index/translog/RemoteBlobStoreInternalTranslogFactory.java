@@ -137,4 +137,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
     public Repository getRepository() {
         return repository;
     }
+
+    public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
+        return remoteTranslogTransferTracker;
+    }
 }

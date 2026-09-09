@@ -84,7 +84,7 @@ test {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
 }
 
 internalClusterTest {
@@ -92,7 +92,7 @@ internalClusterTest {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
-  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
 }
 
 spotless {
@@ -183,8 +183,8 @@ tasks.named('thirdPartyAudit').configure {
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
     'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4SafeDecompressor',
     'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
 

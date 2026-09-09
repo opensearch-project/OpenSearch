@@ -163,4 +163,99 @@ public class DateAddSubAdapterTests extends OpenSearchTestCase {
 
         assertSame("MICROSECOND interval must leave the call unchanged", original, adapted);
     }
+
+    /**
+     * ADDDATE('1970-01-01', daysExpr) — bin span=Nday lowering shape. Second operand is computed
+     * (MOD-based subtract on an integer column ref), not a literal. Adapter must lower to
+     * {@code from_unixtime(baseEpochSec + daysExpr * 86400.0)} where baseEpochSec=0.
+     */
+    public void testAddDateCharLiteralBaseWithComputedI64DaysLowersToFromUnixtime() {
+        RelDataType i64 = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RexNode epochCharLit = rexBuilder.makeLiteral("1970-01-01");
+        RexNode daysCol = rexBuilder.makeInputRef(i64, 0);
+        RexNode mod = rexBuilder.makeCall(SqlStdOperatorTable.MOD, daysCol, rexBuilder.makeLiteral(7, i64, false));
+        RexNode daysExpr = rexBuilder.makeCall(SqlStdOperatorTable.MINUS, daysCol, mod);
+        RexCall original = (RexCall) rexBuilder.makeCall(ADDDATE_OP, List.of(epochCharLit, daysExpr));
+
+        RexNode adapted = new DateAddSubAdapter(true).adapt(original, List.of(), cluster);
+
+        RexCall fromUnixtime = unwrapCast(adapted);
+        assertEquals("from_unixtime", fromUnixtime.getOperator().getName());
+        // Inner expr: PLUS(baseSec=0.0, MULTIPLY(CAST(daysExpr AS DOUBLE), 86400.0))
+        RexCall plus = (RexCall) fromUnixtime.getOperands().get(0);
+        assertSame(SqlStdOperatorTable.PLUS, plus.getOperator());
+        assertEquals(0.0, ((org.apache.calcite.rex.RexLiteral) plus.getOperands().get(0)).getValueAs(Double.class), 0.0);
+        RexCall multiply = (RexCall) plus.getOperands().get(1);
+        assertSame(SqlStdOperatorTable.MULTIPLY, multiply.getOperator());
+        assertEquals(86_400.0, ((org.apache.calcite.rex.RexLiteral) multiply.getOperands().get(1)).getValueAs(Double.class), 0.0);
+    }
+
+    /** SUBDATE('1970-01-01', i64Expr) — sign-flipped multiplier (-86400). */
+    public void testSubDateCharLiteralBaseWithI64DaysFlipsMultiplierSign() {
+        RelDataType i64 = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RexNode epochCharLit = rexBuilder.makeLiteral("1970-01-01");
+        RexNode daysCol = rexBuilder.makeInputRef(i64, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(SUBDATE_OP, List.of(epochCharLit, daysCol));
+
+        RexNode adapted = new DateAddSubAdapter(false).adapt(original, List.of(), cluster);
+
+        RexCall fromUnixtime = unwrapCast(adapted);
+        assertEquals("from_unixtime", fromUnixtime.getOperator().getName());
+        RexCall plus = (RexCall) fromUnixtime.getOperands().get(0);
+        RexCall multiply = (RexCall) plus.getOperands().get(1);
+        assertEquals(-86_400.0, ((org.apache.calcite.rex.RexLiteral) multiply.getOperands().get(1)).getValueAs(Double.class), 0.0);
+    }
+
+    /** DATE-literal base folds to epoch-seconds via days × 86400. */
+    public void testAddDateDateLiteralBaseFoldsViaDaysTimes86400() {
+        RelDataType i64 = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        // 1970-01-02 = 1 day after epoch → baseSec = 86400.
+        RexNode dateLit = rexBuilder.makeDateLiteral(new org.apache.calcite.util.DateString("1970-01-02"));
+        RexNode daysCol = rexBuilder.makeInputRef(i64, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(ADDDATE_OP, List.of(dateLit, daysCol));
+
+        RexNode adapted = new DateAddSubAdapter(true).adapt(original, List.of(), cluster);
+
+        RexCall fromUnixtime = unwrapCast(adapted);
+        assertEquals("from_unixtime", fromUnixtime.getOperator().getName());
+        RexCall plus = (RexCall) fromUnixtime.getOperands().get(0);
+        assertEquals(86_400.0, ((org.apache.calcite.rex.RexLiteral) plus.getOperands().get(0)).getValueAs(Double.class), 0.0);
+    }
+
+    /** TIMESTAMP-literal base folds via millis ÷ 1000. */
+    public void testAddDateTimestampLiteralBaseFoldsViaMillisDiv1000() {
+        RelDataType i64 = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        // 1970-01-01 00:00:01 UTC → baseSec = 1.
+        RexNode tsLit = rexBuilder.makeTimestampLiteral(new org.apache.calcite.util.TimestampString("1970-01-01 00:00:01"), 0);
+        RexNode daysCol = rexBuilder.makeInputRef(i64, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(ADDDATE_OP, List.of(tsLit, daysCol));
+
+        RexNode adapted = new DateAddSubAdapter(true).adapt(original, List.of(), cluster);
+
+        RexCall fromUnixtime = unwrapCast(adapted);
+        assertEquals("from_unixtime", fromUnixtime.getOperator().getName());
+        RexCall plus = (RexCall) fromUnixtime.getOperands().get(0);
+        assertEquals(1.0, ((org.apache.calcite.rex.RexLiteral) plus.getOperands().get(0)).getValueAs(Double.class), 0.0);
+    }
+
+    /** Non-foldable base (column ref, not literal) with computed i64 days passes through. */
+    public void testAddDateNonLiteralBaseWithI64DaysPassesThrough() {
+        RelDataType dateType = typeFactory.createSqlType(SqlTypeName.DATE);
+        RelDataType i64 = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RexNode dateCol = rexBuilder.makeInputRef(dateType, 0);
+        RexNode daysCol = rexBuilder.makeInputRef(i64, 1);
+        RexCall original = (RexCall) rexBuilder.makeCall(ADDDATE_OP, List.of(dateCol, daysCol));
+
+        RexNode adapted = new DateAddSubAdapter(true).adapt(original, List.of(), cluster);
+
+        assertSame("non-foldable base must leave the call unchanged", original, adapted);
+    }
+
+    /** Unwrap an outer CAST around the from_unixtime call (return-type alignment). */
+    private static RexCall unwrapCast(RexNode node) {
+        if (node instanceof RexCall call && call.getKind() == SqlKind.CAST) {
+            return (RexCall) call.getOperands().get(0);
+        }
+        return (RexCall) node;
+    }
 }

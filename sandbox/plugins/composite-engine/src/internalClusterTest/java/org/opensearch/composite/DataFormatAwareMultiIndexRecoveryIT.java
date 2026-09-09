@@ -160,10 +160,7 @@ public class DataFormatAwareMultiIndexRecoveryIT extends DataFormatAwareReplicat
 
     private void indexDocsToIndex(String indexName, int count) {
         for (int i = 0; i < count; i++) {
-            client().prepareIndex(indexName)
-                .setId(String.valueOf(i))
-                .setSource("field_text", randomAlphaOfLength(10), "field_number", (long) i)
-                .get();
+            client().prepareIndex(indexName).setSource("field_text", randomAlphaOfLength(10), "field_number", (long) i).get();
         }
     }
 }

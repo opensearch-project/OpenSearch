@@ -221,7 +221,7 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
 
         @Override
         public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-            // explictly disable pruning
+            // explicitly disable pruning
             return delegate.getComparator(numHits, Pruning.NONE);
         }
 

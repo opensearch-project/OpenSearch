@@ -140,9 +140,17 @@ mod tests {
     fn parses_well_formed_inputs() {
         // (input, format, expected micros). Date-only defaults 00:00:00.
         for (i, f, want) in [
-            ("2020-03-15 10:30:45", "%Y-%m-%d %H:%i:%S", 1_584_268_245_000_000_i64),
+            (
+                "2020-03-15 10:30:45",
+                "%Y-%m-%d %H:%i:%S",
+                1_584_268_245_000_000_i64,
+            ),
             ("2020-03-15", "%Y-%m-%d", 1_584_230_400_000_000),
-            ("2020-03-15 10:30:45.123456", "%Y-%m-%d %H:%i:%S.%f", 1_584_268_245_123_456),
+            (
+                "2020-03-15 10:30:45.123456",
+                "%Y-%m-%d %H:%i:%S.%f",
+                1_584_268_245_123_456,
+            ),
         ] {
             assert_eq!(parse_to_micros(i, f), Some(want), "input={i}");
         }
@@ -153,5 +161,48 @@ mod tests {
     fn unparseable_input_returns_none() {
         assert!(parse_to_micros("not-a-date", "%Y-%m-%d").is_none());
         assert!(parse_to_micros("2020-13-01", "%Y-%m-%d").is_none());
+        assert!(parse_to_micros("hello", "%Y-%m-%d").is_none());
+    }
+
+    #[test]
+    fn parses_short_input_with_time_format_tokens() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(
+            parse_to_micros("2017-10-23", "%Y-%m-%d %h:%i:%s"),
+            Some(want)
+        );
+    }
+
+    #[test]
+    fn parses_full_iso_date_with_zero_hour_lower_h() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(
+            parse_to_micros("2017-10-23 00:00:00", "%Y-%m-%d %h:%i:%s"),
+            Some(want)
+        );
+    }
+
+    #[test]
+    fn parses_short_year_and_month_name_with_zero_hour() {
+        let want = chrono::NaiveDate::from_ymd_opt(2017, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp_micros();
+        assert_eq!(
+            parse_to_micros("23-Oct-17 00:00:00", "%d-%b-%y %h:%i:%s"),
+            Some(want)
+        );
     }
 }

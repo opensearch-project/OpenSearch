@@ -16,18 +16,22 @@ import java.util.Map;
 
 /**
  * Per-task profile snapshot. Captures target node, terminal state,
- * wall-clock elapsed time, and optional data-node execution metrics.
+ * wall-clock elapsed time, optional data-node execution metrics, and
+ * the DataFusion physical plan text.
  *
  * @param node target node and shard the task ran on, or "(unknown)" if dispatch never happened
  * @param state terminal state — CREATED if the task was never dispatched
  * @param elapsedMs wall-clock time from dispatch to terminal, or 0 if never dispatched
  * @param dataNodeMetrics execution metrics from the data node (DataFusion operator timings), or null if not profiled
+ * @param physicalPlan DataFusion physical execution plan text, or null if not profiled
  */
-public record TaskProfile(String node, String state, long elapsedMs, Map<String, Long> dataNodeMetrics) implements ToXContentObject {
+public record TaskProfile(String node, String state, long elapsedMs, Map<String, Long> dataNodeMetrics, String physicalPlan)
+    implements
+        ToXContentObject {
 
-    /** Convenience constructor without data node metrics. */
+    /** Convenience constructor without data node metrics or physical plan. */
     public TaskProfile(String node, String state, long elapsedMs) {
-        this(node, state, elapsedMs, null);
+        this(node, state, elapsedMs, null, null);
     }
 
     @Override
@@ -42,6 +46,9 @@ public record TaskProfile(String node, String state, long elapsedMs, Map<String,
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
+        }
+        if (physicalPlan != null) {
+            builder.field("physical_plan", physicalPlan);
         }
         builder.endObject();
         return builder;

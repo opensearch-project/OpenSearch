@@ -60,6 +60,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.delete.DeleteTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -437,6 +439,32 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Fetch a task by id.
      */
     GetTaskRequestBuilder prepareGetTask(TaskId taskId);
+
+    /**
+     * Delete a stored completed task result.
+     *
+     * @param request the request
+     * @return The result future
+     */
+    ActionFuture<AcknowledgedResponse> deleteTask(DeleteTaskRequest request);
+
+    /**
+     * Delete a stored completed task result.
+     *
+     * @param request the request
+     * @param listener A listener to be notified with the result
+     */
+    void deleteTask(DeleteTaskRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Delete a stored completed task result by id.
+     */
+    DeleteTaskRequestBuilder prepareDeleteTask(String taskId);
+
+    /**
+     * Delete a stored completed task result by id.
+     */
+    DeleteTaskRequestBuilder prepareDeleteTask(TaskId taskId);
 
     /**
      * Cancel tasks

@@ -9,6 +9,7 @@
 package org.opensearch.dsl.aggregation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a grouping contribution from a bucket aggregation.
@@ -19,4 +20,13 @@ public interface GroupingInfo {
 
     /** Returns the logical field names this grouping contributes. */
     List<String> getFieldNames();
+
+    /**
+     * Returns the null-substitution value per field (the {@code missing} request parameter).
+     * Documents with a null value for a listed field join the substitute value's group; fields
+     * absent from the map keep the default semantics — their null-valued documents are excluded
+     * from grouping entirely, matching classic search. Empty when no field has a
+     * {@code missing} value.
+     */
+    Map<String, Object> getMissingByField();
 }

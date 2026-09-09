@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
@@ -32,6 +33,7 @@ import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepository;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -41,6 +43,7 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -96,7 +99,15 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         }
     }
 
-    /** Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos. */
+    /**
+     * Wires FsNativeObjectStorePlugin into "fs_multipart_repository" repos.
+     *
+     * <p>Keeps {@link MockFsRepository} as the implementation rather than a plain {@link FsRepository}:
+     * the mock's blob container is the only one of the two that reports store-enforced conditional
+     * writes, which remote store fencing requires. Substituting {@code FsRepository} here made every
+     * seed that picked {@code asyncUploadMockFsRepo=true}, {@code metadataSupportedType=false} and
+     * fencing-enabled fail shard recovery outright.
+     */
     public static class NativeAwareMockFsRepositoryPlugin extends Plugin implements org.opensearch.plugins.RepositoryPlugin {
 
         private final FsNativeObjectStorePlugin nativeProvider = new FsNativeObjectStorePlugin();
@@ -110,7 +121,7 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
         ) {
             return Collections.singletonMap(
                 MockFsRepositoryPlugin.TYPE,
-                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
+                metadata -> new MockFsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings, nativeProvider)
             );
         }
     }
@@ -230,14 +241,16 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
     }
 
     /** Index N docs with RefreshPolicy.NONE. */
-    protected void indexDocs(int count) {
+    protected List<String> indexDocs(int count) {
+        List<String> ids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
+            IndexResponse indexResponse = client().prepareIndex(INDEX_NAME)
                 .setRefreshPolicy(org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE)
                 .setSource("field_text", randomAlphaOfLength(10), "field_keyword", randomAlphaOfLength(10), "field_number", (long) i)
                 .get();
+            ids.add(indexResponse.getId());
         }
+        return ids;
     }
 
     /** Primary's node name. */

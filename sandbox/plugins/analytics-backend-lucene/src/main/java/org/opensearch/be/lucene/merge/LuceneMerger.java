@@ -119,8 +119,11 @@ public class LuceneMerger implements Merger {
             }
 
             if (segmentInfos.size() == 0) {
-                logger.warn("No segments in IndexWriter — skipping merge");
-                return new MergeResult(Map.of());
+                throw new IOException(
+                    "IndexWriter has no segments — cannot proceed with Lucene merge for generations "
+                        + generationsToMerge
+                        + ". This may indicate a concurrent commit cleared the segment list."
+                );
             }
 
             List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
@@ -130,6 +133,22 @@ public class LuceneMerger implements Merger {
                     "No Lucene segments found matching writer generations "
                         + generationsToMerge
                         + " — segments may have been consumed by a concurrent merge"
+                );
+            }
+
+            if (matchingSegments.size() != generationsToMerge.size()) {
+                throw new IllegalStateException(
+                    "Expected "
+                        + generationsToMerge.size()
+                        + " Lucene segments for generations "
+                        + generationsToMerge
+                        + " but found only "
+                        + matchingSegments.size()
+                        + ". Missing segments may have been consumed by a concurrent merge. "
+                        + "Found generations: "
+                        + matchingSegments.stream()
+                            .map(sci -> sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE))
+                            .collect(java.util.stream.Collectors.toList())
                 );
             }
 
