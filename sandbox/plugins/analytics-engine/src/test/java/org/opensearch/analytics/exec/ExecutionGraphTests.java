@@ -13,6 +13,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -150,7 +151,9 @@ public class ExecutionGraphTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start(ActionListener<Void> onStarted) {
+            onStarted.onResponse(null);
+        }
 
         @Override
         public void addStateListener(org.opensearch.analytics.exec.stage.StageStateListener listener) {}

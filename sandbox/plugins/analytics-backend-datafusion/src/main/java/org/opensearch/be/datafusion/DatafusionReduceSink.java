@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -79,7 +80,7 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
 
     /** Guards the teardown body so concurrent + sequential close paths don't run it twice. */
-    final java.util.concurrent.atomic.AtomicBoolean torndown = new java.util.concurrent.atomic.AtomicBoolean();
+    final AtomicBoolean torndown = new AtomicBoolean();
 
     /** Signalled when reduce's finally completes teardown. closeImpl awaits this
      *  when cancelled during REDUCING state so the allocator isn't closed prematurely. */
@@ -251,14 +252,16 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
                 }
                 feedCount.incrementAndGet();
             } catch (IllegalStateException e) {
-                // Sender close raced our send — getPointer() threw BEFORE the native call,
-                // so Rust never took ownership and the FFI structs' release callbacks are
-                // still set. Invoke them explicitly to free the exported buffers back to the
-                // Java allocator. (ArrowArray.close / ArrowSchema.close in the finally below
-                // frees the wrapper but does NOT invoke the C release callback.)
+                // Sender close raced our send — thrown BEFORE the native call, so Rust
+                // never took ownership and the FFI structs' release callbacks are still
+                // set. Invoke them explicitly to free the exported buffers back to the
+                // Java allocator. (ArrowArray.close / ArrowSchema.close in the finally
+                // below frees the wrapper but does NOT invoke the C release callback.)
                 array.release();
                 arrowSchema.release();
-                if (closed) {
+                if (closed || sender.isCloseRequested()) {
+                    // Benign: the sink — or just this input (per-child EOF racing a live
+                    // producer) — stopped accepting batches. Discard, don't fail the stream.
                     logger.debug("[ReduceSink] send-after-close race caught, discarding batch");
                     return;
                 }
@@ -278,6 +281,15 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
      * parameters are tolerated because the data-node parquet reader and physical
      * planner pick a precision the Java-side declaration does not predict, and the
      * chosen precision round-trips through Arrow C Data — divergence is harmless.
+     *
+     * <p>Utf8 / Utf8View are treated as equivalent for this advisory check. DataFusion's
+     * coalesce / projection paths can return either variant for the same logical column
+     * (e.g. an outer join on the null-fill side returns plain Utf8 while a non-null side
+     * returns Utf8View). The two layouts are NOT byte-identical, so the Rust sender_send
+     * path casts each such column to the declared type before pushing it into the
+     * StreamingTable (see {@code conform_batch_to_schema} in api.rs) — this check only
+     * relaxes the Java-side tripwire so the legitimate divergence reaches that cast
+     * rather than tripping an early IllegalStateException.
      */
     private static boolean typesMatch(Schema actual, Schema declared) {
         List<Field> a = actual.getFields();
@@ -291,11 +303,19 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             if (at.getTypeID() == ArrowType.ArrowTypeID.Timestamp && dt.getTypeID() == ArrowType.ArrowTypeID.Timestamp) {
                 continue;
             }
+            if (isUtf8Family(at) && isUtf8Family(dt)) {
+                continue;
+            }
             if (!at.equals(dt)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isUtf8Family(ArrowType type) {
+        ArrowType.ArrowTypeID id = type.getTypeID();
+        return id == ArrowType.ArrowTypeID.Utf8 || id == ArrowType.ArrowTypeID.Utf8View;
     }
 
     /**
@@ -363,12 +383,29 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
     protected Exception closeImpl() {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
         if (before == SinkState.REDUCING) {
-            // Drain in flight — fire cancel so it unblocks, then wait for reduce's
-            // finally to complete teardown (releases Arrow batches from the allocator).
-            fireCancelQuery();
+            // Drain in flight: signal per-partition EOF, never cancel. Pipeline breakers
+            // (SortExec/TopK) emit only after end-of-input, so closing the inputs lets the
+            // drain finish naturally with all accepted rows; cancelling here aborted the
+            // plan pre-emit (~5s stall, zero-row results). A sender with a feed in flight
+            // closes its receiver instead — the woken feeder runs the deferred native
+            // close after releasing its read lock. Genuine aborts still use cancel().
+            for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
+                try {
+                    sender.requestEarlyTermination();
+                } catch (Exception e) {
+                    logger.warn("[reduce-sink] error signalling input EOF: taskId={}", ctx.taskId(), e);
+                }
+            }
             try {
                 if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                    logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
+                    // EOF didn't unblock the drain (e.g. the native plan is stuck for
+                    // another reason). Fall back to a hard cancel so close() cannot
+                    // hang, then give teardown a short grace period.
+                    logger.warn("[reduce-sink] reduce did not finish after input EOF; falling back to cancel: taskId={}", ctx.taskId());
+                    fireCancelQuery();
+                    if (!reduceDone.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        logger.warn("[reduce-sink] timed out waiting for reduce teardown: taskId={}", ctx.taskId());
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

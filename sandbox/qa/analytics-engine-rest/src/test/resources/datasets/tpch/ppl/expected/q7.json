@@ -1,0 +1,23 @@
+{
+  "schema" : [
+    {
+      "name" : "supp_nation",
+      "type" : "string"
+    },
+    {
+      "name" : "cust_nation",
+      "type" : "string"
+    },
+    {
+      "name" : "l_year",
+      "type" : "int"
+    },
+    {
+      "name" : "revenue",
+      "type" : "double"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

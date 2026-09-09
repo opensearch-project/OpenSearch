@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "s_suppkey": {
+        "type": "long"
+      },
+      "s_name": {
+        "type": "keyword"
+      },
+      "s_address": {
+        "type": "text"
+      },
+      "s_nationkey": {
+        "type": "long"
+      },
+      "s_phone": {
+        "type": "keyword"
+      },
+      "s_acctbal": {
+        "type": "double"
+      },
+      "s_comment": {
+        "type": "text"
+      }
+    }
+  }
+}

@@ -78,32 +78,31 @@ public class DslQueryPlanExecutor {
     }
 
     private static void logRows(Iterable<Object[]> rows) {
-        if (logger.isInfoEnabled() == false) return;
+        if (logger.isDebugEnabled() == false) return;
         List<Object[]> list = (rows instanceof List) ? (List<Object[]>) rows : null;
         int count = list != null ? list.size() : -1;
-        logger.info("Query result rowCount={}", count);
+        logger.debug("Query result rowCount={}", count);
         if (list != null) {
             int preview = Math.min(20, list.size());
             for (int i = 0; i < preview; i++) {
-                logger.info("row[{}]={}", i, Arrays.toString(list.get(i)));
+                logger.debug("row[{}]={}", i, Arrays.toString(list.get(i)));
             }
             if (list.size() > preview) {
-                logger.info("... ({} more rows)", list.size() - preview);
+                logger.debug("... ({} more rows)", list.size() - preview);
             }
         }
     }
 
-    // TODO: move plan logging behind a debug flag
     // invalidateMetadataQuery() and THREAD_PROVIDERS are only needed for explain() output
     private void logPlan(RelNode relNode) {
-        if (logger.isInfoEnabled()) {
+        if (logger.isDebugEnabled()) {
             org.apache.calcite.rel.metadata.RelMetadataQueryBase.THREAD_PROVIDERS.set(
                 org.apache.calcite.rel.metadata.JaninoRelMetadataProvider.of(
                     java.util.Objects.requireNonNull(relNode.getCluster().getMetadataProvider())
                 )
             );
             relNode.getCluster().invalidateMetadataQuery();
-            logger.info("Executing RelNode:\n{}", relNode.explain());
+            logger.debug("Executing RelNode:\n{}", relNode.explain());
         }
     }
 }

@@ -45,7 +45,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
+public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
     private final AggregateMode mode;
@@ -277,21 +277,46 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     /**
      * SINGLE-mode aggregate over partitioned input is incorrect (each shard would aggregate
-     * independently, results would never merge). Return infinite cost so Volcano picks the
-     * split alternative. Allow SOURCE/EXECUTION SINGLETON (already gathered) and ANY
-     * (Volcano's "still exploring" placeholder). PARTIAL/FINAL skip the gate.
+     * independently, results would never merge). FINAL has two legal input shapes:
+     * SINGLETON+COORDINATOR (the M0/M1 coord-centric path — partials gathered to coord, FINAL
+     * merges) and HASH+WORKER (the M3 shuffle path — partials hash-shuffled by group keys,
+     * FINAL runs on each worker over its hash bucket). Anything else is rejected.
      *
-     * <p><b>DO NOT REMOVE the infinite-cost branch below.</b> It is the correctness backstop for
-     * the whole split: {@code OpenSearchAggregateSplitRule} now emits a single alternative
-     * deterministically (no cost comparison), so this gate is the ONLY thing that rejects a SINGLE
-     * aggregate placed over RANDOM (multi-shard) input. Without it, Volcano can legally land a
-     * SINGLE aggregate directly on partitioned data — each shard aggregates in isolation, the
-     * partials never merge, and queries return silently wrong results. Plan-shape tests happen to
-     * catch the current shapes, but they are not a substitute for this gate; deleting it breaks
-     * correctness, not just a test.
+     * <p>PARTIAL is unconstrained (it consumes whatever the child distribution is and emits
+     * partial-state output at the same locality).
+     *
+     * <p>The check tolerates ANY (Volcano's "still exploring" placeholder) on either side so the
+     * planner can register alternatives during memo expansion before the trait is finalized.
+     *
+     * <p>Cost: FINAL pays merge cost proportional to its input rows. At COORDINATOR+SINGLETON
+     * the merge runs serially → cost = inputRows. At HASH+WORKER+N the merge runs across N
+     * workers in parallel → cost = inputRows / N. The parallelism win is what makes the shuffle
+     * path beat the coord-centric path on high-cardinality {@code GROUP BY} despite paying an
+     * extra gather ER on top: for shuffle to win the savings on FINAL must exceed the extra
+     * gather ER's setup + final-output rows. This naturally amortizes only at scale, leaving
+     * tiny aggregates on coord-centric.
+     *
+     * <p><b>DO NOT REMOVE the SINGLE-mode infinite-cost branch below.</b> It is the correctness
+     * backstop for the whole split: {@code OpenSearchAggregateSplitRule} now emits a single
+     * alternative deterministically (no cost comparison), so this gate is the ONLY thing that
+     * rejects a SINGLE aggregate placed over RANDOM (multi-shard) input. Without it, Volcano can
+     * legally land a SINGLE aggregate directly on partitioned data — each shard aggregates in
+     * isolation, the partials never merge, and queries return silently wrong results. Plan-shape
+     * tests happen to catch the current shapes, but they are not a substitute for this gate;
+     * deleting it breaks correctness, not just a test.
+     *
+     * <p>TODO(trait-propagation): PARTIAL/FINAL split PLACEMENT is already a trait algebra — see
+     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
+     * on this class, consulted by the post-CBO {@code DistributionEnforcementPass}. A future top-down
+     * migration ({@code setTopDownOpt} + Calcite {@code PhysicalNode} {@code deriveTraits}/
+     * {@code passThroughTraits}) would fold the cost-RANKING part of this override into the trait
+     * machinery. NOTE: the SINGLE-mode infinite-cost gate below is a CORRECTNESS backstop, not cost
+     * ranking — it must survive any such migration (see the paragraph above).
      */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        // SINGLE / PARTIAL placement gates (upstream): price out a SINGLE over partitioned input
+        // and a PARTIAL over singleton input so Volcano never lands them on the wrong distribution.
         for (int index = 0; index < getInput().getTraitSet().size(); index++) {
             RelTrait trait = getInput().getTraitSet().getTrait(index);
             if (!(trait instanceof OpenSearchDistribution distribution)) continue;
@@ -307,7 +332,94 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
                 return planner.getCostFactory().makeInfiniteCost();
             }
         }
+        // FINAL placement + parallel-merge cost (our hash-shuffle feature): FINAL is legal only over
+        // a COORDINATOR+SINGLETON gather or a WORKER+HASH shuffle, and the HASH case merges in
+        // parallel across N workers (the /partitionCount discount that lets shuffle beat coord-centric
+        // for high-cardinality GROUP BY).
+        if (mode == AggregateMode.FINAL) {
+            int partitionCount = 1;
+            boolean traitResolved = false;
+            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+                RelTrait trait = getInput().getTraitSet().getTrait(index);
+                if (!(trait instanceof OpenSearchDistribution distribution)) continue;
+                if (distribution.getType() == RelDistribution.Type.ANY) continue;
+                boolean singletonCoord = distribution.getType() == RelDistribution.Type.SINGLETON
+                    && distribution.getLocality() == OpenSearchDistribution.Locality.COORDINATOR;
+                boolean hashWorker = distribution.getType() == RelDistribution.Type.HASH_DISTRIBUTED
+                    && distribution.getLocality() == OpenSearchDistribution.Locality.WORKER;
+                if (!singletonCoord && !hashWorker) {
+                    return planner.getCostFactory().makeInfiniteCost();
+                }
+                traitResolved = true;
+                if (hashWorker && distribution.getPartitionCount() != null) {
+                    partitionCount = Math.max(1, distribution.getPartitionCount());
+                }
+            }
+            // FINAL pays a merge cost proportional to its input row count. Coord-centric merges
+            // serially (partitionCount=1); HASH+WORKER merges in parallel across N workers
+            // (partitionCount=N). The /N discount is what lets the shuffle path beat the
+            // coord-centric path on high-cardinality GROUP BY despite paying an extra gather
+            // ER on top — but only when the savings exceed the gather's setup, so tiny inputs
+            // still route coord-centric. Use tinyCost while the trait is unresolved (Volcano's
+            // ANY placeholder) so memo expansion can register alternatives without committing
+            // to a cost.
+            if (traitResolved) {
+                double finalRows = mq.getRowCount(getInput());
+                double finalCost = finalRows / partitionCount;
+                return planner.getCostFactory().makeCost(finalCost, finalCost, 0);
+            }
+        }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * A {@code SINGLE} aggregate over a distributable input declares it needs its input hash-partitioned
+     * on the group keys, so the enforcement pass can split it into {@code Aggregate(PARTIAL)} on the
+     * workers + {@code Aggregate(FINAL)} on the coordinator (the existing {@code OpenSearchAggregateSplitRule}
+     * / {@code DistributedAggregateRewriter} machinery the pass reuses):
+     * <ul>
+     *   <li>non-empty group set → require {@code WORKER+HASH(groupKeys, N)} on the input;</li>
+     *   <li>empty group set (e.g. {@code stats sum(x)} no {@code by}) → require {@code COORDINATOR+SINGLETON}:
+     *       PARTIAL runs wherever the input is, FINAL merges the ≤N partials at the coordinator. The gather
+     *       is bounded (one partial row per partition), so no hash key is needed.</li>
+     * </ul>
+     * Returns {@code null} (no requirement → input left at its CBO-chosen shape) for non-SINGLE modes, or
+     * when the aggregate is not decomposable ({@code STATE_EXPANDING}/{@code DISTINCT}/percentile) — those
+     * stay coordinator-centric. The {@code groupSet} of a SINGLE aggregate indexes INPUT columns, so the
+     * hash keys are the group-set bits directly.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        if (inputIndex != 0 || mode != AggregateMode.SINGLE) {
+            return null;
+        }
+        if (org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule.shouldSkipPartialFinalSplit(this)) {
+            return null;
+        }
+        if (getGroupSet().isEmpty()) {
+            // No partition key — the PARTIAL/FINAL split still distributes the work below, but the agg
+            // itself gathers its partials to the coordinator. Requiring SINGLETON here is a no-op when the
+            // input is already gathered; the distribution win comes from the input's own requirement.
+            return traitDef.coordSingleton();
+        }
+        return traitDef.hash(getGroupSet().asList(), partitionCount);
+    }
+
+    /**
+     * An aggregate's output is partitioned by its group keys only when it ran distributed (PARTIAL/FINAL)
+     * — but in the pre-split SINGLE form the pass hasn't decided that yet, and the FINAL gathers to the
+     * coordinator anyway. So we do not advertise a co-partitionable output here (returns {@code null}); a
+     * parent that needs a specific partitioning will demand its own exchange. (Aggregate output rarely
+     * feeds a co-partition-sensitive parent in PPL; revisit if a join-on-agg-output shape needs it.)
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        return null;
     }
 
     @Override
