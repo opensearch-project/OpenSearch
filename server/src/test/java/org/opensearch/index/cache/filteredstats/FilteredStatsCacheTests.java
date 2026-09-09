@@ -177,6 +177,49 @@ public class FilteredStatsCacheTests extends OpenSearchTestCase {
         second.close();
     }
 
+    /**
+     * Cache memory scales with the number of distinct views (filters), not with how selective they are: a visible-doc
+     * bitset is {@code maxDoc} bits per (segment, filter) whatever its cardinality. This pins that down so the
+     * capacity-planning claim stays honest -- if the representation ever becomes sparse or shared, this test should be
+     * updated deliberately rather than silently drifting.
+     */
+    public void testMemoryScalesWithNumberOfFiltersNotSelectivity() throws IOException {
+        final Directory dir = writeSingleSegment();
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            final LeafReaderContext leaf = reader.leaves().get(0);
+            final int maxDoc = leaf.reader().maxDoc();
+            final FilteredStatsCache cache = newCache();
+
+            // One very selective filter (a single visible doc) and one unselective filter (all docs visible).
+            final FixedBitSet sparse = new FixedBitSet(maxDoc);
+            sparse.set(0);
+            final FixedBitSet dense = new FixedBitSet(maxDoc);
+            dense.set(0, maxDoc);
+
+            cache.getOrComputeVisibleBitSet(leaf, new TermQuery(new Term("v", "selective")), () -> sparse);
+            final long afterSelective = cache.ramBytesUsed();
+            cache.getOrComputeVisibleBitSet(leaf, new TermQuery(new Term("v", "unselective")), () -> dense);
+            final long afterBoth = cache.ramBytesUsed();
+
+            final long selectiveCost = afterSelective;
+            final long unselectiveCost = afterBoth - afterSelective;
+            assertEquals(
+                "a 1-doc view and an all-docs view must cost the same: cost tracks maxDoc, not cardinality",
+                selectiveCost,
+                unselectiveCost
+            );
+
+            // Each additional distinct view adds another bitset of the same size -- memory is linear in view count.
+            for (int i = 0; i < 8; i++) {
+                final FixedBitSet bits = new FixedBitSet(maxDoc);
+                bits.set(i % maxDoc);
+                cache.getOrComputeVisibleBitSet(leaf, new TermQuery(new Term("v", "view" + i)), () -> bits);
+            }
+            assertEquals("memory should be linear in the number of distinct views", selectiveCost * 10, cache.ramBytesUsed());
+        }
+        dir.close();
+    }
+
     public void testEntriesEvictedWhenSegmentCloses() throws IOException {
         final Directory dir = writeSingleSegment();
         final FilteredStatsCache cache = newCache();
