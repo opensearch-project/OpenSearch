@@ -155,29 +155,20 @@ public class DAGBuilder {
     }
 
     /**
-     * Cuts at an {@link OpenSearchLateMaterialization} wrapper. Two cuts happen:
+     * Cuts at an {@link OpenSearchLateMaterialization} wrapper into a query stage and a fetch (LM)
+     * stage. The query stage is the wrapper's input subtree, built by {@link #newChildStage} like any
+     * other cut: with an {@link OpenSearchExchangeReducer} below the anchor it is a
+     * {@code COORDINATOR_REDUCE} over shard scans; without one (single shard) it is the
+     * {@code SHARD_FRAGMENT} itself. The LM stage is {@code Wrapper ← StageInputScan(queryStage)} and
+     * is returned to the caller as an {@link OpenSearchStageInputScan} placeholder.
      *
-     * <ol>
-     *   <li><b>Reduce child:</b> the wrapper's input subtree (Sort+Limit + ER + scans
-     *       below) becomes the LM stage's child stage — a {@code COORDINATOR_REDUCE}
-     *       gathering shard scans. QTF only fires multi-shard (single-shard collapse
-     *       short-circuits in the rewriter), so the reduce child always has
-     *       grandchildren and always gets a sink provider.</li>
-     *   <li><b>LM stage itself:</b> a fresh {@link Stage} with fragment
-     *       {@code Wrapper ← StageInputScan(reduce-child)}. Returned to the caller
-     *       as a {@link OpenSearchStageInputScan} so the caller's parent fragment
-     *       slots in a schema-bearing placeholder.</li>
-     * </ol>
+     * <p>{@code ___ugsi} (source-shard ordinal) is stamped by an {@link OrdinalAppendingSink} on the
+     * input sink of whichever stage receives the shard batches directly — the reduce stage when there
+     * is one, otherwise the LM stage itself.
      *
-     * <p>The caller (the {@link #sever} walk for the wrapper's parent) attaches whatever
-     * post-LM ops sit above the wrapper on top of the returned StageInputScan. Those ops
-     * end up in a vanilla {@code COORDINATOR_REDUCE} stage that runs them via Substrait
-     * over the LM stage's stitched output. The LM stage itself runs Java-only
-     * scatter/gather/stitch.
-     *
-     * <p>If the wrapper has no parent ops (the no-above-ops case), the caller's parent
-     * fragment will just BE this StageInputScan. {@link #build} promotes the LM stage
-     * to root in that case to avoid a degenerate empty COORDINATOR_REDUCE wrapper.
+     * <p>The caller attaches whatever post-LM ops sit above the wrapper on top of the returned
+     * StageInputScan; they end up in a vanilla {@code COORDINATOR_REDUCE}. If the wrapper has no
+     * parent ops, {@link #build} promotes the LM stage to root instead.
      */
     private static RelNode cutAtLateMaterialization(
         OpenSearchLateMaterialization lm,
@@ -187,39 +178,28 @@ public class DAGBuilder {
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        // 1. Reduce child — Sort+Limit reduce above shard scans. Multi-shard QTF only.
-        List<Stage> reduceChildren = new ArrayList<>();
-        RelNode reduceFragment = sever(lm.getInput(), counter, reduceChildren, registry, clusterService, indexNameExpressionResolver);
-        if (reduceChildren.isEmpty()) {
-            throw new IllegalStateException(
-                "QTF rewriter fired but the wrapper's input has no ExchangeReducer below it — "
-                    + "single-shard collapse should have short-circuited the rewriter."
-            );
-        }
-        int reduceStageId = counter[0]++;
-        List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, lm.getViableBackends());
-        ExchangeSinkProvider reduceSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
-        Stage reduceStage = new Stage(
-            reduceStageId,
-            reduceFragment,
-            reduceChildren,
+        // 1. Query phase: the wrapper's input subtree, as a reduce over shard scans or (single shard) the
+        // shard fragment itself.
+        List<Stage> queryStageChildren = new ArrayList<>();
+        RelNode queryFragment = sever(lm.getInput(), counter, queryStageChildren, registry, clusterService, indexNameExpressionResolver);
+        int queryStageId = counter[0]++;
+        Stage queryStage = newChildStage(
+            queryStageId,
+            queryFragment,
+            queryStageChildren,
             /*exchangeInfo=*/ null,
-            reduceSinkProvider,
-            /*targetResolver=*/ null
-        );
-        // Reducer feeds the LM stage. Stamp every shard's batches with their target.ordinal()
-        // as ___ugsi BEFORE the backend's reduce sees them so the LM stage can group rows by
-        // source shard for fan-out fetches.
-        reduceStage.setInputSinkDecorator(
-            (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
+            lm.getViableBackends(),
+            registry,
+            clusterService,
+            indexNameExpressionResolver
         );
 
-        // 2. LM stage itself — fragment is the wrapper rooted at StageInputScan(reduceStage).
+        // 2. Fetch phase: the wrapper over StageInputScan(queryStage).
         OpenSearchRelNode lmInput = (OpenSearchRelNode) lm.getInput();
-        OpenSearchStageInputScan reduceStageInput = new OpenSearchStageInputScan(
+        OpenSearchStageInputScan queryStageInput = new OpenSearchStageInputScan(
             lm.getCluster(),
             lm.getTraitSet(),
-            reduceStageId,
+            queryStageId,
             lm.getInput().getRowType(),
             lm.getViableBackends(),
             lmInput.getOutputFieldStorage()
@@ -227,7 +207,7 @@ public class DAGBuilder {
         OpenSearchLateMaterialization lmFragment = new OpenSearchLateMaterialization(
             lm.getCluster(),
             lm.getTraitSet(),
-            reduceStageInput,
+            queryStageInput,
             lm.getAboveAnchorPhysicalFields(),
             lm.getAboveAnchorPhysicalFieldStorage(),
             lm.getViableBackends()
@@ -236,10 +216,16 @@ public class DAGBuilder {
         Stage lmStage = new Stage(
             lmStageId,
             lmFragment,
-            List.of(reduceStage),
+            List.of(queryStage),
             /*exchangeInfo=*/ null,
             /*sinkProvider=*/ null,
             /*targetResolver=*/ null
+        );
+        // ___ugsi is stamped where shard batches first arrive: the query stage's input sink when it
+        // is a reduce, else the LM stage's own (the query stage is the shard fragment).
+        Stage shardParent = queryStage.getExecutionType() == StageExecutionType.SHARD_FRAGMENT ? lmStage : queryStage;
+        shardParent.setInputSinkDecorator(
+            (sink, allocator) -> new OrdinalAppendingSink(sink, allocator, OpenSearchLateMaterialization.UGSI_FIELD)
         );
         parentChildStages.add(lmStage);
 
@@ -264,6 +250,34 @@ public class DAGBuilder {
         );
     }
 
+    /**
+     * Builds the stage for a fragment severed below a cut. Where it runs is decided by the fragment's
+     * contents: one containing a TableScan runs on shards (even with child stages feeding it, as in
+     * the broadcast-probe case); one without runs at the coordinator and consumes its children
+     * through the backend's {@link ExchangeSinkProvider}.
+     */
+    private static Stage newChildStage(
+        int stageId,
+        RelNode fragment,
+        List<Stage> childStages,
+        ExchangeInfo exchangeInfo,
+        List<String> viableBackends,
+        CapabilityRegistry registry,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        boolean fragmentHasShardScan = containsAnyInput(fragment, OpenSearchTableScan.class);
+        TargetResolver targetResolver = fragmentHasShardScan
+            ? new ShardTargetResolver(fragment, clusterService, indexNameExpressionResolver)
+            : null;
+        ExchangeSinkProvider sinkProvider = null;
+        if (!childStages.isEmpty() && !fragmentHasShardScan) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, viableBackends);
+            sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
+        return new Stage(stageId, fragment, childStages, exchangeInfo, sinkProvider, targetResolver);
+    }
+
     private static RelNode cutAtExchange(
         OpenSearchExchangeReducer reducer,
         int[] counter,
@@ -279,36 +293,22 @@ public class DAGBuilder {
         RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService, indexNameExpressionResolver);
 
         int childStageId = counter[0]++;
-        // Stage execution location is decided by the fragment's contents, not the grandchild
-        // count alone. A fragment with a TableScan runs on shards (ShardTargetResolver) — even
-        // when it also has a grandchild stage feeding it, as in the broadcast-probe case where
-        // the probe's join takes a TableScan plus a child BROADCAST_BUILD stage's output. A
-        // fragment without a TableScan runs at the coordinator and consumes grandchildren via
-        // an ExchangeSinkProvider.
-        boolean fragmentHasShardScan = containsAnyInput(childFragment, OpenSearchTableScan.class);
-        TargetResolver targetResolver = fragmentHasShardScan
-            ? new ShardTargetResolver(childFragment, clusterService, indexNameExpressionResolver)
-            : null;
-        ExchangeSinkProvider childSinkProvider = null;
-        if (!grandchildren.isEmpty() && !fragmentHasShardScan) {
-            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, reducer.getViableBackends());
-            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
-        }
-        // ExchangeInfo comes from the reducer — the reducer is the exchange and carries
-        // the distribution intent set by whichever rule introduced it.
-        Stage childStage = new Stage(
+        Stage childStage = newChildStage(
             childStageId,
             childFragment,
             grandchildren,
             reducer.getExchangeInfo(),
-            childSinkProvider,
-            targetResolver
+            reducer.getViableBackends(),
+            registry,
+            clusterService,
+            indexNameExpressionResolver
         );
         // Tag broadcast-probe role when the fragment runs on shards AND consumes a build stage's
         // output via an OpenSearchBroadcastScan placeholder. Other shard fragments stay at the
         // default SHARD_SOURCE; coord-only fragments stay default too (DefaultPlanExecutor's
         // dispatch tags COORDINATOR_REDUCE explicitly when needed).
-        if (fragmentHasShardScan && containsAnyInput(childFragment, OpenSearchBroadcastScan.class)) {
+        if (childStage.getExecutionType() == StageExecutionType.SHARD_FRAGMENT
+            && containsAnyInput(childFragment, OpenSearchBroadcastScan.class)) {
             childStage.setRole(Stage.StageRole.BROADCAST_PROBE);
         }
         parentChildStages.add(childStage);
