@@ -875,6 +875,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
                 // Server Side encryption enabled
                 RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED,
 

@@ -15,6 +15,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums;
 
@@ -225,6 +227,38 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Cluster-wide switch for the periodic flush condition driven by uncommitted segment bytes on remote-store shards,
+     * disabled by default. There is deliberately no per-index counterpart: enablement is an operational decision about
+     * the whole cluster, and only the threshold
+     * ({@code index.remote_store.flush_on_uncommitted_segments.threshold_size}, see
+     * {@link #CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE}) is worth tuning per index. Unlike
+     * {@link #CLUSTER_REMOTE_STORE_FENCING_ENABLED} this is resolved live rather than stamped at index creation, so
+     * flipping it takes effect on every remote-store index immediately, in both directions.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.flush_on_uncommitted_segments.enabled",
+        // opt-in, so that enabling it is a deliberate operator decision on a cluster which is actually affected by the
+        // suppressed translog-size flush
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Dynamic cluster-level default for {@code index.remote_store.flush_on_uncommitted_segments.threshold_size},
+     * resolved live in the same way as {@link #CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED}. An
+     * explicit {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} always wins.
+     */
+    public static final Setting<ByteSizeValue> CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE = Setting.byteSizeSetting(
+        "cluster.remote_store.flush_on_uncommitted_segments.threshold_size",
+        IndexSettings.DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+        IndexSettings.MINIMUM_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * Controls the ServerSideEncryption Settings.
      */
     public static final Setting<Boolean> CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED = Setting.boolSetting(
@@ -249,6 +283,8 @@ public class RemoteStoreSettings {
     private final String translogPathFixedPrefix;
     private final String segmentsPathFixedPrefix;
     private volatile int uploadedSegmentsCleanupThreshold;
+    private volatile boolean flushOnUncommittedSegmentsEnabled;
+    private volatile ByteSizeValue flushOnUncommittedSegmentsThresholdSize;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -301,6 +337,18 @@ public class RemoteStoreSettings {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING,
             this::setUploadedSegmentsCleanupThreshold
+        );
+
+        flushOnUncommittedSegmentsEnabled = CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED,
+            this::setFlushOnUncommittedSegmentsEnabled
+        );
+
+        flushOnUncommittedSegmentsThresholdSize = CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            this::setFlushOnUncommittedSegmentsThresholdSize
         );
     }
 
@@ -409,5 +457,21 @@ public class RemoteStoreSettings {
 
     private void setUploadedSegmentsCleanupThreshold(int uploadedSegmentsCleanupThreshold) {
         this.uploadedSegmentsCleanupThreshold = uploadedSegmentsCleanupThreshold;
+    }
+
+    public boolean isFlushOnUncommittedSegmentsEnabled() {
+        return flushOnUncommittedSegmentsEnabled;
+    }
+
+    private void setFlushOnUncommittedSegmentsEnabled(boolean flushOnUncommittedSegmentsEnabled) {
+        this.flushOnUncommittedSegmentsEnabled = flushOnUncommittedSegmentsEnabled;
+    }
+
+    public ByteSizeValue getFlushOnUncommittedSegmentsThresholdSize() {
+        return flushOnUncommittedSegmentsThresholdSize;
+    }
+
+    private void setFlushOnUncommittedSegmentsThresholdSize(ByteSizeValue flushOnUncommittedSegmentsThresholdSize) {
+        this.flushOnUncommittedSegmentsThresholdSize = flushOnUncommittedSegmentsThresholdSize;
     }
 }
