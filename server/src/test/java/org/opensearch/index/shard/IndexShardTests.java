@@ -5606,6 +5606,36 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testPeriodicFlushTaskDeferredUntilEngineExists() throws Exception {
+        // Setting is enabled at creation, but the shard has no engine yet. A settings change in this
+        // state must defer the task (there is nothing to flush) rather than start it.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        // No engine yet: onSettingsChanged must not start the task.
+        primary.onSettingsChanged();
+        assertNull("periodic flush task must not start before an engine exists", primary.getPeriodicFlushTask());
+
+        // Once the engine is created during recovery, the task starts with the configured interval.
+        recoverShardFromStore(primary);
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("task should start once an engine is available", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+    }
+
     /**
      * Applies a dynamic update of {@code index.periodic_flush_interval} to the shard the same way
      * {@code IndexService#updateMetadata} does: update the index settings, then notify the shard.
