@@ -51,7 +51,7 @@ use crate::helper::{
 };
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
-use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
+use crate::indexed_table::eval::single_collector::{PerformanceLeaf, SingleCollectorEvaluator};
 use crate::indexed_table::eval::{CollectorCallStrategy, RowGroupBitsetSource, TreeBitsetSource};
 use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
 use crate::indexed_table::index::RowGroupDocsCollector;
@@ -1182,6 +1182,23 @@ async unsafe fn execute_indexed_with_context_inner(
                 .as_ref()
                 .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
 
+            // Dual-viable leaves: DataFusion and Lucene can each evaluate them; the evaluator
+            // picks one owner per row group using the leaf's own `PruningPredicate`.
+            let performance_leaves: Vec<PerformanceLeaf> = extraction
+                .tree
+                .delegation_possible_leaves()
+                .into_iter()
+                .map(|(annotation_id, expr)| {
+                    let pruning_predicate =
+                        build_pruning_predicate(&expr, Arc::clone(&schema_for_pruner));
+                    PerformanceLeaf {
+                        annotation_id,
+                        expr,
+                        pruning_predicate,
+                    }
+                })
+                .collect();
+
             let call_strategy = CollectorCallStrategy::PageRangeSplit;
             let bloom_store = Arc::clone(&store);
             let bloom_schema = schema.clone();
@@ -1250,6 +1267,7 @@ async unsafe fn execute_indexed_with_context_inner(
                             bloom_config,
                             stats_prune_tree.cloned(),
                             chunk.row_group_indices.iter().enumerate().map(|(pos, &idx)| (idx, pos)).collect(),
+                            performance_leaves.clone(),
                         ));
                         Ok(eval)
                     },

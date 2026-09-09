@@ -163,6 +163,7 @@ async fn run_indexed(sql: &str) -> (Vec<i32>, Arc<dyn datafusion::physical_plan:
                     None,
                     None,
                     std::collections::HashMap::new(),
+                    Vec::new(),
                 ),
             );
             Ok(eval)

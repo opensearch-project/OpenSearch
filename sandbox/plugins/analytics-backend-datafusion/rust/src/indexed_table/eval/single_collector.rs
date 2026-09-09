@@ -21,7 +21,7 @@
 //!    residual predicates during decode, so indices stay aligned and no
 //!    post-filtering is needed.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -38,6 +38,10 @@ use crate::indexed_table::row_selection::{
     bitmap_to_packed_bits, packed_bits_to_boolean_array, row_selection_to_bitmap, PositionMap,
 };
 use datafusion::parquet::file::metadata::ParquetMetaData;
+use datafusion::logical_expr::Operator;
+use datafusion::physical_expr::expressions::BinaryExpr;
+use datafusion::physical_expr::utils::collect_columns;
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::pruning::PruningPredicate;
 use std::time::Instant;
 
@@ -100,6 +104,16 @@ impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
     }
 }
 
+/// A dual-viable leaf: evaluable by DataFusion (`expr` over doc values) or by the peer backend
+/// (via `annotation_id`) with identical results. Exactly one of them owns it per row group; see
+/// [`elect_leaf_owner`]. `pruning_predicate` is `None` when the column has no usable stats.
+#[derive(Clone)]
+pub struct PerformanceLeaf {
+    pub annotation_id: i32,
+    pub expr: Arc<dyn PhysicalExpr>,
+    pub pruning_predicate: Option<Arc<PruningPredicate>>,
+}
+
 /// Per-RG state the evaluator keeps for refinement. In row-granular
 /// mode parquet narrowed fully via `with_predicate` + `RowSelection`
 /// and nothing is needed here. In block-granular mode we need the
@@ -114,6 +128,9 @@ struct SingleCollectorState {
     candidates: RoaringBitmap,
     mask_buffer: datafusion::arrow::buffer::Buffer,
     mask_len: usize,
+    /// AND of the performance leaves DataFusion owns for this RG, applied post-decode in
+    /// `on_batch_mask`. Leaves owned by Lucene are already in `candidates` and absent here.
+    perf_residual: Option<Arc<dyn PhysicalExpr>>,
 }
 
 /// Evaluator holding one collector and applying per-RG page pruning.
@@ -150,7 +167,7 @@ pub struct SingleCollectorEvaluator {
     ///   evaluates this expression against the decoded batch and
     ///   AND-combines with the Collector bitmap mask to produce the
     ///   exact result.
-    residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+    residual_expr: Option<Arc<dyn PhysicalExpr>>,
     /// Counters recorded by `page_pruner.prune_rg`. Built from the
     /// stream's `PartitionMetrics` at evaluator construction.
     page_prune_metrics: Option<PagePruneMetrics>,
@@ -189,6 +206,10 @@ pub struct SingleCollectorEvaluator {
     /// Next matching docId from the last collectDocs call. When next_doc >= rg.max_doc,
     /// the RG can be skipped without an FFM call. Initialized to i32::MIN (no skip info).
     last_next_doc: std::sync::atomic::AtomicI32,
+    /// Dual-viable leaves, owned per RG by either DataFusion or Lucene. Kept out of
+    /// `residual_expr` / `pruning_predicate` and never pushed to parquet, since a Lucene
+    /// election makes the leaf authoritative without DataFusion evaluating it.
+    performance_leaves: Vec<PerformanceLeaf>,
 }
 
 /// Resources needed for per-RG bloom filter pruning.
@@ -207,7 +228,7 @@ impl SingleCollectorEvaluator {
         collector: Option<Arc<dyn RowGroupDocsCollector>>,
         page_pruner: Arc<PagePruner>,
         pruning_predicate: Option<Arc<PruningPredicate>>,
-        residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
+        residual_expr: Option<Arc<dyn PhysicalExpr>>,
         page_prune_metrics: Option<PagePruneMetrics>,
         ffm_collector_calls: Option<datafusion::physical_plan::metrics::Count>,
         call_strategy: CollectorCallStrategy,
@@ -218,6 +239,7 @@ impl SingleCollectorEvaluator {
         bloom_config: Option<BloomConfig>,
         stats_prune_tree: Option<Arc<StatsPruneTree>>,
         rg_index_to_pos: HashMap<usize, usize>,
+        performance_leaves: Vec<PerformanceLeaf>,
     ) -> Self {
         Self {
             collector,
@@ -235,6 +257,7 @@ impl SingleCollectorEvaluator {
             stats_prune_tree,
             rg_index_to_pos,
             last_next_doc: std::sync::atomic::AtomicI32::new(i32::MIN),
+            performance_leaves,
         }
     }
 }
@@ -264,6 +287,47 @@ fn should_consult_lucene(
     }
     let surviving_fraction = surviving_rows as f64 / rg.num_rows as f64;
     surviving_fraction > threshold
+}
+
+/// Owner of a dual-viable leaf for one row group.
+enum LeafOwner {
+    /// Intersect the peer bitmap into the candidates; the leaf's `expr` is not applied.
+    Lucene,
+    /// Apply the leaf's `expr` post-decode; the peer is not consulted.
+    DataFusion,
+}
+
+/// DataFusion owns the leaf when its own page-stat pruning already narrows the RG below the
+/// selectivity threshold; otherwise Lucene does. No usable stats fail toward Lucene.
+fn elect_leaf_owner(
+    leaf: &PerformanceLeaf,
+    rg: &RowGroupInfo,
+    page_pruner: &PagePruner,
+    page_prune_metrics: Option<&PagePruneMetrics>,
+    min_doc: i32,
+) -> LeafOwner {
+    let leaf_ranges: Option<Vec<(i32, i32)>> = leaf.pruning_predicate.as_ref().and_then(|pp| {
+        page_pruner
+            .prune_rg(pp, rg.index, page_prune_metrics)
+            .map(|sel| {
+                let mut ranges = Vec::new();
+                let mut rg_pos: i64 = 0;
+                for s in sel.iter() {
+                    if !s.skip {
+                        let abs_min = min_doc + rg_pos as i32;
+                        let abs_max = min_doc + rg_pos as i32 + s.row_count as i32;
+                        ranges.push((abs_min, abs_max));
+                    }
+                    rg_pos += s.row_count as i64;
+                }
+                ranges
+            })
+    });
+    if should_consult_lucene(&leaf_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD) {
+        LeafOwner::Lucene
+    } else {
+        LeafOwner::DataFusion
+    }
 }
 
 impl RowGroupBitsetSource for SingleCollectorEvaluator {
@@ -456,99 +520,122 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             }
         };
 
-        // Opportunistic peer consultation for performance-delegated leaves. Only fires
-        // when DF page-pruning kept more than the configured fraction of the RG —
-        // skipping the FFM round-trip when DF was already selective. Lazy: lock the
-        // map only if the gate fires; create the provider only once per query × leaf.
-        // TODO(d3): consult ALL performance leaves whose gate fires and AND their
-        // bitsets. Today we consult the first leaf only — sufficient for AND-only
-        // single-call demo. Multi-leaf intersection is part of D3 follow-up.
-        if !self.performance_provider_locks.is_empty()
-            && should_consult_lucene(&page_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD)
-        {
-            // Pick the smallest annotation_id deterministically so logs/tests are stable.
-            // Avoids the Vec/sort allocation in the common single-leaf case.
-            let annotation_id = *self
-                .performance_provider_locks
-                .keys()
-                .min()
-                .expect("performance_provider_locks is non-empty (just checked)");
-            // Per-RG debug log — `format!` runs unconditionally regardless of log level
-            // (the level filter happens on the Java side). Commented out to avoid
-            // per-RG allocation. Re-enable locally for debugging.
-            // log_debug!(
-            //     "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
-            //     rg.index, self.writer_generation, min_doc, max_doc, annotation_id
-            // );
-            let lock = self
-                .performance_provider_locks
-                .get(&annotation_id)
-                .expect("annotation_id was just pulled from the map's keys");
-            let context_id = self.context_id;
-            let mut just_initialized = false;
-            let provider = lock.get_or_init(|| {
-                just_initialized = true;
-                create_provider(context_id, annotation_id)
-                    .expect("create_provider FFM upcall failed")
-            });
-            if just_initialized {
-                log_debug!(
-                    "[scf-rust] lazy provider initialized context_id={} annotation_id={} provider_key={}",
-                    context_id, annotation_id, provider.key()
-                );
-            }
+        // Elect one owner per dual-viable leaf for this RG. DataFusion-owned leaves accumulate
+        // into `perf_residual` (applied post-decode) and contribute their columns to the RG
+        // projection; Lucene-owned leaves intersect the peer bitmap into `candidates` instead.
+        let mut perf_residual: Option<Arc<dyn PhysicalExpr>> = None;
+        let mut df_owned_columns: BTreeSet<usize> = BTreeSet::new();
+        for leaf in &self.performance_leaves {
+            match elect_leaf_owner(
+                leaf,
+                rg,
+                &self.page_pruner,
+                self.page_prune_metrics.as_ref(),
+                min_doc,
+            ) {
+                LeafOwner::DataFusion => {
+                    for col in collect_columns(&leaf.expr) {
+                        df_owned_columns.insert(col.index());
+                    }
+                    perf_residual = Some(match perf_residual {
+                        None => Arc::clone(&leaf.expr),
+                        Some(acc) => {
+                            Arc::new(BinaryExpr::new(
+                                acc,
+                                Operator::And,
+                                Arc::clone(&leaf.expr),
+                            ))
+                        }
+                    });
+                }
+                LeafOwner::Lucene => {
+                    let lock =
+                        self.performance_provider_locks
+                            .get(&leaf.annotation_id)
+                            .ok_or_else(|| {
+                                format!(
+                                    "performance leaf annotation_id {} has no provider lock",
+                                    leaf.annotation_id
+                                )
+                            })?;
+                    let context_id = self.context_id;
+                    let annotation_id = leaf.annotation_id;
+                    let mut just_initialized = false;
+                    let provider = lock.get_or_init(|| {
+                        just_initialized = true;
+                        create_provider(context_id, annotation_id)
+                            .expect("create_provider FFM upcall failed")
+                    });
+                    if just_initialized {
+                        log_debug!(
+                            "[scf-rust] lazy provider initialized context_id={} annotation_id={} provider_key={}",
+                            context_id,
+                            annotation_id,
+                            provider.key()
+                        );
+                    }
 
-            let collector = self
-                .delegated_backend_collector_factory
-                .create(context_id, provider.key(), self.writer_generation, min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "DelegatedBackendCollectorFactory::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
-                        context_id,
-                        provider.key(),
-                        self.writer_generation,
-                        min_doc,
-                        max_doc,
-                        e
-                    )
-                })?;
-            let result = collector
-                .collect_packed_u64_bitset(min_doc, max_doc)
-                .map_err(|e| {
-                    format!(
-                        "delegated-backend collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
-                        rg.index, min_doc, max_doc, e
-                    )
-                })?;
-            if let Some(ref c) = self.ffm_collector_calls {
-                c.add(1);
+                    let collector = self
+                        .delegated_backend_collector_factory
+                        .create(context_id, provider.key(), self.writer_generation, min_doc, max_doc)
+                        .map_err(|e| {
+                            format!(
+                                "DelegatedBackendCollectorFactory::create(context_id={}, provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                                context_id,
+                                provider.key(),
+                                self.writer_generation,
+                                min_doc,
+                                max_doc,
+                                e
+                            )
+                        })?;
+                    let result = collector
+                        .collect_packed_u64_bitset(min_doc, max_doc)
+                        .map_err(|e| {
+                            format!(
+                                "delegated-backend collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
+                                rg.index, min_doc, max_doc, e
+                            )
+                        })?;
+                    if let Some(ref c) = self.ffm_collector_calls {
+                        c.add(1);
+                    }
+                    let offset = (min_doc as i64 - rg.first_row) as u32;
+                    let num_docs = (max_doc - min_doc) as u32;
+                    let bytes: &[u8] = unsafe {
+                        std::slice::from_raw_parts(
+                            result.words.as_ptr() as *const u8,
+                            result.words.len() * 8,
+                        )
+                    };
+                    let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
+                    let upper = offset.saturating_add(num_docs);
+                    if upper < u32::MAX {
+                        peer_bm.remove_range(upper..);
+                    }
+                    candidates &= peer_bm;
+                }
             }
-            let offset = (min_doc as i64 - rg.first_row) as u32;
-            let num_docs = (max_doc - min_doc) as u32;
-            let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(
-                    result.words.as_ptr() as *const u8,
-                    result.words.len() * 8,
-                )
-            };
-            let mut peer_bm = RoaringBitmap::from_lsb0_bytes(offset, bytes);
-            let upper = offset.saturating_add(num_docs);
-            if upper < u32::MAX {
-                peer_bm.remove_range(upper..);
-            }
-            // Per-RG debug log — see note above on `format!` cost. Re-enable locally for debugging.
-            // let candidates_before = candidates.len();
-            // let peer_card = peer_bm.len();
-            candidates &= peer_bm;
-            // log_debug!(
-            //     "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
-            //     rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
-            // );
         }
 
         if candidates.is_empty() {
             return Ok(None);
         }
+
+        // Per-RG parquet projection: native residual columns plus the DataFusion-owned leaf
+        // columns. Sound because pushdown is off with performance leaves (`forbid_parquet_pushdown`),
+        // so the residual runs post-decode over the projected batch, remapped by name.
+        let required_predicate_columns: Option<Vec<usize>> = if self.performance_leaves.is_empty() {
+            None
+        } else {
+            let mut cols = df_owned_columns;
+            if let Some(ref residual) = self.residual_expr {
+                for col in collect_columns(residual) {
+                    cols.insert(col.index());
+                }
+            }
+            Some(cols.into_iter().collect())
+        };
 
         // Materialise the final RG-relative bitmap as an Arrow `Buffer`
         // in Arrow's native LSB-first layout. This is the ONLY
@@ -565,8 +652,10 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 candidates,
                 mask_buffer: mask_buffer.clone(),
                 mask_len,
+                perf_residual,
             }),
             mask_buffer: Some(mask_buffer),
+            required_predicate_columns,
         }))
     }
 
@@ -579,17 +668,33 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         batch_len: usize,
         batch: &RecordBatch,
     ) -> Result<Option<BooleanArray>, String> {
-        // No residual → no post-decode work. Stream's current_mask
-        // (if built) handles Collector narrowing.
-        let Some(ref residual) = self.residual_expr else {
+        // Nothing can need post-decode evaluation; the stream's `current_mask` handles
+        // Collector / peer narrowing.
+        if self.residual_expr.is_none() && self.performance_leaves.is_empty() {
             return Ok(None);
-        };
+        }
 
         let state = rg_state
             .downcast_ref::<SingleCollectorState>()
             .ok_or_else(|| {
                 "SingleCollectorEvaluator: rg_state is not SingleCollectorState".to_string()
             })?;
+
+        // Post-decode residual: the native residual AND this RG's DataFusion-owned leaves.
+        let residual: Arc<dyn PhysicalExpr> =
+            match (self.residual_expr.as_ref(), state.perf_residual.as_ref()) {
+                (None, None) => return Ok(None),
+                (Some(r), None) => Arc::clone(r),
+                (None, Some(p)) => Arc::clone(p),
+                (Some(r), Some(p)) => {
+                    Arc::new(BinaryExpr::new(
+                        Arc::clone(r),
+                        Operator::And,
+                        Arc::clone(p),
+                    ))
+                }
+            };
+        let residual = &residual;
 
         // Build Collector mask over delivered rows via PositionMap.
         // All paths produce a `BooleanArray` whose underlying
@@ -667,7 +772,9 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
     /// mode; in row-granular mode that guard is inactive and
     /// pushdown proceeds.
     fn forbid_parquet_pushdown(&self) -> bool {
-        false
+        // Performance leaves are owned per row group, so their residual can only be applied
+        // post-decode in `on_batch_mask`; static pushdown would evaluate Lucene-owned leaves too.
+        !self.performance_leaves.is_empty()
     }
 
     /// Stream's `current_mask` construction consults this. When
@@ -775,6 +882,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg = RowGroupInfo {
@@ -806,6 +914,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
@@ -849,6 +958,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
         assert!(eval.needs_row_mask());
     }
@@ -872,6 +982,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -907,6 +1018,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg = RowGroupInfo {
@@ -944,6 +1056,7 @@ mod tests {
             None,
             Some(Arc::new(spt)),
             HashMap::from([(0, 0)]),
+            Vec::new(),
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -978,6 +1091,7 @@ mod tests {
             None,
             Some(Arc::new(spt)),
             HashMap::from([(0, 0)]),
+            Vec::new(),
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -1012,6 +1126,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
         let rg = RowGroupInfo {
             index: 0,
@@ -1079,6 +1194,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg0 = RowGroupInfo {
@@ -1134,6 +1250,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg0 = RowGroupInfo {
@@ -1179,6 +1296,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg0 = RowGroupInfo {
@@ -1224,6 +1342,7 @@ mod tests {
             None,
             None,
             HashMap::new(),
+            Vec::new(),
         );
 
         let rg0 = RowGroupInfo {
@@ -1255,4 +1374,45 @@ mod tests {
     // Keep the `fmt` import used
     #[allow(dead_code)]
     fn _use(_: &dyn fmt::Debug) {}
+
+    // ---- Owner election ----
+
+    fn rg(num_rows: i64) -> RowGroupInfo {
+        RowGroupInfo {
+            index: 0,
+            first_row: 0,
+            num_rows,
+        }
+    }
+
+    #[test]
+    fn owner_election_datafusion_when_selective() {
+        // 4% of rows survive, below the 5% threshold.
+        let ranges = Some(vec![(0i32, 4i32)]);
+        assert!(!should_consult_lucene(
+            &ranges,
+            &rg(100),
+            HARDCODED_SELECTIVITY_THRESHOLD
+        ));
+    }
+
+    #[test]
+    fn owner_election_lucene_when_weak() {
+        // 50% of rows survive, above the threshold.
+        let ranges = Some(vec![(0i32, 50i32)]);
+        assert!(should_consult_lucene(
+            &ranges,
+            &rg(100),
+            HARDCODED_SELECTIVITY_THRESHOLD
+        ));
+    }
+
+    #[test]
+    fn owner_election_lucene_when_no_stats() {
+        assert!(should_consult_lucene(
+            &None,
+            &rg(100),
+            HARDCODED_SELECTIVITY_THRESHOLD
+        ));
+    }
 }

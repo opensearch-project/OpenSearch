@@ -107,6 +107,7 @@ impl RowGroupBitsetSource for PredicateOnlyEvaluator {
             eval_nanos: t.elapsed().as_nanos() as u64,
             context: Box::new(()),
             mask_buffer: Some(mask_buffer),
+            required_predicate_columns: None,
         }))
     }
 
