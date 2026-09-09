@@ -844,6 +844,9 @@ fn warmup_put_metadata_then_datafusion_query_from_cache() {
         assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 5);
 
         // Step 2: Now promote the footer range to metadata_cache.
+        // Drain first: query 1's data-tier puts are fire-and-forget, so without this the read
+        // below misses, put_metadata never runs, and the metadata_cache assert after it fails.
+        cache.wait_for_flush().await;
         let footer_start = file_size.saturating_sub(64 * 1024);
         let footer_key = range_cache_key("warm.parquet", footer_start, file_size);
         if let Some(footer_bytes) = cache.get(&footer_key).await {
@@ -851,6 +854,8 @@ fn warmup_put_metadata_then_datafusion_query_from_cache() {
         }
 
         // Verify metadata is now in metadata_cache
+        // Drain again: put_metadata is fire-and-forget into the metadata tier.
+        cache.wait_for_flush().await;
         assert!(
             cache.metadata_cache().get(&footer_key).await.is_some(),
             "footer must be in metadata_cache after put_metadata"
@@ -2126,6 +2131,9 @@ fn small_file_warmup_persists_every_range_to_metadata_tier() {
         let path = Path::from("small.parquet");
         let fetched = store.get_ranges(&path, &ranges).await.unwrap();
         store.put_metadata("small.parquet", &ranges, &fetched);
+
+        // Drain the flusher: put_metadata is fire-and-forget, so every get below would race it.
+        cache.wait_for_flush().await;
 
         for r in &ranges {
             let key = range_cache_key("small.parquet", r.start, r.end);
