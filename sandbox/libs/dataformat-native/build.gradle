@@ -60,21 +60,20 @@ def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
 def rustWorkspaceDir = file("${projectDir}/rust")
 def nativeLibFile = file("${rustWorkspaceDir}/target/${buildType}/${libPrefix}${nativeLibName}${libExtension}")
 
+def cargoExecutable = 'cargo'
+def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+]
+for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) { cargoExecutable = path; break }
+}
+
 task buildRustLibrary(type: Exec) {
     description = 'Build the unified Rust native library from the Cargo workspace'
     group = 'build'
     workingDir rustWorkspaceDir
-
-    def cargoExecutable = 'cargo'
-    def possibleCargoPaths = [
-        System.getenv('HOME') + '/.cargo/bin/cargo',
-        '/usr/local/bin/cargo',
-        'cargo'
-    ]
-    for (String path : possibleCargoPaths) {
-        if (new File(path).exists()) { cargoExecutable = path; break }
-    }
-
     def cargoArgs = [cargoExecutable, 'build', '-p', 'opensearch-native-lib']
     if (buildType == 'release') { cargoArgs.add('--release') }
     commandLine cargoArgs
@@ -95,6 +94,51 @@ task buildRustLibrary(type: Exec) {
     outputs.file nativeLibFile
 }
 
+task cargoBenchCheckDataFusion(type: Exec) {
+    description = 'Compile opensearch-datafusion Rust benchmarks without running them'
+    group = 'verification'
+    workingDir rustWorkspaceDir
+    def cargoArgs = [cargoExecutable, 'bench', '-p', 'opensearch-datafusion']
+    if (buildType == 'debug') { cargoArgs.addAll(['--profile', 'dev']) }
+    cargoArgs.add('--no-run')
+    commandLine cargoArgs
+
+    inputs.files fileTree("${projectDir}/../../plugins/analytics-backend-datafusion/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/analytics-backend-datafusion/rust/benches")
+    inputs.file "${projectDir}/../../plugins/analytics-backend-datafusion/rust/Cargo.toml"
+    inputs.files fileTree("${rustWorkspaceDir}/common/src")
+    inputs.files fileTree("${rustWorkspaceDir}/lib/src")
+    inputs.file "${rustWorkspaceDir}/Cargo.toml"
+    inputs.file "${rustWorkspaceDir}/Cargo.lock"
+    outputs.file "${rustWorkspaceDir}/target/${buildType}/gradle-cargoBenchCheckDataFusion.stamp"
+    doLast {
+        file("${rustWorkspaceDir}/target/${buildType}").mkdirs()
+        file("${rustWorkspaceDir}/target/${buildType}/gradle-cargoBenchCheckDataFusion.stamp").text = new Date().toString()
+    }
+}
+
+task cargoBenchCheckParquet(type: Exec) {
+    description = 'Compile opensearch-parquet-format Rust benchmarks without running them'
+    group = 'verification'
+    workingDir rustWorkspaceDir
+    def cargoArgs = [cargoExecutable, 'bench', '-p', 'opensearch-parquet-format']
+    if (buildType == 'debug') { cargoArgs.addAll(['--profile', 'dev']) }
+    cargoArgs.add('--no-run')
+    commandLine cargoArgs
+
+    inputs.files fileTree("${projectDir}/../../plugins/parquet-data-format/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/parquet-data-format/src/main/rust/benches")
+    inputs.file "${projectDir}/../../plugins/parquet-data-format/src/main/rust/Cargo.toml"
+    inputs.files fileTree("${rustWorkspaceDir}/common/src")
+    inputs.file "${rustWorkspaceDir}/Cargo.toml"
+    inputs.file "${rustWorkspaceDir}/Cargo.lock"
+    outputs.file "${rustWorkspaceDir}/target/${buildType}/gradle-cargoBenchCheckParquet.stamp"
+    doLast {
+        file("${rustWorkspaceDir}/target/${buildType}").mkdirs()
+        file("${rustWorkspaceDir}/target/${buildType}/gradle-cargoBenchCheckParquet.stamp").text = new Date().toString()
+    }
+}
+
 // External override: reuse a prebuilt .dylib from another worktree, a blessed shared copy,
 // or a CI-provided binary. Set OPENSEARCH_NATIVE_LIB (env) or -PnativeLibOverride to an
 // absolute .dylib/.so/.dll path; buildRustLibrary is skipped and nativeLibPath resolves to
@@ -106,6 +150,8 @@ ext.nativeLibPath = resolvedNativeLib
 buildRustLibrary.onlyIf { nativeLibOverride == null }
 
 assemble.dependsOn buildRustLibrary
+check.dependsOn cargoBenchCheckDataFusion
+check.dependsOn cargoBenchCheckParquet
 
 test {
     systemProperty 'tests.security.manager', 'false'
