@@ -6758,7 +6758,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (engineAvailable == false) {
                     return;
                 }
-                periodicFlushTask = new AsyncShardFlushTask(this, interval);
+                final AsyncShardFlushTask created = new AsyncShardFlushTask(this, interval);
+                periodicFlushTask = created;
+                // close() moves the shard to CLOSED and then closes periodicFlushTask without taking periodicFlushMutex. If it
+                // ran between the state check above and the assignment, it may have observed a null task. Re-checking here
+                // guarantees one of the two paths closes the task, so a scheduled task never outlives a closed shard.
+                if (state == IndexShardState.CLOSED) {
+                    created.close();
+                    periodicFlushTask = null;
+                    return;
+                }
                 logger.info("Started periodic flush task for shard [{}] with interval [{}]", shardId, interval);
             } else if (interval.equals(current.getInterval()) == false) {
                 final TimeValue previous = current.getInterval();
@@ -6771,6 +6780,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     AsyncShardFlushTask getPeriodicFlushTask() {
         return periodicFlushTask;
+    }
+
+    // Visible for testing
+    boolean isFlushOrRollRunning() {
+        return flushOrRollRunning.get();
     }
 
     /**

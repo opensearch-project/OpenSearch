@@ -662,15 +662,16 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1"))
         );
+        // A closed task never reschedules itself; once no periodic run is in flight either, the counter can no longer move.
         assertBusy(() -> {
             assertNull(shard.getPeriodicFlushTask());
             assertTrue(task.isClosed());
             assertFalse(task.isScheduled());
+            assertFalse(shard.isFlushOrRollRunning());
         });
-        // Allow any in-flight run to finish, then confirm the counter is flat.
-        Thread.sleep(300);
         final long periodicAfterDisable = shard.flushStats().getPeriodic();
-        Thread.sleep(500);
+        // Further indexing must not trigger a periodic flush now that the timer is gone.
+        client().prepareIndex("test").setId("2").setSource("{}", MediaTypeRegistry.JSON).setRefreshPolicy(IMMEDIATE).get();
         assertThat(shard.flushStats().getPeriodic(), equalTo(periodicAfterDisable));
     }
 
