@@ -44,8 +44,6 @@ use once_cell::sync::Lazy;
 use opensearch_tiered_storage::tiered_object_store::MetadataCachingStore;
 use parking_lot::Mutex;
 use parquet::arrow::{parquet_to_arrow_schema_by_columns, ProjectionMask};
-#[cfg(test)]
-use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
 use crate::cache::page_index::load_scoped_page_index_cols;
@@ -59,11 +57,6 @@ use datafusion::datasource::physical_plan::parquet::ParquetFileReaderFactory;
 /// `index.parquet.docvalues.max_batch_size` can only lower a cursor's ceiling, never raise it past
 /// this. Mirrored by `ParquetSettings.DEFAULT_DOCVALUES_MAX_BATCH_SIZE` on the Java side.
 const BATCH_SIZE_HARD_LIMIT: usize = 8_192;
-
-/// Default ceiling, as a cursor opened through the FFM boundary would receive it. Tests that care
-/// about a different cap pass their own, since the value is per cursor.
-#[cfg(test)]
-const TEST_MAX_BATCH_SIZE: usize = BATCH_SIZE_HARD_LIMIT;
 
 /// Status codes returned to Java. A negative return is an error-message pointer produced by
 /// `ffm_safe`, so only non-negative values are status; 1 is unused. Mirrors `ParquetCodecBridge`.
@@ -97,17 +90,9 @@ fn io_runtime() -> Result<Arc<Runtime>, DataFusionError> {
     if let Some(manager) = crate::ffm::try_get_rt_manager() {
         return Ok(Arc::clone(&manager.io_runtime));
     }
-    #[cfg(test)]
-    {
-        // Tests reach the entry points without DataFusionService. Current-thread: no worker threads.
-        Ok(Arc::new(
-            Builder::new_current_thread().enable_all().build()?,
-        ))
-    }
-    #[cfg(not(test))]
     Err(DataFusionError::Configuration(
-        "DataFusion runtime manager is not initialized; the analytics-backend-datafusion plugin \
-         must start before Parquet doc-values reads"
+        "no runtime manager registered; DataFusionService.doStart registers it in production, \
+         tests call register_test_runtime_manager()"
             .to_string(),
     ))
 }
@@ -255,10 +240,15 @@ impl DocValuesCursor {
         )
         // Local files read through a synchronous `ChunkReader`; anything else goes via the store.
         .with_local_file(local_path);
+        // TODO(perf): each open pays its own `File::open`; only footer and page index are cached.
+        // Before adding a Parquet DocValuesProducer, measure latency with concurrent queries over
+        // the same column, and cache the descriptor per file if it shows.
         let reader = factory.open()?;
         let row_count = reader.row_count() as i64;
 
         // Named per file so `TrackConsumersPool` can attribute usage.
+        // TODO(memory): this bounds only the decoded batch; the page and dictionary the Arrow
+        // reader holds while decoding are not reserved against the pool.
         let reservation = MemoryConsumer::new(format!("parquet-docvalues-cursor:{location}"))
             .register(&env.memory_pool);
 
@@ -659,8 +649,9 @@ mod tests {
     use object_store::memory::InMemory;
     use object_store::ObjectStoreExt;
     use parquet::arrow::ArrowWriter;
-    use parquet::file::properties::{EnabledStatistics, WriterProperties};
+    use parquet::file::properties::{EnabledStatistics, WriterProperties, WriterVersion};
     use tempfile::NamedTempFile;
+    use tokio::runtime::Builder;
 
     use super::*;
     use crate::cache::metadata_cache::MutexFileMetadataCache;
@@ -669,6 +660,10 @@ mod tests {
     use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 
     const ROWS_PER_PAGE: usize = 64;
+
+    /// Default ceiling, as a cursor opened through the FFM boundary would receive it. Tests that care
+    /// about a different cap pass their own, since the value is per cursor.
+    pub(super) const TEST_MAX_BATCH_SIZE: usize = BATCH_SIZE_HARD_LIMIT;
 
     /// Stands in for the environment production registers from `create_global_runtime`. Held in a
     /// static because the registry keeps only a `Weak`.
@@ -687,6 +682,14 @@ mod tests {
             )
         });
         crate::cache::register_global_runtime_env(&ENV);
+    }
+
+    /// Stands in for the runtime manager production registers from `DataFusionService`. Tests reach
+    /// the entry points without that startup path, so any read that needs the IO runtime must
+    /// register a manager explicitly first. `df_init_runtime_manager` replaces the global manager
+    /// unconditionally; current-thread-sized pools keep it minimal for tests.
+    pub(super) fn register_test_runtime_manager() {
+        crate::ffm::df_init_runtime_manager(2, 1.5, 1.5);
     }
 
     pub(super) fn parquet_fixture_with_page_rows(row_groups: usize, rows_per_page: usize) -> Bytes {
@@ -792,6 +795,48 @@ mod tests {
         let batch = RecordBatch::try_new(schema, vec![Arc::new(array) as ArrayRef]).unwrap();
         writer.write(&batch).unwrap();
         Bytes::from(writer.into_inner().unwrap().into_inner())
+    }
+
+    /// A low-cardinality Int64 column written with a chosen dictionary mode and writer version.
+    /// The other fixtures disable dictionary encoding deliberately to control page layouts; this
+    /// one exists to exercise the skip path against dictionary-encoded pages and both data-page
+    /// formats (v1 `DataPage` vs v2 `DataPageV2`). Values repeat (`row % 7`) so the writer
+    /// actually emits a dictionary page instead of falling back to plain encoding.
+    pub(super) fn parquet_fixture_encoded(
+        dictionary: bool,
+        version: WriterVersion,
+        rows_per_page: usize,
+    ) -> Bytes {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "value",
+            DataType::Int64,
+            false,
+        )]));
+        let props = WriterProperties::builder()
+            .set_dictionary_enabled(dictionary)
+            .set_writer_version(version)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .set_data_page_row_count_limit(rows_per_page)
+            .set_write_batch_size(rows_per_page)
+            .set_max_row_group_row_count(Some(rows_per_page * 8))
+            .build();
+        let mut writer =
+            ArrowWriter::try_new(Cursor::new(Vec::new()), Arc::clone(&schema), Some(props))
+                .unwrap();
+        let values = (0..rows_per_page * 8)
+            .map(encoded_fixture_value)
+            .collect::<Vec<_>>();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Int64Array::from(values)) as ArrayRef])
+                .unwrap();
+        writer.write(&batch).unwrap();
+        Bytes::from(writer.into_inner().unwrap().into_inner())
+    }
+
+    /// The value [`parquet_fixture_encoded`] writes at `row`: repeating, so dictionary encoding
+    /// engages; position-derived, so a read after a skip proves it landed where it aimed.
+    fn encoded_fixture_value(row: usize) -> i64 {
+        (row % 7) as i64 * 3
     }
 
     fn open_named_column(bytes: Bytes, column: &str) -> Result<DocValuesCursor, DataFusionError> {
@@ -969,6 +1014,134 @@ mod tests {
             2,
             "Arrow should fetch only the first and target data pages"
         );
+    }
+
+    /// The values [`parquet_fixture_encoded`] holds at `target..target + len`.
+    fn encoded_expected(target: usize, len: usize) -> Vec<i64> {
+        (target..target + len).map(encoded_fixture_value).collect()
+    }
+
+    /// Read at 0, skip within a page, jump across pages, then land on an exact page boundary,
+    /// the four access shapes the adaptive planner distinguishes, and assert the decoded values
+    /// each time. Shared by the dictionary/writer-version matrix below.
+    fn assert_skip_shapes_decode(bytes: Bytes) {
+        let (mut cursor, _runtime) = open_parquet_fixture(bytes, 8);
+
+        let first = cursor.next_batch(0).unwrap();
+        assert_eq!(int64_values(&first), encoded_expected(0, first.num_rows()));
+
+        // Small forward skip inside page 0: the planner treats this as dense access.
+        let within = (ROWS_PER_PAGE / 2) as i64;
+        let batch = cursor.next_batch(within).unwrap();
+        assert_eq!(
+            int64_values(&batch),
+            encoded_expected(within as usize, batch.num_rows())
+        );
+
+        // Jump past several pages: whole pages are skipped without decoding, and for a
+        // dictionary-encoded chunk the dictionary must still resolve on the landing page.
+        let across = (ROWS_PER_PAGE * 5 + 7) as i64;
+        let batch = cursor.next_batch(across).unwrap();
+        assert_eq!(
+            int64_values(&batch),
+            encoded_expected(across as usize, batch.num_rows())
+        );
+
+        // Land on an exact page boundary: the first row of the landing page, where an
+        // off-by-one in page-granular skips would surface.
+        let boundary = (ROWS_PER_PAGE * 7) as i64;
+        let batch = cursor.next_batch(boundary).unwrap();
+        assert_eq!(
+            int64_values(&batch),
+            encoded_expected(boundary as usize, batch.num_rows())
+        );
+    }
+
+    #[test]
+    fn dictionary_encoded_pages_decode_across_all_skip_shapes_with_writer_v1() {
+        assert_skip_shapes_decode(parquet_fixture_encoded(
+            true,
+            WriterVersion::PARQUET_1_0,
+            ROWS_PER_PAGE,
+        ));
+    }
+
+    #[test]
+    fn dictionary_encoded_pages_decode_across_all_skip_shapes_with_writer_v2() {
+        assert_skip_shapes_decode(parquet_fixture_encoded(
+            true,
+            WriterVersion::PARQUET_2_0,
+            ROWS_PER_PAGE,
+        ));
+    }
+
+    /// Plain-encoded v1 is what every other test in this module writes; this covers the remaining
+    /// cell of the matrix, the v2 data-page format without a dictionary.
+    #[test]
+    fn plain_encoded_pages_decode_across_all_skip_shapes_with_writer_v2() {
+        assert_skip_shapes_decode(parquet_fixture_encoded(
+            false,
+            WriterVersion::PARQUET_2_0,
+            ROWS_PER_PAGE,
+        ));
+    }
+
+    /// Writes a dictionary-encoded v2 file of the given primitive type, jumps across pages, and
+    /// asserts the landing batch decodes to the written values. Exercises the non-Int64 widths of
+    /// the v1 type scope (INT32/FLOAT/DOUBLE), which no other test writes dictionary-encoded.
+    fn assert_dictionary_jump_decodes<P>(data_type: DataType, value_at: fn(usize) -> P::Native)
+    where
+        P: arrow::datatypes::ArrowPrimitiveType,
+        P::Native: PartialEq + std::fmt::Debug,
+    {
+        use arrow::array::{AsArray, PrimitiveArray};
+
+        let schema = Arc::new(Schema::new(vec![Field::new("value", data_type, false)]));
+        let props = WriterProperties::builder()
+            .set_dictionary_enabled(true)
+            .set_writer_version(WriterVersion::PARQUET_2_0)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .set_data_page_row_count_limit(ROWS_PER_PAGE)
+            .set_write_batch_size(ROWS_PER_PAGE)
+            .set_max_row_group_row_count(Some(ROWS_PER_PAGE * 8))
+            .build();
+        let mut writer =
+            ArrowWriter::try_new(Cursor::new(Vec::new()), Arc::clone(&schema), Some(props))
+                .unwrap();
+        let array = PrimitiveArray::<P>::from_iter_values((0..ROWS_PER_PAGE * 8).map(value_at));
+        let batch =
+            RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(array) as ArrayRef]).unwrap();
+        writer.write(&batch).unwrap();
+        let bytes = Bytes::from(writer.into_inner().unwrap().into_inner());
+
+        let (mut cursor, _runtime) = open_parquet_fixture(bytes, 8);
+        let target = (ROWS_PER_PAGE * 5) as i64;
+        let batch = cursor.next_batch(target).unwrap();
+        let column = batch.column(0).as_primitive::<P>();
+        for row in 0..batch.num_rows() {
+            assert_eq!(column.value(row), value_at(target as usize + row));
+        }
+    }
+
+    #[test]
+    fn dictionary_encoded_int32_decodes_after_cross_page_jump() {
+        assert_dictionary_jump_decodes::<arrow::datatypes::Int32Type>(DataType::Int32, |row| {
+            (row % 7) as i32 * 3
+        });
+    }
+
+    #[test]
+    fn dictionary_encoded_float32_decodes_after_cross_page_jump() {
+        assert_dictionary_jump_decodes::<arrow::datatypes::Float32Type>(DataType::Float32, |row| {
+            (row % 7) as f32 * 0.5
+        });
+    }
+
+    #[test]
+    fn dictionary_encoded_float64_decodes_after_cross_page_jump() {
+        assert_dictionary_jump_decodes::<arrow::datatypes::Float64Type>(DataType::Float64, |row| {
+            (row % 7) as f64 * 0.5
+        });
     }
 
     #[test]
@@ -1320,8 +1493,11 @@ mod ffm_tests {
     use opensearch_tiered_storage::tiered_object_store::TieredObjectStore;
     use opensearch_tiered_storage::types::{FileLocation, TieredFileEntry};
     use tempfile::NamedTempFile;
+    use tokio::runtime::Builder;
 
-    use super::tests::{parquet_fixture_with_page_rows, register_test_metadata_cache};
+    use super::tests::{
+        parquet_fixture_with_page_rows, register_test_metadata_cache, register_test_runtime_manager,
+    };
     use super::*;
 
     const ROWS_PER_PAGE: usize = 64;
@@ -1348,11 +1524,12 @@ mod ffm_tests {
     }
 
     fn open_iter(path: &str, initial: i64) -> i64 {
-        open_iter_with_max(path, initial, TEST_MAX_BATCH_SIZE as i64)
+        open_iter_with_max(path, initial, super::tests::TEST_MAX_BATCH_SIZE as i64)
     }
 
     fn open_iter_with_max(path: &str, initial: i64, max: i64) -> i64 {
         register_test_metadata_cache();
+        register_test_runtime_manager();
         let column = "value";
         unsafe {
             parquet_df_open_iter(
@@ -1673,6 +1850,7 @@ mod ffm_tests {
     #[test]
     fn a_supplied_store_is_read_through_for_a_file_that_is_on_no_local_disk() {
         register_test_metadata_cache();
+        register_test_runtime_manager();
         let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
         let bytes = parquet_fixture_with_page_rows(1, ROWS_PER_PAGE);
         let size = bytes.len() as u64;
@@ -1711,7 +1889,7 @@ mod ffm_tests {
                 column.as_ptr(),
                 column.len() as i64,
                 8,
-                TEST_MAX_BATCH_SIZE as i64,
+                super::tests::TEST_MAX_BATCH_SIZE as i64,
                 store_ptr,
             )
         };
@@ -1746,6 +1924,7 @@ mod ffm_tests {
     #[test]
     fn a_missing_column_is_reported_without_leaving_a_handle_behind() {
         register_test_metadata_cache();
+        register_test_runtime_manager();
         let file = fixture_file();
         let path = file.path().to_str().unwrap();
         let column = "absent";
@@ -1756,7 +1935,7 @@ mod ffm_tests {
                 column.as_ptr(),
                 column.len() as i64,
                 8,
-                TEST_MAX_BATCH_SIZE as i64,
+                super::tests::TEST_MAX_BATCH_SIZE as i64,
                 LOCAL_STORE,
             )
         };

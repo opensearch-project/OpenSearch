@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.codec.bridge;
+package org.opensearch.be.datafusion.docvalues.bridge;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;

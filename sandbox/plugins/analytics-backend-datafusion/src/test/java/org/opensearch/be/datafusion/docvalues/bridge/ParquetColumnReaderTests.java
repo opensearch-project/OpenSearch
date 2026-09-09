@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.codec.bridge;
+package org.opensearch.be.datafusion.docvalues.bridge;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
@@ -16,8 +16,15 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt2Vector;
+import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -25,6 +32,8 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.be.datafusion.DatafusionSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetSortConfig;
@@ -203,6 +212,49 @@ public class ParquetColumnReaderTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Registering a setting as {@code IndexScope} only makes it *settable* per index; this proves
+     * the value is *honoured* per reader: two readers over the same file, opened with different
+     * index settings (as two indices would open them), get different decode windows.
+     */
+    public void testIndexScopedBatchSizeSettingsAreHonouredPerReader() throws Exception {
+        int rowCount = 500;
+        Path file = createTempDir().resolve("scoped.parquet");
+        writeLongColumn(file, rowCount, false, -1);
+
+        Settings small = Settings.builder()
+            .put(DatafusionSettings.DOCVALUES_INITIAL_BATCH_SIZE.getKey(), 4)
+            .put(DatafusionSettings.DOCVALUES_MAX_BATCH_SIZE.getKey(), 8)
+            .build();
+
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN, small)) {
+            reader.loadBatchContaining(0);
+            DecodedBatch batch = reader.decodedBatch();
+            assertTrue(batch.contains(0));
+            assertTrue(batch.contains(3));
+            assertFalse("initial window of 4 must not include row 4", batch.contains(4));
+
+            // Dense walk: the adaptive window may grow, but never past max_batch_size = 8.
+            for (long row = 0; row < rowCount; row++) {
+                DecodedBatch current = reader.decodedBatch();
+                if (current == null || current.contains(row) == false) {
+                    reader.loadBatchContaining(row);
+                    current = reader.decodedBatch();
+                }
+                assertTrue("row " + row + " should be in the batch", current.contains(row));
+                assertFalse("window must stay capped at max_batch_size=8 rows", current.contains(row + 8));
+            }
+        }
+
+        // The same file under default settings (initial 32): row 4 IS resident after the first
+        // load — the two readers diverge purely on the Settings they were opened with.
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            reader.loadBatchContaining(0);
+            DecodedBatch batch = reader.decodedBatch();
+            assertTrue("default initial window (32) must include row 4", batch.contains(4));
+        }
+    }
+
     private void writeLongColumn(Path file, int rowCount, boolean nullable, int nullEvery) throws Exception {
         FieldType fieldType = nullable
             ? FieldType.nullable(new ArrowType.Int(64, true))
@@ -340,5 +392,129 @@ public class ParquetColumnReaderTests extends OpenSearchTestCase {
             }
         }
         writer.flush();
+    }
+
+    // Sign-extension coverage for KIND_INT: a signed 32-bit column must widen each stored int into
+    // the identically-signed long. If the codec zero-extended it instead (the u32 path), -1 would
+    // surface as 4294967295 and Integer.MIN_VALUE as 2147483648 - this test catches that swap.
+    public void testIntColumnSignExtendsNegatives() throws Exception {
+        long[] values = { -1L, Integer.MIN_VALUE, -987654L, 0L, 42L, Integer.MAX_VALUE };
+        Path file = createTempDir().resolve("int32-signed.parquet");
+        writeIntegralColumn(file, new ArrowType.Int(32, true), values);
+        assertIntegralColumn(file, DecodedBatch.KIND_INT, values);
+    }
+
+    // Zero-extension coverage for KIND_UINT_BITS: an unsigned 32-bit column must widen each stored
+    // u32 into a non-negative long. If the codec sign-extended it instead (the i32 path), any value
+    // above Integer.MAX_VALUE - here 3000000000 and 4294967295 - would surface as a negative long.
+    public void testUnsignedIntColumnZeroExtends() throws Exception {
+        long[] values = { 0L, 42L, 3000000000L, 4294967295L };
+        Path file = createTempDir().resolve("uint32.parquet");
+        writeIntegralColumn(file, new ArrowType.Int(32, false), values);
+        assertIntegralColumn(file, DecodedBatch.KIND_UINT_BITS, values);
+        // Explicitly guard the sign: zero-extension must never produce a negative long.
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                assertTrue("u32 value at row " + row + " must be non-negative", loadRow(reader, row).valueAt(row) >= 0L);
+            }
+        }
+    }
+
+    // Sign-extension coverage for KIND_SHORT and KIND_BYTE: a signed 16- or 8-bit column must widen
+    // each stored value into the identically-signed long. A zero-extension bug would turn -1 into
+    // 65535 (short) / 255 (byte) and the MIN_VALUEs into their positive u16/u8 counterparts.
+    public void testShortAndByteColumnsSignExtend() throws Exception {
+        long[] shortValues = { -1L, Short.MIN_VALUE, -1234L, 0L, 42L, Short.MAX_VALUE };
+        Path shortFile = createTempDir().resolve("int16-signed.parquet");
+        writeIntegralColumn(shortFile, new ArrowType.Int(16, true), shortValues);
+        assertIntegralColumn(shortFile, DecodedBatch.KIND_SHORT, shortValues);
+
+        long[] byteValues = { -1L, Byte.MIN_VALUE, -50L, 0L, 42L, Byte.MAX_VALUE };
+        Path byteFile = createTempDir().resolve("int8-signed.parquet");
+        writeIntegralColumn(byteFile, new ArrowType.Int(8, true), byteValues);
+        assertIntegralColumn(byteFile, DecodedBatch.KIND_BYTE, byteValues);
+    }
+
+    // Zero-extension coverage for KIND_USHORT and KIND_UBYTE: an unsigned 16- or 8-bit column must
+    // widen each stored value into a non-negative long. A sign-extension bug would turn 50000 into
+    // -15536 (u16) and 200 into -56 (u8) once the top bit is set.
+    public void testUnsignedShortAndByteZeroExtend() throws Exception {
+        long[] ushortValues = { 0L, 42L, 50000L, 65535L };
+        Path ushortFile = createTempDir().resolve("uint16.parquet");
+        writeIntegralColumn(ushortFile, new ArrowType.Int(16, false), ushortValues);
+        assertIntegralColumn(ushortFile, DecodedBatch.KIND_USHORT, ushortValues);
+
+        long[] ubyteValues = { 0L, 42L, 200L, 255L };
+        Path ubyteFile = createTempDir().resolve("uint8.parquet");
+        writeIntegralColumn(ubyteFile, new ArrowType.Int(8, false), ubyteValues);
+        assertIntegralColumn(ubyteFile, DecodedBatch.KIND_UBYTE, ubyteValues);
+    }
+
+    /** Reads every row back and asserts both the mapped value kind and the exact widened long. */
+    private void assertIntegralColumn(Path file, int expectedKind, long[] values) throws Exception {
+        try (ParquetColumnReader reader = ParquetColumnReader.open(file, COLUMN)) {
+            for (int row = 0; row < values.length; row++) {
+                DecodedBatch batch = loadRow(reader, row);
+                assertEquals("value kind", expectedKind, batch.valueKind());
+                assertTrue("row " + row + " should be present", batch.isPresent(row));
+                assertEquals("value at row " + row, values[row], batch.valueAt(row));
+            }
+        }
+    }
+
+    /**
+     * Writes a single non-nullable integer column of the caller-chosen Arrow width and signedness,
+     * reusing the same {@link NativeParquetWriter}/{@link ParquetSortConfig} path as
+     * {@link #writeLongColumn}. Each supplied {@code long} is narrowed to the column's width by its
+     * low bits (so callers can express both signed negatives and unsigned values above the signed
+     * maximum via the same {@code long[]}), matching how the reader widens the stored bits back.
+     */
+    private void writeIntegralColumn(Path file, ArrowType.Int arrowType, long[] values) throws Exception {
+        Schema schema = new Schema(List.of(new Field(COLUMN, FieldType.notNullable(arrowType), null)));
+        NativeParquetWriter writer = new NativeParquetWriter(file.toString());
+        try (ArrowExport schemaExport = exportSchema(schema)) {
+            writer.initialize("test-index", schemaExport.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+        }
+        try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            FieldVector vector = root.getVector(COLUMN);
+            vector.setInitialCapacity(values.length);
+            vector.allocateNew();
+            for (int i = 0; i < values.length; i++) {
+                setIntegral(vector, i, values[i]);
+            }
+            vector.setValueCount(values.length);
+            root.setRowCount(values.length);
+
+            ArrowArray array = ArrowArray.allocateNew(allocator);
+            ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
+            Data.exportVectorSchemaRoot(allocator, root, null, array, arrowSchema);
+            try (ArrowExport dataExport = new ArrowExport(array, arrowSchema)) {
+                writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());
+            }
+        }
+        writer.flush();
+    }
+
+    /**
+     * Stores {@code value}'s low bits into the width-specific Arrow vector. Every vector here exposes
+     * {@code setSafe(int, int)}, so the {@code (int)} cast carries the raw bit pattern - the unsigned
+     * vectors reinterpret those bits without sign, which is exactly what the read path must reverse.
+     */
+    private static void setIntegral(FieldVector vector, int index, long value) {
+        if (vector instanceof IntVector v) {
+            v.setSafe(index, (int) value);
+        } else if (vector instanceof UInt4Vector v) {
+            v.setSafe(index, (int) value);
+        } else if (vector instanceof SmallIntVector v) {
+            v.setSafe(index, (int) value);
+        } else if (vector instanceof UInt2Vector v) {
+            v.setSafe(index, (int) value);
+        } else if (vector instanceof TinyIntVector v) {
+            v.setSafe(index, (int) value);
+        } else if (vector instanceof UInt1Vector v) {
+            v.setSafe(index, (int) value);
+        } else {
+            throw new IllegalArgumentException("unsupported integral vector " + vector.getClass().getName());
+        }
     }
 }

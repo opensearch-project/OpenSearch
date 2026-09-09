@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.codec.bridge;
+package org.opensearch.be.datafusion.docvalues.bridge;
 
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
@@ -24,11 +24,11 @@ import java.nio.file.Path;
  * Starts the DataFusion runtime manager and a global runtime for tests that open a real doc-values
  * cursor, since the cursor requires both and deliberately has no private fallback.
  *
- * <p>Calls the two native symbols directly rather than going through the
+ * <p>Calls the three native symbols directly rather than going through the
  * analytics-backend-datafusion plugin's {@code NativeBridge}. That class installs FFM upcall stubs
  * in its static initializer and resolves classes the plugin declares {@code compileOnly} - they are
  * provided at runtime by its {@code extendedPlugins} parent - so loading it from this module's test
- * classpath fails. Both symbols live in the same shared library this bridge already uses.
+ * classpath fails. All three symbols live in the same shared library this bridge already uses.
  */
 final class DataFusionRuntimeFixture {
 

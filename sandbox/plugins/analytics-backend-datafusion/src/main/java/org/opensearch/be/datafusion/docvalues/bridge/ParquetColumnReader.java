@@ -6,12 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.codec.bridge;
+package org.opensearch.be.datafusion.docvalues.bridge;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.be.datafusion.DatafusionSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.parquet.ParquetSettings;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -47,10 +49,14 @@ import java.nio.file.Path;
  * <p>The Parquet page index is also not exposed here. A future DocValues skipper needs it to skip
  * whole pages without decoding, which requires a page-index read in both the native cursor and this
  * bridge.
+ *
+ * <p>This extends {@link NativeHandle}, so the native cursor pointer is tracked in the shared
+ * live-handle registry, and {@link #close()} is idempotent through the base class: closing an
+ * already-closed reader is a no-op and the cursor is freed exactly once.
  */
-public final class ParquetColumnReader implements Closeable, NumericValueReader {
+public final class ParquetColumnReader extends NativeHandle implements NumericValueReader {
 
-    private static final long CLOSED_HANDLE = -1L;
+    private static final Logger LOGGER = LogManager.getLogger(ParquetColumnReader.class);
 
     /**
      * Store pointer meaning "read from the local filesystem", which is every hot shard: its Parquet
@@ -73,11 +79,10 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
      */
     private final int maxBatchSize;
 
-    private long handle;
     private DecodedBatch decodedBatch;
 
     private ParquetColumnReader(long handle, Path file, String column, int maxBatchSize) {
-        this.handle = handle;
+        super(handle);
         this.file = file;
         this.column = column;
         this.maxBatchSize = maxBatchSize;
@@ -104,8 +109,8 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         return open(
             file,
             column,
-            ParquetSettings.docValuesInitialBatchSize(settings),
-            ParquetSettings.docValuesMaxBatchSize(settings),
+            DatafusionSettings.docValuesInitialBatchSize(settings),
+            DatafusionSettings.docValuesMaxBatchSize(settings),
             storePtr
         );
     }
@@ -161,7 +166,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
     /** Replaces the forward-only cursor with a fresh one at row zero. Only reached on a backward request. */
     private void reopen() throws IOException {
         decodedBatch = null;
-        ParquetCodecBridge.resetColumnCursor(handle);
+        ParquetCodecBridge.resetColumnCursor(ptr);
     }
 
     private void loadNumericBatch(long row) throws IOException {
@@ -191,7 +196,7 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
             MemorySegment valueKindOut = out.asSlice(5L * Long.BYTES, Long.BYTES);
 
             long rc = ParquetCodecBridge.nextBatch(
-                handle,
+                ptr,
                 row,
                 firstRowOut,
                 lastRowOut,
@@ -272,20 +277,18 @@ public final class ParquetColumnReader implements Closeable, NumericValueReader 
         }
     }
 
-    private void ensureOpen() {
-        if (handle == CLOSED_HANDLE) {
-            throw new IllegalStateException("ParquetColumnReader is closed");
-        }
-    }
-
     @Override
-    public void close() throws IOException {
-        if (handle == CLOSED_HANDLE) {
-            return;
-        }
-        long current = handle;
-        handle = CLOSED_HANDLE;
+    protected void doClose() {
+        // Drop the resident batch before freeing the cursor: a DecodedBatch holds off-heap views
+        // into buffers the native cursor owns, so it must not stay reachable once those buffers are
+        // freed.
         decodedBatch = null;
-        ParquetCodecBridge.closeColumnCursor(current);
+        try {
+            ParquetCodecBridge.closeColumnCursor(ptr);
+        } catch (IOException e) {
+            // A negative status means Rust panicked tearing the cursor down; #[ffm_safe] caught it at
+            // the boundary. doClose() cannot throw a checked exception, so keep the message here.
+            LOGGER.error("failed to close native column cursor for {}/{}", file, column, e);
+        }
     }
 }
