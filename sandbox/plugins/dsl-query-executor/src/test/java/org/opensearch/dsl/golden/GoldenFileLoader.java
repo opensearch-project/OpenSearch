@@ -85,7 +85,27 @@ public class GoldenFileLoader {
         requireNonNull(testCase.getExpectedRelNodePlan(), "expectedRelNodePlan", filePath);
         requireNonNull(testCase.getMockResultFieldNames(), "mockResultFieldNames", filePath);
         requireNonNull(testCase.getMockResultRows(), "mockResultRows", filePath);
-        requireNonNull(testCase.getExpectedOutputDsl(), "expectedOutputDsl", filePath);
+        // Enforce explicit opt-out: a fixture must either supply expectedOutputDsl for response
+        // assertions OR deliberately set planShapeOnly=true to indicate the multi-plan limitation
+        // prevents response testing. Silent omission (missing both) is rejected to prevent
+        // accidental loss of test coverage.
+        if (testCase.getExpectedOutputDsl() == null && !testCase.isPlanShapeOnly()) {
+            throw new IllegalArgumentException(
+                "Golden file "
+                    + filePath
+                    + " is missing 'expectedOutputDsl' without setting 'planShapeOnly: true'. "
+                    + "Either supply expectedOutputDsl for response assertions, or set "
+                    + "\"planShapeOnly\": true to indicate this fixture intentionally tests plan shape only."
+            );
+        }
+        if (testCase.getExpectedOutputDsl() != null && testCase.isPlanShapeOnly()) {
+            throw new IllegalArgumentException(
+                "Golden file "
+                    + filePath
+                    + " sets 'planShapeOnly: true' but also provides 'expectedOutputDsl'. "
+                    + "This is contradictory — remove expectedOutputDsl or set planShapeOnly to false."
+            );
+        }
         requireNonNull(testCase.getPlanType(), "planType", filePath);
         try {
             QueryPlans.Type.valueOf(testCase.getPlanType());
